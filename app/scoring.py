@@ -27,7 +27,8 @@ def analyze_job(job, profile: dict) -> dict:
     text=_norm(f"{job.title} {job.description}")
     title=_norm(job.title)
     target_roles=[_norm(r) for r in profile["preferences"]["target_roles"]]
-    role_match=any(role in title or title in role for role in target_roles) or ("data" in title and ("engineer" in title or "platform" in title))
+    from app.filters import title_is_target
+    role_match=title_is_target(job.title)
 
     skills=profile["skills"]
     matched=[s for s in skills if _has_skill(s,text)]
