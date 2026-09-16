@@ -133,5 +133,6 @@
     "status": "F-1 OPT",
     "requires_sponsorship_now": false,
     "requires_sponsorship_future": true
-  }
+  },
+  "candidate_experience_years": 5
 }
