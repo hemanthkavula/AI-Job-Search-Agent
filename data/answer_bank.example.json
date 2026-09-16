@@ -1,8 +1,11 @@
 {
-  "NOTE": "Fill these yourself before application automation. Do not guess legal/work-authorization answers.",
-  "work_authorization": null,
-  "requires_sponsorship_now": null,
-  "requires_sponsorship_future": null,
+  "NOTE": "User-approved application answers. Sensitive/legal application questions must remain review-gated before final submission.",
+  "work_authorization": "Authorized to work in the United States under F-1 OPT.",
+  "requires_sponsorship_now": false,
+  "requires_sponsorship_future": true,
+  "sponsorship_explanation": "I am currently authorized to work in the United States under F-1 OPT and do not require sponsorship at this time. I will require H-1B sponsorship in the future to continue working in the United States.",
+  "combined_sponsorship_question_default": "Yes",
+  "combined_sponsorship_question_note": "If an application asks whether you now OR in the future require sponsorship, answer Yes because future H-1B sponsorship is required.",
   "salary_expectation": null,
   "willing_to_relocate": null
 }
