@@ -66,7 +66,13 @@ def unsupported_jd_terms(jd,profile):
     return terms
 def _rank(lines,jd,keys):
     words=set(re.findall(r"[a-z0-9+#.-]+",(jd or "").lower()))
-    return sorted(lines,key=lambda x:len(set(re.findall(r"[a-z0-9+#.-]+",x.lower()))&words)+4*sum(k.lower() in x.lower() for k in keys),reverse=True)
+    def score(x):
+        low=x.lower()
+        overlap=len(set(re.findall(r"[a-z0-9+#.-]+",low))&words)
+        exact=4*sum(k.lower() in low for k in keys)
+        themes=3*sum(t in low and t in (jd or "").lower() for t in ["stream","pipeline","orchestrat","lineage","quality","terraform","snowflake","spark","kafka","cloud","data lake","warehouse"])
+        return overlap+exact+themes
+    return sorted(lines,key=score,reverse=True)
 def _h(doc,t):
     p=doc.add_paragraph();p.paragraph_format.space_before=Pt(5);p.paragraph_format.space_after=Pt(1);r=p.add_run(t);r.bold=True;r.font.size=Pt(10.5)
 def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
