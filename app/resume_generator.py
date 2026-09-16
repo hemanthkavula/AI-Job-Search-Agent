@@ -64,6 +64,21 @@ def unsupported_jd_terms(jd,profile):
     for x in common:
         if re.search(r"(?<![a-z0-9])"+re.escape(x)+r"(?![a-z0-9])",low) and x not in known:terms.append(x)
     return terms
+
+def tailor_supported_bullet(line,jd):
+    """Rewrite supported evidence toward JD themes without inventing tools or facts."""
+    low=(jd or "").lower(); s=line.strip().rstrip(".")
+    suffix=[]
+    if any(x in low for x in ["reliab","observab","monitor"]) and any(x in s.lower() for x in ["quality","validation","pipeline","stream"]):
+        suffix.append("strengthening production reliability and monitoring")
+    if "lineage" in low and any(x in s.lower() for x in ["data lake","dataset","warehouse","quality"]):
+        suffix.append("supporting traceable, governed data flows")
+    if any(x in low for x in ["curated","data product"]) and any(x in s.lower() for x in ["dataset","data lake","warehouse"]):
+        suffix.append("delivering curated analytics-ready data products")
+    if any(x in low for x in ["orchestrat","workflow"]) and any(x in s.lower() for x in ["pipeline","etl","airflow","data factory","glue"]):
+        suffix.append("with production workflow orchestration")
+    return s + (", " + "; ".join(dict.fromkeys(suffix)) if suffix else "") + "."
+
 def _rank(lines,jd,keys):
     words=set(re.findall(r"[a-z0-9+#.-]+",(jd or "").lower()))
     def score(x):
@@ -117,7 +132,7 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
         ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
         for line in ranked:
-            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(line)
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(tailor_supported_bullet(line,job.description))
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
