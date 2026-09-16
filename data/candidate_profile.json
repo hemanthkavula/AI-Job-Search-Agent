@@ -138,12 +138,16 @@
       "US"
     ],
     "strict_location_filter": false,
-    "max_required_years": 7
+    "max_required_years": 8,
+    "min_required_years": 4
   },
   "work_authorization": {
     "status": "F-1 OPT",
     "requires_sponsorship_now": false,
-    "requires_sponsorship_future": true
+    "requires_sponsorship_future": true,
+    "authorized_to_work_us": true,
+    "application_answer_authorized": "Yes",
+    "statement": "I am currently authorized to work in the United States under F-1 OPT and do not require sponsorship at this time. I will require H-1B sponsorship in the future to continue working in the United States."
   },
   "candidate_experience_years": 5,
   "contact": {
@@ -231,6 +235,13 @@
       "DevOps",
       "DataOps",
       "CI/CD Best Practices"
+    ]
+  },
+  "output": {
+    "resume_filename_pattern": "Hemanth_Kavula_{Company}_{JobTitle}",
+    "formats": [
+      "docx",
+      "pdf"
     ]
   }
 }
