@@ -31,9 +31,11 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",8)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    eligible=min_req <= req <= max_req
+    # Accept roles whose stated minimum is at or below the user's 8-year ceiling.
+    # A 3-5 year role is still appropriate for a 5-year candidate; 9+/10+/12+ is not.
+    eligible=req <= max_req
     return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_OUTSIDE_TARGET_WINDOW",
+      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
       "eligible":eligible,"required_years":req,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
