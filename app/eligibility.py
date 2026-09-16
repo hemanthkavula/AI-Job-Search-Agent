@@ -14,8 +14,16 @@ SPONSOR_POSITIVE_PATTERNS=(
 
 def _clean(v): return re.sub(r"\s+"," ",(v or "").lower()).strip()
 
+def experience_range(text: str):
+    text=_clean(text)
+    ranges=[(int(a),int(b)) for a,b in re.findall(r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)",text)]
+    return ranges[0] if ranges else None
+
 def required_years(text: str):
-    text=_clean(text); vals=[]
+    text=_clean(text)
+    rng=experience_range(text)
+    if rng:return rng[0]
+    vals=[]
     patterns=(
       r"(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+)?experience",
       r"(?:minimum|min\.?|at least)\s+(\d{1,2})\s*(?:years?|yrs?)"
@@ -25,7 +33,8 @@ def required_years(text: str):
     return max(vals) if vals else None
 
 def experience_check(job: dict, profile: dict) -> dict:
-    req=required_years(f"{job.get('title','')} {job.get('description','')}")
+    full=f"{job.get('title','')} {job.get('description','')}"
+    rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
     min_req=profile.get("preferences",{}).get("min_required_years",4)
     max_req=profile.get("preferences",{}).get("max_required_years",8)
@@ -36,7 +45,7 @@ def experience_check(job: dict, profile: dict) -> dict:
     eligible=req <= max_req
     return {
       "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
-      "eligible":eligible,"required_years":req,"candidate_years":candidate,"configured_window":[min_req,max_req]
+      "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
