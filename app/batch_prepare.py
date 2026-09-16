@@ -24,7 +24,7 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
         pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
         next_action="HOLD_ATS_REVIEW"
         if audit["passed"]:next_action="READY_TO_APPLY" if item["action"]=="APPLY" else "VERIFY_SPONSORSHIP_BEFORE_SUBMIT"
-        manifest.append({"company":job.company,"title":job.title,"url":job.url,"score":analysis["score"],"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action})
+        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"score":analysis["score"],"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 if __name__=="__main__":
     ap=argparse.ArgumentParser();ap.add_argument("--report",default="generated/daily_jobs.json");ap.add_argument("--output",default="generated/application_manifest.json");a=ap.parse_args();rows=prepare(a.report,a.output)
