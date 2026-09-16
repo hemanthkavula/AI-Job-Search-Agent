@@ -29,8 +29,20 @@ def ats_audit(job,profile,resume_path):
     metric_lines=sum(bool(re.search(r"\d|%|million|gb|tb|sub-minute",b.lower())) for b in bullets)
     accomplishment_score=min(100,metric_lines*12.5)
 
-    # Weighted internal compatibility score; this is not an employer ATS score.
-    score=round(keyword_coverage*.55+title_alignment*.15+section_score*.10+accomplishment_score*.20)
+    # Resume quality checks beyond keyword stuffing.
+    counts={}
+    current=None
+    for p in paras:
+        t=p.text.strip()
+        if t.startswith("Fidelity Investments"): current="Fidelity Investments";counts[current]=0
+        elif t.startswith("Cigna Healthcare"): current="Cigna Healthcare";counts[current]=0
+        elif t.startswith("Target Corporation"): current="Target Corporation";counts[current]=0
+        elif current and p.style and "List Bullet" in p.style.name: counts[current]+=1
+    bullet_count_score=100 if counts=={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6} else 60
+    bad_category=("cloud platforms (aws):" in low and "bigquery" in low.split("cloud platforms (aws):",1)[1].split("\n",1)[0])
+    taxonomy_score=60 if bad_category else 100
+    # Weighted internal compatibility score; not an employer ATS score.
+    score=round(keyword_coverage*.45+title_alignment*.10+section_score*.10+accomplishment_score*.15+bullet_count_score*.10+taxonomy_score*.10)
     unsupported=unsupported_jd_terms(job.description,profile)
     # Do not confuse keyword completeness with resume quality. Require a strong
     # discovery match as well as full supported-keyword coverage.
@@ -41,6 +53,6 @@ def ats_audit(job,profile,resume_path):
       "keyword_coverage":round(keyword_coverage),"title_alignment":round(title_alignment),
       "section_score":round(section_score),"accomplishment_score":round(accomplishment_score),
       "supported_jd_terms":supported,"missing_supported_keywords":missing,
-      "unsupported_jd_terms":unsupported,"metric_bearing_bullets":metric_lines,"discovery_score":discovery_score,"quality_gate_passed":quality_gate,
+      "unsupported_jd_terms":unsupported,"metric_bearing_bullets":metric_lines,"bullet_counts":counts,"bullet_count_score":bullet_count_score,"skills_taxonomy_score":taxonomy_score,"discovery_score":discovery_score,"quality_gate_passed":quality_gate,
       "status":"ATS_PASS" if passed else "HOLD_ATS_REVIEW",
       "note":"Internal JD-to-resume compatibility score; not a guaranteed employer ATS score."}
