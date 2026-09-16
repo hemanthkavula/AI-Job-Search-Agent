@@ -77,24 +77,29 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(job.title or profile.get("headline","Senior Data Engineer"));r.bold=True;r.font.size=Pt(10.5)
     c=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;p.add_run(" | ".join(x for x in [c.get("phone"),c.get("email"),c.get("linkedin")] if x))
     _h(doc,"PROFESSIONAL SUMMARY")
-    focus=", ".join((keys+inferred)[:16]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
-    doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering Batch Processing and Real-Time Data Processing pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, Data Lineage, Data Governance, Data Quality controls, and production performance improvements.")
+    focus=", ".join((keys+inferred)[:7]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
+    doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience building scalable batch and real-time data platforms across financial services, healthcare, and retail. Experienced in {focus}, with a strong background in cloud data lakes, warehouses, streaming pipelines, dimensional modeling, data quality, lineage, and production reliability. Proven ability to deliver analytics-ready data products and optimize distributed data workloads for performance and scale.")
     _h(doc,"TECHNICAL SKILLS")
     jd_skills=jd_skill_terms(job.description)
-    # Merge JD technologies naturally into the regular Technical Skills section.
-    # Do not label them as JD-derived.
-    merged_jd=set(jd_skills)
-    for cat,skills in profile.get("skill_categories",{}).items():
-        extras=[]
-        cat_low=cat.lower()
-        for x in list(merged_jd):
-            xl=x.lower()
-            if ("program" in cat_low and xl in {"python","sql","scala","java","go","rust"}) or ("cloud" in cat_low and any(v in xl for v in ["aws","amazon","azure","gcp","bigquery"])) or ("data" in cat_low and xl not in {"python","sql","scala","java","go","rust"}):
-                extras.append(x);merged_jd.discard(x)
-        ordered=list(dict.fromkeys([x for x in skills if x in keys]+extras+[x for x in skills if x not in keys]))
-        p=doc.add_paragraph();r=p.add_run(cat+": ");r.bold=True;p.add_run(", ".join(ordered))
-    if merged_jd:
-        p=doc.add_paragraph();r=p.add_run("Tools & Technologies: ");r.bold=True;p.add_run(", ".join(sorted(merged_jd)))
+    base=all_verified(profile)
+    skills=list(dict.fromkeys(jd_skills+base))
+    groups={
+      "Programming Languages":["Python","SQL","Scala","Java","Go","Rust"],
+      "Data Engineering & Processing":["PySpark","Apache Spark","Apache Kafka","Apache Flink","Databricks","Batch Processing","Real-Time Data Processing","ETL","ELT"],
+      "Workflow Orchestration":["Dagster","Airflow","Apache Airflow","dbt","Fivetran","Airbyte"],
+      "Cloud & Data Platforms":["Snowflake","BigQuery","GCP","Delta Lake","Apache Iceberg","Hudi"],
+      "AWS Services":["AWS Glue","Amazon S3","Amazon EMR","Amazon Redshift","AWS Lambda","AWS Kinesis"],
+      "Azure Services":["Azure Data Factory","Azure Synapse","Azure Synapse Analytics","ADLS Gen2","Azure Event Hubs","Event Hub"],
+      "Infrastructure & DevOps":["Kubernetes","Docker","Terraform","Jenkins","GitHub Actions","CI/CD","CI/CD Best Practices","Git"],
+      "Data Quality & Governance":["Great Expectations","Data Quality","Data Lineage","Data Governance","AWS Glue Data Catalog","Azure Purview"],
+      "Databases":["PostgreSQL","MySQL","MongoDB","Oracle","SQL Server","DynamoDB"],
+      "Data Modeling":["Dimensional Modeling","Star Schema","Snowflake Schema","Slowly Changing Dimensions"]
+    }
+    used=set()
+    for label,wanted in groups.items():
+        vals=[x for x in wanted if x in skills and x not in used]
+        if vals:
+            used.update(vals);p=doc.add_paragraph();r=p.add_run(label+": ");r.bold=True;p.add_run(", ".join(vals))
     _h(doc,"PROFESSIONAL EXPERIENCE")
     for exp in profile["experience"]:
         p=doc.add_paragraph();r=p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=p.add_run(f"    {exp['dates']}");r.bold=True
