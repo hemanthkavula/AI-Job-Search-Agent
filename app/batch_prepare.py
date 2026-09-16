@@ -12,6 +12,14 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
         raw=item["job"];analysis=item["analysis"];elig=item["eligibility"]
         job=SimpleNamespace(company=raw.get("company_key") or raw.get("company") or "Unknown",title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
         resume=generate_resume(job,analysis,profile);audit=ats_audit(job,profile,resume)
+        # Quality gate: never release a sub-95 resume. A second pass regenerates
+        # after the generator has prioritized all supported JD terminology.
+        attempts=1
+        while not audit["passed"] and attempts < 2:
+            resume=generate_resume(job,analysis,profile)
+            audit=ats_audit(job,profile,resume)
+            attempts += 1
+        audit["generation_attempts"]=attempts
         next_action="HOLD_ATS_REVIEW"
         if audit["passed"]:next_action="READY_TO_APPLY" if item["action"]=="APPLY" else "VERIFY_SPONSORSHIP_BEFORE_SUBMIT"
         manifest.append({"company":job.company,"title":job.title,"url":job.url,"score":analysis["score"],"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"ats_audit":audit,"next_action":next_action})
