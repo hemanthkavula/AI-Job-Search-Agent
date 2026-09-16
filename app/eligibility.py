@@ -27,11 +27,14 @@ def required_years(text: str):
 def experience_check(job: dict, profile: dict) -> dict:
     req=required_years(f"{job.get('title','')} {job.get('description','')}")
     candidate=profile.get("candidate_experience_years",5)
+    min_req=profile.get("preferences",{}).get("min_required_years",4)
+    max_req=profile.get("preferences",{}).get("max_required_years",8)
     if req is None:
-        return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate}
+        return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
+    eligible=min_req <= req <= max_req
     return {
-      "category":"EXPERIENCE_ELIGIBLE" if req<=candidate else "EXPERIENCE_NOT_ELIGIBLE",
-      "eligible":req<=candidate,"required_years":req,"candidate_years":candidate
+      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_OUTSIDE_TARGET_WINDOW",
+      "eligible":eligible,"required_years":req,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
