@@ -1,0 +1,8 @@
+{
+  "NOTE": "Fill these yourself before application automation. Do not guess legal/work-authorization answers.",
+  "work_authorization": null,
+  "requires_sponsorship_now": null,
+  "requires_sponsorship_future": null,
+  "salary_expectation": null,
+  "willing_to_relocate": null
+}
