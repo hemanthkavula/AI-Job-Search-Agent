@@ -1,3 +1,11 @@
+
+# Resume generation contract (aligned to the user's domain-locked reference generator):
+# - preserve Fidelity/Cigna/Target company names, titles, locations and dates exactly
+# - preserve Rowan education dates exactly
+# - strict domain lock: Fidelity=financial services, Cigna=healthcare, Target=retail
+# - JD terminology is prioritized only when supported by candidate_profile evidence
+# - bullet targets: Fidelity 8, Cigna 7, Target 6
+# - linear ATS layout: no tables, columns, text boxes or graphics
 from __future__ import annotations
 from pathlib import Path
 import re
@@ -61,7 +69,9 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=p.add_run(f"    {exp['dates']}");r.bold=True
         p=doc.add_paragraph();r=p.add_run(exp["title"]);r.bold=True
         p=doc.add_paragraph();r=p.add_run("Environment: ");r.bold=True;p.add_run(exp.get("environment",""))
-        for line in _rank(exp["evidence"],job.description,keys):
+        limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+        ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
+        for line in ranked:
             p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(line)
     _h(doc,"EDUCATION")
     for e in profile["education"]:
