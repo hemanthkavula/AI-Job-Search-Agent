@@ -10,8 +10,52 @@
       "end": "Dec 2025"
     }
   ],
-  "skills": ["Python","SQL","Scala","PySpark","Apache Spark","Kafka","Databricks","Delta Lake","AWS Glue","Amazon EMR","Amazon S3","Amazon Redshift","Lambda","Kinesis","Azure Data Factory","Azure Synapse Analytics","ADLS Gen2","Event Hub","Snowflake","Airflow","dbt","Terraform","Docker","Jenkins","Great Expectations","Azure Purview","Power BI","Tableau","PostgreSQL","MySQL"],
-  "priority_skills": ["Python","SQL","PySpark","Apache Spark","AWS Glue","Amazon S3","Amazon Redshift","Databricks","Kafka","Snowflake","Azure Data Factory","Terraform"],
+  "skills": [
+    "Python",
+    "SQL",
+    "Scala",
+    "PySpark",
+    "Apache Spark",
+    "Kafka",
+    "Databricks",
+    "Delta Lake",
+    "AWS Glue",
+    "Amazon EMR",
+    "Amazon S3",
+    "Amazon Redshift",
+    "Lambda",
+    "Kinesis",
+    "Azure Data Factory",
+    "Azure Synapse Analytics",
+    "ADLS Gen2",
+    "Event Hub",
+    "Snowflake",
+    "Airflow",
+    "dbt",
+    "Terraform",
+    "Docker",
+    "Jenkins",
+    "Great Expectations",
+    "Azure Purview",
+    "Power BI",
+    "Tableau",
+    "PostgreSQL",
+    "MySQL"
+  ],
+  "priority_skills": [
+    "Python",
+    "SQL",
+    "PySpark",
+    "Apache Spark",
+    "AWS Glue",
+    "Amazon S3",
+    "Amazon Redshift",
+    "Databricks",
+    "Kafka",
+    "Snowflake",
+    "Azure Data Factory",
+    "Terraform"
+  ],
   "experience": [
     {
       "company": "Fidelity Investments",
@@ -55,8 +99,39 @@
     }
   ],
   "preferences": {
-    "target_roles": ["Data Engineer","Senior Data Engineer","AWS Data Engineer","Azure Data Engineer","Cloud Data Engineer","Data Platform Engineer","Lead Data Engineer"],
-    "employment_types": ["Full-Time","W2"],
-    "preferred_locations": ["Remote","New Jersey","New York","Pennsylvania","NJ","NY","PA"]
+    "target_roles": [
+      "Data Engineer",
+      "Senior Data Engineer",
+      "AWS Data Engineer",
+      "Azure Data Engineer",
+      "Cloud Data Engineer",
+      "Data Platform Engineer",
+      "Lead Data Engineer"
+    ],
+    "employment_types": [
+      "Full-Time",
+      "W2"
+    ],
+    "preferred_locations": [
+      "Remote",
+      "New Jersey",
+      "New York",
+      "Pennsylvania",
+      "NJ",
+      "NY",
+      "PA"
+    ],
+    "allowed_countries": [
+      "United States",
+      "USA",
+      "US"
+    ],
+    "strict_location_filter": false,
+    "max_required_years": 7
+  },
+  "work_authorization": {
+    "status": "F-1 OPT",
+    "requires_sponsorship_now": false,
+    "requires_sponsorship_future": true
   }
 }
