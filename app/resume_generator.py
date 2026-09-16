@@ -1,11 +1,16 @@
 
-# Resume generation contract (aligned to the user's domain-locked reference generator):
-# - preserve Fidelity/Cigna/Target company names, titles, locations and dates exactly
-# - preserve Rowan education dates exactly
-# - strict domain lock: Fidelity=financial services, Cigna=healthcare, Target=retail
-# - JD terminology is prioritized only when supported by candidate_profile evidence
-# - bullet targets: Fidelity 8, Cigna 7, Target 6
-# - linear ATS layout: no tables, columns, text boxes or graphics
+# USER RESUME PROMPT CONTRACT (2026-09-16)
+# Generate a fresh resume per JD with strict domain lock:
+# Fidelity = financial services; Cigna = healthcare; Target = retail.
+# Preserve identity, company names, titles, locations, dates, education and certifications.
+# Exact bullet counts: Fidelity 8, Cigna 7, Target 6.
+# Fidelity gets strongest/newest JD technology coverage; Cigna moderate; Target foundational.
+# Summary must be concise and naturally include top JD terms.
+# Technical Skills should use standard ATS categories and blend relevant JD terminology naturally.
+# No label such as "JD-aligned technologies".
+# Metrics: Fidelity max 1-2, Cigna max 1-2, Target zero; never invent metrics.
+# Linear ATS layout only: no tables, columns, graphics or text boxes.
+# Use exact JD terminology where appropriate and run the ATS audit after generation.
 from __future__ import annotations
 from pathlib import Path
 import re
