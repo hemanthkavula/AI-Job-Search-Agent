@@ -1,20 +1,29 @@
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from app.models import JobInput, JobAnalysis
 from app.config import load_profile
 from app.scoring import analyze_job
 from app.tailoring import build_tailoring_plan
 from app.db import init_db, save_job
+from app.application_queue import init_queue
+from app.orchestrator import process_job
+from app.dashboard import dashboard_html
 
-app = FastAPI(title="AI Job Search Agent", version="0.1.0")
+app = FastAPI(title="AI Job Search Agent", version="0.3.0")
 profile = load_profile()
 
 @app.on_event("startup")
 def startup():
     init_db()
+    init_queue()
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return dashboard_html()
 
 @app.get("/profile")
 def get_profile():
@@ -32,3 +41,7 @@ def analyze(job: JobInput):
 def tailoring_plan(job: JobInput):
     analysis = analyze_job(job, profile)
     return {"analysis": analysis, "tailoring_plan": build_tailoring_plan(job, analysis, profile)}
+
+@app.post("/jobs/process")
+def process(job: JobInput):
+    return process_job(job.model_dump(), min_score=70)
