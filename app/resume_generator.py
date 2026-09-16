@@ -76,11 +76,20 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering Batch Processing and Real-Time Data Processing pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, Data Lineage, Data Governance, Data Quality controls, and production performance improvements.")
     _h(doc,"TECHNICAL SKILLS")
     jd_skills=jd_skill_terms(job.description)
-    if jd_skills:
-        p=doc.add_paragraph();r=p.add_run("JD-ALIGNED TECHNOLOGIES: ");r.bold=True;p.add_run(", ".join(jd_skills))
+    # Merge JD technologies naturally into the regular Technical Skills section.
+    # Do not label them as JD-derived.
+    merged_jd=set(jd_skills)
     for cat,skills in profile.get("skill_categories",{}).items():
-        ordered=[x for x in skills if x in keys]+[x for x in skills if x not in keys]
+        extras=[]
+        cat_low=cat.lower()
+        for x in list(merged_jd):
+            xl=x.lower()
+            if ("program" in cat_low and xl in {"python","sql","scala","java","go","rust"}) or ("cloud" in cat_low and any(v in xl for v in ["aws","amazon","azure","gcp","bigquery"])) or ("data" in cat_low and xl not in {"python","sql","scala","java","go","rust"}):
+                extras.append(x);merged_jd.discard(x)
+        ordered=list(dict.fromkeys([x for x in skills if x in keys]+extras+[x for x in skills if x not in keys]))
         p=doc.add_paragraph();r=p.add_run(cat+": ");r.bold=True;p.add_run(", ".join(ordered))
+    if merged_jd:
+        p=doc.add_paragraph();r=p.add_run("Tools & Technologies: ");r.bold=True;p.add_run(", ".join(sorted(merged_jd)))
     _h(doc,"PROFESSIONAL EXPERIENCE")
     for exp in profile["experience"]:
         p=doc.add_paragraph();r=p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=p.add_run(f"    {exp['dates']}");r.bold=True
