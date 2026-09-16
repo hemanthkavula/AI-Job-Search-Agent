@@ -32,11 +32,15 @@ def ats_audit(job,profile,resume_path):
     # Weighted internal compatibility score; this is not an employer ATS score.
     score=round(keyword_coverage*.55+title_alignment*.15+section_score*.10+accomplishment_score*.20)
     unsupported=unsupported_jd_terms(job.description,profile)
-    passed=score>=ATS_TARGET and keyword_coverage>=95 and not missing
+    # Do not confuse keyword completeness with resume quality. Require a strong
+    # discovery match as well as full supported-keyword coverage.
+    discovery_score=getattr(job,"discovery_score",None)
+    quality_gate=(discovery_score is None or discovery_score>=80)
+    passed=score>=ATS_TARGET and keyword_coverage>=95 and not missing and quality_gate
     return {"passed":passed,"internal_ats_score":score,"target":ATS_TARGET,
       "keyword_coverage":round(keyword_coverage),"title_alignment":round(title_alignment),
       "section_score":round(section_score),"accomplishment_score":round(accomplishment_score),
       "supported_jd_terms":supported,"missing_supported_keywords":missing,
-      "unsupported_jd_terms":unsupported,"metric_bearing_bullets":metric_lines,
+      "unsupported_jd_terms":unsupported,"metric_bearing_bullets":metric_lines,"discovery_score":discovery_score,"quality_gate_passed":quality_gate,
       "status":"ATS_PASS" if passed else "HOLD_ATS_REVIEW",
       "note":"Internal JD-to-resume compatibility score; not a guaranteed employer ATS score."}
