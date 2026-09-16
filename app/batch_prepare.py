@@ -3,7 +3,8 @@ import argparse,json
 from pathlib import Path
 from types import SimpleNamespace
 from app.config import load_profile
-from app.resume_generator import generate_resume
+from app.resume_generator import generate_resume, render_llm_resume
+from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
 from app.pdf_export import convert_docx_to_pdf
 def prepare(report_path,output_path="generated/application_manifest.json"):
@@ -12,7 +13,9 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
         if item.get("action") not in ("APPLY","VERIFY_SPONSORSHIP"):continue
         raw=item["job"];analysis=item["analysis"];elig=item["eligibility"]
         job=SimpleNamespace(company=raw.get("company_key") or raw.get("company") or "Unknown",title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"),discovery_score=analysis.get("score"))
-        resume=generate_resume(job,analysis,profile);audit=ats_audit(job,profile,resume)
+        generated=generate_with_llm(job,profile)
+        resume=render_llm_resume(job,profile,generated) if generated else generate_resume(job,analysis,profile)
+        audit=ats_audit(job,profile,resume)
         # Quality gate: never release a sub-95 resume. Regenerate several times,
         # carrying audit feedback into analysis so the generator can prioritize
         # missing supported terminology and weak coverage on subsequent attempts.
@@ -27,7 +30,8 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
                 "bullet_count_score":audit.get("bullet_count_score"),
                 "skills_taxonomy_score":audit.get("skills_taxonomy_score")
             }
-            resume=generate_resume(job,analysis,profile)
+            generated=generate_with_llm(job,profile,analysis["resume_audit_feedback"])
+            resume=render_llm_resume(job,profile,generated) if generated else generate_resume(job,analysis,profile)
             audit=ats_audit(job,profile,resume)
             attempts += 1
         audit["generation_attempts"]=attempts
