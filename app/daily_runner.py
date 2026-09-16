@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parent.parent
 def load_sources(path):return json.loads(Path(path).read_text(encoding="utf-8"))
 def _action(e,s,m):
     if not e["experience"]["eligible"] or e["sponsorship"]["eligible"] is False or s<m:return "SKIP"
-    return "VERIFY_SPONSORSHIP" if e["sponsorship"]["category"]=="SPONSORSHIP_UNKNOWN" else "APPLY"
+    return "APPLY"  # Unknown sponsorship is eligible unless the posting explicitly says no sponsorship.
 def run(source_config,minimum_score=65,hours=24):
     profile=load_profile();jobs,errors=discover(load_sources(source_config));jobs24,stale,already=fresh_jobs(jobs,hours)
     results=[];skipped=[];below=[]
