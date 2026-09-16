@@ -16,6 +16,20 @@ def jd_keywords(jd,profile):
     for s in all_verified(profile):
         if any(v in low for v in ALIASES.get(s,[s.lower()])):out.append(s)
     return out
+def inferable_terms(jd):
+    """JD concepts that may be stated when already evidenced by the candidate's documented work."""
+    low=(jd or "").lower()
+    mapping={
+      "ETL/ELT":["etl","elt"],"Batch Processing":["batch processing","batch pipelines"],
+      "Real-Time Data Processing":["real-time","real time","streaming"],
+      "Data Lakehouse":["lakehouse"],"Data Lineage":["data lineage","lineage"],
+      "Data Governance":["data governance","governance"],"Data Quality":["data quality"],
+      "Performance Tuning":["performance tuning","performance optimization"],
+      "Infrastructure as Code":["infrastructure as code","iac"],"Dimensional Modeling":["dimensional modeling"],
+      "Schema Evolution":["schema evolution"],"Orchestration":["orchestration","workflow orchestration"]
+    }
+    return [label for label,terms in mapping.items() if any(t in low for t in terms)]
+
 def unsupported_jd_terms(jd,profile):
     known=set(x.lower() for x in all_verified(profile));terms=[]
     common=["flink","kubernetes","java","golang","go","rust","gcp","bigquery","dbt","dagster","fivetran","airbyte","iceberg","hudi","teradata"]
@@ -29,14 +43,14 @@ def _rank(lines,jd,keys):
 def _h(doc,t):
     p=doc.add_paragraph();p.paragraph_format.space_before=Pt(5);p.paragraph_format.space_after=Pt(1);r=p.add_run(t);r.bold=True;r.font.size=Pt(10.5)
 def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
-    keys=jd_keywords(job.description,profile);doc=Document();s=doc.sections[0]
+    keys=jd_keywords(job.description,profile); inferred=inferable_terms(job.description); doc=Document();s=doc.sections[0]
     s.top_margin=Inches(.45);s.bottom_margin=Inches(.45);s.left_margin=Inches(.55);s.right_margin=Inches(.55)
     doc.styles["Normal"].font.name="Arial";doc.styles["Normal"].font.size=Pt(9.3)
     p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(profile["name"]);r.bold=True;r.font.size=Pt(15)
     p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(job.title or profile.get("headline","Senior Data Engineer"));r.bold=True;r.font.size=Pt(10.5)
     c=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;p.add_run(" | ".join(x for x in [c.get("phone"),c.get("email"),c.get("linkedin")] if x))
     _h(doc,"PROFESSIONAL SUMMARY")
-    focus=", ".join(keys[:10]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
+    focus=", ".join((keys+inferred)[:12]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
     doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering high-volume ETL/ELT pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, data quality controls, and production performance improvements.")
     _h(doc,"TECHNICAL SKILLS")
     for cat,skills in profile.get("skill_categories",{}).items():
