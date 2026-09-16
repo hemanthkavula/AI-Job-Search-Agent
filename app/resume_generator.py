@@ -186,3 +186,34 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
     path=out/f"{stem}.docx";doc.save(path)
     return str(path)
+
+
+def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
+    """Render validated LLM JSON into the same ATS-friendly DOCX format."""
+    doc=Document();s=doc.sections[0]
+    s.top_margin=Inches(.45);s.bottom_margin=Inches(.45);s.left_margin=Inches(.55);s.right_margin=Inches(.55)
+    doc.styles["Normal"].font.name="Arial";doc.styles["Normal"].font.size=Pt(9.3)
+    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(profile["name"]);r.bold=True;r.font.size=Pt(15)
+    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(job.title or profile.get("headline","Senior Data Engineer"));r.bold=True;r.font.size=Pt(10.5)
+    contact=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;p.add_run(" | ".join(x for x in [contact.get("phone"),contact.get("email"),contact.get("linkedin")] if x))
+    _h(doc,"PROFESSIONAL SUMMARY");doc.add_paragraph(generated.get("summary",""))
+    _h(doc,"TECHNICAL SKILLS")
+    for label,vals in generated.get("skills",{}).items():
+        p=doc.add_paragraph();r=p.add_run(str(label)+": ");r.bold=True;p.add_run(", ".join(vals))
+    _h(doc,"PROFESSIONAL EXPERIENCE")
+    expected={x["company"]:x for x in profile["experience"]}
+    limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+    for item in generated.get("experience",[]):
+        base=expected.get(item.get("company"))
+        if not base: continue
+        p=doc.add_paragraph();r=p.add_run(f"{base['company']} | {base.get('location','')}");r.bold=True;r=p.add_run(f"    {base['dates']}");r.bold=True
+        p=doc.add_paragraph();r=p.add_run(base["title"]);r.bold=True
+        bullets=item.get("bullets",[])[:limits.get(base["company"],7)]
+        for line in bullets:
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(str(line).strip())
+    _h(doc,"EDUCATION")
+    for e in profile["education"]:
+        p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
+    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
+    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
+    path=out/f"{stem}.docx";doc.save(path);return str(path)
