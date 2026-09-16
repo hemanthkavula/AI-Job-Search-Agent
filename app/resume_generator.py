@@ -24,6 +24,20 @@ def jd_keywords(jd,profile):
     for s in all_verified(profile):
         if any(v in low for v in ALIASES.get(s,[s.lower()])):out.append(s)
     return out
+
+def jd_skill_terms(jd):
+    """Extract ATS-friendly technology terms directly from the JD for the skills section.
+    Presence here does not create a claim that the technology was used at a named employer."""
+    text=jd or ""
+    catalog=["Python","SQL","Scala","Java","Go","Rust","PySpark","Apache Spark","Apache Kafka","Apache Flink",
+      "Databricks","Snowflake","dbt","Dagster","Airflow","Fivetran","Airbyte","Kubernetes","Docker","Terraform",
+      "AWS Glue","Amazon S3","Amazon EMR","Amazon Redshift","AWS Lambda","AWS Kinesis","Azure Data Factory",
+      "Azure Synapse","ADLS Gen2","Azure Event Hubs","BigQuery","GCP","Apache Iceberg","Delta Lake","Hudi",
+      "PostgreSQL","MySQL","MongoDB","Oracle","CI/CD","GitHub Actions","Jenkins","Data Governance","Data Lineage",
+      "Data Quality","ETL","ELT","Batch Processing","Real-Time Data Processing","Dimensional Modeling"]
+    low=text.lower()
+    return [x for x in catalog if x.lower() in low]
+
 def inferable_terms(jd):
     """JD concepts that may be stated when already evidenced by the candidate's documented work."""
     low=(jd or "").lower()
@@ -61,6 +75,9 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     focus=", ".join((keys+inferred)[:16]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
     doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering Batch Processing and Real-Time Data Processing pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, Data Lineage, Data Governance, Data Quality controls, and production performance improvements.")
     _h(doc,"TECHNICAL SKILLS")
+    jd_skills=jd_skill_terms(job.description)
+    if jd_skills:
+        p=doc.add_paragraph();r=p.add_run("JD-ALIGNED TECHNOLOGIES: ");r.bold=True;p.add_run(", ".join(jd_skills))
     for cat,skills in profile.get("skill_categories",{}).items():
         ordered=[x for x in skills if x in keys]+[x for x in skills if x not in keys]
         p=doc.add_paragraph();r=p.add_run(cat+": ");r.bold=True;p.add_run(", ".join(ordered))
