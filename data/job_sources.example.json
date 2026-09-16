@@ -1,0 +1,11 @@
+{
+  "greenhouse": [
+    {"company": "example", "board_token": "example"}
+  ],
+  "lever": [
+    {"company": "example", "site": "example"}
+  ],
+  "ashby": [
+    {"company": "example", "board_name": "example"}
+  ]
+}
