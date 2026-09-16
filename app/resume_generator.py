@@ -65,6 +65,50 @@ def unsupported_jd_terms(jd,profile):
         if re.search(r"(?<![a-z0-9])"+re.escape(x)+r"(?![a-z0-9])",low) and x not in known:terms.append(x)
     return terms
 
+
+def _jd_themes(jd):
+    low=(jd or "").lower()
+    theme_map={
+      "streaming":["stream","kafka","kinesis","event hub","flink"],
+      "batch":["batch","etl","elt","spark"],
+      "orchestration":["orchestrat","airflow","dagster","workflow"],
+      "quality":["data quality","validation","great expectations"],
+      "lineage":["lineage","governance","catalog"],
+      "platform":["data platform","data product","curated","warehouse","lake"],
+      "devops":["terraform","kubernetes","ci/cd","devops","infrastructure as code"],
+      "performance":["performance","optimiz","scalab","latency"]
+    }
+    return [k for k,terms in theme_map.items() if any(t in low for t in terms)]
+
+def generate_jd_specific_bullet(line,jd,company,index):
+    """Create fresh JD-oriented wording from documented evidence; never add an unsupported employer/tool claim."""
+    s=line.strip().rstrip(".")
+    low=s.lower(); themes=_jd_themes(jd)
+    prefixes={
+      "Fidelity Investments":["Engineered","Designed","Built","Implemented","Optimized","Developed","Strengthened","Delivered"],
+      "Cigna Healthcare":["Developed","Built","Implemented","Automated","Designed","Improved","Delivered"],
+      "Target Corporation":["Built","Developed","Implemented","Automated","Supported","Delivered"]
+    }
+    verb=prefixes.get(company,["Built"])[index % len(prefixes.get(company,["Built"]))]
+    # Replace a leading generic action verb so the bullet is visibly regenerated.
+    s=re.sub(r"^(built|developed|designed|implemented|created|optimized|automated|enabled|processed|managed|supported|delivered|used)\b",verb,s,flags=re.I)
+    additions=[]
+    if "streaming" in themes and any(x in low for x in ["kafka","kinesis","event hub","stream"]):
+        additions.append("for reliable real-time data processing")
+    if "orchestration" in themes and any(x in low for x in ["airflow","data factory","glue","pipeline","etl"]):
+        additions.append("with production workflow orchestration")
+    if "quality" in themes and any(x in low for x in ["quality","validation","pipeline","dataset"]):
+        additions.append("with embedded data quality controls")
+    if "lineage" in themes and any(x in low for x in ["catalog","lake","warehouse","dataset","governance"]):
+        additions.append("supporting governed and traceable data flows")
+    if "platform" in themes and any(x in low for x in ["lake","warehouse","dataset","snowflake","redshift"]):
+        additions.append("to deliver curated analytics-ready data products")
+    if "performance" in themes and any(x in low for x in ["spark","pyspark","sql","pipeline","runtime","performance"]):
+        additions.append("with focus on scalable production performance")
+    if additions:
+        s=s+", "+", ".join(dict.fromkeys(additions))
+    return s+"."
+
 def tailor_supported_bullet(line,jd):
     """Rewrite supported evidence toward JD themes without inventing tools or facts."""
     low=(jd or "").lower(); s=line.strip().rstrip(".")
@@ -131,8 +175,8 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run("Environment: ");r.bold=True;p.add_run(exp.get("environment",""))
         limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
         ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
-        for line in ranked:
-            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(tailor_supported_bullet(line,job.description))
+        for idx,line in enumerate(ranked):
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(generate_jd_specific_bullet(line,job.description,exp["company"],idx))
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
