@@ -66,5 +66,7 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
-    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);path=out/f"{safe_name(job.company)}_{safe_name(job.title)}_Hemanth_Kavula.docx";doc.save(path)
+    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
+    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
+    path=out/f"{stem}.docx";doc.save(path)
     return str(path)
