@@ -82,10 +82,13 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     _h(doc,"TECHNICAL SKILLS")
     jd_skills=jd_skill_terms(job.description)
     base=all_verified(profile)
-    skills=list(dict.fromkeys(jd_skills+base))
+    # Include both literal JD technologies and supported/inferable ATS concepts.
+    # This ensures exact phrases such as Batch Processing, Real-Time Data Processing
+    # and Data Lineage are present naturally in Technical Skills when relevant.
+    skills=list(dict.fromkeys(jd_skills+keys+inferred+base))
     groups={
       "Programming Languages":["Python","SQL","Scala","Java","Go","Rust"],
-      "Data Engineering & Processing":["PySpark","Apache Spark","Apache Kafka","Apache Flink","Databricks","Batch Processing","Real-Time Data Processing","ETL","ELT"],
+      "Data Engineering & Processing":["PySpark","Apache Spark","Apache Kafka","Apache Flink","Databricks","Batch Processing","Real-Time Data Processing","ETL","ELT","ETL/ELT"],
       "Workflow Orchestration":["Dagster","Airflow","Apache Airflow","dbt","Fivetran","Airbyte"],
       "Cloud & Data Platforms":["Snowflake","BigQuery","GCP","Delta Lake","Apache Iceberg","Hudi"],
       "AWS Services":["AWS Glue","Amazon S3","Amazon EMR","Amazon Redshift","AWS Lambda","AWS Kinesis"],
