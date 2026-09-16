@@ -150,7 +150,9 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     # Include both literal JD technologies and supported/inferable ATS concepts.
     # This ensures exact phrases such as Batch Processing, Real-Time Data Processing
     # and Data Lineage are present naturally in Technical Skills when relevant.
-    skills=list(dict.fromkeys(jd_skills+keys+inferred+base))
+    verified=set(base)
+    safe_jd=[x for x in jd_skills if x in verified]
+    skills=list(dict.fromkeys(safe_jd+keys+inferred+base))
     groups={
       "Programming Languages":["Python","SQL","Scala","Java","Go","Rust"],
       "Data Engineering & Processing":["PySpark","Apache Spark","Apache Kafka","Apache Flink","Databricks","Batch Processing","Real-Time Data Processing","ETL","ELT","ETL/ELT"],
@@ -175,8 +177,8 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run("Environment: ");r.bold=True;p.add_run(exp.get("environment",""))
         limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
         ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
-        for idx,line in enumerate(ranked):
-            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(generate_jd_specific_bullet(line,job.description,exp["company"],idx))
+        for line in ranked:
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(line.strip())
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
