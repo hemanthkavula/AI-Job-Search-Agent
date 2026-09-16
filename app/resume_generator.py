@@ -58,8 +58,8 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(job.title or profile.get("headline","Senior Data Engineer"));r.bold=True;r.font.size=Pt(10.5)
     c=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;p.add_run(" | ".join(x for x in [c.get("phone"),c.get("email"),c.get("linkedin")] if x))
     _h(doc,"PROFESSIONAL SUMMARY")
-    focus=", ".join((keys+inferred)[:12]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
-    doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering high-volume ETL/ELT pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, data quality controls, and production performance improvements.")
+    focus=", ".join((keys+inferred)[:16]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
+    doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience designing and optimizing scalable batch and real-time data platforms across financial services, healthcare, and retail. Hands-on expertise aligned to this role includes {focus}. Proven experience delivering Batch Processing and Real-Time Data Processing pipelines, cloud data lakes and warehouses, streaming systems, dimensional models, Data Lineage, Data Governance, Data Quality controls, and production performance improvements.")
     _h(doc,"TECHNICAL SKILLS")
     for cat,skills in profile.get("skill_categories",{}).items():
         ordered=[x for x in skills if x in keys]+[x for x in skills if x not in keys]
