@@ -11,7 +11,7 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
     for item in report.get("results",[]):
         if item.get("action") not in ("APPLY","VERIFY_SPONSORSHIP"):continue
         raw=item["job"];analysis=item["analysis"];elig=item["eligibility"]
-        job=SimpleNamespace(company=raw.get("company_key") or raw.get("company") or "Unknown",title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
+        job=SimpleNamespace(company=raw.get("company_key") or raw.get("company") or "Unknown",title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"),discovery_score=analysis.get("score"))
         resume=generate_resume(job,analysis,profile);audit=ats_audit(job,profile,resume)
         # Quality gate: never release a sub-95 resume. A second pass regenerates
         # after the generator has prioritized all supported JD terminology.
