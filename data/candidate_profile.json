@@ -1,0 +1,62 @@
+{
+  "name": "Hemanth Kavula",
+  "headline": "Senior Data Engineer",
+  "education": [
+    {
+      "degree": "Master of Science in Computer Science",
+      "school": "Rowan University",
+      "location": "Glassboro, NJ",
+      "start": "Jan 2024",
+      "end": "Dec 2025"
+    }
+  ],
+  "skills": ["Python","SQL","Scala","PySpark","Apache Spark","Kafka","Databricks","Delta Lake","AWS Glue","Amazon EMR","Amazon S3","Amazon Redshift","Lambda","Kinesis","Azure Data Factory","Azure Synapse Analytics","ADLS Gen2","Event Hub","Snowflake","Airflow","dbt","Terraform","Docker","Jenkins","Great Expectations","Azure Purview","Power BI","Tableau","PostgreSQL","MySQL"],
+  "priority_skills": ["Python","SQL","PySpark","Apache Spark","AWS Glue","Amazon S3","Amazon Redshift","Databricks","Kafka","Snowflake","Azure Data Factory","Terraform"],
+  "experience": [
+    {
+      "company": "Fidelity Investments",
+      "title": "Senior Data Engineer",
+      "dates": "Jan 2025 – Present",
+      "evidence": [
+        "AWS Glue and EMR PySpark pipelines processing approximately 2.5–3M daily trading events and 400–500GB market data",
+        "Kafka and Kinesis streaming with sub-minute latency",
+        "Snowflake Star Schema and SCD Type 2 models",
+        "S3 Delta medallion data lake",
+        "Great Expectations with 70+ validation rules",
+        "Spark optimization reduced runtime by approximately 30%",
+        "Terraform and Jenkins deployment automation"
+      ]
+    },
+    {
+      "company": "Cigna Healthcare",
+      "title": "Data Engineer",
+      "dates": "Jan 2022 – Dec 2023",
+      "evidence": [
+        "Azure Data Factory pipelines for claims eligibility and provider data for approximately 2–3M members",
+        "PySpark ETL on Databricks",
+        "ADLS Gen2 medallion data lake",
+        "Snowflake warehouse solutions",
+        "Event Hub and Structured Streaming",
+        "Azure Purview governance and HIPAA metadata lineage"
+      ]
+    },
+    {
+      "company": "Target Corporation",
+      "title": "Data Engineer",
+      "dates": "Jan 2020 – Dec 2021",
+      "evidence": [
+        "AWS Glue ETL processing approximately 120–180GB per day",
+        "PySpark retail pipelines",
+        "Amazon Redshift Star Schema models",
+        "Kafka near-real-time POS ingestion",
+        "Python and SQL data validation",
+        "PostgreSQL and MySQL query optimization"
+      ]
+    }
+  ],
+  "preferences": {
+    "target_roles": ["Data Engineer","Senior Data Engineer","AWS Data Engineer","Azure Data Engineer","Cloud Data Engineer","Data Platform Engineer","Lead Data Engineer"],
+    "employment_types": ["Full-Time","W2"],
+    "preferred_locations": ["Remote","New Jersey","New York","Pennsylvania","NJ","NY","PA"]
+  }
+}
