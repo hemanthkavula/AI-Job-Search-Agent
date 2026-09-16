@@ -1,0 +1,35 @@
+name: Daily Job Discovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 10:00 UTC is 6:00 AM EDT / 5:00 AM EST.
+    - cron: "0 10 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Configure sources
+        run: |
+          if [ -f data/job_sources.json ]; then
+            echo "Using committed job source config"
+          else
+            cp data/job_sources.example.json data/job_sources.json
+          fi
+      - name: Discover and score jobs
+        run: python -m app.daily_runner --sources data/job_sources.json --min-score 70
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-job-results
+          path: generated/daily_jobs.json
