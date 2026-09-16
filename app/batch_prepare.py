@@ -13,10 +13,20 @@ def prepare(report_path,output_path="generated/application_manifest.json"):
         raw=item["job"];analysis=item["analysis"];elig=item["eligibility"]
         job=SimpleNamespace(company=raw.get("company_key") or raw.get("company") or "Unknown",title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"),discovery_score=analysis.get("score"))
         resume=generate_resume(job,analysis,profile);audit=ats_audit(job,profile,resume)
-        # Quality gate: never release a sub-95 resume. A second pass regenerates
-        # after the generator has prioritized all supported JD terminology.
+        # Quality gate: never release a sub-95 resume. Regenerate several times,
+        # carrying audit feedback into analysis so the generator can prioritize
+        # missing supported terminology and weak coverage on subsequent attempts.
         attempts=1
-        while not audit["passed"] and attempts < 2:
+        max_attempts=5
+        while not audit["passed"] and attempts < max_attempts:
+            analysis=dict(analysis)
+            analysis["resume_audit_feedback"]={
+                "missing_supported_keywords":audit.get("missing_supported_keywords",[]),
+                "keyword_coverage":audit.get("keyword_coverage"),
+                "internal_ats_score":audit.get("internal_ats_score"),
+                "bullet_count_score":audit.get("bullet_count_score"),
+                "skills_taxonomy_score":audit.get("skills_taxonomy_score")
+            }
             resume=generate_resume(job,analysis,profile)
             audit=ats_audit(job,profile,resume)
             attempts += 1
