@@ -51,7 +51,8 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
     prompt={
       "task":"Produce one submission-ready, human-readable, strongly ATS-aligned resume for this complete JD. Use the smallest credible technology set that covers the JD.",
       "job":{"company":job.company,"title":job.title,"description":job.description},
-      "candidate_evidence":profile,\n      "pre_generation_coverage_plan":coverage_plan or {},
+      "candidate_evidence":profile,
+      "pre_generation_coverage_plan":coverage_plan or {},
       "confirmed_extended_technology_inventory":CONFIRMED_EXTENDED_TECHNOLOGIES,
       "extended_technologies_explicitly_requested_by_jd":jd_extended,
       "extended_technology_policy":{
