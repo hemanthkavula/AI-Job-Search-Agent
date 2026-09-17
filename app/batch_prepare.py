@@ -35,13 +35,22 @@ def _audit_feedback(audit):
         "retry_instruction":"Correct every failed audit gate while preserving truthful candidate evidence. Keep strong content from the previous version; do not rewrite merely for variety. Remove unsupported claims and unapproved metrics, add missing supported JD terminology/evidence naturally, fix structure/repetition/readability issues, and return a submission-ready final resume."
     }
 
-def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None):
-    """Generate the strongest V1 possible; retry only when the quality audit fails."""
-    report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[]
+def _matches(raw,company=None,title=None,external_id=None):
+    if external_id and raw.get("external_id") != external_id:return False
+    if company and company.lower() not in (raw.get("company_key") or raw.get("company") or "").lower():return False
+    if title and title.lower() not in (raw.get("title") or "").lower():return False
+    return True
+
+def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None,debug_title=None,external_id=None,limit=None):
+    """Generate strongest V1; retry only when audit fails. Supports safe exact/single-job testing."""
+    report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[];matched=0
     for item in report.get("results",[]):
         if item.get("action") != "ELIGIBLE_FOR_RESUME":continue
-        raw=item["job"];elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
-        if debug_company and debug_company.lower() not in company.lower():continue
+        raw=item["job"]
+        if not _matches(raw,debug_company,debug_title,external_id):continue
+        if limit is not None and matched>=limit:break
+        matched+=1
+        elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
         job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
         print(f"START {job.company} | {job.title} | eligibility-approved",flush=True)
         try:
@@ -66,8 +75,8 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         except Exception as exc:
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
-        if debug_company:break
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--report",default="generated/eligible_jobs.json");ap.add_argument("--output",default="generated/application_manifest.json");ap.add_argument("--debug-company");a=ap.parse_args();rows=prepare(a.report,a.output,a.debug_company);counts={x:sum(r["next_action"]==x for r in rows) for x in ("READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR")};print(json.dumps({"prepared":len(rows),**counts},indent=2));print(f"Saved manifest to {a.output}")
+    ap=argparse.ArgumentParser();ap.add_argument("--report",default="generated/eligible_jobs.json");ap.add_argument("--output",default="generated/application_manifest.json");ap.add_argument("--debug-company");ap.add_argument("--debug-title");ap.add_argument("--external-id");ap.add_argument("--limit",type=int);a=ap.parse_args()
+    rows=prepare(a.report,a.output,a.debug_company,a.debug_title,a.external_id,a.limit);counts={x:sum(r["next_action"]==x for r in rows) for x in ("READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR")};print(json.dumps({"prepared":len(rows),**counts},indent=2));print(f"Saved manifest to {a.output}")
