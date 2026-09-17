@@ -5,7 +5,22 @@ from datetime import datetime, timezone
 from app.sources.mcp_jobs import call_tool, rows_from_payload
 
 ENDPOINT = "https://mcp.dice.com/mcp"
-SEARCH_TERMS = ("Data Engineer", "Senior Data Engineer", "Lead Data Engineer", "Data Platform Engineer", "Cloud Data Engineer")
+SEARCH_TERMS = (
+    "Data Engineer",
+    "Senior Data Engineer",
+    "Lead Data Engineer",
+    "Staff Data Engineer",
+    "Principal Data Engineer",
+    "AWS Data Engineer",
+    "Azure Data Engineer",
+    "Cloud Data Engineer",
+    "Big Data Engineer",
+    "Data Platform Engineer",
+    "Data Infrastructure Engineer",
+    "Data Pipeline Engineer",
+    "ETL Data Engineer",
+    "Analytics Data Engineer",
+)
 
 
 def _iso(value):
@@ -36,17 +51,12 @@ def _normalize(row: dict) -> dict:
         "description": row.get("description") or row.get("summary") or row.get("jobDescription") or "",
         "updated_at": _iso(row.get("postedDate") or row.get("posted_at") or row.get("datePosted")),
         "posted_on": row.get("postedDate") or row.get("datePosted"),
-        "sponsorship_signal": row.get("willingToSponsor") or row.get("willing_to_sponsor"),
+        "sponsorship_signal": row.get("willingToSponsor") if "willingToSponsor" in row else row.get("willing_to_sponsor"),
     }
 
 
 def fetch_jobs(jobs_per_page: int = 100) -> list[dict]:
-    """Search Dice's official MCP for US full-time DE-family jobs posted in one day.
-
-    We intentionally do not set willing_to_sponsor: unknown sponsorship must remain
-    eligible under the candidate policy; explicit no-sponsorship language is handled
-    later by the normal eligibility engine.
-    """
+    """Search Dice's official MCP for US full-time DE-family jobs posted in one day."""
     dedup = {}
     for keyword in SEARCH_TERMS:
         args = {
