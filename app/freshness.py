@@ -23,26 +23,30 @@ def save_seen(seen):
     STATE.parent.mkdir(parents=True,exist_ok=True);STATE.write_text(json.dumps(seen,indent=2),encoding="utf-8")
 
 def fresh_jobs(jobs,hours=24):
-    """Return jobs eligible for processing in this run.
-    Seeing a job no longer makes it permanently processed. Only terminal
-    statuses (SUBMITTED/PERMANENT_SKIP) suppress it on later hourly runs."""
+    """Return only jobs with trustworthy posting timestamps inside the requested window.
+
+    Strict mode intentionally does NOT treat first-seen time as proof that a job was
+    posted recently. Jobs without a parseable ATS/job-board posting timestamp are
+    excluded from automatic processing because the user requires postings from the
+    last 24 hours only.
+    """
     now=datetime.now(timezone.utc);cutoff=now-timedelta(hours=hours)
     seen=load_seen();status=load_status();fresh=[];stale=[];already=[]
     terminal={"SUBMITTED","PERMANENT_SKIP"}
     for job in jobs:
-        key=job["external_id"];ts=_parse(job.get("updated_at"))
-        if ts is not None and ts<cutoff:
-            stale.append(job);continue
+        key=job["external_id"]
+        if key not in seen:seen[key]=now.isoformat()
         state=status.get(key,{})
-        if isinstance(state,str): state={"status":state}
+        if isinstance(state,str):state={"status":state}
         if state.get("status") in terminal:
             already.append(job);continue
-        if key not in seen:
-            seen[key]=now.isoformat()
+        ts=_parse(job.get("updated_at"))
         if ts is None:
-            first=_parse(seen.get(key))
-            if first is not None and first<cutoff:
-                stale.append(job);continue
-            job["freshness_basis"]="first_seen";job["first_seen_at"]=seen.get(key,now.isoformat())
+            item=dict(job);item["freshness_rejection_reason"]="missing trustworthy posting timestamp"
+            stale.append(item);continue
+        if ts<cutoff or ts>now+timedelta(minutes=10):
+            item=dict(job);item["freshness_rejection_reason"]="outside requested posting window"
+            stale.append(item);continue
+        job["freshness_basis"]="source_timestamp"
         fresh.append(job)
     save_seen(seen);return fresh,stale,already
