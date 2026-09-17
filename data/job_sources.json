@@ -16,5 +16,13 @@
     {"company":"Deduction","board_name":"deduction"},
     {"company":"Thumbtack","board_name":"thumbtack"},
     {"company":"Ibotta","board_name":"ibotta"}
+  ],
+  "smartrecruiters": [
+    {"company":"Steelcase","company_identifier":"SteelcaseInc"},
+    {"company":"Red Bull","company_identifier":"RedBull"},
+    {"company":"Palo Alto Networks","company_identifier":"PaloAltoNetworks2"},
+    {"company":"Veolia","company_identifier":"VeoliaEnvironnementSA"},
+    {"company":"City of New York","company_identifier":"CityOfNewYork"},
+    {"company":"PA Consulting","company_identifier":"PAConsulting"}
   ]
 }
