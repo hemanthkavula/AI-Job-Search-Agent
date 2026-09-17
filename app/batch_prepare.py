@@ -11,24 +11,58 @@ from app.pdf_export import convert_docx_to_pdf
 
 load_dotenv()
 
+MAX_RESUME_ATTEMPTS=3
+
+def _audit_feedback(audit):
+    return {
+        "missing_jd_keywords":audit.get("missing_jd_keywords",[]),
+        "keyword_coverage":audit.get("keyword_coverage"),
+        "internal_ats_score":audit.get("internal_ats_score"),
+        "technology_evidence_coverage":audit.get("technology_evidence_coverage"),
+        "skills_without_experience_evidence":audit.get("skills_without_experience_evidence",[]),
+        "human_quality_score":audit.get("human_quality_score"),
+        "readability_score":audit.get("readability_score"),
+        "repetition_score":audit.get("repetition_score"),
+        "repeated_phrases":audit.get("repeated_phrases",[]),
+        "repeated_opening_verbs":audit.get("repeated_opening_verbs",{}),
+        "metric_counts_by_employer":audit.get("metric_counts_by_employer",{}),
+        "metric_violations":audit.get("metric_violations",{}),
+        "unapproved_metric_claims":audit.get("unapproved_metric_claims",[]),
+        "bullet_counts":audit.get("bullet_counts",{}),
+        "bullet_count_score":audit.get("bullet_count_score"),
+        "skills_taxonomy_score":audit.get("skills_taxonomy_score"),
+        "quality_gates":audit.get("quality_gates",{}),
+        "retry_instruction":"Correct every failed audit gate while preserving truthful candidate evidence. Keep strong content from the previous version; do not rewrite merely for variety. Remove unsupported claims and unapproved metrics, add missing supported JD terminology/evidence naturally, fix structure/repetition/readability issues, and return a submission-ready final resume."
+    }
+
 def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None):
-    """Generate one best-effort tailored resume per eligibility-approved job, then audit it."""
+    """Generate the strongest V1 possible; retry only when the quality audit fails."""
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[]
     for item in report.get("results",[]):
         if item.get("action") != "ELIGIBLE_FOR_RESUME":continue
         raw=item["job"];elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
         if debug_company and debug_company.lower() not in company.lower():continue
         job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
-        print(f"START {job.company} | {job.title} | eligibility-approved | single best resume pass",flush=True)
+        print(f"START {job.company} | {job.title} | eligibility-approved",flush=True)
         try:
             if not job.description.strip():raise RuntimeError("Eligible job has no complete JD text; full JD retrieval/resolution is required before resume tailoring.")
-            print("Generating submission-ready JD-tailored resume...",flush=True);generated=generate_with_llm(job,profile);print("OpenAI response received.",flush=True)
+            attempts=1
+            print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
+            generated=generate_with_llm(job,profile)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
-            resume=render_llm_resume(job,profile,generated);print(f"DOCX generated: {resume}",flush=True)
-            audit=ats_audit(job,profile,resume);audit["generation_attempts"]=1;audit["generation_source"]="openai_llm_single_pass"
+            resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+            print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
+                attempts+=1
+                print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
+                generated=generate_with_llm(job,profile,_audit_feedback(audit))
+                if not generated:raise RuntimeError("LLM regeneration returned no resume content")
+                resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+                print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
             next_action="READY_TO_APPLY" if audit["passed"] else "HOLD_ATS_REVIEW"
-            print(f"DONE {job.company} | passed={audit['passed']} | attempts=1 | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
