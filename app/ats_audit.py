@@ -19,7 +19,7 @@ TERM_ALIASES={
  "Batch Processing":["batch processing","batch pipeline","batch pipelines","batch workflow","batch workflows"],
  "Real-Time Data Processing":["real-time data processing","real time data processing","real-time pipeline","real-time pipelines","real time pipeline","streaming pipeline","streaming pipelines","event-driven pipeline","event-driven pipelines"],
  "Data Lineage":["Data Lineage","lineage"],"Data Quality":["Data Quality","data-quality","Great Expectations"],
- "Kinesis":["Kinesis","Amazon Kinesis"],"BigQuery":["BigQuery","Google BigQuery"],"Databricks":["Databricks"],"Snowflake":["Snowflake"],"Dagster":["Dagster"],"Kubernetes":["Kubernetes"],"Terraform":["Terraform"],"CI/CD":["CI/CD","continuous integration","continuous delivery","continuous deployment"]}
+ "Kinesis":["Kinesis","Amazon Kinesis"],"BigQuery":["BigQuery","Google BigQuery"],"Azure Synapse Analytics":["Azure Synapse Analytics","Azure Synapse","Synapse Analytics"],"Azure Data Factory":["Azure Data Factory","Data Factory","ADF"],"Performance Tuning":["Performance Tuning","Performance Optimization","optimized","optimizing"],"Databricks":["Databricks"],"Snowflake":["Snowflake"],"Dagster":["Dagster"],"Kubernetes":["Kubernetes"],"Terraform":["Terraform"],"CI/CD":["CI/CD","continuous integration","continuous delivery","continuous deployment"]}
 # Languages commonly presented as alternatives in DE JDs. A resume does not need every alternative.
 OPTIONAL_LANGUAGE_ALTERNATIVES={"Go","Rust","Scala","Java"}
 
