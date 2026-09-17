@@ -7,7 +7,7 @@ from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 
-def discover(config: dict) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None) -> list[dict]:
     jobs=[]
     errors=[]
     for src in config.get("greenhouse",[]) if only_source in (None,"greenhouse") else []:
