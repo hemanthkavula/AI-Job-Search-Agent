@@ -25,6 +25,18 @@ def run(source_config,minimum_score=80,hours=24):
         (results if analysis["score"]>=minimum_score else below).append(item)
     results.sort(key=lambda x:x["analysis"]["score"],reverse=True)
     return {"discovered":len(jobs),"fresh_or_first_seen":len(jobs24),"older_than_24h":len(stale),"already_processed":len(already),"qualified":len(results),"filtered_out":len(skipped),"scored_below_threshold":len(below),"action_counts":{"APPLY":sum(x["action"]=="APPLY" for x in results),"VERIFY_SPONSORSHIP":sum(x["action"]=="VERIFY_SPONSORSHIP" for x in results),"SKIP":len(skipped)+len(below)},"errors":errors,"results":results}
+
+def _print_qualified(results):
+    print("\nQUALIFIED JOBS",flush=True)
+    if not results:
+        print("None",flush=True);return
+    for i,item in enumerate(results,1):
+        raw=item["job"];analysis=item["analysis"]
+        company=raw.get("company_key") or analysis.get("company") or "Unknown"
+        location=raw.get("location") or "Location not stated"
+        print(f"{i}. {company} | {raw.get('title','')} | score={analysis.get('score')} | {item.get('action')} | {location}",flush=True)
+        if raw.get("url"):print(f"   {raw['url']}",flush=True)
+
 if __name__=="__main__":
     p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--min-score",type=int,default=80);p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/daily_jobs.json");a=p.parse_args()
-    report=run(a.sources,a.min_score,a.hours);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8");print(json.dumps({k:v for k,v in report.items() if k!="results"},indent=2));print(f"Saved detailed results to {out}")
+    report=run(a.sources,a.min_score,a.hours);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8");print(json.dumps({k:v for k,v in report.items() if k!="results"},indent=2));_print_qualified(report["results"]);print(f"\nSaved detailed results to {out}")
