@@ -5,7 +5,24 @@ from datetime import datetime, timezone
 from app.sources.mcp_jobs import call_tool, rows_from_payload
 
 ENDPOINT = "https://api.ziprecruiter.com/mcp"
-SEARCH_TERMS = ("Data Engineer", "Senior Data Engineer", "Lead Data Engineer", "Data Platform Engineer", "Cloud Data Engineer")
+SEARCH_TERMS = (
+    "Data Engineer",
+    "Senior Data Engineer",
+    "Lead Data Engineer",
+    "Staff Data Engineer",
+    "Principal Data Engineer",
+    "AWS Data Engineer",
+    "Azure Data Engineer",
+    "Cloud Data Engineer",
+    "Big Data Engineer",
+    "Data Platform Engineer",
+    "Data Infrastructure Engineer",
+    "Data Pipeline Engineer",
+    "ETL Data Engineer",
+    "Analytics Data Engineer",
+)
+# Official MCP returns up to five jobs per call and supports offset pagination.
+OFFSETS = (0, 5)
 
 
 def _iso(value):
@@ -35,28 +52,30 @@ def _normalize(row: dict) -> dict:
         "url": url,
         "description": row.get("description") or row.get("summary") or row.get("snippet") or "",
         "updated_at": _iso(row.get("posted_at") or row.get("postedDate") or row.get("date_posted") or row.get("datePosted")),
-        "posted_on": row.get("posted_at") or row.get("postedDate") or row.get("date_posted"),
+        "posted_on": row.get("posted_at") or row.get("postedDate") or row.get("date_posted") or row.get("datePosted"),
     }
 
 
 def fetch_jobs() -> list[dict]:
-    """Search ZipRecruiter's official MCP with native US/full-time/recency filters."""
+    """Search ZipRecruiter's official MCP using native US/full-time/one-day filters."""
     dedup = {}
     for keyword in SEARCH_TERMS:
-        # The official server supports country, recency, employment type and offset.
-        # Use a one-day recency request and let our strict freshness gate verify the
-        # returned posting timestamp again before a job can qualify.
-        args = {
-            "keyword": keyword,
-            "country": "US",
-            "recency": 1,
-            "employment_type": "full_time",
-            "offset": 0,
-        }
-        payload = call_tool(ENDPOINT, "search_jobs", args)
-        rows = rows_from_payload(payload)
-        for row in rows:
-            job = _normalize(row)
-            dedup[job["external_id"]] = job
-        print(f"ZipRecruiter / {keyword}: {len(rows)} results", flush=True)
+        total = 0
+        for offset in OFFSETS:
+            args = {
+                "keyword": keyword,
+                "country": "US",
+                "recency": 1,
+                "employment_type": "full_time",
+                "offset": offset,
+            }
+            payload = call_tool(ENDPOINT, "search_jobs", args)
+            rows = rows_from_payload(payload)
+            total += len(rows)
+            for row in rows:
+                job = _normalize(row)
+                dedup[job["external_id"]] = job
+            if len(rows) < 5:
+                break
+        print(f"ZipRecruiter / {keyword}: {total} results", flush=True)
     return list(dedup.values())
