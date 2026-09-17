@@ -5,7 +5,9 @@ NO_SPONSOR_PATTERNS=(
  "without visa sponsorship","without sponsorship","no visa sponsorship",
  "not provide visa sponsorship","does not provide visa sponsorship","do not provide visa sponsorship",
  "unable to sponsor","cannot sponsor","not eligible for sponsorship","must not require sponsorship",
- "will not sponsor","no sponsorship available","not offer sponsorship"
+ "will not sponsor","no sponsorship available","not offer sponsorship",
+ "no current or future sponsorship","current or future sponsorship is not available",
+ "cannot provide current or future sponsorship","will not provide sponsorship"
 )
 SPONSOR_POSITIVE_PATTERNS=(
  "visa sponsorship is available","sponsorship is available","we sponsor","will sponsor",
@@ -16,8 +18,16 @@ def _clean(v): return re.sub(r"\s+"," ",(v or "").lower()).strip()
 
 def experience_range(text: str):
     text=_clean(text)
-    ranges=[(int(a),int(b)) for a,b in re.findall(r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)",text)]
-    return ranges[0] if ranges else None
+    # Require explicit experience context so unrelated values such as "50 years in business"
+    # cannot become a candidate experience requirement.
+    patterns=(
+        r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+        r"(?:experience|experienced)\s+(?:of\s+)?(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)",
+    )
+    for pattern in patterns:
+        m=re.search(pattern,text)
+        if m:return int(m.group(1)),int(m.group(2))
+    return None
 
 def required_years(text: str):
     text=_clean(text)
@@ -25,11 +35,16 @@ def required_years(text: str):
     if rng:return rng[0]
     vals=[]
     patterns=(
-      r"(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+)?experience",
-      r"(?:minimum|min\.?|at least)\s+(\d{1,2})\s*(?:years?|yrs?)"
+      r"(?:minimum(?: of)?|min\.?|at least)\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(?:requires?|required|requirement:?|qualifications?:?)\s+(?:a\s+)?(?:minimum(?: of)?\s+)?(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(\d{1,2})\s*\+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience\s+(?:required|minimum)",
     )
     for pattern in patterns:
         vals.extend(int(x) for x in re.findall(pattern,text))
+    # Sanity guard: normal DE requirements are single/two-digit, but unrelated company
+    # history/age values should never drive eligibility. 15+ is treated as untrusted.
+    vals=[x for x in vals if 0 < x <= 15]
     return max(vals) if vals else None
 
 def experience_check(job: dict, profile: dict) -> dict:
@@ -40,8 +55,6 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",8)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    # Accept roles whose stated minimum is at or below the user's 8-year ceiling.
-    # A 3-5 year role is still appropriate for a 5-year candidate; 9+/10+/12+ is not.
     eligible=req <= max_req
     return {
       "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
@@ -55,7 +68,7 @@ def sponsorship_check(job: dict, profile: dict) -> dict:
         return {"category":"NO_SPONSORSHIP","eligible":False,"evidence":"Posting states sponsorship is unavailable."}
     if any(x in text for x in SPONSOR_POSITIVE_PATTERNS):
         return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
-    return {"category":"SPONSORSHIP_UNKNOWN","eligible":None,"evidence":"Sponsorship policy is not explicit in the posting; verify before submission."}
+    return {"category":"SPONSORSHIP_UNKNOWN","eligible":None,"evidence":"Sponsorship policy is not explicit in the posting; continue under candidate policy."}
 
 def two_category_filter(job: dict, profile: dict) -> dict:
     exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile)
