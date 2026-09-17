@@ -35,5 +35,7 @@
     {"company":"NVIDIA","host":"nvidia.wd5.myworkdayjobs.com","tenant":"nvidia","site":"NVIDIAExternalCareerSite","locale":"en-US"},
     {"company":"Adobe","host":"adobe.wd5.myworkdayjobs.com","tenant":"adobe","site":"external_experienced","locale":"en-US"},
     {"company":"Workday","host":"workday.wd5.myworkdayjobs.com","tenant":"Workday","site":"Workday","locale":"en-US"}
-  ]
+  ],
+  "dice": {"enabled":true,"jobs_per_page":100},
+  "ziprecruiter": {"enabled":true}
 }
