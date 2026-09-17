@@ -20,6 +20,13 @@ NON_US_MARKERS={
 }
 US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)",re.I)
 
+# Accept permanent/full-time employment and W-2 contracts. Reject explicit C2C/1099,
+# part-time, internship, temporary, seasonal, volunteer, and contract-only roles that
+# do not indicate W-2 eligibility.
+EMPLOYMENT_ACCEPT_MARKERS={"full-time","full time","fulltime","regular","permanent","employee","w2","w-2"}
+EMPLOYMENT_REJECT_MARKERS={"c2c","corp-to-corp","corp to corp","1099","part-time","part time","intern","internship","temporary","temp","seasonal","volunteer"}
+CONTRACT_MARKERS={"contract","contractor","consulting","consultant"}
+
 def _clean(v):return re.sub(r"\s+"," ",(v or "").lower()).strip()
 def title_is_target(title):
     t=_clean(title)
@@ -27,26 +34,37 @@ def title_is_target(title):
     return any(re.search(p,t) for p in ALLOWED_TITLE_PATTERNS)
 
 def location_is_us(location):
-    """Allow US jobs and US-remote jobs; reject clearly foreign locations.
-
-    Unknown/unstated locations are not rejected here because some ATS feeds omit
-    location metadata even when the full posting is US-based.
-    """
+    """Allow US jobs and US-remote jobs; reject clearly foreign locations."""
     raw=(location or "").strip()
     if not raw:return True
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
     if US_STATE_RE.search(raw):return True
     if any(marker in loc for marker in NON_US_MARKERS):return False
-    # A bare Remote is ambiguous; keep it for JD analysis rather than incorrectly
-    # discarding a US-eligible remote role.
     if loc in {"remote","remote - remote","multiple locations"}:return True
+    return True
+
+def employment_is_target(employment_type, description=""):
+    """Allow full-time employment or W-2 contracting only.
+
+    If the ATS omits employment type, use the JD text. Unknown is retained only when
+    the posting does not explicitly indicate a disallowed arrangement; downstream
+    matching may still inspect it.
+    """
+    employment=_clean(employment_type)
+    text=_clean(f"{employment_type or ''} {description or ''}")
+    if any(marker in text for marker in EMPLOYMENT_REJECT_MARKERS):return False
+    if any(marker in text for marker in {"w2","w-2"}):return True
+    if any(marker in employment for marker in EMPLOYMENT_ACCEPT_MARKERS):return True
+    if any(marker in employment for marker in CONTRACT_MARKERS):return False
+    if any(marker in text for marker in {"full-time","full time","fulltime","regular employee","permanent position"}):return True
     return True
 
 def passes_hard_filters(job:dict,profile:dict):
     title=_clean(job.get("title"));reasons=[]
     if not title_is_target(title):reasons.append("title outside strict data-engineering job family")
     if not location_is_us(job.get("location")):reasons.append(f"non-US location: {job.get('location')}")
+    if not employment_is_target(job.get("employment_type"),job.get("description")):reasons.append(f"employment type outside Full-Time/W2 target: {job.get('employment_type') or 'not explicitly stated'}")
     eligibility=two_category_filter(job,profile)
     if not eligibility["experience"]["eligible"]:reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
     if eligibility["sponsorship"]["eligible"] is False:reasons.append("future H-1B sponsorship unavailable")
