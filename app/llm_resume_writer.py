@@ -51,7 +51,7 @@ def build_prompt(job,profile,audit_feedback=None):
     prompt={
       "task":"Produce one submission-ready, human-readable, strongly ATS-aligned resume for this complete JD. Use the smallest credible technology set that covers the JD.",
       "job":{"company":job.company,"title":job.title,"description":job.description},
-      "candidate_evidence":profile,
+      "candidate_evidence":profile,\n      "pre_generation_coverage_plan":coverage_plan or {},
       "confirmed_extended_technology_inventory":CONFIRMED_EXTENDED_TECHNOLOGIES,
       "extended_technologies_explicitly_requested_by_jd":jd_extended,
       "extended_technology_policy":{
@@ -93,11 +93,11 @@ def _extract_output_text(payload):
             if part.get("type")=="output_text" and part.get("text"):chunks.append(part["text"])
     return "".join(chunks)
 
-def generate_with_llm(job,profile,audit_feedback=None):
+def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     key=os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:return None
     endpoint=os.getenv("RESUME_LLM_ENDPOINT","https://api.openai.com/v1/responses");model=os.getenv("RESUME_LLM_MODEL","gpt-5.6")
-    body=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"input":json.dumps(build_prompt(job,profile,audit_feedback)),"max_output_tokens":12000}).encode("utf-8")
+    body=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"input":json.dumps(build_prompt(job,profile,audit_feedback,coverage_plan)),"max_output_tokens":12000}).encode("utf-8")
     req=request.Request(endpoint,data=body,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},method="POST")
     try:
         with request.urlopen(req,timeout=180) as resp:payload=json.loads(resp.read().decode("utf-8"))
