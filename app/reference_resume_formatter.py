@@ -1,8 +1,7 @@
 from __future__ import annotations
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from app.resume_generator import ROOT, safe_name
@@ -23,12 +22,14 @@ def _section(doc,text):
     bottom.set(qn("w:val"),"single");bottom.set(qn("w:sz"),"8");bottom.set(qn("w:space"),"2");bottom.set(qn("w:color"),BLUE);pBdr.append(bottom);pPr.append(pBdr)
 
 def _company_header(doc,base):
-    table=doc.add_table(rows=1,cols=2);table.autofit=False
-    table.columns[0].width=Inches(5.9);table.columns[1].width=Inches(1.45)
-    left,right=table.cell(0,0),table.cell(0,1);left.vertical_alignment=right.vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER
-    lp=left.paragraphs[0];_compact(lp,2,0);_run(lp.add_run(base["company"]),10,True)
-    if base.get("location"):_run(lp.add_run(" | "+base["location"]),9.2)
-    rp=right.paragraphs[0];rp.alignment=WD_ALIGN_PARAGRAPH.RIGHT;_compact(rp,2,0);_run(rp.add_run(base["dates"]),9,False,GRAY)
+    # Keep employer/date information in a normal paragraph so ATS/text parsers can
+    # see the employer boundary. A right-aligned tab preserves the reference look
+    # without using a table, text box, column, or other ATS-hostile structure.
+    p=doc.add_paragraph();_compact(p,2,0)
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(7.45),WD_TAB_ALIGNMENT.RIGHT)
+    _run(p.add_run(base["company"]),10,True)
+    if base.get("location"):_run(p.add_run(" | "+base["location"]),9.2)
+    _run(p.add_run("\t"+base["dates"]),9,False,GRAY)
     p=doc.add_paragraph();_compact(p,0,2);_run(p.add_run(base["title"]),9.5,True,ACCENT)
 
 def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
@@ -53,6 +54,8 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
         if not base:continue
         _company_header(doc,base)
         for line in item.get("bullets",[])[:limits.get(base["company"],7)]:
+            # Retain the standard Word List Bullet style so the internal auditor and
+            # external ATS parsers identify these as experience bullets.
             p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.28);p.paragraph_format.first_line_indent=Inches(-.16);_compact(p,0,2,1.03);_run(p.add_run(str(line).strip()),9.15)
     _section(doc,"EDUCATION")
     for e in profile["education"]:
