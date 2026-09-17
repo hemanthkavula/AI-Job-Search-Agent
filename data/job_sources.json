@@ -24,5 +24,10 @@
     {"company":"Veolia","company_identifier":"VeoliaEnvironnementSA"},
     {"company":"City of New York","company_identifier":"CityOfNewYork"},
     {"company":"PA Consulting","company_identifier":"PAConsulting"}
+  ],
+  "workday": [
+    {"company":"Intel","host":"intel.wd1.myworkdayjobs.com","tenant":"intel","site":"External","locale":"en-US"},
+    {"company":"NVIDIA","host":"nvidia.wd5.myworkdayjobs.com","tenant":"nvidia","site":"NVIDIAExternalCareerSite","locale":"en-US"},
+    {"company":"Adobe","host":"adobe.wd5.myworkdayjobs.com","tenant":"adobe","site":"external_experienced","locale":"en-US"}
   ]
 }
