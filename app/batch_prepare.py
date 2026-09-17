@@ -33,7 +33,9 @@ def prepare(report_path,output_path="generated/application_manifest.json",min_sc
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume);attempts+=1
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm";pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None;next_action="HOLD_ATS_REVIEW"
-            if audit["passed"]:next_action="READY_TO_APPLY" if item["action"]=="APPLY" else "VERIFY_SPONSORSHIP_BEFORE_SUBMIT"
+            # Unknown sponsorship is allowed to proceed. Eligibility already blocks postings
+            # that explicitly state sponsorship is unavailable now or in the future.
+            if audit["passed"]:next_action="READY_TO_APPLY"
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             print(f"LLM ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_LLM_ERROR";audit={"passed":False,"generation_source":"llm_error","error":str(exc),"generation_attempts":0}
