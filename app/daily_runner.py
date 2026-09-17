@@ -39,6 +39,7 @@ def run(source_config,minimum_score=80,hours=24):
         if analysis["score"]>=minimum_score:results.append(item)
         else:below.append(item);reason_counts["score_below_threshold"]+=1
     results.sort(key=lambda x:x["analysis"]["score"],reverse=True)
+    below.sort(key=lambda x:x["analysis"]["score"],reverse=True)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),
         "wrong_job_family":reason_counts["wrong_job_family"],
@@ -50,7 +51,7 @@ def run(source_config,minimum_score=80,hours=24):
         "score_below_threshold":reason_counts["score_below_threshold"],
         "qualified_for_application":len(results),
     }
-    return {"discovered":len(jobs),"fresh_or_first_seen":len(jobs24),"older_than_24h":len(stale),"already_processed":len(already),"qualified":len(results),"filtered_out":len(skipped),"scored_below_threshold":len(below),"filter_reason_counts":diagnostics,"action_counts":{"APPLY":sum(x["action"]=="APPLY" for x in results),"VERIFY_SPONSORSHIP":sum(x["action"]=="VERIFY_SPONSORSHIP" for x in results),"SKIP":len(skipped)+len(below)},"errors":errors,"results":results}
+    return {"discovered":len(jobs),"fresh_or_first_seen":len(jobs24),"older_than_24h":len(stale),"already_processed":len(already),"qualified":len(results),"filtered_out":len(skipped),"scored_below_threshold":len(below),"filter_reason_counts":diagnostics,"action_counts":{"APPLY":sum(x["action"]=="APPLY" for x in results),"VERIFY_SPONSORSHIP":sum(x["action"]=="VERIFY_SPONSORSHIP" for x in results),"SKIP":len(skipped)+len(below)},"errors":errors,"results":results,"below_threshold":below,"hard_filter_rejections":skipped}
 
 def _print_diagnostics(d):
     print("\nLAST 24 HOURS",flush=True)
@@ -73,6 +74,30 @@ def _print_qualified(results):
         print(f"{i}. {company} | {raw.get('title','')} | score={analysis.get('score')} | {item.get('action')} | {location}",flush=True)
         if raw.get("url"):print(f"   {raw['url']}",flush=True)
 
+def _print_scoring_diagnostics(items,limit=20):
+    print("\nTOP JOBS BELOW SCORE THRESHOLD",flush=True)
+    if not items:
+        print("None",flush=True);return
+    for i,item in enumerate(items[:limit],1):
+        raw=item["job"];a=item["analysis"]
+        company=raw.get("company_key") or a.get("company") or "Unknown"
+        matched=a.get("matched_skills") or a.get("skills_matched") or []
+        if isinstance(matched,list):matched=", ".join(str(x) for x in matched[:12])
+        print(f"{i}. [{raw.get('source','?')}] {company} | {raw.get('title','')} | score={a.get('score')} | {raw.get('location') or 'Location not stated'}",flush=True)
+        if matched:print(f"   matched: {matched}",flush=True)
+        breakdown=a.get("breakdown") or a.get("score_breakdown")
+        if breakdown:print(f"   breakdown: {breakdown}",flush=True)
+
+def _print_rejection_samples(items,limit=20):
+    print("\nHARD-FILTER REJECTION SAMPLES",flush=True)
+    if not items:
+        print("None",flush=True);return
+    shown=sorted(items,key=lambda x:(x["job"].get("source") or "",x["job"].get("title") or ""))[:limit]
+    for i,item in enumerate(shown,1):
+        raw=item["job"]
+        print(f"{i}. [{raw.get('source','?')}] {raw.get('company_key') or 'Unknown'} | {raw.get('title','')} | {raw.get('location') or 'Location not stated'}",flush=True)
+        print(f"   reasons: {'; '.join(item.get('reasons') or [])}",flush=True)
+
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--min-score",type=int,default=80);p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/daily_jobs.json");a=p.parse_args()
-    report=run(a.sources,a.min_score,a.hours);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8");print(json.dumps({k:v for k,v in report.items() if k!="results"},indent=2));_print_diagnostics(report["filter_reason_counts"]);_print_qualified(report["results"]);print(f"\nSaved detailed results to {out}")
+    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--min-score",type=int,default=80);p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/daily_jobs.json");p.add_argument("--diagnostic-limit",type=int,default=20);a=p.parse_args()
+    report=run(a.sources,a.min_score,a.hours);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8");print(json.dumps({k:v for k,v in report.items() if k not in ("results","below_threshold","hard_filter_rejections")},indent=2));_print_diagnostics(report["filter_reason_counts"]);_print_qualified(report["results"]);_print_scoring_diagnostics(report["below_threshold"],a.diagnostic_limit);_print_rejection_samples(report["hard_filter_rejections"],a.diagnostic_limit);print(f"\nSaved detailed results to {out}")
