@@ -23,14 +23,25 @@ def _content_to_payload(result: Any) -> Any:
     return {}
 
 
+def _exception_text(exc: BaseException) -> str:
+    children = getattr(exc, "exceptions", None)
+    if children:
+        nested = "; ".join(_exception_text(child) for child in children)
+        return f"{type(exc).__name__}: {exc} -> [{nested}]"
+    return f"{type(exc).__name__}: {exc}"
+
+
 async def _call(url: str, tool: str, arguments: dict) -> Any:
     try:
         from mcp import Client
     except ImportError as exc:
         raise RuntimeError("MCP job sources require the 'mcp' package. Run: pip install -r requirements.txt") from exc
-    async with Client(url) as client:
-        result = await client.call_tool(tool, arguments)
-        return _content_to_payload(result)
+    try:
+        async with Client(url) as client:
+            result = await client.call_tool(tool, arguments)
+            return _content_to_payload(result)
+    except BaseException as exc:
+        raise RuntimeError(f"MCP call failed for {url} tool={tool}: {_exception_text(exc)}") from exc
 
 
 def call_tool(url: str, tool: str, arguments: dict) -> Any:
