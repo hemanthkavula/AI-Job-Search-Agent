@@ -7,9 +7,19 @@ from urllib.parse import urlencode
 
 BASE = "https://api.smartrecruiters.com/v1/companies"
 
+# Keep discovery cheap: only fetch full posting details for plausible Data Engineer roles.
+DE_TITLE_PATTERNS = (
+    "data engineer",
+    "data platform engineer",
+    "big data engineer",
+    "cloud data engineer",
+    "aws data engineer",
+    "azure data engineer",
+)
+
 
 def _get_json(url: str, timeout: int) -> dict:
-    req = Request(url, headers={"Accept": "application/json", "User-Agent": "AI-Job-Search-Agent/0.3"})
+    req = Request(url, headers={"Accept": "application/json", "User-Agent": "AI-Job-Search-Agent/0.4"})
     with urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -28,22 +38,42 @@ def _location(loc: dict) -> str | None:
     return value or None
 
 
-def fetch_jobs(company_identifier: str, timeout: int = 20) -> list[dict]:
-    """Fetch all active public SmartRecruiters postings for one company."""
+def _is_de_title(title: str | None) -> bool:
+    value = re.sub(r"\s+", " ", (title or "").lower()).strip()
+    return any(pattern in value for pattern in DE_TITLE_PATTERNS)
+
+
+def fetch_jobs(company_identifier: str, timeout: int = 12) -> list[dict]:
+    """Fetch public SmartRecruiters Data Engineer-family postings for one company.
+
+    The listing endpoint is paginated, but detailed posting requests are made only for
+    plausible DE titles. This avoids downloading every JD on large company boards.
+    """
     out = []
     offset = 0
     limit = 100
+    listing_count = 0
+    candidate_count = 0
+
     while True:
         url = f"{BASE}/{company_identifier}/postings?{urlencode({'limit': limit, 'offset': offset})}"
         payload = _get_json(url, timeout)
         rows = payload.get("content") or []
-        for row in rows:
+        listing_count += len(rows)
+
+        candidates = [row for row in rows if _is_de_title(row.get("name"))]
+        candidate_count += len(candidates)
+
+        for row in candidates:
             posting_id = row.get("uuid") or row.get("id")
+            if not posting_id:
+                continue
             detail_url = f"{BASE}/{company_identifier}/postings/{posting_id}"
             try:
                 detail = _get_json(detail_url, timeout)
             except Exception:
                 detail = row
+
             job_ad = detail.get("jobAd") or {}
             description = " ".join(
                 _plain(x) for x in [
@@ -67,8 +97,15 @@ def fetch_jobs(company_identifier: str, timeout: int = 20) -> list[dict]:
                 "description": description,
                 "updated_at": detail.get("releasedDate") or row.get("releasedDate"),
             })
+
         offset += len(rows)
         total = int(payload.get("totalFound") or 0)
         if not rows or offset >= total:
             break
+
+    print(
+        f"SmartRecruiters / {company_identifier}: "
+        f"{listing_count} listings, {candidate_count} DE candidates, {len(out)} detailed JDs",
+        flush=True,
+    )
     return out
