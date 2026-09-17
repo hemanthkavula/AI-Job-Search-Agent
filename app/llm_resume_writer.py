@@ -46,7 +46,7 @@ def _jd_requested_extended(description):
             selected.append(tech)
     return selected
 
-def build_prompt(job,profile,audit_feedback=None):
+def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
     jd_extended=_jd_requested_extended(job.description)
     prompt={
       "task":"Produce one submission-ready, human-readable, strongly ATS-aligned resume for this complete JD. Use the smallest credible technology set that covers the JD.",
