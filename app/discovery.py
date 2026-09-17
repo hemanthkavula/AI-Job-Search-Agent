@@ -4,6 +4,8 @@ from app.sources.lever import fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
 from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
+from app.sources.dice import fetch_jobs as dice_jobs
+from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 
 def discover(config: dict) -> list[dict]:
     jobs=[]
@@ -30,6 +32,12 @@ def discover(config: dict) -> list[dict]:
             ))
         except Exception as e:
             errors.append({"source":"workday","company":src.get("company") or src.get("tenant"),"error":str(e)})
+    if config.get("dice",{}).get("enabled",False):
+        try: jobs.extend(dice_jobs(config.get("dice",{}).get("jobs_per_page",100)))
+        except Exception as e: errors.append({"source":"dice","company":"Dice","error":str(e)})
+    if config.get("ziprecruiter",{}).get("enabled",False):
+        try: jobs.extend(ziprecruiter_jobs())
+        except Exception as e: errors.append({"source":"ziprecruiter","company":"ZipRecruiter","error":str(e)})
 
     dedup={}
     for job in jobs:
