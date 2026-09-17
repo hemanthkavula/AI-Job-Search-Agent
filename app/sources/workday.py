@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from urllib.request import Request, urlopen
@@ -17,16 +18,24 @@ DE_TITLE_PATTERNS = (
 )
 
 
-def _json(url: str, timeout: int = 12, body: dict | None = None) -> dict:
+def _json(url: str, timeout: int = 20, body: dict | None = None, retries: int = 3) -> dict:
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = Request(url, data=data, headers={
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Accept-Language": "en-US",
-        "User-Agent": "AI-Job-Search-Agent/0.6",
-    })
-    with urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            req = Request(url, data=data, headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Accept-Language": "en-US",
+                "User-Agent": "AI-Job-Search-Agent/0.7",
+            })
+            with urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 < retries:
+                time.sleep(1.5 * (2 ** attempt))
+    raise last_error or RuntimeError("Workday request failed")
 
 
 def _plain(value: str | None) -> str:
@@ -53,12 +62,11 @@ def _posted_at(value: str | None) -> str | None:
     return None
 
 
-def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "en-US", timeout: int = 12) -> list[dict]:
+def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "en-US", timeout: int = 20) -> list[dict]:
     """Fetch Data Engineer-family jobs from one public Workday CXS career site.
 
-    Use Workday's server-side searchText so hourly discovery does not page through
-    thousands of unrelated roles. Full details are requested only for titles that
-    still pass the strict Data Engineer-family title check.
+    Workday calls are retried with exponential backoff so transient DNS/network
+    issues do not unnecessarily reduce hourly discovery coverage.
     """
     origin = f"https://{host.strip('/')}"
     base = f"{origin}/wday/cxs/{tenant}/{site}"
