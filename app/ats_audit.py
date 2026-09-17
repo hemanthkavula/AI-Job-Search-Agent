@@ -80,10 +80,30 @@ def _readability_score(bullets,repetition_score):
  lengths=[len(re.findall(r"\b\w+[+#.-]*\b",b)) for b in bullets];score=100-min(25,sum(n>38 for n in lengths)*3)-min(20,sum(n>50 for n in lengths)*5)
  if sum(lengths)/len(lengths)>34:score-=10
  return max(40,round(min(score,repetition_score)))
+def _canonical_term(term):
+ aliases={
+  "Synapse Analytics":"Azure Synapse Analytics",
+  "Azure Synapse":"Azure Synapse Analytics",
+  "Data Factory":"Azure Data Factory",
+  "ETL":"ETL/ELT",
+  "ELT":"ETL/ELT",
+  "CI/CD":"CI/CD Best Practices",
+ }
+ return aliases.get(term,term)
+
+def _dedupe_target_terms(terms):
+ out=[]
+ for term in terms:
+  canonical=_canonical_term(term)
+  if canonical not in out:out.append(canonical)
+ return out
+
 def _required_target_terms(targeted,text):
- # Do not penalize missing Go/Rust/Scala when Python is present; these are alternative language choices.
+ # Alternative DE languages are not mandatory when Python already satisfies
+ # the programming-language requirement.
  python_present=_contains(text,"Python")
- return [t for t in targeted if not (python_present and t in OPTIONAL_LANGUAGE_ALTERNATIVES)]
+ deduped=_dedupe_target_terms(targeted)
+ return [t for t in deduped if not (python_present and t in OPTIONAL_LANGUAGE_ALTERNATIVES)]
 
 def ats_audit(job,profile,resume_path):
  text=document_text(resume_path);low=_norm(text);verified=jd_keywords(job.description,profile);inferred=inferable_terms(job.description);jd_terms=jd_skill_terms(job.description);raw_targeted=list(dict.fromkeys(verified+inferred+jd_terms));targeted=_required_target_terms(raw_targeted,low);present=[k for k in targeted if _contains(low,k)];missing=[k for k in targeted if not _contains(low,k)];keyword_coverage=100*len(present)/max(1,len(targeted))
