@@ -50,10 +50,10 @@ def _normalize(row: dict) -> dict:
         "provider_us_scoped":True,"provider_fulltime_scoped":True,
     }
 
-def fetch_jobs(jobs_per_page: int = 100) -> list[dict]:
+def fetch_jobs(jobs_per_page: int = 100, search_terms=None) -> list[dict]:
     """Search Dice MCP for source-filtered candidates. Short summaries remain incomplete until a later full-JD resolver stage."""
     dedup={}
-    for keyword in SEARCH_TERMS:
+    for keyword in (search_terms or SEARCH_TERMS):
         args={"keyword":keyword,"location":"United States","posted_date":"ONE","employment_types":["FULLTIME"],"jobs_per_page":jobs_per_page,"page_number":1}
         payload=call_tool(ENDPOINT,"search_jobs",args);rows=rows_from_payload(payload)
         for row in rows:
