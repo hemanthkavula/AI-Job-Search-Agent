@@ -21,7 +21,7 @@ TERM_ALIASES={
  "Data Lineage":["Data Lineage","lineage"],"Data Quality":["Data Quality","data-quality","Great Expectations"],
  "Kinesis":["Kinesis","Amazon Kinesis"],"BigQuery":["BigQuery","Google BigQuery"],"Databricks":["Databricks"],"Snowflake":["Snowflake"],"Dagster":["Dagster"],"Kubernetes":["Kubernetes"],"Terraform":["Terraform"],"CI/CD":["CI/CD","continuous integration","continuous delivery","continuous deployment"]}
 # Languages commonly presented as alternatives in DE JDs. A resume does not need every alternative.
-OPTIONAL_LANGUAGE_ALTERNATIVES={"Go","Rust","Scala"}
+OPTIONAL_LANGUAGE_ALTERNATIVES={"Go","Rust","Scala","Java"}
 
 def document_text(path):d=Document(path);return "\n".join(p.text for p in d.paragraphs)
 def _norm(s):return re.sub(r"\s+"," ",(s or "").lower()).strip()
