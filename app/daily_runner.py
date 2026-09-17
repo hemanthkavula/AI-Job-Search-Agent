@@ -11,10 +11,8 @@ from app.scoring import analyze_job
 ROOT=Path(__file__).resolve().parent.parent
 def load_sources(path):return json.loads(Path(path).read_text(encoding="utf-8"))
 def _action(e,s,m):
+    # User policy: apply unless the posting explicitly says current/future sponsorship is not supported.
     if not e["experience"]["eligible"] or e["sponsorship"]["eligible"] is False or s<m:return "SKIP"
-    # Unknown sponsorship can proceed through matching/resume generation, but must be
-    # explicitly verified before an application is submitted.
-    if e["sponsorship"].get("eligible") is None:return "VERIFY_SPONSORSHIP"
     return "APPLY"
 def run(source_config,minimum_score=80,hours=24):
     profile=load_profile();jobs,errors=discover(load_sources(source_config));jobs24,stale,already=fresh_jobs(jobs,hours)
