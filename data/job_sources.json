@@ -1,14 +1,18 @@
 {
   "greenhouse": [
     {"company":"Resonate","board_token":"resonate"},
-    {"company":"Overstory","board_token":"overstory"}
+    {"company":"Overstory","board_token":"overstory"},
+    {"company":"Applecart","board_token":"applecart"}
   ],
   "lever": [
     {"company":"Gopuff","site":"gopuff"},
     {"company":"Lyra Health","site":"lyrahealth"},
     {"company":"AHEAD","site":"thinkahead"},
     {"company":"Insomniac Design","site":"insomniacdesign"},
-    {"company":"Windfall","site":"windfalldata"}
+    {"company":"Windfall","site":"windfalldata"},
+    {"company":"Hatch IT","site":"hatchit"},
+    {"company":"Circadia Health","site":"circadiahealth"},
+    {"company":"Firstup","site":"firstup"}
   ],
   "ashby": [
     {"company":"9amHealth","board_name":"join9am"},
@@ -20,7 +24,18 @@
     {"company":"Deduction","board_name":"deduction"},
     {"company":"Thumbtack","board_name":"thumbtack"},
     {"company":"Ibotta","board_name":"ibotta"},
-    {"company":"ARB Interactive","board_name":"arb-interactive"}
+    {"company":"ARB Interactive","board_name":"arb-interactive"},
+    {"company":"Dave","board_name":"dave"},
+    {"company":"Base Operations","board_name":"base-operations"},
+    {"company":"Careerswift","board_name":"careerswift.ai"},
+    {"company":"Dataro","board_name":"dataro"},
+    {"company":"Socket","board_name":"socket"},
+    {"company":"Nebulock","board_name":"nebulock"},
+    {"company":"JBS Dev","board_name":"jbs-dev"},
+    {"company":"Mariner","board_name":"mariner-careers"},
+    {"company":"Runpod","board_name":"runpod"},
+    {"company":"Kraken","board_name":"kraken.com"},
+    {"company":"Teamworks","board_name":"teamworks"}
   ],
   "smartrecruiters": [
     {"company":"Steelcase","company_identifier":"SteelcaseInc"},
@@ -34,7 +49,16 @@
     {"company":"Intel","host":"intel.wd1.myworkdayjobs.com","tenant":"intel","site":"External","locale":"en-US"},
     {"company":"NVIDIA","host":"nvidia.wd5.myworkdayjobs.com","tenant":"nvidia","site":"NVIDIAExternalCareerSite","locale":"en-US"},
     {"company":"Adobe","host":"adobe.wd5.myworkdayjobs.com","tenant":"adobe","site":"external_experienced","locale":"en-US"},
-    {"company":"Workday","host":"workday.wd5.myworkdayjobs.com","tenant":"Workday","site":"Workday","locale":"en-US"}
+    {"company":"Workday","host":"workday.wd5.myworkdayjobs.com","tenant":"Workday","site":"Workday","locale":"en-US"},
+    {"company":"Thomson Reuters","host":"thomsonreuters.wd5.myworkdayjobs.com","tenant":"thomsonreuters","site":"External_Career_Site","locale":"en-US"},
+    {"company":"Leidos","host":"leidos.wd5.myworkdayjobs.com","tenant":"leidos","site":"External","locale":"en-US"},
+    {"company":"Bonterra","host":"bonterra.wd1.myworkdayjobs.com","tenant":"bonterra","site":"bonterratech","locale":"en-US"},
+    {"company":"RTX","host":"globalhr.wd5.myworkdayjobs.com","tenant":"globalhr","site":"REC_RTX_Ext_Gateway","locale":"en-US"},
+    {"company":"McKesson","host":"mckesson.wd3.myworkdayjobs.com","tenant":"mckesson","site":"External_Careers","locale":"en-US"},
+    {"company":"Dallas College","host":"dallascollege.wd1.myworkdayjobs.com","tenant":"dallascollege","site":"Dallas_College_Careers","locale":"en-US"},
+    {"company":"Gilead","host":"gilead.wd1.myworkdayjobs.com","tenant":"gilead","site":"gileadcareers","locale":"en-US"},
+    {"company":"Johnson & Johnson","host":"jj.wd5.myworkdayjobs.com","tenant":"jj","site":"JJ","locale":"en-US"},
+    {"company":"U.S. Bank","host":"usbank.wd1.myworkdayjobs.com","tenant":"usbank","site":"US_Bank_Careers","locale":"en-US"}
   ],
   "dice": {"enabled":true,"jobs_per_page":100},
   "ziprecruiter": {"enabled":true}
