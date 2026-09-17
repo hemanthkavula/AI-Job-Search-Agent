@@ -29,13 +29,8 @@ def _normalize(row: dict) -> dict:
     stable=hashlib.sha1(str(raw_id).encode("utf-8")).hexdigest()[:20]
     location=_stringify_location(row.get("jobLocation") or row.get("location"))
     description=row.get("description") or row.get("jobDescription") or row.get("summary") or ""
-    # MCP search results can expose a short summary even though Dice documents detailed
-    # descriptions. Treat short text as incomplete and hydrate the public detail page.
-    hydrated={}
-    if len(description.strip())<1200 or not location:
-        hydrated=_hydrate_dice_page(url)
-        if len(hydrated.get("description",""))>len(description):description=hydrated["description"]
-        if not location:location=hydrated.get("location") or location
+    # Discovery intentionally keeps the MCP summary lightweight. Complete JD
+    # resolution happens only after this job passes eligibility filters.
     workplace=row.get("workplaceTypes") or row.get("workplaceType") or row.get("workplace_types")
     return {
         "external_id":f"dice:{stable}","source":"dice","company_key":row.get("companyName") or row.get("company") or "Unknown",
