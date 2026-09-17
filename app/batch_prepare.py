@@ -42,19 +42,19 @@ def _matches(raw,company=None,title=None,external_id=None):
     return True
 
 def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None,debug_title=None,external_id=None,limit=None):
-    """Generate strongest V1; retry only when audit fails. Supports safe exact/single-job testing."""
+    """Generate resumes only from FINAL_JD_VERIFIED jobs; retry only when audit fails."""
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[];matched=0
     for item in report.get("results",[]):
-        if item.get("action") != "ELIGIBLE_FOR_RESUME":continue
+        if item.get("action") not in ("FINAL_JD_VERIFIED",):continue
         raw=item["job"]
         if not _matches(raw,debug_company,debug_title,external_id):continue
         if limit is not None and matched>=limit:break
         matched+=1
         elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
         job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
-        print(f"START {job.company} | {job.title} | eligibility-approved",flush=True)
+        print(f"START {job.company} | {job.title} | FINAL_JD_VERIFIED",flush=True)
         try:
-            if not job.description.strip():raise RuntimeError("Eligible job has no complete JD text; full JD retrieval/resolution is required before resume tailoring.")
+            if not raw.get("description_complete") or len(job.description.strip())<1200:raise RuntimeError("Job is not FINAL_JD_VERIFIED with a complete JD; run app.jd_finalizer before resume tailoring.")
             attempts=1
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
             generated=generate_with_llm(job,profile)
