@@ -23,7 +23,7 @@ def _json(url: str, timeout: int = 12, body: dict | None = None) -> dict:
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Accept-Language": "en-US",
-        "User-Agent": "AI-Job-Search-Agent/0.5",
+        "User-Agent": "AI-Job-Search-Agent/0.6",
     })
     with urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -41,7 +41,6 @@ def _is_de_title(title: str | None) -> bool:
 
 
 def _posted_at(value: str | None) -> str | None:
-    """Convert Workday's English relative postedOn value to an approximate UTC timestamp."""
     text = (value or "").strip().lower()
     now = datetime.now(timezone.utc)
     if text in {"posted today", "today"}:
@@ -57,9 +56,9 @@ def _posted_at(value: str | None) -> str | None:
 def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "en-US", timeout: int = 12) -> list[dict]:
     """Fetch Data Engineer-family jobs from one public Workday CXS career site.
 
-    Workday's listing endpoint is limited to 20 rows. We scan listing metadata first
-    and only request full details for plausible Data Engineer titles, keeping hourly
-    discovery inexpensive even for very large enterprise boards.
+    Use Workday's server-side searchText so hourly discovery does not page through
+    thousands of unrelated roles. Full details are requested only for titles that
+    still pass the strict Data Engineer-family title check.
     """
     origin = f"https://{host.strip('/')}"
     base = f"{origin}/wday/cxs/{tenant}/{site}"
@@ -72,7 +71,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
 
     while True:
         payload = _json(f"{base}/jobs", timeout, {
-            "appliedFacets": {}, "limit": limit, "offset": offset, "searchText": ""
+            "appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "Data Engineer"
         })
         if total is None:
             try: total = int(payload.get("total") or 0)
@@ -119,5 +118,5 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
         if len(rows) < limit or (total and offset >= total):
             break
 
-    print(f"Workday / {company}: {listing_count} listings, {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
+    print(f"Workday / {company}: {listing_count} search results, {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
     return out
