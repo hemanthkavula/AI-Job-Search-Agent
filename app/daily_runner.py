@@ -57,9 +57,9 @@ def _dedup_eligible(items):
         seen.setdefault(base,[]).append(item);kept.append(item)
     return kept,duplicates
 
-def run(source_config,hours=24):
+def run(source_config,hours=24,only_source=None,dice_search_terms=None):
     """Discover and eligibility-filter jobs only; no JD/resume score is used."""
-    profile=load_profile();jobs,errors=discover(load_sources(source_config));jobs24,stale,already=fresh_jobs(jobs,hours)
+    profile=load_profile();jobs,errors=discover(load_sources(source_config),only_source,dice_search_terms);jobs24,stale,already=fresh_jobs(jobs,hours)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
@@ -107,6 +107,6 @@ def _print_rejection_samples(items,limit=20):
         print(f"   reasons: {'; '.join(item.get('reasons') or [])}",flush=True)
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/eligible_jobs.json");p.add_argument("--diagnostic-limit",type=int,default=20);a=p.parse_args()
-    report=run(a.sources,a.hours);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
+    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/eligible_jobs.json");p.add_argument("--diagnostic-limit",type=int,default=20);p.add_argument("--only-source",choices=["greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter"]);p.add_argument("--dice-term",action="append");a=p.parse_args()
+    report=run(a.sources,a.hours,a.only_source,a.dice_term);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
     print(json.dumps({k:v for k,v in report.items() if k not in ("results","hard_filter_rejections","duplicate_rejections")},indent=2));_print_diagnostics(report["filter_reason_counts"],a.hours);_print_eligible(report["results"]);_print_rejection_samples(report["hard_filter_rejections"],a.diagnostic_limit);print(f"\nSaved eligible jobs to {out}")
