@@ -8,6 +8,7 @@ from app.reference_resume_formatter import render_llm_resume
 from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
 from app.pdf_export import convert_docx_to_pdf
+from app.jd_coverage_plan import build_coverage_plan
 
 load_dotenv()
 
@@ -56,15 +57,17 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         try:
             if not raw.get("description_complete") or len(job.description.strip())<1200:raise RuntimeError("Job is not FINAL_JD_VERIFIED with a complete JD; run app.jd_finalizer before resume tailoring.")
             attempts=1
+            coverage_plan=build_coverage_plan(job,profile)
+            print("V1 coverage plan | targets={} | extended={} | careful={}".format(coverage_plan["target_count"],coverage_plan["confirmed_extended_requested"],coverage_plan["targets_requiring_careful_evidence"]),flush=True)
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
-            generated=generate_with_llm(job,profile)
+            generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
-                generated=generate_with_llm(job,profile,_audit_feedback(audit))
+                generated=generate_with_llm(job,profile,_audit_feedback(audit),coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
