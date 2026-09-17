@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
 from app.config import load_profile
-from app.resume_generator import render_llm_resume
+from app.reference_resume_formatter import render_llm_resume
 from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
 from app.pdf_export import convert_docx_to_pdf
