@@ -20,12 +20,12 @@ NON_US_MARKERS={
 }
 US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)",re.I)
 
-# Accept permanent/full-time employment and W-2 contracts. Reject explicit C2C/1099,
-# part-time, internship, temporary, seasonal, volunteer, and contract-only roles that
-# do not indicate W-2 eligibility.
-EMPLOYMENT_ACCEPT_MARKERS={"full-time","full time","fulltime","regular","permanent","employee","w2","w-2"}
-EMPLOYMENT_REJECT_MARKERS={"c2c","corp-to-corp","corp to corp","1099","part-time","part time","intern","internship","temporary","temp","seasonal","volunteer"}
-CONTRACT_MARKERS={"contract","contractor","consulting","consultant"}
+EMPLOYMENT_ACCEPT_MARKERS=("full-time","full time","fulltime","regular","permanent","employee","w2","w-2")
+EMPLOYMENT_REJECT_PATTERNS=(
+ r"\bc2c\b",r"\bcorp[- ]to[- ]corp\b",r"\b1099\b",r"\bpart[- ]time\b",
+ r"\bintern(?:ship)?\b",r"\btemporary\b",r"\btemp\b",r"\bseasonal\b",r"\bvolunteer\b"
+)
+CONTRACT_MARKERS=("contract","contractor","consulting","consultant")
 
 def _clean(v):return re.sub(r"\s+"," ",(v or "").lower()).strip()
 def title_is_target(title):
@@ -47,17 +47,17 @@ def location_is_us(location):
 def employment_is_target(employment_type, description=""):
     """Allow full-time employment or W-2 contracting only.
 
-    If the ATS omits employment type, use the JD text. Unknown is retained only when
-    the posting does not explicitly indicate a disallowed arrangement; downstream
-    matching may still inspect it.
+    Reject markers use word boundaries so ordinary JD words such as "internal" or
+    "international" cannot be mistaken for "intern". Explicit internship/temporary/
+    C2C/1099 language still blocks the role.
     """
     employment=_clean(employment_type)
     text=_clean(f"{employment_type or ''} {description or ''}")
-    if any(marker in text for marker in EMPLOYMENT_REJECT_MARKERS):return False
-    if any(marker in text for marker in {"w2","w-2"}):return True
+    if any(re.search(pattern,text) for pattern in EMPLOYMENT_REJECT_PATTERNS):return False
+    if re.search(r"\bw-?2\b",text):return True
     if any(marker in employment for marker in EMPLOYMENT_ACCEPT_MARKERS):return True
     if any(marker in employment for marker in CONTRACT_MARKERS):return False
-    if any(marker in text for marker in {"full-time","full time","fulltime","regular employee","permanent position"}):return True
+    if any(marker in text for marker in ("full-time","full time","fulltime","regular employee","permanent position")):return True
     return True
 
 def passes_hard_filters(job:dict,profile:dict):
