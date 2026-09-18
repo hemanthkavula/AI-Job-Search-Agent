@@ -8,6 +8,19 @@ from app.filters import passes_hard_filters
 from app.ats_resolver import resolve_original_ats
 
 MIN_COMPLETE_JD_CHARS=1200
+MIN_JD_SIGNAL_SCORE=3
+DICE_BOILERPLATE_MARKERS=("Search all similar jobs","Jobs Directory","Career Advice","Employers and Recruiters","Get the Dice app","Copyright ©","Apply Now To see how well you match")
+JD_SECTION_SIGNALS=("responsibilities","requirements","qualifications","what you'll do","what you will do","skills","experience","preferred","minimum qualifications","basic qualifications")
+
+def _jd_signal_score(text):
+    low=(text or "").lower()
+    return sum(1 for s in JD_SECTION_SIGNALS if s in low)
+
+def _looks_like_complete_jd(text,source=""):
+    value=(text or "").strip()
+    if len(value)<MIN_COMPLETE_JD_CHARS:return False
+    if (source or "").lower()=="dice" and sum(m.lower() in value.lower() for m in DICE_BOILERPLATE_MARKERS)>=2:return False
+    return _jd_signal_score(value)>=MIN_JD_SIGNAL_SCORE
 
 def _clean_html(text):
     text=re.sub(r"(?is)<(script|style).*?>.*?</\1>"," ",text or "")
@@ -27,23 +40,24 @@ def _extract_dice(page):
     plain=_clean_html(page)
     start=re.search(r"(?i)\bJob Description\b",plain)
     if start:plain=plain[start.start():]
-    end=re.search(r"(?i)\b(?:Similar Jobs|Create a job alert|Dice Id:)\b",plain)
-    if end and end.start()>MIN_COMPLETE_JD_CHARS:plain=plain[:end.start()]
+    end=re.search(r"(?i)\b(?:Search all similar jobs|Similar Jobs|More jobs at|Search for Jobs|Jobs Directory|Career Advice|Employers and Recruiters|Create a job alert|Dice Id:)\b",plain)
+    if end:plain=plain[:end.start()]
     return plain
 
 def resolve_full_jd(job):
     """Resolve full JD only after lightweight eligibility. Never calls an LLM."""
     job=resolve_original_ats(job)
     current=(job.get("description") or "").strip()
-    if job.get("description_complete") and len(current)>=MIN_COMPLETE_JD_CHARS:return job
     source=(job.get("source") or "").lower()
+    if job.get("description_complete") and _looks_like_complete_jd(current,source):return job
     page=_fetch_public_page(job.get("original_url") or job.get("url"))
     resolved=_extract_dice(page) if source=="dice" else _clean_html(page)
     out=dict(job)
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
-    out["description_complete"]=len(final)>=MIN_COMPLETE_JD_CHARS
+    out["description_complete"]=_looks_like_complete_jd(final,source)
+    out["jd_signal_score"]=_jd_signal_score(final)
     out["jd_resolution_source"]="original_ats_or_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
     return out
 
