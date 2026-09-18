@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import os, subprocess, shutil
 from xml.sax.saxutils import escape
 from docx import Document
 from reportlab.lib.pagesizes import LETTER
@@ -8,10 +9,34 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
+def _native_convert(src: Path, target: Path) -> bool:
+    """Prefer a real office renderer so PDF layout matches the DOCX."""
+    if os.name=="nt":
+        ps = (
+          "$w=New-Object -ComObject Word.Application;"
+          "$w.Visible=$false;"
+          f"$d=$w.Documents.Open('{str(src).replace(chr(39), chr(39)*2)}');"
+          f"$d.SaveAs([ref]'{str(target).replace(chr(39), chr(39)*2)}',[ref]17);"
+          "$d.Close();$w.Quit()"
+        )
+        try:
+            subprocess.run(["powershell","-NoProfile","-Command",ps],check=True,timeout=60,capture_output=True)
+            if target.exists() and target.stat().st_size>0:return True
+        except Exception:pass
+    office=shutil.which("libreoffice") or shutil.which("soffice")
+    if office:
+        try:
+            subprocess.run([office,"--headless","--convert-to","pdf","--outdir",str(target.parent),str(src)],check=True,timeout=60,capture_output=True)
+            if target.exists() and target.stat().st_size>0:return True
+        except Exception:pass
+    return False
+
 def convert_docx_to_pdf(docx_path: str) -> str | None:
-    """Create PDF directly from the generated DOCX content.
-    Does not launch Microsoft Word and does not require a printer."""
+    """Convert DOCX to PDF, preferring Word/LibreOffice for layout fidelity.
+    ReportLab is retained only as a portability fallback."""
     src=Path(docx_path).resolve(); target=src.with_suffix(".pdf")
+    if _native_convert(src,target):
+        return str(target)
     doc=Document(str(src))
     styles=getSampleStyleSheet()
     normal=ParagraphStyle("ResumeNormal",parent=styles["Normal"],fontName="Helvetica",fontSize=8.8,leading=10.4,spaceAfter=2)
