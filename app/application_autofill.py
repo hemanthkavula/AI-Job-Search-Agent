@@ -61,26 +61,40 @@ def _label(el):
         return el.get_attribute("aria-label") or el.get_attribute("placeholder") or el.get_attribute("name") or el.get_attribute("id") or ""
 
 
-def _source_option_score(text):
-    """Rank only source choices consistent with reaching the employer career site."""
+def _source_option_score(text,item=None,page_url=""):
+    """Rank the actual source choices using this application's provenance and employer context."""
     x=_norm(text)
     if not x:return -1
+    item=item or {}
+    company=_norm(item.get("company") or "")
+    source=_norm(item.get("source") or "")
+    # Never claim a referral/recruiter/school relationship unless provenance says so.
+    if any(t in x for t in ("employee referral","referral","recruiter","staffing agency","university","school","college")):
+        return 100 if any(t in source for t in x.split()) else -1
+    score=0
+    # Exact employer/career-site choices are strongest (e.g. Adobe.com).
+    company_tokens=[t for t in company.split() if len(t)>=4 and t not in ("inc","corp","corporation","company","llc")]
+    if company_tokens and any(t in x for t in company_tokens):score=max(score,100)
     if any(t in x for t in ("company website","company career","career website","career site",
-                            "adobe website","adobe career","corporate website","employer website")):return 100
-    if "website" in x and not any(t in x for t in ("linkedin","indeed","glassdoor","dice","ziprecruiter")):return 80
-    if any(t in x for t in ("company site","career page","corporate site")):return 75
-    if x in ("internet","online","web","other website","other online source"):return 40
-    if any(t in x for t in ("other","not listed","none of the above")):return 20
-    return -1
+                            "corporate website","employer website","company site","career page","corporate site")):
+        score=max(score,95)
+    # If the discovery provenance itself is represented, prefer that truthful source.
+    aliases={"linkedin":"linkedin","dice":"dice","indeed":"indeed","ziprecruiter":"ziprecruiter",
+             "glassdoor":"glassdoor","monster":"monster","jobright":"jobright"}
+    for token,label in aliases.items():
+        if token in source and label in x:score=max(score,90)
+    if "website" in x or x in ("internet","online","web","other website","other online source"):
+        score=max(score,70)
+    if any(t in x for t in ("other","not listed","none of the above")):score=max(score,30)
+    return score if score else -1
 
-def _workday_select_dropdown(page,el,value):
-    """Inspect actual Workday source choices and select the closest truthful website/other source."""
+def _workday_select_dropdown(page,el,value,item=None):
+    """Inspect this tenant's real choices and select the best truthful source for this application."""
     try:
         el.click(timeout=3000);page.wait_for_timeout(900)
         selectors='[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], [data-automation-id*="promptOption"], li'
         def collect():
-            rows=[]
-            opts=page.locator(selectors)
+            rows=[];opts=page.locator(selectors)
             for i in range(min(opts.count(),350)):
                 o=opts.nth(i)
                 try:
@@ -94,11 +108,11 @@ def _workday_select_dropdown(page,el,value):
             try:el.press("ArrowDown");page.wait_for_timeout(700)
             except Exception:pass
             rows=collect()
-        ranked=[]
-        seen=set()
+        ranked=[];seen=set()
         for txt,o in rows:
-            if _norm(txt) in seen:continue
-            seen.add(_norm(txt));score=_source_option_score(txt)
+            nx=_norm(txt)
+            if nx in seen:continue
+            seen.add(nx);score=_source_option_score(txt,item,page.url)
             if score>=0:ranked.append((score,len(txt),txt,o))
         if not ranked:return False
         ranked.sort(key=lambda z:(-z[0],z[1]))
@@ -251,11 +265,6 @@ def _required(el):
 def _fill_current_page(page,item,identity,resume,result):
     """Fill only deterministic fields on the current ATS step."""
     before=len(result["filled"]);unresolved=[]
-    try:
-        body_hint=_norm(page.locator("body").inner_text(timeout=3000))
-        if "how did you hear about us" in body_hint and _workday_source(page,"Company Website"):
-            result["filled"].append({"field":"How Did You Hear About Us?","value":"Company Website"})
-    except Exception:pass
     controls=page.locator("input, textarea, select")
     for i in range(min(controls.count(),250)):
         el=controls.nth(i)
@@ -280,7 +289,7 @@ def _fill_current_page(page,item,identity,resume,result):
             try:
                 selected=False
                 if "how did you hear about us" in x:
-                    selected=_workday_select_dropdown(page,el,value)
+                    selected=_workday_select_dropdown(page,el,value,item)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
                     formatted=f"({digits[:3]}) {digits[3:6]}-{digits[6:]}" if len(digits)==10 else digits
