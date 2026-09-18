@@ -67,7 +67,7 @@ def _posted_at(value: str | None) -> str | None:
     return None
 
 
-def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "en-US", timeout: int = 20) -> list[dict]:
+def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "en-US", timeout: int = 20, hours: int = 24) -> list[dict]:
     """Fetch Data Engineer-family jobs from one public Workday CXS career site.
 
     Workday calls are retried with exponential backoff so transient DNS/network
@@ -96,6 +96,12 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
         listing_count += len(rows)
 
         for row in rows:
+            posted=_posted_at(row.get("postedOn"))
+            if posted:
+                try:
+                    age_hours=(datetime.now(timezone.utc)-datetime.fromisoformat(posted)).total_seconds()/3600
+                    if age_hours>hours: continue
+                except Exception: pass
             if not _is_de_title(row.get("title")):
                 continue
             candidate_count += 1
@@ -124,7 +130,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
                 "employment_type": detail.get("timeType"),
                 "url": public_url,
                 "description": _plain(detail.get("jobDescription")),
-                "updated_at": _posted_at(row.get("postedOn")),
+                "updated_at": posted,
                 "posted_on": row.get("postedOn"),
             }
 
@@ -133,5 +139,5 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             break
 
     out=list(out_by_path.values())
-    print(f"Workday / {company}: {listing_count} targeted search results, {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
+    print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
     return out
