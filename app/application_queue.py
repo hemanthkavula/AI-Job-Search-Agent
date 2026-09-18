@@ -42,12 +42,18 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         if r.get("next_action")!="READY_TO_APPLY":continue
         validation=r.get("artifact_validation") or {}
         pdf=r.get("pdf_path")
-        if not pdf or not validation.get("passed"):continue
+        # Backward compatibility: manifests created before artifact_validation was
+        # persisted can still be used, but only when READY_TO_APPLY has a real PDF.
+        # New manifests must continue to honor an explicit failed validation.
+        resolved_pdf=_artifact_path(pdf,manifest_path)
+        explicit_validation="artifact_validation" in r and r.get("artifact_validation") is not None
+        if not pdf or not resolved_pdf or not Path(resolved_pdf).exists():continue
+        if explicit_validation and not validation.get("passed"):continue
         provider=_provider(r)
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,
-          "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":_artifact_path(pdf,manifest_path),
+          "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
