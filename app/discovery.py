@@ -8,7 +8,7 @@ from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json") -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24) -> list[dict]:
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
     for provider in ("greenhouse","lever","ashby","smartrecruiters"):
@@ -32,12 +32,12 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         identifier=src.get("company_identifier") or src.get("identifier")
         try:
             if not identifier: raise ValueError("Missing company_identifier")
-            jobs.extend(smartrecruiters_jobs(identifier))
+            jobs.extend(smartrecruiters_jobs(identifier, hours=hours))
         except Exception as e: errors.append({"source":"smartrecruiters","company":src.get("company") or identifier,"error":str(e)})
     for src in config.get("workday",[]) if only_source in (None,"workday") else []:
         try:
             jobs.extend(workday_jobs(
-                src.get("company") or src["tenant"], src["host"], src["tenant"], src["site"], src.get("locale","en-US")
+                src.get("company") or src["tenant"], src["host"], src["tenant"], src["site"], src.get("locale","en-US"), hours=hours
             ))
         except Exception as e:
             errors.append({"source":"workday","company":src.get("company") or src.get("tenant"),"error":str(e)})
