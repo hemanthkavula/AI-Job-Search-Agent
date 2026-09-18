@@ -38,7 +38,18 @@ def _title_for_match(title):
     t=_clean(title)
     t=re.sub(r"\s*\((?:remote|hybrid|on[- ]?site|onsite)(?:[^)]*)\)\s*$","",t)
     return t.strip()
-def title_is_target(title):
+DATA_ENGINEERING_JD_SIGNALS=(
+ "data pipeline","data pipelines","etl","elt","data warehouse","data lake","lakehouse","spark","pyspark","databricks","snowflake","bigquery","redshift","airflow","dbt","kafka","data modeling","data ingestion","data transformation","data integration"
+)
+
+def jd_is_data_engineering(description):
+    text=_clean(description)
+    # Require several independent DE signals for adjacent titles so a single generic
+    # technology mention does not turn an unrelated role into a Data Engineering job.
+    hits={signal for signal in DATA_ENGINEERING_JD_SIGNALS if signal in text}
+    return len(hits)>=3
+
+def title_is_target(title,description=""):
     t=_title_for_match(title)
     # User's governing title rule: if the title contains the phrase "data engineer"
     # anywhere as words, it belongs to the target family. Prefixes/suffixes and
@@ -48,7 +59,10 @@ def title_is_target(title):
     # Keep a small adjacent DE-family set for titles that do not literally contain
     # "data engineer", such as Data Platform Engineer.
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    return any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:])
+    if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
+    # Adjacent data roles can qualify from their responsibilities even when the title
+    # does not literally say Data Engineer (e.g. Data Analytics Engineer / Data Integration Engineer).
+    return jd_is_data_engineering(description)
 
 def location_is_us(location,source=None):
     raw=(location or "").strip();src=_clean(source)
@@ -78,7 +92,7 @@ def work_authorization_restriction(description="",title=""):
 
 def passes_hard_filters(job:dict,profile:dict):
     title=_clean(job.get("title"));reasons=[]
-    if not title_is_target(title):reasons.append("title outside strict data-engineering job family")
+    if not title_is_target(title,job.get("description")):reasons.append("title/JD outside data-engineering job family")
     if not location_is_us(job.get("location"),job.get("source")):reasons.append(f"non-US or unverified US location: {job.get('location') or 'not stated'}")
     if not employment_is_target(job.get("employment_type"),job.get("description")):reasons.append(f"employment type outside Full-Time/W2 target: {job.get('employment_type') or 'not explicitly stated'}")
     restriction=work_authorization_restriction(job.get("description"),job.get("title"))
