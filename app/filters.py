@@ -110,13 +110,23 @@ def work_authorization_restriction(description="",title=""):
     return None
 
 def passes_hard_filters(job:dict,profile:dict):
-    title=_clean(job.get("title"));reasons=[]
-    if not title_is_target(title,job.get("description")):reasons.append("title/JD outside data-engineering job family")
-    if not location_is_us(job.get("location"),job.get("source"),job.get("description")):reasons.append(f"non-US or unverified US location: {job.get('location') or 'not stated'}")
-    if not employment_is_target(job.get("employment_type"),job.get("description")):reasons.append(f"employment type outside Full-Time/W2 target: {job.get('employment_type') or 'not explicitly stated'}")
-    restriction=work_authorization_restriction(job.get("description"),job.get("title"))
-    if restriction:reasons.append(restriction)
+    """Apply only the three governing eligibility criteria.
+
+    1) Data Engineering family (title, or adjacent title supported by JD evidence)
+    2) Future sponsorship must not be explicitly unavailable
+    3) Experience requirement must fit the configured target window
+
+    Location, employment type, W2/contract wording, citizenship and clearance are
+    retained as metadata for later application handling but are not eligibility
+    gates. This prevents older policy from silently rejecting otherwise eligible
+    Data Engineering postings.
+    """
+    reasons=[]
+    if not title_is_target(job.get("title"),job.get("description")):
+        reasons.append("title/JD outside data-engineering job family")
     eligibility=two_category_filter(job,profile)
-    if not eligibility["experience"]["eligible"]:reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
-    if eligibility["sponsorship"]["eligible"] is False:reasons.append("future H-1B sponsorship unavailable")
+    if not eligibility["experience"]["eligible"]:
+        reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
+    if eligibility["sponsorship"]["eligible"] is False:
+        reasons.append("future H-1B sponsorship unavailable")
     return len(reasons)==0,reasons
