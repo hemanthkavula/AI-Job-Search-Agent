@@ -5,6 +5,8 @@ from playwright.sync_api import sync_playwright
 from app.config import load_profile
 from app.application_inspector import BLOCKER_RE
 
+ROOT=Path(__file__).resolve().parents[1]
+
 def _norm(s):return re.sub(r"[^a-z0-9]+"," ",(s or "").lower()).strip()
 
 def _identity(profile):
@@ -45,12 +47,24 @@ def _choose(el,value):
         return False
     el.fill(str(value));return True
 
+def _resolve_resume(value):
+    if not value:return None
+    p=Path(value)
+    candidates=[p] if p.is_absolute() else [ROOT/p,p]
+    for candidate in candidates:
+        try:
+            resolved=candidate.resolve()
+            if resolved.exists() and resolved.is_file():return resolved
+        except Exception:pass
+    return None
+
 def autofill(item:dict,headless=True)->dict:
     """Fill deterministic fields and upload the validated PDF. Never submit."""
     profile=load_profile();identity=_identity(profile);url=item.get("url")
     result={"external_id":item.get("external_id"),"url":url,"status":"FILLING","filled":[],"unresolved_required":[],"blockers":[],"submitted":False}
-    resume=Path(item.get("resume_path") or "")
-    if not resume.exists():return {**result,"status":"MANUAL_ACTION_REQUIRED","reason":"Validated resume file is missing"}
+    resume=_resolve_resume(item.get("resume_path"))
+    if resume is None:
+        return {**result,"status":"MANUAL_ACTION_REQUIRED","reason":"Validated resume file is missing","expected_resume_path":item.get("resume_path")}
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=headless);page=browser.new_page()
         try:
