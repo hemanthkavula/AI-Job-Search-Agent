@@ -46,7 +46,7 @@ def _is_de_title(title: str | None) -> bool:
     return any(pattern in value for pattern in DE_TITLE_PATTERNS)
 
 
-def fetch_jobs(company_identifier: str, timeout: int = 12) -> list[dict]:
+def fetch_jobs(company_identifier: str, timeout: int = 12, hours: int = 24) -> list[dict]:
     """Fetch public SmartRecruiters Data Engineer-family postings for one company.
 
     The listing endpoint is paginated, but detailed posting requests are made only for
@@ -67,13 +67,14 @@ def fetch_jobs(company_identifier: str, timeout: int = 12) -> list[dict]:
         # Reject stale listings before any detailed-JD request. releasedDate is supplied
         # on SmartRecruiters listing rows, so old postings should not cost detail calls.
         from datetime import datetime, timezone, timedelta
-        cutoff=datetime.now(timezone.utc)-timedelta(hours=24)
+        cutoff=datetime.now(timezone.utc)-timedelta(hours=hours)
         def recent(row):
             raw=row.get("releasedDate")
             if not raw:return False
             try:return datetime.fromisoformat(raw.replace("Z","+00:00")).astimezone(timezone.utc)>=cutoff
             except Exception:return False
-        candidates = [row for row in rows if recent(row) and _is_de_title(row.get("name"))]
+        recent_rows=[row for row in rows if recent(row)]
+        candidates = [row for row in recent_rows if _is_de_title(row.get("name"))]
         candidate_count += len(candidates)
 
         for row in candidates:
@@ -112,12 +113,17 @@ def fetch_jobs(company_identifier: str, timeout: int = 12) -> list[dict]:
 
         offset += len(rows)
         total = int(payload.get("totalFound") or 0)
+        # SmartRecruiters listings are newest-first in normal API responses. Once a
+        # full page contains no rows inside the requested window, older pages cannot
+        # contribute to this incremental cycle, so stop paging.
+        if rows and not recent_rows:
+            break
         if not rows or offset >= total:
             break
 
     print(
         f"SmartRecruiters / {company_identifier}: "
-        f"{listing_count} listings, {candidate_count} DE candidates, {len(out)} detailed JDs",
+        f"{listing_count} listings scanned ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs",
         flush=True,
     )
     return out
