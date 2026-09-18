@@ -4,7 +4,7 @@ from urllib import request
 from urllib.parse import urljoin, urlsplit, unquote
 from app.source_registry import detect_ats
 
-ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com")
+ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com")
 
 def _fetch(url):
  if not url:return ""
@@ -20,8 +20,14 @@ def _same_company_hint(job,url):
 
 def _candidate_links(page,base):
  links=[]
- for href in re.findall(r'''(?i)href=["']([^"'#]+)["']''',page or ""):
-  u=urljoin(base,href)
+ # Aggregators frequently hide the employer ATS URL in JSON/script state instead
+ # of a clickable anchor. Normalize escaped slashes and inspect both forms.
+ value=(page or "").replace(r"\/", "/").replace(r"\u002F", "/")
+ raw=[]
+ raw.extend(re.findall(r'''(?i)href=["']([^"'#]+)["']''',value))
+ raw.extend(re.findall(r'''(?i)https?://[^"'<>\\\s]+''',value))
+ for href in raw:
+  u=unquote(urljoin(base,href)).rstrip("),.;")
   if any(host in u.lower() for host in ATS_HOST_HINTS):links.append(u)
  return list(dict.fromkeys(links))
 
