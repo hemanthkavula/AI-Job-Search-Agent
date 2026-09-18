@@ -17,11 +17,8 @@ def load_sources(path):return json.loads(Path(path).read_text(encoding="utf-8"))
 def _reason_key(reason):
     r=(reason or "").lower()
     if "title outside" in r:return "wrong_job_family"
-    if "location" in r:return "non_us_location"
-    if "full-time/w2" in r or "full-time or w2" in r or "employment type" in r:return "not_full_time_or_w2"
     if "experience requirement" in r:return "experience_mismatch"
     if "sponsorship unavailable" in r:return "no_future_sponsorship"
-    if "clearance" in r or "citizenship" in r:return "work_authorization_restriction"
     return "other_hard_filter"
 
 def _norm_company(value):
@@ -83,9 +80,8 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     save_ledger(ledger,ledger_path)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
-        "non_us_location":reason_counts["non_us_location"],"not_full_time_or_w2":reason_counts["not_full_time_or_w2"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
-        "work_authorization_restriction":reason_counts["work_authorization_restriction"],"duplicates_removed":len(duplicates),
+        "duplicates_removed":len(duplicates),
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
     return {
@@ -97,7 +93,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
 
 def _print_diagnostics(d,hours):
     print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
-    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Non-US/unverified location","non_us_location"),("Not Full-Time/W2","not_full_time_or_w2"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Clearance/citizenship restriction","work_authorization_restriction"),("Duplicates removed","duplicates_removed"),("Other hard filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
+    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
