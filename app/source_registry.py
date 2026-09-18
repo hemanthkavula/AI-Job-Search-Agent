@@ -9,6 +9,17 @@ PATTERNS={
  "lever":[r"jobs\.lever\.co/([^/?#]+)"],
  "ashby":[r"jobs\.ashbyhq\.com/([^/?#]+)"],
  "smartrecruiters":[r"(?:jobs\.)?smartrecruiters\.com/([^/?#]+)"],
+ "workday":[
+   r"https?://([^.]+)\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([^/?#]+)",
+   r"https?://([^.]+)\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([^/?#]+)",
+ ],
+ "icims":[
+   r"https?://(?:careers-)?([^.]+)\.icims\.com/",
+ ],
+ "jobvite":[
+   r"https?://jobs\.jobvite\.com/([^/?#]+)",
+   r"https?://([^.]+)\.jobvite\.com/",
+ ],
 }
 
 def load_registry(path=DEFAULT_PATH):
