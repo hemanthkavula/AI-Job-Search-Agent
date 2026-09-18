@@ -137,6 +137,39 @@ def _resolve_resume(value):
     return None
 
 
+def _application_preflight(page):
+    """Analyze the current application page before filling it. Every application gets its own plan."""
+    body=page.locator("body").inner_text(timeout=7000)
+    controls=[]
+    loc=page.locator('input, textarea, select, [role="combobox"], [role="radio"], [role="checkbox"]')
+    for i in range(min(loc.count(),350)):
+        el=loc.nth(i)
+        try:
+            if not el.is_visible():continue
+            controls.append({
+                "label":_label(el),
+                "tag":el.evaluate("e=>e.tagName.toLowerCase()"),
+                "type":el.get_attribute("type"),
+                "required":_required(el),
+                "id":el.get_attribute("id"),
+                "name":el.get_attribute("name"),
+                "automation_id":el.get_attribute("data-automation-id"),
+            })
+        except Exception:pass
+    actions=[]
+    for txt in page.locator("button, a, [role=button]").all_inner_texts()[:150]:
+        txt=re.sub(r"\\s+"," ",txt or "").strip()
+        if txt:actions.append(txt)
+    return {
+        "url":page.url,
+        "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:1800],
+        "required_fields":[x for x in controls if x["required"]],
+        "visible_fields":controls,
+        "actions":actions[:80],
+        "has_resume_upload":page.locator('input[type="file"]').count()>0,
+        "blocker_detected":bool(BLOCKER_RE.search(body)),
+    }
+
 def _workday_enter_application(page):
     """Wait for the Workday SPA, enter Apply flow, and return diagnostics."""
     diag={"provider":"workday","url_before":page.url,"title":None,"ready_state":None,
@@ -261,7 +294,8 @@ def _fill_current_page(page,item,identity,resume,result):
                         el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
                         el.press_sequentially(digits,delay=90);el.press("Tab");page.wait_for_timeout(400)
                         current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)\n                else:
+                    selected=current.endswith(digits)
+                else:
                     selected=_choose(el,value)
                 if selected:
                     logged_value=el.input_value() if key=="phone" else value
@@ -296,10 +330,13 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
                 if "Loading" not in body_now and interactive>0:break
             except Exception:pass
             page.wait_for_timeout(500)
+        preflight=_application_preflight(page)
         filled,unresolved=_fill_current_page(page,item,identity,resume,result)
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
-              "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800]}
+              "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800],
+              "preflight_required_fields":preflight["required_fields"],
+              "preflight_visible_field_count":len(preflight["visible_fields"])}
         # Capture exact DOM metadata for stubborn Workday custom controls. This is
         # intentionally diagnostic: do not claim a field is filled until Workday accepts it.
         if "how did you hear about us" in _norm(body):
@@ -373,8 +410,10 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
         browser=p.chromium.launch(headless=headless);page=browser.new_page()
         try:
             page.goto(url,wait_until="domcontentloaded",timeout=60000)
+            result["application_analysis"]={"landing":_application_preflight(page)}
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["navigation"]=_workday_enter_application(page)
+                result["application_analysis"]["after_apply_entry"]=_application_preflight(page)
                 # If resume-assisted flow is selected, upload the exact validated
                 # PDF before scanning the generated application fields.
                 chosen=(result["navigation"] or {}).get("manual_selector") or ""
@@ -400,7 +439,10 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
                 _,result["unresolved_required"]=_fill_current_page(page,item,identity,resume,result)
             # A page with zero mapped fields is not a successful autofill. Workday
             # commonly lands on a job-description/sign-in step before its application form.
-            if not result["filled"]:
+            if result["blockers"]:
+                result["status"]="MANUAL_ACTION_REQUIRED"
+                result["reason"]="Application has a validation, CAPTCHA/MFA, or verification blocker."
+            elif not result["filled"]:
                 result["status"]="MANUAL_ACTION_REQUIRED"
                 result["reason"]="No application form fields were mapped; application form may require an Apply/sign-in step."
             else:
