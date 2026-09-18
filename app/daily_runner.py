@@ -59,7 +59,11 @@ def _dedup_eligible(items):
     return kept,duplicates
 
 def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json"):
-    """Discover and eligibility-filter jobs only; no JD/resume score is used."""
+    """Discover and eligibility-filter jobs only; no JD/resume score is used.
+
+    `hours` is the incremental posting window. Use 24 for the first daily scan and
+    1 for subsequent hourly scans; the persistent ledger prevents duplicate downstream work.
+    """
     profile=load_profile();ledger=load_ledger(ledger_path);jobs,errors=discover(load_sources(source_config),only_source,dice_search_terms);jobs24,stale,already=fresh_jobs(jobs,hours)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
