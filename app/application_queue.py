@@ -3,6 +3,8 @@ import argparse,json
 from pathlib import Path
 from urllib.parse import urlparse
 
+ROOT=Path(__file__).resolve().parents[1]
+
 SUPPORTED_ATS={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite"}
 MANUAL_BLOCKERS=("captcha","recaptcha","hcaptcha","mfa","two-factor","2fa","verification code")
 
@@ -22,6 +24,17 @@ def _known_answers():
       "sponsorship_statement":"I am currently authorized to work in the United States under F-1 OPT and do not require sponsorship at this time. I will require H-1B sponsorship in the future to continue working in the United States."
     }
 
+def _artifact_path(value,manifest_path):
+    if not value:return None
+    p=Path(value)
+    if p.is_absolute():return str(p)
+    candidates=[ROOT/p,Path(manifest_path).resolve().parent/p,p.resolve()]
+    for candidate in candidates:
+        if candidate.exists():return str(candidate.resolve())
+    # Preserve a deterministic project-root path so downstream diagnostics explain
+    # exactly which artifact was expected even if it was later moved/deleted.
+    return str((ROOT/p).resolve())
+
 def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
     """Queue only fully validated artifacts; never guess unknown application answers."""
     rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[]
@@ -34,7 +47,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,
-          "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":pdf,
+          "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":_artifact_path(pdf,manifest_path),
           "artifact_validation":validation,"known_answers":_known_answers(),
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
