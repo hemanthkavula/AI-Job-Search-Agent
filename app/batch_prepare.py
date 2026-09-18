@@ -19,10 +19,6 @@ def _audit_feedback(audit):
         "missing_jd_keywords":audit.get("missing_jd_keywords",[]),
         "keyword_coverage":audit.get("keyword_coverage"),
         "internal_ats_score":audit.get("internal_ats_score"),
-        "technology_evidence_coverage":audit.get("technology_evidence_coverage"),
-        "skills_without_experience_evidence":audit.get("skills_without_experience_evidence",[]),
-        "technical_skills_jd_terms":audit.get("technical_skills_jd_terms",[]),
-        "experience_evidenced_jd_terms":audit.get("experience_evidenced_jd_terms",[]),
         "human_quality_score":audit.get("human_quality_score"),
         "readability_score":audit.get("readability_score"),
         "repetition_score":audit.get("repetition_score"),
@@ -35,7 +31,7 @@ def _audit_feedback(audit):
         "bullet_count_score":audit.get("bullet_count_score"),
         "skills_taxonomy_score":audit.get("skills_taxonomy_score"),
         "quality_gates":audit.get("quality_gates",{}),
-        "retry_instruction":"Correct every failed audit gate while preserving truthful candidate evidence. Keep strong content from the previous version; do not rewrite merely for variety. IMPORTANT: when skills_without_experience_evidence is non-empty, add natural Professional Experience evidence for those exact supported technologies; merely listing them in Technical Skills will not pass. Preserve all already-evidenced JD terms so a retry cannot regress keyword/evidence coverage. Remove unsupported claims and unapproved metrics, fix structure/repetition/readability issues, and return a submission-ready final resume."
+        "retry_instruction":"Correct every failed audit gate while keeping strong content from the previous version. Prioritize missing JD keywords and exact JD terminology, then fix structure, repetition, readability, and metric violations. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, numerical outcomes, or specific accomplishments."
     }
 
 def _matches(raw,company=None,title=None,external_id=None):
@@ -60,23 +56,23 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             if not raw.get("description_complete") or len(job.description.strip())<1200:raise RuntimeError("Job is not FINAL_JD_VERIFIED with a complete JD; run app.jd_finalizer before resume tailoring.")
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
-            print("V1 coverage plan | targets={} | extended={} | careful={}".format(coverage_plan["target_count"],coverage_plan["confirmed_extended_requested"],coverage_plan["targets_requiring_careful_evidence"]),flush=True)
+            print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
             generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
-            print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
                 generated=generate_with_llm(job,profile,_audit_feedback(audit),coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
-                print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+                print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
             next_action="READY_TO_APPLY" if audit["passed"] else "HOLD_ATS_REVIEW"
-            print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | evidence={audit.get('technology_evidence_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
