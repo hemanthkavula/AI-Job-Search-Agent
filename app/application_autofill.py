@@ -61,6 +61,18 @@ def _label(el):
         return el.get_attribute("aria-label") or el.get_attribute("placeholder") or el.get_attribute("name") or el.get_attribute("id") or ""
 
 
+def _source_option_score(text):
+    """Rank only source choices consistent with reaching the employer career site."""
+    x=_norm(text)
+    if not x:return -1
+    if any(t in x for t in ("company website","company career","career website","career site",
+                            "adobe website","adobe career","corporate website","employer website")):return 100
+    if "website" in x and not any(t in x for t in ("linkedin","indeed","glassdoor","dice","ziprecruiter")):return 80
+    if any(t in x for t in ("company site","career page","corporate site")):return 75
+    if x in ("internet","online","web","other website","other online source"):return 40
+    if any(t in x for t in ("other","not listed","none of the above")):return 20
+    return -1
+
 def _workday_select_dropdown(page,el,value):
     """Inspect actual Workday source choices and select the closest truthful website/other source."""
     try:
@@ -73,7 +85,7 @@ def _workday_select_dropdown(page,el,value):
                 o=opts.nth(i)
                 try:
                     if o.is_visible():
-                        txt=re.sub(r"\\s+"," ",o.inner_text()).strip()
+                        txt=re.sub(r"\\s+"," ",o.inner_text() or "").strip()
                         if txt and len(txt)<180:rows.append((txt,o))
                 except Exception:pass
             return rows
@@ -238,22 +250,22 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    # Set the complete national number atomically. Character-by-character
-                    # entry into this Workday mask was dropping the 856 area code.
-                    el.evaluate("""(e,v) => {
-                        const proto=Object.getPrototypeOf(e);
-                        const d=Object.getOwnPropertyDescriptor(proto,'value');
-                        if(d && d.set)d.set.call(e,v); else e.value=v;
-                        e.dispatchEvent(new Event('input',{bubbles:true}));
-                        e.dispatchEvent(new Event('change',{bubbles:true}));
-                        e.blur();
-                    }""",digits)
-                    page.wait_for_timeout(500)
+                    # First use Playwright fill(), which replaces the entire controlled
+                    # value in one input event and avoids Workday consuming area-code keys.
+                    el.click();el.fill("");page.wait_for_timeout(150)
+                    el.fill(digits);page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
                     current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)
-                else:
+                    if not current.endswith(digits):
+                        # Fallback: force an empty DOM/control state, refocus, then send
+                        # the complete national number as sequential digit key events.
+                        el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
+                        el.press_sequentially(digits,delay=90);el.press("Tab");page.wait_for_timeout(400)
+                        current=re.sub(r"\\D+","",el.input_value())
+                    selected=current.endswith(digits)                else:
                     selected=_choose(el,value)
-                if selected:result["filled"].append({"field":label,"value":value})
+                if selected:
+                    logged_value=el.input_value() if key=="phone" else value
+                    result["filled"].append({"field":label,"value":logged_value})
                 elif required:unresolved.append(label)
             except Exception:
                 if required:unresolved.append(label)
