@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 from app.config import load_profile
+from app.job_ledger import load_ledger, save_ledger, seen_or_submitted, record_seen
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -369,9 +370,33 @@ async def _main_async(args) -> int:
     if isinstance(items, dict):
         items = items.get("applications") or items.get("items") or []
     profile = load_profile()
+    ledger_path = ROOT / "generated" / "job_ledger.json"
+    ledger = load_ledger(ledger_path)
     results = []
     for item in items[: args.limit if args.limit else None]:
-        results.append(await _run_one(item, profile, args.headed, allow_submit=args.submit))
+        processed, _, prior = seen_or_submitted(item, ledger)
+        if processed and (prior or {}).get("application_status") == "SUBMITTED":
+            results.append({
+                "external_id": item.get("external_id"),
+                "url": item.get("application_url") or item.get("url"),
+                "status": "SKIP_ALREADY_SUBMITTED",
+                "submitted": False,
+                "reason": "This exact requisition/link was already submitted and is permanently deduplicated by the job ledger.",
+            })
+            continue
+        result = await _run_one(item, profile, args.headed, allow_submit=args.submit)
+        results.append(result)
+        status = result.get("status")
+        if status in {"SUBMITTED", "READY_FOR_REVIEW", "MANUAL_ACTION_REQUIRED", "APPLICATION_FLOW_ERROR"}:
+            ledger_status = "SUBMITTED" if status == "SUBMITTED" else status
+            record_seen(
+                item,
+                ledger,
+                ledger_status,
+                application_result=result.get("agent_result") or result.get("error"),
+                submitted_at=(datetime.now(ZoneInfo("America/New_York")).isoformat() if status == "SUBMITTED" else None),
+            )
+            save_ledger(ledger, ledger_path)
     out = ROOT / "generated" / "ai_application_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
