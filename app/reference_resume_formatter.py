@@ -81,8 +81,9 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
     for e in profile["education"]:
         p=doc.add_paragraph();_compact(p,0,1);_run(p.add_run(e["degree"]),9.5,True)
         p=doc.add_paragraph();_compact(p,0,1);_run(p.add_run(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}"),9.2)
-    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
+    root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     clean_title=canonical_resume_title(job.title)
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(clean_title))
     timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
-    path=out/f"{stem}_{timestamp}.docx";doc.save(path);return str(path)
+    job_dir=root/f"{safe_name(job.company)}_{safe_name(clean_title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
+    path=job_dir/f"{stem}.docx";doc.save(path);return str(path)
