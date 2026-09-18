@@ -5,8 +5,20 @@ import time
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from urllib.request import Request, urlopen
+from pathlib import Path
 
 SEARCH_TERMS = ("Data Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
+ROOT=Path(__file__).resolve().parents[2]
+CACHE_PATH=ROOT/"generated"/"workday_discovery_cache.json"
+
+def _load_cache():
+    if not CACHE_PATH.exists(): return {}
+    try: return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception: return {}
+
+def _save_cache(cache):
+    CACHE_PATH.parent.mkdir(parents=True,exist_ok=True)
+    CACHE_PATH.write_text(json.dumps(cache,indent=2),encoding="utf-8")
 
 DE_TITLE_PATTERNS = (
     "data engineer",
@@ -79,6 +91,10 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     listing_count = 0
     candidate_count = 0
     out_by_path: dict[str,dict] = {}
+    cache=_load_cache()
+    cache_key=f"{tenant}:{site}"
+    tenant_cache=cache.setdefault(cache_key,{})
+    incremental=hours<=2
 
     for search_term in SEARCH_TERMS:
       offset = 0
@@ -91,6 +107,16 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             try: total = int(payload.get("total") or 0)
             except Exception: total = 0
         rows = payload.get("jobPostings") or []
+        if incremental:
+            term_cache=tenant_cache.setdefault(search_term,{})
+            previous=set(term_cache.get("paths") or [])
+            current=[row.get("externalPath") for row in rows if row.get("externalPath")]
+            # Hourly mode only needs the newest frontier. Once a page is entirely
+            # known from a previous successful scan, stop before historical paging.
+            if current and all(x in previous for x in current):
+                break
+            term_cache["paths"]=list(dict.fromkeys(current+list(previous)))[:500]
+            term_cache["checked_at"]=datetime.now(timezone.utc).isoformat()
         if not rows:
             break
         listing_count += len(rows)
@@ -146,6 +172,8 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
         if len(rows) < limit or (total and offset >= total):
             break
 
+    if incremental:
+        _save_cache(cache)
     out=list(out_by_path.values())
     print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
     return out
