@@ -6,8 +6,17 @@ from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
+from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 
-def discover(config: dict, only_source=None, dice_search_terms=None) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json") -> list[dict]:
+    registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
+    merged=dict(config)
+    for provider in ("greenhouse","lever","ashby","smartrecruiters"):
+        existing=list(config.get(provider,[]));seen={str(x) for x in existing}
+        for row in learned_config.get(provider,[]):
+            if str(row) not in seen:existing.append(row)
+        merged[provider]=existing
+    config=merged
     jobs=[]
     errors=[]
     for src in config.get("greenhouse",[]) if only_source in (None,"greenhouse") else []:
@@ -42,4 +51,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None) -> list[dic
     dedup={}
     for job in jobs:
         dedup[job["external_id"]]=job
-    return list(dedup.values()), errors
+    rows=list(dedup.values())
+    learned=learn_from_jobs(rows,registry)
+    if learned:save_registry(registry,registry_path)
+    return rows, errors
