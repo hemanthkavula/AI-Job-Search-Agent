@@ -5,7 +5,6 @@ from app.config import load_profile
 from app.scoring import analyze_job
 from app.tailoring import build_tailoring_plan
 from app.db import init_db, save_job
-from app.application_queue import init_queue
 from app.orchestrator import process_job
 from app.dashboard import dashboard_html
 
@@ -15,7 +14,6 @@ profile = load_profile()
 @app.on_event("startup")
 def startup():
     init_db()
-    init_queue()
 
 @app.get("/health")
 def health():
