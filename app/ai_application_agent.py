@@ -115,7 +115,8 @@ Goal:
 12. Do not modify the resume file.
 13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
 14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop.
-15. STUBBORN CONTROL RECOVERY: if a normal click on a radio button, checkbox, dropdown option, or button does not visibly commit the intended state, do NOT repeat the same indexed click more than twice and do NOT stop. Call the activate_form_control tool with the exact visible question/label and the already-supported intended value. Then inspect the page and verify the state. This recovery is generic across ATS sites and must never be used to invent an answer.
+15. STUBBORN CONTROL RECOVERY: if a normal click on a radio button, checkbox, dropdown option, or button does not visibly commit the intended state, do NOT repeat the same indexed click more than twice and do NOT stop. Call the activate_form_control tool with the exact visible question/label and the already-supported intended value. The recovery tool will prefer the browser's dedicated check operation for radio/checkbox controls. Then inspect the page and verify the state. This recovery is generic across ATS sites and must never be used to invent an answer.
+16. PHONE RECOVERY: when the form has a separate country/region calling-code control (for example United States +1), the phone-number field should normally contain only the national 10-digit number. If a truthful supplied phone fails validation, treat formatting as an ordinary recoverable UI issue, not MANUAL_ACTION_REQUIRED. Inspect the actual phone input and country-code state, then try reasonable representations of the same digits only (digits-only, standard U.S. formatting, hyphenated/dotted/spaced forms, and +1 form only when there is no separate +1 control). After each attempt, blur/focus away or otherwise trigger validation and inspect the error. Never alter the underlying phone digits. Exhaust these UI-only format attempts before considering the site unrecoverable.
 
 Return a concise final result containing one of:
 READY_FOR_REVIEW
@@ -159,10 +160,24 @@ def _build_tools():
                 if element is None:
                     errors.append(f"not found: {prompt}")
                     continue
-                await element.click()
+                info = await element.get_basic_info()
+                attrs = info.attributes or {}
+                role = (attrs.get("role") or "").lower()
+                tag = (info.nodeName or "").lower()
+                input_type = (attrs.get("type") or "").lower()
+
+                # Browser Use exposes a dedicated check() operation for native/custom
+                # checkbox and radio controls. Prefer it over a generic click.
+                if input_type in {"radio", "checkbox"} or role in {"radio", "checkbox"}:
+                    await element.check()
+                    method = "check"
+                else:
+                    await element.click()
+                    method = "click"
+
                 return ActionResult(
                     extracted_content=(
-                        f'Activated semantic control for "{question}" -> "{value}". '
+                        f'Activated semantic control for "{question}" -> "{value}" using {method}. '
                         "Inspect the page now and verify the visible selected/checked state before continuing."
                     )
                 )
