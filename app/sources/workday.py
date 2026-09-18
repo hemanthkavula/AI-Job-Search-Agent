@@ -135,6 +135,14 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             }
 
         offset += len(rows)
+        # Workday search results are normally newest-first. Once a whole page is
+        # explicitly older than this cycle window, stop traversing historical matches.
+        parsed=[_posted_at(row.get("postedOn")) for row in rows]
+        known=[datetime.fromisoformat(x) for x in parsed if x]
+        if known and len(known)==len(rows):
+            cutoff=datetime.now(timezone.utc)-timedelta(hours=hours)
+            if max(known) < cutoff:
+                break
         if len(rows) < limit or (total and offset >= total):
             break
 
