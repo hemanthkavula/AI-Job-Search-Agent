@@ -1,4 +1,5 @@
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
 from app.sources.lever import fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
@@ -19,34 +20,31 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     config=merged
     jobs=[]
     errors=[]
-    for src in config.get("greenhouse",[]) if only_source in (None,"greenhouse") else []:
-        try: jobs.extend(greenhouse_jobs(src["board_token"]))
-        except Exception as e: errors.append({"source":"greenhouse","company":src.get("company"),"error":str(e)})
-    for src in config.get("lever",[]) if only_source in (None,"lever") else []:
-        try: jobs.extend(lever_jobs(src["site"]))
-        except Exception as e: errors.append({"source":"lever","company":src.get("company"),"error":str(e)})
-    for src in config.get("ashby",[]) if only_source in (None,"ashby") else []:
-        try: jobs.extend(ashby_jobs(src["board_name"]))
-        except Exception as e: errors.append({"source":"ashby","company":src.get("company"),"error":str(e)})
-    for src in config.get("smartrecruiters",[]) if only_source in (None,"smartrecruiters") else []:
-        identifier=src.get("company_identifier") or src.get("identifier")
-        try:
-            if not identifier: raise ValueError("Missing company_identifier")
-            jobs.extend(smartrecruiters_jobs(identifier, hours=hours))
-        except Exception as e: errors.append({"source":"smartrecruiters","company":src.get("company") or identifier,"error":str(e)})
-    for src in config.get("workday",[]) if only_source in (None,"workday") else []:
-        try:
-            jobs.extend(workday_jobs(
-                src.get("company") or src["tenant"], src["host"], src["tenant"], src["site"], src.get("locale","en-US"), hours=hours
-            ))
-        except Exception as e:
-            errors.append({"source":"workday","company":src.get("company") or src.get("tenant"),"error":str(e)})
-    if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
-        try: jobs.extend(dice_jobs(config.get("dice",{}).get("jobs_per_page",100), search_terms=dice_search_terms))
-        except Exception as e: errors.append({"source":"dice","company":"Dice","error":str(e)})
-    if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
-        try: jobs.extend(ziprecruiter_jobs())
-        except Exception as e: errors.append({"source":"ziprecruiter","company":"ZipRecruiter","error":str(e)})
+    tasks=[]
+    # Network-bound ATS/company calls are independent. Run them concurrently so a
+    # slow Workday tenant cannot serially block every other source in the hourly cycle.
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        for src in config.get("greenhouse",[]) if only_source in (None,"greenhouse") else []:
+            tasks.append((pool.submit(greenhouse_jobs,src["board_token"]),"greenhouse",src.get("company")))
+        for src in config.get("lever",[]) if only_source in (None,"lever") else []:
+            tasks.append((pool.submit(lever_jobs,src["site"]),"lever",src.get("company")))
+        for src in config.get("ashby",[]) if only_source in (None,"ashby") else []:
+            tasks.append((pool.submit(ashby_jobs,src["board_name"]),"ashby",src.get("company")))
+        for src in config.get("smartrecruiters",[]) if only_source in (None,"smartrecruiters") else []:
+            identifier=src.get("company_identifier") or src.get("identifier")
+            if not identifier:
+                errors.append({"source":"smartrecruiters","company":src.get("company"),"error":"Missing company_identifier"})
+            else:
+                tasks.append((pool.submit(smartrecruiters_jobs,identifier,hours=hours),"smartrecruiters",src.get("company") or identifier))
+        for src in config.get("workday",[]) if only_source in (None,"workday") else []:
+            tasks.append((pool.submit(workday_jobs,src.get("company") or src["tenant"],src["host"],src["tenant"],src["site"],src.get("locale","en-US"),hours=hours),"workday",src.get("company") or src.get("tenant")))
+        if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
+            tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms),"dice","Dice"))
+        if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
+            tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
+        for future,source,company in tasks:
+            try: jobs.extend(future.result())
+            except Exception as e: errors.append({"source":source,"company":company,"error":str(e)})
 
     dedup={}
     for job in jobs:
