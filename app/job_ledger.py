@@ -23,9 +23,14 @@ def _lookup(job,ledger):
         if row:return key,row
     return canonical_job_key(job),None
 
+PROCESSED_STATUSES={
+    "FINAL_JD_VERIFIED","READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR",
+    "SUBMITTED","MANUAL_ACTION_REQUIRED","IN_PROGRESS","PERMANENT_SKIP",
+}
+
 def seen_or_submitted(job,ledger):
     key,row=_lookup(job,ledger)
-    return bool(row and row.get("application_status") in {"SUBMITTED","READY_TO_APPLY","IN_PROGRESS"}),key,row
+    return bool(row and row.get("application_status") in PROCESSED_STATUSES),key,row
 
 def record_seen(job,ledger,status="DISCOVERED",**extra):
     key,existing=_lookup(job,ledger);now=datetime.now(timezone.utc).isoformat()
