@@ -284,6 +284,30 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
               "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800]}
+        # Capture exact DOM metadata for stubborn Workday custom controls. This is
+        # intentionally diagnostic: do not claim a field is filled until Workday accepts it.
+        if "how did you hear about us" in _norm(body):
+            try:
+                src=page.locator('input[data-automation-id="source--source"], input[id*="source--source"], [data-automation-id="source--source"] input').first
+                if src.count():
+                    step["source_control"]={
+                        "tag":src.evaluate("e=>e.tagName"),"type":src.get_attribute("type"),
+                        "role":src.get_attribute("role"),"id":src.get_attribute("id"),
+                        "automation_id":src.get_attribute("data-automation-id"),
+                        "aria_controls":src.get_attribute("aria-controls"),
+                        "aria_expanded":src.get_attribute("aria-expanded"),
+                        "value":src.input_value() if src.evaluate("e=>'value' in e") else None,
+                        "outer_html":src.evaluate("e=>e.outerHTML")[:1800]
+                    }
+                step["visible_options"]=[re.sub(r"\\s+"," ",x).strip() for x in page.locator('[role="option"], [data-automation-id*="promptOption"]').all_inner_texts() if x.strip()][:50]
+            except Exception as exc:step["source_diagnostic_error"]=str(exc)
+            try:
+                ph=page.locator('input[data-automation-id="phoneNumber"], input[id*="phoneNumber--phoneNumber"]').first
+                if ph.count():
+                    step["phone_control"]={"value":ph.input_value(),"type":ph.get_attribute("type"),
+                        "pattern":ph.get_attribute("pattern"),"maxlength":ph.get_attribute("maxlength"),
+                        "outer_html":ph.evaluate("e=>e.outerHTML")[:1800]}
+            except Exception as exc:step["phone_diagnostic_error"]=str(exc)
         steps.append(step)
         if BLOCKER_RE.search(body):
             result["blockers"].append("CAPTCHA/MFA/verification challenge detected");break
@@ -316,6 +340,7 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             # Do not loop on a Workday step that rejected Next with validation errors.
             if ("errors found" in _norm(after) or "error " in _norm(after)) and page.url==before_url:
                 step["validation_errors"]=re.sub(r"\\s+"," ",after).strip()[:1200]
+                result["blockers"].append("Workday validation errors remain on current step")
                 break
         except Exception as exc:
             step["next_error"]=str(exc);break
