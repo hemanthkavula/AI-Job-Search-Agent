@@ -1,12 +1,14 @@
-name: Hourly Fresh Job Discovery
+name: Hourly Production Job Cycle
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 * * * *"
+    # GitHub cron is UTC. Trigger hourly across the full ET/EDT envelope;
+    # app.scheduled_runner is authoritative for Mon-Fri 07:00-18:59 America/New_York.
+    - cron: "17 11-23 * * 1-5"
 permissions:
   contents: read
 jobs:
-  discover:
+  production-cycle:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,17 +17,22 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
-      - name: Restore seen-job state
+      - name: Restore scheduler and job-ledger state
         uses: actions/cache@v4
         with:
-          path: generated/seen_jobs.json
-          key: seen-jobs-${{ github.run_id }}
-          restore-keys: seen-jobs-
-      - name: Find jobs from last 24 hours
-        run: python -m app.daily_runner --sources data/job_sources.json --min-score 65 --hours 24
+          path: |
+            generated/scheduler_state.json
+            generated/job_ledger.json
+            generated/seen_jobs.json
+          key: job-agent-state-${{ github.run_id }}
+          restore-keys: job-agent-state-
+      - name: Run scheduled production cycle
+        run: python -m app.scheduled_runner --sources data/job_sources.json
       - uses: actions/upload-artifact@v4
         with:
-          name: fresh-job-results-${{ github.run_number }}
+          name: job-cycle-${{ github.run_number }}
           path: |
-            generated/daily_jobs.json
+            generated/cycles/
+            generated/scheduler_state.json
+            generated/job_ledger.json
             generated/seen_jobs.json
