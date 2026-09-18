@@ -194,7 +194,13 @@ def _fill_current_page(page,item,identity,resume,result):
             current=""
             try:current=el.input_value()
             except Exception:pass
-            if not current:unresolved.append(label or f"field_{i}")
+            # Workday searchable comboboxes can have an empty backing input even
+            # when a required value is already selected and rendered beside it.
+            lx=_norm(label)
+            selected_hint=any(t in lx for t in ("item selected","items selected"))
+            if "country phone code" in lx and ("united states" in lx or "+1" in label):
+                selected_hint=True
+            if not current and not selected_hint:unresolved.append(label or f"field_{i}")
     return len(result["filled"])-before,sorted(set(unresolved))
 
 def _workday_steps(page,item,identity,resume,result,max_steps=8):
