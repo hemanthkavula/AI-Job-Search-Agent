@@ -62,30 +62,44 @@ def _label(el):
 
 
 def _workday_select_dropdown(page,el,value):
-    """Select a Workday custom combobox option by visible text, not by typing only."""
+    """Select a Workday prompt value and verify the option is committed."""
+    wanted=str(value)
     try:
-        el.click(timeout=3000)
-        page.wait_for_timeout(500)
-        wanted=str(value)
-        candidates=[
-            f'[role="option"]:has-text("{wanted}")',
-            f'[data-automation-id="promptOption"]:has-text("{wanted}")',
-            f'li:has-text("{wanted}")'
-        ]
-        for sel in candidates:
-            opt=page.locator(sel).first
-            if opt.count() and opt.is_visible():
-                opt.click(timeout=3000);page.wait_for_timeout(300);return True
-        # Some Workday searchable prompts require text first, then explicit option click.
-        try:el.fill(wanted)
+        # Workday prompt inputs usually live inside a prompt/search wrapper.
+        wrapper=el.locator("xpath=ancestor::*[@data-automation-id='formField'][1]")
+        if not wrapper.count():wrapper=el.locator("xpath=ancestor::*[self::div or self::fieldset][1]")
+        trigger=None
+        for sel in ('button[data-automation-id="promptIcon"]','button[aria-haspopup="listbox"]',
+                    '[role="combobox"]','input'):
+            loc=wrapper.locator(sel).first if wrapper.count() else page.locator(sel).first
+            if loc.count() and loc.is_visible():trigger=loc;break
+        if trigger is None:trigger=el
+        trigger.click(timeout=3000)
+        page.wait_for_timeout(600)
+        # If the prompt exposes a searchable input, type only to filter; selection
+        # is complete only after clicking an actual option.
+        try:
+            if el.is_editable():el.fill(wanted)
         except Exception:pass
         page.wait_for_timeout(700)
-        for sel in candidates:
-            opt=page.locator(sel).first
-            if opt.count() and opt.is_visible():
-                opt.click(timeout=3000);page.wait_for_timeout(300);return True
-    except Exception:pass
-    return False
+        options=page.locator('[role="option"], [data-automation-id="promptOption"], [data-automation-id="promptOptionText"]')
+        for i in range(min(options.count(),100)):
+            opt=options.nth(i)
+            try:
+                txt=_norm(opt.inner_text())
+                if _norm(wanted) in txt and opt.is_visible():
+                    opt.click(timeout=3000);page.wait_for_timeout(500)
+                    # Verify Workday no longer reports zero selected for this field.
+                    text=_norm(wrapper.inner_text()) if wrapper.count() else ""
+                    if "0 items selected" not in text:return True
+            except Exception:pass
+        # Keyboard fallback still requires verifying a committed selection.
+        try:
+            el.press("ArrowDown");el.press("Enter");page.wait_for_timeout(400)
+            text=_norm(wrapper.inner_text()) if wrapper.count() else ""
+            return "0 items selected" not in text
+        except Exception:return False
+    except Exception:return False
 
 def _choose(el,value):
     tag=el.evaluate("(e)=>e.tagName.toLowerCase()");typ=(el.get_attribute("type") or "").lower()
@@ -223,6 +237,12 @@ def _fill_current_page(page,item,identity,resume,result):
                 selected=False
                 if "how did you hear about us" in x:
                     selected=_workday_select_dropdown(page,el,value)
+                elif key=="phone":
+                    digits=re.sub(r"\\D+","",str(value))[-10:]
+                    el.click()
+                    el.fill("")
+                    el.type(digits,delay=35)
+                    selected=True
                 else:
                     selected=_choose(el,value)
                 if selected:result["filled"].append({"field":label,"value":value})
