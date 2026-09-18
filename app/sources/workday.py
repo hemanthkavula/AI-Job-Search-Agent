@@ -7,7 +7,7 @@ from html import unescape
 from urllib.request import Request, urlopen
 from pathlib import Path
 
-SEARCH_TERMS = ("Data Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
+SEARCH_TERMS = ("Data Engineer", "Senior Data Engineer", "Sr Data Engineer", "Sr. Data Engineer", "Lead Data Engineer", "Staff Data Engineer", "Principal Data Engineer", "AWS Data Engineer", "Azure Data Engineer", "Cloud Data Engineer", "Spark Data Engineer", "PySpark Data Engineer", "Python Data Engineer", "ETL Data Engineer", "Big Data Engineer", "Data Platform Engineer", "Data Infrastructure Engineer", "Data Pipeline Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
 ROOT=Path(__file__).resolve().parents[2]
 CACHE_DIR=ROOT/"generated"/"workday_cache"
 
