@@ -42,7 +42,7 @@ def _classify(term,description):
     return "material"
 
 def build_coverage_plan(job,profile):
-    """Build a truthful deterministic JD→candidate-evidence plan before any paid LLM call."""
+    """Build a deterministic JD-first keyword coverage plan before any paid LLM call."""
     raw=list(dict.fromkeys(jd_keywords(job.description,profile)+inferable_terms(job.description)+jd_skill_terms(job.description)))
     targets=[]
     for term in raw:
@@ -50,27 +50,25 @@ def build_coverage_plan(job,profile):
         if term not in targets:targets.append(term)
     if "Python" in targets: targets=[t for t in targets if t not in OPTIONAL_LANGUAGE_ALTERNATIVES]
 
-    inventory=_profile_terms(profile)
     requirements=[]
     for term in targets:
         classification=_classify(term,job.description)
-        supported=term in inventory
-        requirements.append({"term":term,"classification":classification,"candidate_supported":supported,
-                             "resume_action":"include_with_experience_evidence" if supported and classification in {"required","material"} else
-                                             "include_if_helpful" if supported else "do_not_claim_as_experience"})
+        requirements.append({
+            "term":term,
+            "classification":classification,
+            "resume_action":"include" if classification in {"required","material"} else "include_if_helpful"
+        })
 
-    must_cover=[r["term"] for r in requirements if r["candidate_supported"] and r["classification"] in {"required","material"}]
+    must_cover=[r["term"] for r in requirements if r["classification"] in {"required","material"}]
     preferred=[r["term"] for r in requirements if r["classification"]=="preferred"]
     alternatives=[r["term"] for r in requirements if r["classification"]=="alternative"]
-    unsupported=[r["term"] for r in requirements if not r["candidate_supported"]]
     return {
         "targeted_terms":targets,"target_count":len(targets),"requirements":requirements,
-        "must_cover_supported_terms":must_cover,"preferred_terms":preferred,"alternative_terms":alternatives,
-        "unsupported_terms_do_not_claim":unsupported,
+        "must_cover_terms":must_cover,"preferred_terms":preferred,"alternative_terms":alternatives,
         "v1_instruction":(
-            "Before writing V1, explicitly cover every term in must_cover_supported_terms using exact JD terminology "
-            "where natural, normally in Technical Skills and with credible Professional Experience evidence. "
-            "Preferred/alternative terms are not mandatory when another supported requirement satisfies the JD. "
-            "Never invent unsupported experience. Preserve fixed identity, employers, titles, dates, education and domains."
+            "The complete JD is the technical tailoring source. Before writing V1, cover every material/required "
+            "JD technology and keyword naturally across Summary, Technical Skills and relevant experience bullets. "
+            "The master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not "
+            "invent certifications, employers, dates, education, numerical outcomes or specific accomplishments."
         ),
     }
