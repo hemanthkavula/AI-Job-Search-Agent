@@ -67,18 +67,20 @@ Goal:
 2. Inspect each page before filling it. Do not assume Workday, Greenhouse, Lever, Ashby, SmartRecruiters, iCIMS, Jobvite, or any other fixed ATS.
 3. Prefer resume-assisted/autofill-with-resume when offered. Upload ONLY the exact resume_path above.
 4. After resume parsing, inspect the resulting fields and correct deterministic candidate facts when needed.
-5. Fill only answers supported by candidate facts or known_answers.
-6. For "How did you hear about us?", inspect the ACTUAL options and choose a truthful option based on discovery_source/employer context. Never invent a referral, recruiter, staffing agency, school, or personal relationship.
+5. Fill only answers supported by candidate facts or known_answers. Treat ALL supplied candidate fields as available facts, including phone. Never say phone is unsupported when candidate.phone is present.
+6. For "How did you hear about us?", inspect the ACTUAL options and choose a truthful option based on discovery_source/employer context. Search/select controls may be hierarchical: selecting a category such as "Job Board" is NOT complete if a second-level option appears. Continue until the field shows a committed leaf selection and the picker is closed. If the literal discovery source is not offered, choose the closest truthful employer website/job-board/web option. Never invent a referral, recruiter, staffing agency, school, or personal relationship.
 7. Work authorization rules are authoritative:
    - authorized to work in the United States: YES
    - requires sponsorship now/currently: NO
    - requires sponsorship in the future: YES
    - combined now-or-future sponsorship question: YES
-8. Navigate multi-step pages by inspecting the new page after every Next/Continue.
+8. Navigate multi-step pages by inspecting the new page after every Next/Continue. Do not stop merely because a dropdown remains open, a selection needs confirmation, a known field needs correction, or a Next button needs another attempt. Resolve ordinary UI state yourself and continue. MANUAL_ACTION_REQUIRED is only for a genuinely unknown required answer, CAPTCHA/MFA/verification, unavoidable authentication gate, or an unrecoverable browser/site failure.
 9. Do NOT guess salary, demographics/self-identification, disability/veteran answers, relocation/onsite willingness, legal attestations, employer-specific free text, or any fact absent from the supplied context.
-10. If a required unknown question, CAPTCHA, MFA, verification, sign-in/account gate that cannot safely be completed, or other blocker appears: STOP and report MANUAL_ACTION_REQUIRED with the exact question/blocker.
+10. If a required unknown question, CAPTCHA, MFA, verification, sign-in/account gate that cannot safely be completed, or unrecoverable blocker appears: STOP and report MANUAL_ACTION_REQUIRED with the exact question/blocker. Before stopping, make reasonable UI-only recovery attempts (close picker with Escape/click outside, verify committed selection, retry Next after validation/rendering, scroll to errors). Never classify a normal open dropdown or a supplied fact such as phone as manual action.
 11. NEVER click the final Submit/Submit Application button. Stop on the final Review page after checking that known answers and the intended resume are present.
 12. Do not modify the resume file.
+13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
+14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop.
 
 Return a concise final result containing one of:
 READY_FOR_REVIEW
