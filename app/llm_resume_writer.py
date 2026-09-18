@@ -11,7 +11,7 @@ Use exactly 8 Fidelity bullets, 7 Cigna bullets, and 6 Target bullets.
 Treat the complete job description as the primary tailoring target.
 Before writing, internally identify the target title, REQUIRED technologies/responsibilities, then preferred technologies, architecture, orchestration, streaming/batch, modeling, governance/data quality and DevOps. Do not output this analysis.
 The COMPLETE JOB DESCRIPTION is the primary technical tailoring source. The master profile is primarily the source of fixed factual identity and chronology; it is NOT a technical-keyword whitelist.
-Cover every material/required JD technology and responsibility naturally on V1. Use exact JD terminology where appropriate. Relevant JD technologies may appear in Technical Skills even when the master profile does not already list them.
+Use the supplied pre-generation coverage plan as the authoritative checklist for V1. Cover every item marked include, including material/required JD technologies, responsibilities, and concepts. Use exact JD terminology or a clear semantic equivalent where appropriate. Relevant JD technologies may appear in Technical Skills even when the master profile does not already list them.
 Do not force every Technical Skills keyword into Professional Experience. Experience bullets should emphasize the most important JD requirements in technically coherent employer/domain contexts without becoming keyword dumps.
 Do not invent a specific project, architecture, migration, deployment path, certification, metric, or business outcome solely to place a keyword. Never claim a false specific accomplishment.
 If the JD presents true alternatives (for example Beam OR Flink OR Spark Streaming), do not automatically include every alternative; cover the requirement with the most relevant option unless the JD materially expects multiple technologies.
@@ -47,7 +47,7 @@ def _jd_requested_extended(description):
 def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
     jd_extended=_jd_requested_extended(job.description)
     prompt={
-      "task":"Produce the strongest submission-ready, human-readable resume for this complete JD. Cover every material/required JD concept naturally on V1 while preserving fixed factual history.",
+      "task":"Produce the strongest submission-ready, human-readable resume for this complete JD. Treat pre_generation_coverage_plan.requirements as the authoritative checklist: naturally cover every requirement whose resume_action is include, and use exact JD terminology or a clear semantic equivalent while preserving fixed factual history.",
       "job":{"company":job.company,"title":job.title,"description":job.description},
       "candidate_fixed_facts_and_background":profile,
       "pre_generation_coverage_plan":coverage_plan or {},
@@ -62,7 +62,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       },
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
-        "prioritize_required_before_preferred":True,"use_exact_jd_terminology_when_truthful":True,
+        "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
         "technical_skills_may_include_relevant_jd_terms_without_forcing_each_into_experience":True,"preserve_employer_domain_context":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
       },
