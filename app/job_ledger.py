@@ -24,7 +24,9 @@ def _lookup(job,ledger):
     return canonical_job_key(job),None
 
 PROCESSED_STATUSES={
-    "FINAL_JD_VERIFIED","READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR",
+    # FINAL_JD_VERIFIED is intentionally NOT terminal: a free discovery/finalization
+    # cycle must not prevent a later paid resume-generation cycle from processing it.
+    "READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR",
     "SUBMITTED","MANUAL_ACTION_REQUIRED","IN_PROGRESS","PERMANENT_SKIP",
 }
 
