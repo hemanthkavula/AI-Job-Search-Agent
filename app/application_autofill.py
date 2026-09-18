@@ -261,7 +261,7 @@ def _fill_current_page(page,item,identity,resume,result):
                         el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
                         el.press_sequentially(digits,delay=90);el.press("Tab");page.wait_for_timeout(400)
                         current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)                else:
+                    selected=current.endswith(digits)\n                else:
                     selected=_choose(el,value)
                 if selected:
                     logged_value=el.input_value() if key=="phone" else value
