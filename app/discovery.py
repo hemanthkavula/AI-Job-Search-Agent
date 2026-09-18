@@ -32,8 +32,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None) -> list[dic
             ))
         except Exception as e:
             errors.append({"source":"workday","company":src.get("company") or src.get("tenant"),"error":str(e)})
-    if config.get("dice",{}).get("enabled",False):
-        try: jobs.extend(dice_jobs(config.get("dice",{}).get("jobs_per_page",100)))
+    if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
+        try: jobs.extend(dice_jobs(config.get("dice",{}).get("jobs_per_page",100), search_terms=dice_search_terms))
         except Exception as e: errors.append({"source":"dice","company":"Dice","error":str(e)})
     if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
         try: jobs.extend(ziprecruiter_jobs())
