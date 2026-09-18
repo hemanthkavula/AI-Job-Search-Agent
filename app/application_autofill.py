@@ -212,6 +212,11 @@ def _required(el):
 def _fill_current_page(page,item,identity,resume,result):
     """Fill only deterministic fields on the current ATS step."""
     before=len(result["filled"]);unresolved=[]
+    try:
+        body_hint=_norm(page.locator("body").inner_text(timeout=3000))
+        if "how did you hear about us" in body_hint and _workday_source(page,"Company Website"):
+            result["filled"].append({"field":"How Did You Hear About Us?","value":"Company Website"})
+    except Exception:pass
     controls=page.locator("input, textarea, select")
     for i in range(min(controls.count(),250)):
         el=controls.nth(i)
@@ -239,9 +244,8 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    el.click()
-                    el.fill("")
-                    el.type(digits,delay=35)
+                    formatted=f"({digits[:3]}) {digits[3:6]}-{digits[6:]}" if len(digits)==10 else digits
+                    el.click();el.fill(formatted);el.press("Tab");page.wait_for_timeout(250)
                     selected=True
                 else:
                     selected=_choose(el,value)
