@@ -317,7 +317,8 @@ def _fill_current_page(page,item,identity,resume,result):
                         }""",formatted)
                         page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
                         current=re.sub(r"\\D+","",el.input_value())
-                    selected=current==digits                else:
+                    selected=current==digits
+                else:
                     selected=_choose(el,value)
                 if selected:
                     if key=="phone":
