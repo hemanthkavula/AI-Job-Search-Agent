@@ -70,9 +70,18 @@ def title_is_target(title,description=""):
     # does not literally say Data Engineer (e.g. Data Analytics Engineer / Data Integration Engineer).
     return jd_is_data_engineering(description)
 
-def location_is_us(location,source=None):
+def _description_has_non_us_location(description):
+    text=_clean(description)
+    # Discovery providers can occasionally return an empty/incorrect location even
+    # when the JD excerpt explicitly identifies a foreign office. Treat explicit
+    # foreign country/city evidence in the posting as authoritative.
+    return any(marker in text for marker in NON_US_MARKERS)
+
+def location_is_us(location,source=None,description=""):
     raw=(location or "").strip();src=_clean(source)
-    if not raw:return src=="dice"
+    if not raw:
+        if _description_has_non_us_location(description):return False
+        return src=="dice"
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
     if US_STATE_RE.search(raw):return True
@@ -103,7 +112,7 @@ def work_authorization_restriction(description="",title=""):
 def passes_hard_filters(job:dict,profile:dict):
     title=_clean(job.get("title"));reasons=[]
     if not title_is_target(title,job.get("description")):reasons.append("title/JD outside data-engineering job family")
-    if not location_is_us(job.get("location"),job.get("source")):reasons.append(f"non-US or unverified US location: {job.get('location') or 'not stated'}")
+    if not location_is_us(job.get("location"),job.get("source"),job.get("description")):reasons.append(f"non-US or unverified US location: {job.get('location') or 'not stated'}")
     if not employment_is_target(job.get("employment_type"),job.get("description")):reasons.append(f"employment type outside Full-Time/W2 target: {job.get('employment_type') or 'not explicitly stated'}")
     restriction=work_authorization_restriction(job.get("description"),job.get("title"))
     if restriction:reasons.append(restriction)
