@@ -283,22 +283,42 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    # First use Playwright fill(), which replaces the entire controlled
-                    # value in one input event and avoids Workday consuming area-code keys.
-                    el.click();el.fill("");page.wait_for_timeout(150)
-                    el.fill(digits);page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
+                    formatted=f"({digits[:3]}) {digits[3:6]}-{digits[6:]}" if len(digits)==10 else digits
+                    # Workday's US phone control is masked. Normal typing/fill can
+                    # consume the first three digits as mask navigation. Use the
+                    # native value setter with the fully formatted number and fire
+                    # the same events a paste/change would produce.
+                    el.evaluate("""(e,v) => {
+                        const p=HTMLInputElement.prototype;
+                        const setter=Object.getOwnPropertyDescriptor(p,'value').set;
+                        setter.call(e,v);
+                        e.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertFromPaste',data:v}));
+                        e.dispatchEvent(new Event('change',{bubbles:true}));
+                    }""",formatted)
+                    page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
                     current=re.sub(r"\\D+","",el.input_value())
-                    if not current.endswith(digits):
-                        # Fallback: force an empty DOM/control state, refocus, then send
-                        # the complete national number as sequential digit key events.
-                        el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
-                        el.press_sequentially(digits,delay=90);el.press("Tab");page.wait_for_timeout(400)
+                    if current!=digits:
+                        # Controlled-component fallback: clear, focus at the beginning,
+                        # and paste the complete formatted value in one operation.
+                        el.click();el.press("Control+A");el.press("Backspace")
+                        el.evaluate("""(e,v) => {
+                            e.focus();
+                            const dt=new DataTransfer();dt.setData('text/plain',v);
+                            e.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:dt}));
+                        }""",formatted)
+                        page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
                         current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)
-                else:
+                    selected=current==digits                else:
                     selected=_choose(el,value)
                 if selected:
-                    logged_value=el.input_value() if key=="phone" else value
+                    if key=="phone":
+                        logged_value=el.input_value()
+                    elif "how did you hear about us" in x:
+                        try:
+                            parent_text=re.sub(r"\\s+"," ",el.locator("xpath=..").inner_text() or "").strip()
+                            logged_value=parent_text or value
+                        except Exception:logged_value=value
+                    else:logged_value=value
                     result["filled"].append({"field":label,"value":logged_value})
                 elif required:unresolved.append(label)
             except Exception:
