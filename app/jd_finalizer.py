@@ -68,10 +68,10 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
         if item.get("action")!="ELIGIBLE_FOR_RESUME":continue
         raw=resolve_full_jd(item["job"])
         if not raw.get("description_complete"):
-            held.append({"job":raw,"action":"HOLD_INCOMPLETE_JD","reason":"Complete JD could not be resolved; no resume will be generated."});continue
+            held.append({"job":raw,"action":"HOLD_INCOMPLETE_JD","reason":"Complete JD could not be resolved; no resume will be generated.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
-            held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons});continue
+            held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
         finalized.append({"job":raw,"eligibility":eligibility,"action":"FINAL_JD_VERIFIED"})
     result={"finalized":len(finalized),"held_or_rejected":len(held),"results":finalized,"rejections":held}
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(result,indent=2),encoding="utf-8")
@@ -83,5 +83,8 @@ if __name__=="__main__":
     result=finalize_report(a.report,a.output);print(json.dumps({k:v for k,v in result.items() if k not in ("results","rejections")},indent=2))
     for i,x in enumerate(result["results"],1):
         j=x["job"];print(f"{i}. {j.get('company_key')} | {j.get('title')} | JD chars={j.get('description_length')} | {x['action']}")
-    for x in result["rejections"]:print(f"HOLD/SKIP: {x['job'].get('company_key')} | {x['job'].get('title')} | {x['action']}")
+    for x in result["rejections"]:
+        j=x["job"];d=x.get("diagnostics",{})
+        reason=x.get("reason") or "; ".join(x.get("reasons") or [])
+        print(f"HOLD/SKIP: {j.get('company_key')} | {j.get('title')} | {x['action']} | JD chars={d.get('description_length')} | signals={d.get('jd_signal_score')} | source={d.get('jd_resolution_source')} | reason={reason}")
     print(f"Saved finalized jobs to {a.output}")
