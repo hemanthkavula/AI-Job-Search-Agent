@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -50,8 +51,13 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
         str(target.parent),
         str(src),
     ]
+    env = dict(os.environ)
+    # LibreOffice can otherwise synchronously query an unavailable Windows/network
+    # printer even in --headless mode, producing a blocking "Waiting for printer
+    # connection" dialog. Disable that probe for unattended local/cloud rendering.
+    env["SAL_DISABLE_SYNCHRONOUS_PRINTER_DETECTION"] = "1"
     try:
-        proc = subprocess.run(cmd, check=False, timeout=90, capture_output=True, text=True)
+        proc = subprocess.run(cmd, check=False, timeout=90, capture_output=True, text=True, env=env)
     except Exception as exc:
         return False, f"LibreOffice conversion failed to start: {exc}"
 
