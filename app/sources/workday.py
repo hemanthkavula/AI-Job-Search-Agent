@@ -9,16 +9,24 @@ from pathlib import Path
 
 SEARCH_TERMS = ("Data Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
 ROOT=Path(__file__).resolve().parents[2]
-CACHE_PATH=ROOT/"generated"/"workday_discovery_cache.json"
+CACHE_DIR=ROOT/"generated"/"workday_cache"
 
-def _load_cache():
-    if not CACHE_PATH.exists(): return {}
-    try: return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+def _cache_path(tenant,site):
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",f"{tenant}__{site}")
+    return CACHE_DIR/f"{safe}.json"
+
+def _load_cache(tenant,site):
+    path=_cache_path(tenant,site)
+    if not path.exists(): return {}
+    try: return json.loads(path.read_text(encoding="utf-8"))
     except Exception: return {}
 
-def _save_cache(cache):
-    CACHE_PATH.parent.mkdir(parents=True,exist_ok=True)
-    CACHE_PATH.write_text(json.dumps(cache,indent=2),encoding="utf-8")
+def _save_cache(tenant,site,cache):
+    path=_cache_path(tenant,site)
+    path.parent.mkdir(parents=True,exist_ok=True)
+    tmp=path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache,indent=2),encoding="utf-8")
+    tmp.replace(path)
 
 DE_TITLE_PATTERNS = (
     "data engineer",
@@ -91,9 +99,9 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     listing_count = 0
     candidate_count = 0
     out_by_path: dict[str,dict] = {}
-    cache=_load_cache()
-    cache_key=f"{tenant}:{site}"
-    tenant_cache=cache.setdefault(cache_key,{})
+    # One cache file per tenant/site avoids lost updates because Workday tenants are
+    # scanned concurrently by discovery.py.
+    tenant_cache=_load_cache(tenant,site)
     incremental=hours<=2
 
     for search_term in SEARCH_TERMS:
@@ -180,7 +188,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             if current:
                 prior=term_cache.get("paths") or []
                 term_cache["paths"]=list(dict.fromkeys(current+prior))[:2000]
-        _save_cache(cache)
+        _save_cache(tenant,site,tenant_cache)
     out=list(out_by_path.values())
     print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
     return out
