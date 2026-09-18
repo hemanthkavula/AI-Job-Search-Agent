@@ -13,6 +13,19 @@ from app.jd_coverage_plan import build_coverage_plan
 load_dotenv()
 
 MAX_RESUME_ATTEMPTS=3
+MIN_COVERAGE_TARGETS=3
+
+
+def _audit_failure_summary(audit):
+    failed=[k for k,v in audit.get("quality_gates",{}).items() if not v]
+    reasons=[]
+    if (audit.get("internal_ats_score") or 0)<95: reasons.append(f"ATS={audit.get('internal_ats_score')}<95")
+    if (audit.get("keyword_coverage") or 0)<95: reasons.append(f"JD_coverage={audit.get('keyword_coverage')}<95")
+    if audit.get("missing_jd_keywords"): reasons.append("missing="+", ".join(audit["missing_jd_keywords"]))
+    if failed: reasons.append("failed_gates="+", ".join(failed))
+    if audit.get("metric_violations"): reasons.append("metric_violations="+json.dumps(audit["metric_violations"],ensure_ascii=False))
+    if audit.get("unapproved_metric_claims"): reasons.append(f"unapproved_metric_claims={len(audit['unapproved_metric_claims'])}")
+    return " | ".join(reasons) or "unspecified audit failure"
 
 def _audit_feedback(audit):
     return {
@@ -57,11 +70,14 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
+            if coverage_plan["target_count"] < MIN_COVERAGE_TARGETS:
+                raise RuntimeError(f"JD coverage extraction produced only {coverage_plan['target_count']} targets; holding job before paid resume generation because the JD could not be analyzed reliably.")
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
             generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
@@ -69,6 +85,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+                if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
             next_action="READY_TO_APPLY" if audit["passed"] else "HOLD_ATS_REVIEW"
