@@ -1,5 +1,6 @@
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
 from app.sources.lever import fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
@@ -8,8 +9,9 @@ from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
+import json
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json") -> list[dict]:
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
     for provider in ("greenhouse","lever","ashby","smartrecruiters"):
@@ -21,6 +23,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     jobs=[]
     errors=[]
     tasks=[]
+    health={}
     # Network-bound ATS/company calls are independent. Run them concurrently so a
     # slow Workday tenant cannot serially block every other source in the hourly cycle.
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -43,8 +46,14 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
             tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
         for future,source,company in tasks:
-            try: jobs.extend(future.result())
-            except Exception as e: errors.append({"source":source,"company":company,"error":str(e)})
+            key=f"{source}:{company or source}"
+            started=datetime.now(timezone.utc)
+            try:
+                result=future.result();jobs.extend(result)
+                health[key]={"source":source,"company":company,"status":"OK","jobs_returned":len(result),"checked_at":started.isoformat()}
+            except Exception as e:
+                err={"source":source,"company":company,"error":str(e)};errors.append(err)
+                health[key]={"source":source,"company":company,"status":"ERROR","jobs_returned":0,"error":str(e),"checked_at":started.isoformat()}
 
     dedup={}
     for job in jobs:
@@ -52,4 +61,13 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     rows=list(dedup.values())
     learned=learn_from_jobs(rows,registry)
     if learned:save_registry(registry,registry_path)
+    # Persist source health independently from cycle output so the dashboard and
+    # scheduler can surface degraded ATS/job-board coverage instead of silently
+    # treating a failed provider as "zero jobs".
+    hp=__import__("pathlib").Path(health_path);hp.parent.mkdir(parents=True,exist_ok=True)
+    try:
+        prior=json.loads(hp.read_text(encoding="utf-8")) if hp.exists() else {}
+    except Exception:prior={}
+    prior.update(health)
+    hp.write_text(json.dumps(prior,indent=2),encoding="utf-8")
     return rows, errors
