@@ -60,6 +60,33 @@ def _label(el):
     except Exception:
         return el.get_attribute("aria-label") or el.get_attribute("placeholder") or el.get_attribute("name") or el.get_attribute("id") or ""
 
+
+def _workday_select_dropdown(page,el,value):
+    """Select a Workday custom combobox option by visible text, not by typing only."""
+    try:
+        el.click(timeout=3000)
+        page.wait_for_timeout(500)
+        wanted=str(value)
+        candidates=[
+            f'[role="option"]:has-text("{wanted}")',
+            f'[data-automation-id="promptOption"]:has-text("{wanted}")',
+            f'li:has-text("{wanted}")'
+        ]
+        for sel in candidates:
+            opt=page.locator(sel).first
+            if opt.count() and opt.is_visible():
+                opt.click(timeout=3000);page.wait_for_timeout(300);return True
+        # Some Workday searchable prompts require text first, then explicit option click.
+        try:el.fill(wanted)
+        except Exception:pass
+        page.wait_for_timeout(700)
+        for sel in candidates:
+            opt=page.locator(sel).first
+            if opt.count() and opt.is_visible():
+                opt.click(timeout=3000);page.wait_for_timeout(300);return True
+    except Exception:pass
+    return False
+
 def _choose(el,value):
     tag=el.evaluate("(e)=>e.tagName.toLowerCase()");typ=(el.get_attribute("type") or "").lower()
     if tag=="select":
@@ -193,7 +220,12 @@ def _fill_current_page(page,item,identity,resume,result):
         key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
         if value not in (None,""):
             try:
-                if _choose(el,value):result["filled"].append({"field":label,"value":value})
+                selected=False
+                if "how did you hear about us" in x:
+                    selected=_workday_select_dropdown(page,el,value)
+                else:
+                    selected=_choose(el,value)
+                if selected:result["filled"].append({"field":label,"value":value})
                 elif required:unresolved.append(label)
             except Exception:
                 if required:unresolved.append(label)
@@ -253,7 +285,14 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             except Exception:pass
         if nxt is None:break
         try:
+            before_url=page.url
+            before_text=_norm(body)
             nxt.click(timeout=7000);page.wait_for_timeout(1800)
+            after=page.locator("body").inner_text(timeout=5000)
+            # Do not loop on a Workday step that rejected Next with validation errors.
+            if ("errors found" in _norm(after) or "error " in _norm(after)) and page.url==before_url:
+                step["validation_errors"]=re.sub(r"\\s+"," ",after).strip()[:1200]
+                break
         except Exception as exc:
             step["next_error"]=str(exc);break
     return steps
