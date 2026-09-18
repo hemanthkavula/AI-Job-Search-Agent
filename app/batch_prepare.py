@@ -21,6 +21,8 @@ def _audit_feedback(audit):
         "internal_ats_score":audit.get("internal_ats_score"),
         "technology_evidence_coverage":audit.get("technology_evidence_coverage"),
         "skills_without_experience_evidence":audit.get("skills_without_experience_evidence",[]),
+        "technical_skills_jd_terms":audit.get("technical_skills_jd_terms",[]),
+        "experience_evidenced_jd_terms":audit.get("experience_evidenced_jd_terms",[]),
         "human_quality_score":audit.get("human_quality_score"),
         "readability_score":audit.get("readability_score"),
         "repetition_score":audit.get("repetition_score"),
@@ -33,7 +35,7 @@ def _audit_feedback(audit):
         "bullet_count_score":audit.get("bullet_count_score"),
         "skills_taxonomy_score":audit.get("skills_taxonomy_score"),
         "quality_gates":audit.get("quality_gates",{}),
-        "retry_instruction":"Correct every failed audit gate while preserving truthful candidate evidence. Keep strong content from the previous version; do not rewrite merely for variety. Remove unsupported claims and unapproved metrics, add missing supported JD terminology/evidence naturally, fix structure/repetition/readability issues, and return a submission-ready final resume."
+        "retry_instruction":"Correct every failed audit gate while preserving truthful candidate evidence. Keep strong content from the previous version; do not rewrite merely for variety. IMPORTANT: when skills_without_experience_evidence is non-empty, add natural Professional Experience evidence for those exact supported technologies; merely listing them in Technical Skills will not pass. Preserve all already-evidenced JD terms so a retry cannot regress keyword/evidence coverage. Remove unsupported claims and unapproved metrics, fix structure/repetition/readability issues, and return a submission-ready final resume."
     }
 
 def _matches(raw,company=None,title=None,external_id=None):
