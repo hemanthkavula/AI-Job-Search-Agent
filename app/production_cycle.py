@@ -31,7 +31,7 @@ def _sync_manifest(rows,ledger_path):
  ledger=load_ledger(ledger_path)
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
-  record_seen(job,ledger,row.get("next_action") or "PREPARED",resume_path=row.get("resume_path"),pdf_path=row.get("pdf_path"),ats_audit=row.get("ats_audit"))
+  record_seen(job,ledger,row.get("next_action") or "PREPARED",resume_path=row.get("resume_path"),pdf_path=row.get("pdf_path"),ats_audit=row.get("ats_audit"),artifact_validation=row.get("artifact_validation"))
  save_ledger(ledger,ledger_path)
 
 def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None):
@@ -52,6 +52,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
           "ready_to_apply":sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest),
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
+          "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
           "eligible_report":eligible_rel,"finalized_report":finalized_rel,
           "manifest":manifest_rel if generate_resumes else None}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
