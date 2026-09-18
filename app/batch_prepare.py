@@ -68,6 +68,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
         job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
         print(f"START {job.company} | {job.title} | FINAL_JD_VERIFIED",flush=True)
+        audit_history=[]
         try:
             if not raw.get("description_complete") or len(job.description.strip())<1200:raise RuntimeError("Job is not FINAL_JD_VERIFIED with a complete JD; run app.jd_finalizer before resume tailoring.")
             attempts=1
@@ -79,6 +80,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+            audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
             if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
@@ -87,6 +89,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 generated=generate_with_llm(job,profile,_audit_feedback(audit),coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+                audit_history.append({"version":attempts,"resume_path":str(resume),"audit":audit})
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
@@ -95,7 +98,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
-        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
+        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 
 if __name__=="__main__":
