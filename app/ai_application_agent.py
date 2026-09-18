@@ -43,6 +43,7 @@ def _profile_facts(profile: dict[str, Any]) -> dict[str, Any]:
         "requires_sponsorship_now": auth.get("requires_sponsorship_now"),
         "requires_sponsorship_future": auth.get("requires_sponsorship_future"),
         "work_authorization_statement": auth.get("statement"),
+        "application_preferences": profile.get("application_preferences") or {},
     }
 
 
@@ -110,7 +111,7 @@ Goal:
    - requires sponsorship in the future: YES
    - combined now-or-future sponsorship question: YES
 8. Navigate multi-step pages by inspecting the new page after every Next/Continue. Do not stop merely because a dropdown remains open, a selection needs confirmation, a known field needs correction, or a Next button needs another attempt. Resolve ordinary UI state yourself and continue. MANUAL_ACTION_REQUIRED is only for a genuinely unknown required answer, CAPTCHA/MFA/verification, unavoidable authentication gate, or an unrecoverable browser/site failure.
-9. Do NOT guess salary, demographics/self-identification, disability/veteran answers, relocation/onsite willingness, legal attestations, employer-specific free text, or any fact absent from the supplied context.
+9. Do NOT guess salary, demographics/self-identification, disability/veteran answers, relocation/onsite willingness, legal attestations, employer-specific free text, or any fact absent from the supplied context. However, application_preferences in candidate facts are explicit candidate-approved answers and MAY be used for semantically equivalent required questions. In particular, legal_working_age=true means Yes to legal-age-to-work questions; background_check_willing=true means Yes to willingness-to-submit-to-background-check questions; relocation.willing_to_relocate=true and relocation.willing_to_relocate_at_own_expense=true mean Yes when a required question asks whether the candidate can work at the listed location OR is willing to relocate there at their own expense. Do not reinterpret these preferences beyond their stated scope.
 10. If a required unknown question, CAPTCHA, MFA, verification, sign-in/account gate that cannot safely be completed, or unrecoverable blocker appears: STOP and report MANUAL_ACTION_REQUIRED with the exact question/blocker. Before stopping, make reasonable UI-only recovery attempts (wait/re-inspect blank or partially rendered pages, reload once, try an available alternate application route, close picker with Escape/click outside, verify committed selection, retry Next after validation/rendering, scroll to errors). Never classify a temporary blank/loading page, a normal open dropdown, or a supplied fact such as phone as manual action.
 11. NEVER click the final Submit/Submit Application button. Stop on the final Review page after checking that known answers and the intended resume are present.
 12. Do not modify the resume file.
