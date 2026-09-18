@@ -13,6 +13,8 @@
 # Use exact JD terminology where appropriate and run the ATS audit after generation.
 from __future__ import annotations
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import re
 from docx import Document
 from docx.shared import Pt, Inches
@@ -223,7 +225,8 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
     out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
-    path=out/f"{stem}.docx";doc.save(path)
+    timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
+    path=out/f"{stem}_{timestamp}.docx";doc.save(path)
     return str(path)
 
 
@@ -255,4 +258,5 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
     out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
-    path=out/f"{stem}.docx";doc.save(path);return str(path)
+    timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
+    path=out/f"{stem}_{timestamp}.docx";doc.save(path);return str(path)
