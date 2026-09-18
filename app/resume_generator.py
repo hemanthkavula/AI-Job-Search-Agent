@@ -73,7 +73,20 @@ def inferable_terms(jd):
       "Data Governance":["data governance","governance"],"Data Quality":["data quality"],
       "Performance Tuning":["performance tuning","performance optimization"],
       "Infrastructure as Code":["infrastructure as code","iac"],"Dimensional Modeling":["dimensional modeling"],
-      "Schema Evolution":["schema evolution"],"Orchestration":["orchestration","workflow orchestration"]
+      "Schema Evolution":["schema evolution"],"Orchestration":["orchestration","workflow orchestration"],
+      "Requirements Gathering":["requirements gathering","gather requirements","business requirements","technical requirements"],
+      "Solution Design & Development":["solution design","design and development","design, development","design/develop","develop and implement"],
+      "Solution Implementation & Support":["implementation and support","implement and support","implementation, and support","production support"],
+      "Data Integration Solutions":["data integration solutions","data integrations","integration solutions","data interfaces"],
+      "Reusable Enterprise Solutions":["reusable","repurposed","reusable data interfaces","reusable applications","reusable apps"],
+      "Proof of Concepts":["proof of concept","proof-of-concept","proof of concepts","poc"],
+      "Customer-Facing Solutions":["customer-facing","customer facing","customer service delivery"],
+      "Application Lifecycle Management":["application lifecycle management","enterprise alm","alm process","build environments"],
+      "Cross-Functional Collaboration":["cross-functional","cross functional","liaise with","partner with","collaborate with"],
+      "Continuous Improvement":["continuous improvement","technology updates","roadmap","recommend enhancements"],
+      "Data Modeling":["data model","data modeling","data modelling"],
+      "Testing & Quality Assurance":["unit testing","integration testing","performance testing","quality assurance","qa process"],
+      "Security & Governance":["secure data","security policies","access control","governance","compliance"]
     }
     return [label for label,terms in mapping.items() if any(t in low for t in terms)]
 
