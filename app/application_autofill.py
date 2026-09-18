@@ -344,6 +344,34 @@ def _fill_current_page(page,item,identity,resume,result):
             if not current and not selected_hint:unresolved.append(label or f"field_{i}")
     return len(result["filled"])-before,sorted(set(unresolved))
 
+def _workday_resume_step(page,resume,result):
+    """Handle Workday's resume-assisted first step and advance only after upload is present."""
+    try:
+        # The SPA can show the resume page before the hidden file input is mounted.
+        for _ in range(30):
+            fi=page.locator('input[type="file"]').first
+            if fi.count():break
+            page.wait_for_timeout(500)
+        else:return False,"resume file input did not render"
+        fi.set_input_files(str(resume.resolve()))
+        page.wait_for_timeout(2500)
+        body=page.locator("body").inner_text(timeout=5000)
+        # Workday may hide the native input after accepting the file; successful
+        # upload is evidenced by a filename/remove/change control or nonempty files.
+        accepted=False
+        try:accepted=fi.evaluate("e=>e.files && e.files.length>0")
+        except Exception:pass
+        if not accepted:
+            nb=_norm(body);accepted=resume.name.lower() in body.lower() or any(t in nb for t in ("remove file","change file","uploaded"))
+        if not accepted:return False,"resume upload was not accepted"
+        if not any(x.get("field")=="Workday resume import" for x in result["filled"]):
+            result["filled"].append({"field":"Workday resume import","value":"validated PDF"})
+        nxt=page.locator('[data-automation-id="bottom-navigation-next-button"], button:has-text("Next")').first
+        if not nxt.count() or not nxt.is_visible() or not nxt.is_enabled():return False,"resume step Next button unavailable"
+        nxt.click(timeout=7000);page.wait_for_timeout(2500)
+        return True,None
+    except Exception as exc:return False,str(exc)
+
 def _workday_steps(page,item,identity,resume,result,max_steps=8):
     """Advance Workday step-by-step only while every required field is safely answered."""
     steps=[]
@@ -359,6 +387,16 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             except Exception:pass
             page.wait_for_timeout(500)
         preflight=_application_preflight(page)
+        pre_body=_norm(preflight.get("body_excerpt") or "")
+        if ("autofill with resume" in pre_body or "upload either doc" in pre_body) and "current step 1" in pre_body:
+            ok,err=_workday_resume_step(page,resume,result)
+            steps.append({"step":n,"url":page.url,"resume_step":True,"resume_uploaded":ok,"resume_error":err,
+                          "preflight_required_fields":preflight["required_fields"],
+                          "preflight_visible_field_count":len(preflight["visible_fields"])})
+            if not ok:
+                result["blockers"].append("Workday resume upload/advance failed")
+                break
+            continue
         filled,unresolved=_fill_current_page(page,item,identity,resume,result)
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
@@ -443,21 +481,6 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
                 result["navigation"]=_workday_enter_application(page)
                 _wait_for_application_controls(page,15000)
                 result["application_analysis"]["after_apply_entry"]=_application_preflight(page)
-                # If resume-assisted flow is selected, upload the exact validated
-                # PDF before scanning the generated application fields.
-                chosen=(result["navigation"] or {}).get("manual_selector") or ""
-                if "Resume" in chosen:
-                    try:
-                        file_inputs=page.locator('input[type="file"]')
-                        for fi in range(file_inputs.count()):
-                            inp=file_inputs.nth(fi)
-                            try:
-                                inp.set_input_files(str(resume.resolve()))
-                                result["filled"].append({"field":"Workday resume import","value":"validated PDF"})
-                                break
-                            except Exception:pass
-                        page.wait_for_timeout(3500)
-                    except Exception:pass
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
