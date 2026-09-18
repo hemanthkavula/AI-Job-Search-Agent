@@ -24,6 +24,12 @@ NON_US_MARKERS={
  "united kingdom","london","ireland","dublin","germany","berlin","munich","france","paris","spain","madrid","netherlands","amsterdam",
  "poland","warsaw","portugal","lisbon","italy","milan","australia","sydney","melbourne","singapore","japan","tokyo","mexico","brazil"
 }
+US_CITY_MARKERS={
+ "san francisco","san jose","seattle","new york","jersey city","glassboro","philadelphia","austin","dallas","houston",
+ "chicago","boston","atlanta","charlotte","raleigh","denver","phoenix","los angeles","san diego","portland","miami",
+ "tampa","orlando","minneapolis","columbus","cleveland","detroit","pittsburgh","princeton","newark","malvern","plano",
+ "redmond","washington dc","washington, dc"
+}
 US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)",re.I)
 
 EMPLOYMENT_ACCEPT_MARKERS=("full-time","full time","fulltime","regular","permanent","employee","w2","w-2")
@@ -70,6 +76,10 @@ def location_is_us(location,source=None):
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
     if US_STATE_RE.search(raw):return True
+    # Some ATS providers return only a US city (e.g. "San Francisco") without
+    # state/country. Accept known unambiguous US city names instead of rejecting them.
+    parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
+    if any(city in parts for city in US_CITY_MARKERS):return True
     if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
     if any(marker in loc for marker in NON_US_MARKERS):return False
     if loc in {"remote","remote - remote","multiple locations"}:return src=="dice"
