@@ -34,6 +34,7 @@ def dashboard_html() -> str:
       ("Latest eligible",latest.get("eligible",0)),
       ("Final JD verified",latest.get("final_jd_verified",0)),
       ("Ready to apply",counts.get("READY_TO_APPLY",0)),
+      ("Artifact holds",counts.get("HOLD_ARTIFACT_VALIDATION",0)),
       ("Submitted",counts.get("SUBMITTED",0)),
       ("Manual action",counts.get("MANUAL_ACTION_REQUIRED",0)),
       ("Source errors",sum(1 for x in source_health.values() if x.get("status")=="ERROR")),
@@ -42,6 +43,9 @@ def dashboard_html() -> str:
     rows=[]
     for j in sorted(jobs,key=lambda x:x.get("last_seen",""),reverse=True)[:250]:
         url=html.escape(j.get("url") or "#",quote=True);resume=html.escape(str(j.get("pdf_path") or j.get("resume_path") or "—"))
+        av=j.get("artifact_validation") or {}
+        artifact=("PASS" if av.get("passed") else (f"HOLD: {av.get('reason')}" if av else "—"))
+        if av and av.get("text_coverage") is not None:artifact+=f" ({av.get('text_coverage')}%)"
         rows.append("<tr>"+ "".join([
           f"<td>{html.escape(str(j.get('company') or ''))}</td>",
           f"<td>{html.escape(str(j.get('title') or ''))}</td>",
@@ -49,8 +53,9 @@ def dashboard_html() -> str:
           f"<td>{html.escape(str(j.get('application_status') or ''))}</td>",
           f"<td><a href='{url}' target='_blank'>Open job</a></td>",
           f"<td class='resume'>{resume}</td>",
+          f"<td>{html.escape(str(artifact))}</td>",
         ])+"</tr>")
-    body="".join(rows) or "<tr><td colspan='6'>No pipeline jobs recorded yet.</td></tr>"
+    body="".join(rows) or "<tr><td colspan='7'>No pipeline jobs recorded yet.</td></tr>"
     health_rows="".join(
       f"<tr><td>{html.escape(str(x.get('source') or ''))}</td><td>{html.escape(str(x.get('company') or ''))}</td><td>{html.escape(str(x.get('status') or ''))}</td><td>{x.get('jobs_returned',0)}</td><td>{html.escape(str(x.get('checked_at') or ''))}</td><td>{html.escape(str(x.get('error') or ''))}</td></tr>"
       for x in sorted(source_health.values(),key=lambda y:(y.get("status")!="ERROR",y.get("source",""),y.get("company") or ""))
@@ -62,5 +67,5 @@ def dashboard_html() -> str:
 <div class="cards">{card_html}</div>
 <h2>Recent cycles</h2><div class="wrap"><table><tr><th>Cycle</th><th>Window (h)</th><th>Discovered</th><th>Eligible</th><th>Final JD</th><th>Ready</th></tr>{cycles or "<tr><td colspan='6'>No cycles yet.</td></tr>"}</table></div>
 <h2>Source health</h2><div class="wrap"><table><tr><th>Source</th><th>Company / board</th><th>Status</th><th>Jobs returned</th><th>Checked</th><th>Error</th></tr>{health_rows or "<tr><td colspan='6'>No source health checks recorded yet.</td></tr>"}</table></div>
-<h2>Jobs / applications</h2><div class="wrap"><table><tr><th>Company</th><th>Role</th><th>Sources</th><th>Status</th><th>Job</th><th>Resume used</th></tr>{body}</table></div>
+<h2>Jobs / applications</h2><div class="wrap"><table><tr><th>Company</th><th>Role</th><th>Sources</th><th>Status</th><th>Job</th><th>Resume used</th><th>Artifact validation</th></tr>{body}</table></div>
 </body></html>"""
