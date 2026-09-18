@@ -186,6 +186,9 @@ def _build_tools():
                         )
                     except Exception as key_exc:
                         errors.append(f"keyboard failed for {prompt}: {key_exc}")
+            except Exception as semantic_exc:
+                errors.append(f"semantic lookup failed for {prompt}: {semantic_exc}")
+                continue
         return ActionResult(
             extracted_content=(
                 f'Could not activate semantic control for "{question}" -> "{value}". '
