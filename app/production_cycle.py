@@ -6,6 +6,7 @@ from app.daily_runner import run as discover_and_filter
 from app.jd_finalizer import finalize_report
 from app.batch_prepare import prepare
 from app.job_ledger import load_ledger,save_ledger,record_seen
+from app.application_queue import build as build_application_queue
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -39,6 +40,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  eligible_rel=f"generated/cycles/{stamp}_eligible.json"
  finalized_rel=f"generated/cycles/{stamp}_finalized.json"
  manifest_rel=f"generated/cycles/{stamp}_manifest.json"
+ queue_rel=f"generated/cycles/{stamp}_application_queue.json"
  discovery=discover_and_filter(sources,hours,ledger_path=ledger)
  _write(eligible_rel,discovery)
  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
@@ -47,6 +49,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),limit=limit)
   _sync_manifest(manifest,ledger)
+ queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel)) if manifest else []
  summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
@@ -54,7 +57,10 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
           "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
           "eligible_report":eligible_rel,"finalized_report":finalized_rel,
-          "manifest":manifest_rel if generate_resumes else None}
+          "manifest":manifest_rel if generate_resumes else None,
+          "application_queue":queue_rel if manifest else None,
+          "queued_for_application":sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue),
+          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue)}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
