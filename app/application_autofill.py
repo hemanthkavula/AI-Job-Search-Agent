@@ -62,26 +62,37 @@ def _label(el):
 
 
 def _workday_select_dropdown(page,el,value):
-    """Commit a value in Workday's UXI searchable selectinput."""
-    wanted=str(value);wanted_n=_norm(wanted)
+    """Inspect actual Workday source choices and select the closest truthful website/other source."""
     try:
-        el.click(timeout=3000)
-        el.press("Control+A");el.type(wanted,delay=50)
-        page.wait_for_timeout(1000)
-        # UXI portals its popup outside the field wrapper, so search the live page.
-        options=page.locator('[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], li')
-        for i in range(min(options.count(),250)):
-            opt=options.nth(i)
-            try:
-                if opt.is_visible() and wanted_n in _norm(opt.inner_text()):
-                    opt.click(timeout=3000);page.wait_for_timeout(600)
-                    # Workday clears the search input after committing a multiselect item.
-                    if el.input_value()=="":
-                        return True
+        el.click(timeout=3000);page.wait_for_timeout(900)
+        selectors='[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], [data-automation-id*="promptOption"], li'
+        def collect():
+            rows=[]
+            opts=page.locator(selectors)
+            for i in range(min(opts.count(),350)):
+                o=opts.nth(i)
+                try:
+                    if o.is_visible():
+                        txt=re.sub(r"\\s+"," ",o.inner_text()).strip()
+                        if txt and len(txt)<180:rows.append((txt,o))
+                except Exception:pass
+            return rows
+        rows=collect()
+        if not rows:
+            try:el.press("ArrowDown");page.wait_for_timeout(700)
             except Exception:pass
-        # Filtered UXI lists support keyboard selection even without ARIA role=option.
-        el.press("ArrowDown");page.wait_for_timeout(150);el.press("Enter");page.wait_for_timeout(600)
-        return el.input_value()==""
+            rows=collect()
+        ranked=[]
+        seen=set()
+        for txt,o in rows:
+            if _norm(txt) in seen:continue
+            seen.add(_norm(txt));score=_source_option_score(txt)
+            if score>=0:ranked.append((score,len(txt),txt,o))
+        if not ranked:return False
+        ranked.sort(key=lambda z:(-z[0],z[1]))
+        _,_,chosen,opt=ranked[0]
+        opt.click(timeout=3000);page.wait_for_timeout(600)
+        return el.input_value()=="" or _norm(chosen) in _norm(el.locator("xpath=..").inner_text())
     except Exception:return False
 
 def _choose(el,value):
@@ -227,13 +238,19 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    # Workday applies its own React phone mask. Keyboard-clear the
-                    # controlled input, then send national digits only.
-                    el.click();el.press("Control+A");el.press("Backspace")
-                    el.type(digits,delay=80);el.press("Tab");page.wait_for_timeout(400)
+                    # Set the complete national number atomically. Character-by-character
+                    # entry into this Workday mask was dropping the 856 area code.
+                    el.evaluate("""(e,v) => {
+                        const proto=Object.getPrototypeOf(e);
+                        const d=Object.getOwnPropertyDescriptor(proto,'value');
+                        if(d && d.set)d.set.call(e,v); else e.value=v;
+                        e.dispatchEvent(new Event('input',{bubbles:true}));
+                        e.dispatchEvent(new Event('change',{bubbles:true}));
+                        e.blur();
+                    }""",digits)
+                    page.wait_for_timeout(500)
                     current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)
-                else:
+                    selected=current.endswith(digits)                else:
                     selected=_choose(el,value)
                 if selected:result["filled"].append({"field":label,"value":value})
                 elif required:unresolved.append(label)
@@ -285,7 +302,7 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
                         "value":src.input_value() if src.evaluate("e=>'value' in e") else None,
                         "outer_html":src.evaluate("e=>e.outerHTML")[:1800]
                     }
-                step["visible_options"]=[re.sub(r"\\s+"," ",x).strip() for x in page.locator('[role="option"], [data-automation-id*="promptOption"]').all_inner_texts() if x.strip()][:50]
+                step["visible_options"]=[re.sub(r"\\s+"," ",x).strip() for x in page.locator('[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], [data-automation-id*="promptOption"], li').all_inner_texts() if x.strip()][:80]
             except Exception as exc:step["source_diagnostic_error"]=str(exc)
             try:
                 ph=page.locator('input[data-automation-id="phoneNumber"], input[id*="phoneNumber--phoneNumber"]').first
