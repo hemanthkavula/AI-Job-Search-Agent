@@ -17,6 +17,21 @@ ALIASES={
     "Terraform":("terraform",),"Git":("git","github","gitlab"),"Performance Tuning":("performance tuning","performance optimization"),
     "Data Governance":("data governance","governance"),"CI/CD Best Practices":("ci/cd","continuous integration","continuous delivery","continuous deployment"),
     "ETL/ELT":("etl","elt","etl/elt"),
+    "Requirements Gathering":("requirements gathering","gathering requirements","gather requirements","business requirements","technical requirements","requirements analysis"),
+    "Solution Design & Development":("solution design","solution development","design and development","design, development","design/develop","designed and developed"),
+    "Solution Implementation & Support":("implementation and support","implement and support","implemented and supported","production support","application support"),
+    "Data Integration Solutions":("data integration solutions","data integrations","integration solutions","data integration"),
+    "Reusable Enterprise Solutions":("reusable enterprise solutions","reusable solutions","reusable data interfaces","reusable interfaces","reusable applications","reusable apps","repurposed"),
+    "Proof of Concepts":("proof of concept","proof-of-concept","proof of concepts","proof-of-concepts","poc","prototype"),
+    "Customer-Facing Solutions":("customer-facing solutions","customer facing solutions","customer-facing applications","customer facing applications","customer service delivery"),
+    "Application Lifecycle Management":("application lifecycle management","enterprise alm","alm process","alm practices","build environments"),
+    "Enterprise ALM":("enterprise alm","application lifecycle management","alm process","alm practices"),
+    "Enterprise Data Interfaces":("enterprise data interfaces","data interfaces","enterprise interfaces"),
+    "Cross-Functional Collaboration":("cross-functional","cross functional","collaborate with","partner with","liaise with","stakeholders"),
+    "Continuous Improvement":("continuous improvement","recommend enhancements","process improvements","platform improvements","technology roadmap"),
+    "Data Modeling":("data modeling","data modelling","data model","dimensional modeling","star schema"),
+    "Testing & Quality Assurance":("unit testing","integration testing","performance testing","quality assurance","qa process","testing"),
+    "Security & Governance":("security and governance","secure data","security policies","access control","data governance","compliance","regulated data"),
 }
 REQUIRED_CUES=("required","requirements","must have","must-have","minimum qualifications","basic qualifications","proficiency","strong experience","hands-on","expertise")
 PREFERRED_CUES=("preferred","nice to have","nice-to-have","bonus","plus","desired","preferred qualifications")
@@ -67,7 +82,7 @@ def build_coverage_plan(job,profile):
         "must_cover_terms":must_cover,"preferred_terms":preferred,"alternative_terms":alternatives,
         "v1_instruction":(
             "The complete JD is the technical tailoring source. Before writing V1, cover every material/required "
-            "JD technology and keyword naturally across Summary, Technical Skills and relevant experience bullets. "
+            "JD technology, responsibility, and material concept naturally across Summary, Technical Skills and relevant experience bullets. "
             "The master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not "
             "invent certifications, employers, dates, education, numerical outcomes or specific accomplishments."
         ),
