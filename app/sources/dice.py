@@ -6,10 +6,18 @@ from urllib import request
 from app.sources.mcp_jobs import call_tool, rows_from_payload
 
 ENDPOINT = "https://mcp.dice.com/mcp"
+# Dice keyword search already matches seniority/technology prefixes around the
+# core phrase, so dozens of near-identical queries mostly return the same jobs.
+# Keep broad family roots; final title/JD eligibility decides whether a posting
+# is truly Data Engineering.
 SEARCH_TERMS = (
-    "Data Engineer","Senior Data Engineer","Sr Data Engineer","Sr. Data Engineer","Lead Data Engineer","Staff Data Engineer","Principal Data Engineer",
-    "AWS Data Engineer","Azure Data Engineer","Cloud Data Engineer","Big Data Engineer","Data Platform Engineer",
-    "Data Infrastructure Engineer","Data Pipeline Engineer","ETL Data Engineer","Analytics Data Engineer",
+    "Data Engineer",
+    "Data Engineering",
+    "Data Platform Engineer",
+    "Data Infrastructure Engineer",
+    "Data Pipeline Engineer",
+    "Data Integration Engineer",
+    "Analytics Engineer",
 )
 
 def _iso(value):
@@ -45,11 +53,13 @@ def _normalize(row: dict) -> dict:
         "provider_us_scoped":True,"provider_fulltime_scoped":True,
     }
 
-def fetch_jobs(jobs_per_page: int = 100, search_terms=None) -> list[dict]:
+def fetch_jobs(jobs_per_page: int = 100, search_terms=None, hours: int = 24) -> list[dict]:
     """Search Dice MCP for source-filtered candidates. Short summaries remain incomplete until a later full-JD resolver stage."""
     dedup={}
     for keyword in (search_terms or SEARCH_TERMS):
-        args={"keyword":keyword,"location":"United States","posted_date":"ONE","employment_types":["FULLTIME"],"jobs_per_page":jobs_per_page,"page_number":1}
+        # Dice exposes a one-day server-side posting filter, not an hourly one.
+        # Hour-level freshness remains enforced centrally from postedDate.
+        args={"keyword":keyword,"location":"United States","posted_date":"ONE","jobs_per_page":jobs_per_page,"page_number":1}
         payload=call_tool(ENDPOINT,"search_jobs",args);rows=rows_from_payload(payload)
         for row in rows:
             job=_normalize(row);dedup[job["external_id"]]=job
