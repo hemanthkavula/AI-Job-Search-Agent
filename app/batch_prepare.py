@@ -7,7 +7,7 @@ from app.config import load_profile
 from app.reference_resume_formatter import render_llm_resume
 from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
-from app.pdf_export import convert_docx_to_pdf
+from app.pdf_export import convert_docx_to_pdf, validate_docx_pdf_parity
 from app.jd_coverage_plan import build_coverage_plan
 
 load_dotenv()
@@ -94,13 +94,20 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
-            next_action="READY_TO_APPLY" if audit["passed"] else "HOLD_ATS_REVIEW"
+            artifact_validation=validate_docx_pdf_parity(resume,pdf_path) if audit["passed"] else {"passed":False,"reason":"Resume audit did not pass"}
+            if not audit["passed"]:
+                next_action="HOLD_ATS_REVIEW"
+            elif not artifact_validation["passed"]:
+                next_action="HOLD_ARTIFACT_VALIDATION"
+                print("ARTIFACT HOLD | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
+            else:
+                next_action="READY_TO_APPLY"
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
-            print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
-        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
+            print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0};artifact_validation={"passed":False,"reason":str(exc)}
+        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":locals().get("artifact_validation",{}),"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 
 if __name__=="__main__":
     ap=argparse.ArgumentParser();ap.add_argument("--report",default="generated/eligible_jobs.json");ap.add_argument("--output",default="generated/application_manifest.json");ap.add_argument("--debug-company");ap.add_argument("--debug-title");ap.add_argument("--external-id");ap.add_argument("--limit",type=int);a=ap.parse_args()
-    rows=prepare(a.report,a.output,a.debug_company,a.debug_title,a.external_id,a.limit);counts={x:sum(r["next_action"]==x for r in rows) for x in ("READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR")};print(json.dumps({"prepared":len(rows),**counts},indent=2));print(f"Saved manifest to {a.output}")
+    rows=prepare(a.report,a.output,a.debug_company,a.debug_title,a.external_id,a.limit);counts={x:sum(r["next_action"]==x for r in rows) for x in ("READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_ARTIFACT_VALIDATION","HOLD_RESUME_ERROR")};print(json.dumps({"prepared":len(rows),**counts},indent=2));print(f"Saved manifest to {a.output}")
