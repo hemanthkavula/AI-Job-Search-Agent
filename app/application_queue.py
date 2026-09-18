@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json
+import argparse,json,re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -26,7 +26,13 @@ def _known_answers():
 
 def _artifact_path(value,manifest_path):
     if not value:return None
-    p=Path(value)
+    raw=str(value).strip()
+    # Handle Windows absolute paths even when code is inspected/run under a
+    # different path flavor. On Windows, Path handles these natively; this
+    # branch also preserves drive-letter paths exactly.
+    if re.match(r"^[A-Za-z]:[\\/]", raw):
+        return str(Path(raw))
+    p=Path(raw)
     if p.is_absolute():return str(p)
     candidates=[ROOT/p,Path(manifest_path).resolve().parent/p,p.resolve()]
     for candidate in candidates:
@@ -47,7 +53,10 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         # New manifests must continue to honor an explicit failed validation.
         resolved_pdf=_artifact_path(pdf,manifest_path)
         explicit_validation="artifact_validation" in r and r.get("artifact_validation") is not None
-        if not pdf or not resolved_pdf or not Path(resolved_pdf).exists():continue
+        # Do not silently drop READY_TO_APPLY rows because a legacy manifest
+        # points to a stale/moved artifact. Queue them and let autofill produce a
+        # precise MANUAL_ACTION_REQUIRED diagnostic with the expected path.
+        if not pdf or not resolved_pdf:continue
         if explicit_validation and not validation.get("passed"):continue
         provider=_provider(r)
         queue.append({
