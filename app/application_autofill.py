@@ -250,7 +250,8 @@ def _fill_current_page(page,item,identity,resume,result):
                     }""",digits)
                     page.wait_for_timeout(500)
                     current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)\n                else:
+                    selected=current.endswith(digits)
+                else:
                     selected=_choose(el,value)
                 if selected:result["filled"].append({"field":label,"value":value})
                 elif required:unresolved.append(label)
