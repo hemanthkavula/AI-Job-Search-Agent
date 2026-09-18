@@ -12,18 +12,24 @@ def _norm(s):return re.sub(r"[^a-z0-9]+"," ",(s or "").lower()).strip()
 def _identity(profile):
     parts=(profile.get("name") or "").split()
     contact=profile.get("contact") or {}
+    raw_phone=contact.get("phone","")
+    digits=re.sub(r"\\D+","",raw_phone)
+    us_phone=digits[-10:] if len(digits)>=10 else digits
     return {"first_name":parts[0] if parts else "","last_name":parts[-1] if len(parts)>1 else "",
-            "full_name":profile.get("name",""),"email":contact.get("email",""),"phone":contact.get("phone",""),
+            "full_name":profile.get("name",""),"email":contact.get("email",""),"phone":us_phone,
             "linkedin":contact.get("linkedin","")}
 
 def _field_key(label):
     x=_norm(label)
+    if "phone extension" in x or x.endswith(" extension") or "country phone code" in x:return None
     rules=(("first name","first_name"),("last name","last_name"),("full name","full_name"),("email","email"),
-           ("phone","phone"),("mobile","phone"),("linkedin","linkedin"))
+           ("phone number","phone"),("mobile","phone"),("linkedin","linkedin"))
     return next((k for token,k in rules if token in x),None)
 
 def _question_answer(label,item):
     x=_norm(label);known=item.get("known_answers") or {}
+    if "how did you hear about us" in x:return known.get("source") or "Company Website"
+    if "employed by adobe in the past" in x:return known.get("previously_employed_by_company") or "No"
     if "authorized" in x and ("work" in x or "employment" in x):return known.get("authorized_to_work_us")
     # Combined "now or in the future" questions must be Yes for future H-1B need.
     if ("sponsor" in x or "sponsorship" in x) and ("future" in x or "later" in x):return known.get("requires_future_sponsorship")
@@ -66,6 +72,10 @@ def _choose(el,value):
         lab=_norm(_label(el)+" "+(el.get_attribute("value") or ""))
         if _norm(str(value)) in lab:el.check();return True
         return False
+    if el.get_attribute("role")=="combobox":
+        try:
+            el.click();el.fill(str(value));el.press("ArrowDown");el.press("Enter");return True
+        except Exception:return False
     el.fill(str(value));return True
 
 def _resolve_resume(value):
@@ -169,6 +179,9 @@ def _fill_current_page(page,item,identity,resume,result):
                 except Exception:
                     if required:unresolved.append(label or "resume upload")
             elif required:unresolved.append(label or "required file upload")
+            continue
+        x=_norm(label)
+        if "phone extension" in x or x.endswith(" extension"):
             continue
         key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
         if value not in (None,""):
