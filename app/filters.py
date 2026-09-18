@@ -3,10 +3,10 @@ import re
 from app.eligibility import two_category_filter
 
 ALLOWED_TITLE_PATTERNS=[
- r"\\bdata engineer(?:ing)?\\b",
- r"\\bdata platform engineer\\b", r"\\bdata infrastructure engineer\\b",
- r"\\bdata pipeline engineer\\b", r"\\bdata warehouse engineer\\b",
- r"\\betl engineer\\b", r"\\bbig data engineer\\b",
+ r"\bdata engineer(?:ing)?\b",
+ r"\bdata platform engineer\b", r"\bdata infrastructure engineer\b",
+ r"\bdata pipeline engineer\b", r"\bdata warehouse engineer\b",
+ r"\betl engineer\b", r"\bbig data engineer\b",
 ]
 EXCLUDED_TITLE_TERMS={
  "analyst","scientist","frontend","front end","qa engineer","business intelligence","power bi developer","tableau developer",
