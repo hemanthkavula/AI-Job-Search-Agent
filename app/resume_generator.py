@@ -31,17 +31,37 @@ def jd_keywords(jd,profile):
     return out
 
 def jd_skill_terms(jd):
-    """Extract ATS-friendly technology terms directly from the JD for the skills section.
-    Presence here does not create a claim that the technology was used at a named employer."""
+    """Extract ATS-friendly technologies and material DE/application-integration concepts directly from the complete JD."""
     text=jd or ""
-    catalog=["Python","SQL","Scala","Java","Go","Rust","PySpark","Apache Spark","Apache Kafka","Apache Flink",
-      "Databricks","Snowflake","dbt","Dagster","Airflow","Fivetran","Airbyte","Kubernetes","Docker","Terraform",
-      "AWS Glue","Amazon S3","Amazon EMR","Amazon Redshift","AWS Lambda","AWS Kinesis","Azure Data Factory",
-      "Azure Synapse","ADLS Gen2","Azure Event Hubs","BigQuery","GCP","Apache Iceberg","Delta Lake","Hudi",
-      "PostgreSQL","MySQL","MongoDB","Oracle","CI/CD","GitHub Actions","Jenkins","Data Governance","Data Lineage",
-      "Data Quality","ETL","ELT","Batch Processing","Real-Time Data Processing","Dimensional Modeling"]
-    low=text.lower()
-    return [x for x in catalog if x.lower() in low]
+    catalog={
+      "Python":("python",),"SQL":("sql",),"Scala":("scala",),"Java":("java",),"Go":("golang","go"),"Rust":("rust",),
+      "PySpark":("pyspark",),"Apache Spark":("apache spark","spark"),"Apache Kafka":("apache kafka","kafka"),
+      "Apache Flink":("apache flink","flink"),"Databricks":("databricks",),"Snowflake":("snowflake",),"dbt":("dbt",),
+      "Dagster":("dagster",),"Airflow":("airflow",),"Fivetran":("fivetran",),"Airbyte":("airbyte",),
+      "Kubernetes":("kubernetes","k8s"),"Docker":("docker",),"Terraform":("terraform",),
+      "AWS Glue":("aws glue",),"Amazon S3":("amazon s3","s3"),"Amazon EMR":("amazon emr","emr"),
+      "Amazon Redshift":("amazon redshift","redshift"),"AWS Lambda":("aws lambda","lambda"),"AWS Kinesis":("amazon kinesis","kinesis"),
+      "Azure Data Factory":("azure data factory","data factory","adf"),"Azure Synapse Analytics":("azure synapse analytics","azure synapse","synapse analytics"),
+      "ADLS Gen2":("adls gen2","azure data lake storage gen2"),"Azure Event Hubs":("azure event hubs","azure event hub","event hubs","event hub"),
+      "BigQuery":("bigquery","google bigquery"),"GCP":("gcp","google cloud"),"Apache Iceberg":("apache iceberg","iceberg"),
+      "Delta Lake":("delta lake",),"Hudi":("hudi",),"PostgreSQL":("postgresql","postgres"),"MySQL":("mysql",),
+      "MongoDB":("mongodb",),"Oracle":("oracle",),"SQL Server":("sql server",),
+      "Microsoft Dynamics 365 CRM":("microsoft dynamics 365 crm","dynamics 365 crm","dynamics crm"),
+      "Microsoft Power Platform":("microsoft power platform","power platform"),"Microsoft Dataverse":("microsoft dataverse","dataverse"),
+      "Power Apps":("power apps","powerapps"),"Power Automate":("power automate",),"Dynamics 365 plug-ins":("dynamics 365 plug-ins","dynamics 365 plugins","crm plug-ins","crm plugins"),
+      "SSRS":("sql server reporting services","ssrs"),"SharePoint":("sharepoint",),"Power BI":("power bi","powerbi"),
+      "REST APIs":("rest api","rest apis","restful api"),"Enterprise ALM":("enterprise alm","application lifecycle management","alm process"),
+      "CI/CD":("ci/cd","continuous integration","continuous delivery","continuous deployment"),"Git":("git",),
+      "Data Governance":("data governance",),"Data Lineage":("data lineage","lineage"),"Data Quality":("data quality",),
+      "ETL":("etl",),"ELT":("elt",),"Batch Processing":("batch processing",),"Real-Time Data Processing":("real-time data processing","real time data processing","streaming"),
+      "Dimensional Modeling":("dimensional modeling",),"Systems-of-record Integration":("systems-of-record integration","system-of-record integration","systems of record"),
+      "Enterprise Data Interfaces":("enterprise data interfaces","data interfaces"),"CRM Data Integration":("crm data integration","crm integration"),
+      "Production Support":("production support",),"Technical Documentation":("technical documentation",),"Agile/Scrum":("agile","scrum"),
+    }
+    low=text.lower();out=[]
+    for label,aliases in catalog.items():
+        if any(re.search(r"(?<![a-z0-9])"+re.escape(a)+r"(?![a-z0-9])",low) for a in aliases):out.append(label)
+    return out
 
 def inferable_terms(jd):
     """JD concepts that may be stated when already evidenced by the candidate's documented work."""
