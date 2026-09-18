@@ -115,7 +115,7 @@ Goal:
 12. Do not modify the resume file.
 13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
 14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop. CRITICAL: do not call done, APPLICATION_FLOW_ERROR, or MANUAL_ACTION_REQUIRED while there is an obvious actionable control that advances the application (for example Select file/upload, Next, Continue, Save and Continue, a required field with a known answer, or an available alternate route). Execute the next supported action instead. APPLICATION_FLOW_ERROR is reserved for a genuinely unrecoverable browser/site failure after the recovery rules are exhausted.
-15. STUBBORN CONTROL RECOVERY: if a normal click on a radio button, checkbox, dropdown option, or button does not visibly commit the intended state, do NOT repeat the same indexed click more than twice and do NOT stop. Call the activate_form_control tool with the exact visible question/label and the already-supported intended value. The recovery tool will prefer the browser's dedicated check operation for radio/checkbox controls. Then inspect the page and verify the state. This recovery is generic across ATS sites and must never be used to invent an answer.
+15. STUBBORN CONTROL RECOVERY: if a normal click on a radio button, checkbox, dropdown option, or button does not visibly commit the intended state, do NOT repeat the same indexed click more than twice and do NOT stop. Call the activate_form_control tool with the exact visible question/label and the already-supported intended value. The recovery tool uses semantic targeting and portable click/keyboard activation for radio/checkbox controls. Then inspect the page and verify the state. If semantic recovery itself reports a tool-side exception, treat that as an automation failure to recover from: try the visible answer label/container, focus the control and press Space/Enter, or re-inspect for a native input. Do not call MANUAL_ACTION_REQUIRED solely because the recovery tool failed. This recovery is generic across ATS sites and must never be used to invent an answer.
 16. PHONE RECOVERY: when the form has a separate country/region calling-code control (for example United States +1), the phone-number field should normally contain only the national 10-digit number. If a truthful supplied phone fails validation, treat formatting as an ordinary recoverable UI issue, not MANUAL_ACTION_REQUIRED. Inspect the actual phone input and country-code state, then try reasonable representations of the same digits only (digits-only, standard U.S. formatting, hyphenated/dotted/spaced forms, and +1 form only when there is no separate +1 control). After each attempt, blur/focus away or otherwise trigger validation and inspect the error. Never alter the underlying phone digits. Exhaust these UI-only format attempts before considering the site unrecoverable.
 17. ROUTE FALLBACK: remember application choices observed earlier in the session. If a preferred route fails after the rendering-recovery sequence, navigate back and use another truthful available route such as Apply Manually instead of stopping. Re-analyze that route from scratch; never assume its fields match the failed route.
 18. ACTIONABLE-PAGE INVARIANT: before producing any terminal result, inspect the current page one final time. If the page contains an actionable application control whose action is supported by supplied facts/files, you MUST use it and continue. In particular, when the exact resume_path is available and a file upload/select-file control is visible, upload that file immediately; do not terminate merely after observing the control. After upload, wait for parsing/validation as needed and use Next/Continue when enabled.
@@ -136,11 +136,10 @@ def _build_tools():
 
     @tools.action(
         description=(
-            "Recover a stubborn visible form control by semantic description. Use this when a normal "
-            "click on a radio button, checkbox, dropdown option, or button did not visibly change its "
-            "state. Describe the exact control and intended value, e.g. question='Have you been employed "
-            "by Adobe in the past?', value='No'. This is generic and must only be used for an answer "
-            "already supported by the application context."
+            "Recover a stubborn visible form control by semantic description. Use this after normal indexed "
+            "clicks fail. Describe the exact visible question and intended supported value. The action tries "
+            "the semantic target itself, its label/container, and keyboard activation. It is generic across ATS "
+            "sites and must never invent an answer or target a final Submit control."
         )
     )
     async def activate_form_control(
@@ -151,9 +150,9 @@ def _build_tools():
     ) -> ActionResult:
         page = await browser_session.must_get_current_page()
         prompts = [
-            f'The visible form control for question "{question}" whose answer/label is "{value}"',
-            f'The "{value}" radio button, checkbox, option, or button associated with "{question}"',
-            f'The visible control labeled "{value}" nearest the text "{question}"',
+            f'The actual input/radio/checkbox control labeled "{value}" for question "{question}"',
+            f'The visible text or label "{value}" associated with question "{question}"',
+            f'The clickable row/container for answer "{value}" nearest question "{question}"',
         ]
         errors = []
         for prompt in prompts:
@@ -162,38 +161,40 @@ def _build_tools():
                 if element is None:
                     errors.append(f"not found: {prompt}")
                     continue
-                info = await element.get_basic_info()
-                attrs = info.attributes or {}
-                role = (attrs.get("role") or "").lower()
-                tag = (info.nodeName or "").lower()
-                input_type = (attrs.get("type") or "").lower()
 
-                # Browser Use exposes a dedicated check() operation for native/custom
-                # checkbox and radio controls. Prefer it over a generic click.
-                if input_type in {"radio", "checkbox"} or role in {"radio", "checkbox"}:
-                    await element.check()
-                    method = "check"
-                else:
+                # Keep this recovery deliberately API-light. Some Browser Use DOM element
+                # wrappers do not implement get_basic_info()/check() consistently across
+                # versions. click() plus keyboard activation is more portable.
+                try:
                     await element.click()
-                    method = "click"
-
-                return ActionResult(
-                    extracted_content=(
-                        f'Activated semantic control for "{question}" -> "{value}" using {method}. '
-                        "Inspect the page now and verify the visible selected/checked state before continuing."
+                    return ActionResult(
+                        extracted_content=(
+                            f'Activated semantic target for "{question}" -> "{value}" by click. '
+                            "Inspect and verify the selected/checked state now."
+                        )
                     )
-                )
-            except Exception as exc:
-                errors.append(f"{prompt}: {exc}")
+                except Exception as click_exc:
+                    errors.append(f"click failed for {prompt}: {click_exc}")
+                    try:
+                        await element.focus()
+                        await page.send_keys(" ")
+                        return ActionResult(
+                            extracted_content=(
+                                f'Activated semantic target for "{question}" -> "{value}" with keyboard Space. '
+                                "Inspect and verify the selected/checked state now."
+                            )
+                        )
+                    except Exception as key_exc:
+                        errors.append(f"keyboard failed for {prompt}: {key_exc}")
         return ActionResult(
             extracted_content=(
                 f'Could not activate semantic control for "{question}" -> "{value}". '
-                f'Attempts: {"; ".join(errors)}'
+                f'Attempts: {"; ".join(errors)}. Continue with another visible/keyboard interaction if available; '
+                "do not classify this tool failure alone as a manual blocker."
             )
         )
 
     return tools
-
 
 async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) -> dict[str, Any]:
     try:
