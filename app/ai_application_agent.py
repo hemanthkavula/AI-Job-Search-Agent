@@ -36,6 +36,7 @@ def _profile_facts(profile: dict[str, Any]) -> dict[str, Any]:
         "email": contact.get("email"),
         "phone": contact.get("phone"),
         "linkedin": contact.get("linkedin"),
+        "address": contact.get("address") or {},
         "education": profile.get("education") or [],
         "experience": profile.get("experience") or [],
         "authorized_to_work_us": auth.get("authorized_to_work_us"),
