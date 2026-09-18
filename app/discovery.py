@@ -42,7 +42,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         for src in config.get("workday",[]) if only_source in (None,"workday") else []:
             tasks.append((pool.submit(workday_jobs,src.get("company") or src["tenant"],src["host"],src["tenant"],src["site"],src.get("locale","en-US"),hours=hours),"workday",src.get("company") or src.get("tenant")))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
-            tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms),"dice","Dice"))
+            tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=hours),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
             tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
         for future,source,company in tasks:
