@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from html import unescape
 from urllib.request import Request, urlopen
 
+SEARCH_TERMS = ("Data Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
+
 DE_TITLE_PATTERNS = (
     "data engineer",
     "data platform engineer",
@@ -15,6 +17,9 @@ DE_TITLE_PATTERNS = (
     "cloud data engineer",
     "aws data engineer",
     "azure data engineer",
+    "data analytics engineer",
+    "data integration engineer",
+    "analytics engineer",
 )
 
 
@@ -70,16 +75,17 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     """
     origin = f"https://{host.strip('/')}"
     base = f"{origin}/wday/cxs/{tenant}/{site}"
-    offset = 0
     limit = 20
-    total: int | None = None
     listing_count = 0
     candidate_count = 0
-    out: list[dict] = []
+    out_by_path: dict[str,dict] = {}
 
-    while True:
+    for search_term in SEARCH_TERMS:
+      offset = 0
+      total: int | None = None
+      while True:
         payload = _json(f"{base}/jobs", timeout, {
-            "appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "Data Engineer"
+            "appliedFacets": {}, "limit": limit, "offset": offset, "searchText": search_term
         })
         if total is None:
             try: total = int(payload.get("total") or 0)
@@ -109,7 +115,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             if additional:
                 location = " | ".join([location] + [str(x) for x in additional if x]) if location else " | ".join(map(str, additional))
             public_url = f"{origin}/{locale}/{site}{external_path}"
-            out.append({
+            out_by_path[external_path]={
                 "external_id": f"workday:{tenant}:{site}:{req_id}",
                 "source": "workday",
                 "company_key": company,
@@ -120,11 +126,12 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
                 "description": _plain(detail.get("jobDescription")),
                 "updated_at": _posted_at(row.get("postedOn")),
                 "posted_on": row.get("postedOn"),
-            })
+            }
 
         offset += len(rows)
         if len(rows) < limit or (total and offset >= total):
             break
 
-    print(f"Workday / {company}: {listing_count} search results, {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
+    out=list(out_by_path.values())
+    print(f"Workday / {company}: {listing_count} targeted search results, {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
     return out
