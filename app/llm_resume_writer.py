@@ -10,20 +10,18 @@ Domain lock: Fidelity=financial services; Cigna=healthcare; Target=retail.
 Use exactly 8 Fidelity bullets, 7 Cigna bullets, and 6 Target bullets.
 Treat the complete job description as the primary tailoring target.
 Before writing, internally identify the target title, REQUIRED technologies/responsibilities, then preferred technologies, architecture, orchestration, streaming/batch, modeling, governance/data quality and DevOps. Do not output this analysis.
-The confirmed extended technology inventory is PERMISSION TO USE a technology when the JD specifically calls for it; it is NOT a checklist and is NOT a reason to expand the resume stack.
-STRICT EXTENDED-TECH RULE: use an extended technology only when it is explicitly named in the JD or an unmistakable direct variant/brand reference is named. Never add an extended technology merely because it is adjacent, complementary, inferable, modern, or useful.
-Do not maximize the number of technologies in the resume. Prefer the smallest coherent set that covers the JD strongly.
-If the JD names alternatives such as Beam OR Flink OR Spark Streaming, do not automatically include every alternative. Prefer the candidate's established/base technology when it satisfies the requirement; add a confirmed extended technology only when its exact evidence materially improves alignment.
-An extended technology included in Technical Skills must also have natural Professional Experience evidence. If the JD explicitly requests a technology that is in the confirmed extended inventory, treat the candidate confirmation as valid hands-on evidence and place it naturally in a technically coherent employer/domain bullet; do not invent metrics, project names, migrations, architectures, or business outcomes merely to place it. If a credible employer-context placement cannot be made, omit it rather than manufacturing a project story.
-Never invent a specific architecture, migration, deployment path, tool combination, or project solely to place a keyword. In particular, do not construct chains such as Beam→BigQuery→Dagster or Kubernetes→Helm→ArgoCD→Istio unless the JD specifically requires those technologies and the candidate evidence supports that coherent use.
-Prioritize established employer baseline technologies from candidate_evidence whenever they already satisfy the JD. For every technology in extended_technologies_explicitly_requested_by_jd, deliberately decide whether it materially strengthens alignment; when it does and a coherent employer context exists, include it in both Technical Skills and Professional Experience on V1 rather than waiting for audit feedback.
-Distribute JD technologies only where technically coherent and supported. Fidelity stays financial/trading, Cigna stays healthcare, Target stays retail/e-commerce.
+The COMPLETE JOB DESCRIPTION is the primary technical tailoring source. The master profile is primarily the source of fixed factual identity and chronology; it is NOT a technical-keyword whitelist.
+Cover every material/required JD technology and responsibility naturally on V1. Use exact JD terminology where appropriate. Relevant JD technologies may appear in Technical Skills even when the master profile does not already list them.
+Do not force every Technical Skills keyword into Professional Experience. Experience bullets should emphasize the most important JD requirements in technically coherent employer/domain contexts without becoming keyword dumps.
+Do not invent a specific project, architecture, migration, deployment path, certification, metric, or business outcome solely to place a keyword. Never claim a false specific accomplishment.
+If the JD presents true alternatives (for example Beam OR Flink OR Spark Streaming), do not automatically include every alternative; cover the requirement with the most relevant option unless the JD materially expects multiple technologies.
+Distribute technical content coherently. Fidelity stays financial/trading, Cigna stays healthcare, Target stays retail/e-commerce.
 Do not fabricate certifications, team sizes, project names, numerical outcomes, or business results. Never invent a metric merely to strengthen a bullet. Treat qualitative latency/scale claims such as sub-minute, sub-second, low-latency with a specific bound, millions/billions, or other numeric/near-numeric performance claims as metrics unless they are explicitly present in candidate evidence.
 STRICT METRIC RULE: Fidelity may have at most 2 metric-bearing bullets, Cigna at most 2, and Target must contain ZERO numeric scale, percentage, volume, latency, count, or performance metrics.
 Never stack boilerplate clauses, create keyword-dump bullets, or repeat the same phrases. Each bullet should communicate one coherent engineering accomplishment or responsibility.
-Optimize for truthful JD alignment, evidence, title relevance, recruiter readability and concise impact. Keyword coverage must never override credibility.
-If audit feedback is supplied, correct failed gates without introducing technologies that violate the extended-tech rule. A missing audit keyword is not permission to fabricate experience.
-Before returning JSON, silently self-check: exact 8/7/6 bullet counts; required JD concepts covered where truthfully supported; every extended technology actually appears in the JD; no inventory dumping; no invented tool chains; skills have experience evidence; metric limits satisfied; employer domains and chronology preserved.
+Optimize for complete-JD alignment, title relevance, recruiter readability and concise impact while preserving fixed factual history and avoiding fabricated specific accomplishments.
+If audit feedback is supplied, correct the exact failed gates. Missing material JD terminology should be incorporated naturally, but never by inventing a false specific accomplishment, metric, certification, employer, date, education fact, or project.
+Before returning JSON, silently self-check: exact 8/7/6 bullet counts; all material/required JD concepts covered; exact relevant JD terminology used naturally; no keyword dumping; no invented specific accomplishments or tool-chain stories; metric limits satisfied; employer domains and chronology preserved.
 Return valid JSON only with keys summary, skills, experience, and education."""
 
 CONFIRMED_EXTENDED_TECHNOLOGIES=["BigQuery","Dagster","Apache Beam","Apache Flink","Kubernetes","ArgoCD","Helm","Istio"]
@@ -49,9 +47,9 @@ def _jd_requested_extended(description):
 def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
     jd_extended=_jd_requested_extended(job.description)
     prompt={
-      "task":"Produce one submission-ready, human-readable, strongly ATS-aligned resume for this complete JD. Use the smallest credible technology set that covers the JD.",
+      "task":"Produce the strongest submission-ready, human-readable resume for this complete JD. Cover every material/required JD concept naturally on V1 while preserving fixed factual history.",
       "job":{"company":job.company,"title":job.title,"description":job.description},
-      "candidate_evidence":profile,
+      "candidate_fixed_facts_and_background":profile,
       "pre_generation_coverage_plan":coverage_plan or {},
       "confirmed_extended_technology_inventory":CONFIRMED_EXTENDED_TECHNOLOGIES,
       "extended_technologies_explicitly_requested_by_jd":jd_extended,
@@ -65,7 +63,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"use_exact_jd_terminology_when_truthful":True,
-        "skills_need_experience_evidence":True,"preserve_employer_domain_context":True,
+        "technical_skills_may_include_relevant_jd_terms_without_forcing_each_into_experience":True,"preserve_employer_domain_context":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
       },
       "quality_rules":{
@@ -76,14 +74,14 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       },
       "output_schema":{
         "summary":"3 concise recruiter-friendly sentences aligned to the target title and strongest supported JD requirements",
-        "skills":{"category":["only JD-relevant, truthfully supported skills"]},
-        "experience":[{"company":"exact employer","title":"exact title","dates":"exact dates","bullets":["credible JD-specific bullet grounded in candidate evidence"]}],
+        "skills":{"category":["JD-relevant technical skills and terminology; do not treat the master profile as a technical whitelist"]},
+        "experience":[{"company":"exact employer","title":"exact title","dates":"exact dates","bullets":["strong JD-specific bullet that preserves employer/domain facts and does not invent a false specific accomplishment or metric"]}],
         "education":"preserve exactly"
       }
     }
     if audit_feedback:
         prompt["revision_mode"]=True;prompt["audit_feedback"]=audit_feedback
-        prompt["task"]="Regenerate for the same JD, fixing legitimate audit gaps while preserving credibility. Do not add an extended technology unless it is in extended_technologies_explicitly_requested_by_jd."
+        prompt["task"]="Regenerate for the same complete JD and correct every legitimate audit gap. Preserve fixed factual history, cover missing material JD terminology naturally, and do not invent specific accomplishments, metrics, certifications, projects, employers, dates, or education."
     return prompt
 
 def _extract_output_text(payload):
