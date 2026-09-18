@@ -7,7 +7,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -94,7 +93,9 @@ def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path, allow_sub
         "resume_path": str(resume),
         "candidate": facts,
         "known_answers": known,
-        "application_run_date": datetime.now(ZoneInfo("America/New_York")).strftime("%m/%d/%Y"),
+        # Use the host's local calendar date. Production is scheduled in Eastern time;
+        # this also avoids requiring the optional tzdata package on Windows.
+        "application_run_date": datetime.now().astimezone().strftime("%m/%d/%Y"),
         "allow_final_submit": allow_submit,
     }
     return f"""
