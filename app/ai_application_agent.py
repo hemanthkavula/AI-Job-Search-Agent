@@ -115,6 +115,7 @@ Goal:
 12. Do not modify the resume file.
 13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
 14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop.
+15. STUBBORN CONTROL RECOVERY: if a normal click on a radio button, checkbox, dropdown option, or button does not visibly commit the intended state, do NOT repeat the same indexed click more than twice and do NOT stop. Call the activate_form_control tool with the exact visible question/label and the already-supported intended value. Then inspect the page and verify the state. This recovery is generic across ATS sites and must never be used to invent an answer.
 
 Return a concise final result containing one of:
 READY_FOR_REVIEW
@@ -122,6 +123,59 @@ MANUAL_ACTION_REQUIRED
 APPLICATION_FLOW_ERROR
 and explain the current page, completed steps, and any unresolved required items.
 """
+
+
+def _build_tools():
+    """Add generic semantic recovery for controls the normal browser index cannot activate."""
+    from browser_use import ActionResult, BrowserSession, Tools
+
+    tools = Tools()
+
+    @tools.action(
+        description=(
+            "Recover a stubborn visible form control by semantic description. Use this when a normal "
+            "click on a radio button, checkbox, dropdown option, or button did not visibly change its "
+            "state. Describe the exact control and intended value, e.g. question='Have you been employed "
+            "by Adobe in the past?', value='No'. This is generic and must only be used for an answer "
+            "already supported by the application context."
+        )
+    )
+    async def activate_form_control(
+        question: str,
+        value: str,
+        browser_session: BrowserSession,
+        page_extraction_llm,
+    ) -> ActionResult:
+        page = await browser_session.must_get_current_page()
+        prompts = [
+            f'The visible form control for question "{question}" whose answer/label is "{value}"',
+            f'The "{value}" radio button, checkbox, option, or button associated with "{question}"',
+            f'The visible control labeled "{value}" nearest the text "{question}"',
+        ]
+        errors = []
+        for prompt in prompts:
+            try:
+                element = await page.get_element_by_prompt(prompt, page_extraction_llm)
+                if element is None:
+                    errors.append(f"not found: {prompt}")
+                    continue
+                await element.click()
+                return ActionResult(
+                    extracted_content=(
+                        f'Activated semantic control for "{question}" -> "{value}". '
+                        "Inspect the page now and verify the visible selected/checked state before continuing."
+                    )
+                )
+            except Exception as exc:
+                errors.append(f"{prompt}: {exc}")
+        return ActionResult(
+            extracted_content=(
+                f'Could not activate semantic control for "{question}" -> "{value}". '
+                f'Attempts: {"; ".join(errors)}'
+            )
+        )
+
+    return tools
 
 
 async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) -> dict[str, Any]:
@@ -147,10 +201,12 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) 
     # Browser Use blocks arbitrary local uploads unless paths are explicitly
     # allow-listed. The resume has already passed our artifact validation, so
     # expose only this job's exact PDF to the agent.
+    tools = _build_tools()
     agent = Agent(
         task=_task(item, profile, resume),
         llm=llm,
         browser=browser,
+        tools=tools,
         available_file_paths=[str(resume)],
     )
     try:
