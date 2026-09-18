@@ -138,13 +138,79 @@ def _workday_enter_application(page):
         body=page.locator("body").inner_text(timeout=5000)
         diag["body_excerpt"]=re.sub(r"\\s+"," ",body).strip()[:1200]
         nb=_norm(body)
-        if any(x in nb for x in ("sign in","signin","log in","login")):diag["gate"]="SIGN_IN"
-        if any(x in nb for x in ("create account","create an account")):
+        # Header Sign In links are normal on Workday; only classify an auth gate
+        # when the page itself is not already inside /apply/.
+        if "/apply/" not in page.url and any(x in nb for x in ("sign in","signin","log in","login")):diag["gate"]="SIGN_IN"
+        if "/apply/" not in page.url and any(x in nb for x in ("create account","create an account")):
             diag["gate"]="CREATE_ACCOUNT" if not diag["gate"] else diag["gate"]+"+CREATE_ACCOUNT"
     except Exception as exc:
         diag["diagnostic_error"]=str(exc)
     diag["final_url"]=page.url
     return diag
+
+def _required(el):
+    return el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
+
+def _fill_current_page(page,item,identity,resume,result):
+    """Fill only deterministic fields on the current ATS step."""
+    before=len(result["filled"]);unresolved=[]
+    controls=page.locator("input, textarea, select")
+    for i in range(min(controls.count(),250)):
+        el=controls.nth(i)
+        try:
+            if not el.is_visible():continue
+        except Exception:continue
+        typ=(el.get_attribute("type") or "").lower();label=_label(el);required=_required(el)
+        if typ in ("hidden","submit","button"):continue
+        if typ=="file":
+            fl=_norm(label)
+            if any(t in fl for t in ("resume","cv","curriculum vitae")):
+                try:el.set_input_files(str(resume.resolve()));result["filled"].append({"field":label or "resume","value":"validated PDF"})
+                except Exception:
+                    if required:unresolved.append(label or "resume upload")
+            elif required:unresolved.append(label or "required file upload")
+            continue
+        key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
+        if value not in (None,""):
+            try:
+                if _choose(el,value):result["filled"].append({"field":label,"value":value})
+                elif required:unresolved.append(label)
+            except Exception:
+                if required:unresolved.append(label)
+        elif required:
+            current=""
+            try:current=el.input_value()
+            except Exception:pass
+            if not current:unresolved.append(label or f"field_{i}")
+    return len(result["filled"])-before,sorted(set(unresolved))
+
+def _workday_steps(page,item,identity,resume,result,max_steps=8):
+    """Advance Workday step-by-step only while every required field is safely answered."""
+    steps=[]
+    for n in range(1,max_steps+1):
+        page.wait_for_timeout(1500)
+        filled,unresolved=_fill_current_page(page,item,identity,resume,result)
+        body=page.locator("body").inner_text(timeout=7000)
+        step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
+              "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800]}
+        steps.append(step)
+        if BLOCKER_RE.search(body):
+            result["blockers"].append("CAPTCHA/MFA/verification challenge detected");break
+        if unresolved:break
+        # Never click Submit. Only advance intermediate Workday pages.
+        nxt=None
+        for sel in ('button:has-text("Save and Continue")','button:has-text("Next")',
+                    '[data-automation-id="bottom-navigation-next-button"]'):
+            try:
+                loc=page.locator(sel).first
+                if loc.count() and loc.is_visible() and loc.is_enabled():nxt=loc;step["next_selector"]=sel;break
+            except Exception:pass
+        if nxt is None:break
+        try:
+            nxt.click(timeout=7000);page.wait_for_timeout(1800)
+        except Exception as exc:
+            step["next_error"]=str(exc);break
+    return steps
 
 def autofill(item:dict,headless=True,review_seconds=0)->dict:
     """Fill deterministic fields and upload the validated PDF. Never submit."""
@@ -162,32 +228,11 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
-            controls=page.locator("input, textarea, select")
-            for i in range(min(controls.count(),250)):
-                el=controls.nth(i);typ=(el.get_attribute("type") or "").lower();label=_label(el);required=el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
-                if typ in ("hidden","submit","button"):continue
-                if typ=="file":
-                    file_label=_norm(label)
-                    if any(t in file_label for t in ("resume","cv","curriculum vitae")):
-                        try:el.set_input_files(str(resume.resolve()));result["filled"].append({"field":label or "resume","value":"validated PDF"})
-                        except Exception:
-                            if required:result["unresolved_required"].append(label or "resume upload")
-                    elif required:
-                        result["unresolved_required"].append(label or "required file upload")
-                    continue
-                key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
-                if value not in (None,""):
-                    try:
-                        if _choose(el,value):result["filled"].append({"field":label,"value":value})
-                        elif required:result["unresolved_required"].append(label)
-                    except Exception:
-                        if required:result["unresolved_required"].append(label)
-                elif required:
-                    current=""
-                    try:current=el.input_value()
-                    except Exception:pass
-                    if not current:result["unresolved_required"].append(label or f"field_{i}")
-            result["unresolved_required"]=sorted(set(result["unresolved_required"]))
+            if (item.get("ats_provider") or "").lower()=="workday":
+                result["workday_steps"]=_workday_steps(page,item,identity,resume,result)
+                result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
+            else:
+                _,result["unresolved_required"]=_fill_current_page(page,item,identity,resume,result)
             # A page with zero mapped fields is not a successful autofill. Workday
             # commonly lands on a job-description/sign-in step before its application form.
             if not result["filled"]:
