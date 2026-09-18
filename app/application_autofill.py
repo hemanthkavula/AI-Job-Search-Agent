@@ -81,57 +81,68 @@ def _resolve_resume(value):
 
 
 def _workday_enter_application(page):
-    """Advance into Workday and return navigation diagnostics; never submit."""
-    diag={"provider":"workday","url_before":page.url,"apply_selector":None,"manual_selector":None,
-          "url_after_apply":None,"url_after_manual":None,"visible_actions":[],"gate":None}
-    # Workday labels vary by tenant. Prefer visible Apply buttons and avoid
-    # destructive/submit actions. Stop once controls beyond the job page appear.
-    candidates=[
-        'button:has-text("Apply")',
-        'a:has-text("Apply")',
-        '[data-automation-id="applyButton"]',
-        'button:has-text("Apply Now")',
-        'a:has-text("Apply Now")'
-    ]
-    for sel in candidates:
-        try:
-            loc=page.locator(sel).first
-            if loc.count() and loc.is_visible():
-                diag["apply_selector"]=sel
-                loc.click(timeout=5000)
-                page.wait_for_timeout(1800)
-                diag["url_after_apply"]=page.url
-                break
-        except Exception:
-            pass
-    # Some tenants show a modal requiring a choice between account sign-in and
-    # manual application. Prefer a non-authenticated/manual path when offered.
-    manual=[
-        'button:has-text("Apply Manually")',
-        'a:has-text("Apply Manually")',
-        'button:has-text("Use My Last Application")',
-        'button:has-text("Autofill with Resume")',
-        'button:has-text("Apply without an account")',
-        'a:has-text("Apply without an account")'
-    ]
-    for sel in manual:
-        try:
-            loc=page.locator(sel).first
-            if loc.count() and loc.is_visible():
-                diag["manual_selector"]=sel
-                loc.click(timeout=5000)
-                page.wait_for_timeout(1800)
-                diag["url_after_manual"]=page.url
-                break
-        except Exception:
-            pass
+    """Wait for the Workday SPA, enter Apply flow, and return diagnostics."""
+    diag={"provider":"workday","url_before":page.url,"title":None,"ready_state":None,
+          "apply_selector":None,"manual_selector":None,"url_after_apply":None,
+          "url_after_manual":None,"visible_actions":[],"gate":None,
+          "body_excerpt":None,"control_count":0}
     try:
-        texts=page.locator("button, a").all_inner_texts()
-        diag["visible_actions"]=[re.sub(r"\\s+"," ",x).strip() for x in texts if x.strip()][:40]
-        body=_norm(page.locator("body").inner_text(timeout=5000))
-        if any(x in body for x in ("sign in","signin","log in","login")):diag["gate"]="SIGN_IN"
-        if any(x in body for x in ("create account","create an account")):diag["gate"]="CREATE_ACCOUNT" if not diag["gate"] else diag["gate"]+"+CREATE_ACCOUNT"
-    except Exception:pass
+        page.wait_for_load_state("domcontentloaded",timeout=15000)
+        try: page.wait_for_load_state("networkidle",timeout=10000)
+        except Exception: pass
+        # Workday is a client-rendered SPA; DOMContentLoaded is often too early.
+        page.wait_for_timeout(2500)
+        diag["title"]=page.title()
+        diag["ready_state"]=page.evaluate("document.readyState")
+        diag["control_count"]=page.locator("button, a, input, textarea, select").count()
+        apply_selectors=[
+            '[data-automation-id="applyButton"]',
+            'button:has-text("Apply Now")','a:has-text("Apply Now")',
+            'button:has-text("Apply")','a:has-text("Apply")',
+            '[role="button"]:has-text("Apply")'
+        ]
+        # Give the SPA up to 15 seconds to expose an Apply action.
+        deadline=15000
+        elapsed=0
+        chosen=None
+        while elapsed<=deadline and not chosen:
+            for sel in apply_selectors:
+                try:
+                    loc=page.locator(sel).first
+                    if loc.count() and loc.is_visible():
+                        chosen=(sel,loc);break
+                except Exception:pass
+            if not chosen:
+                page.wait_for_timeout(1000);elapsed+=1000
+        if chosen:
+            sel,loc=chosen;diag["apply_selector"]=sel
+            loc.click(timeout=7000)
+            page.wait_for_timeout(2000)
+            diag["url_after_apply"]=page.url
+            try: page.wait_for_load_state("networkidle",timeout=8000)
+            except Exception: pass
+        manual=[
+            'button:has-text("Apply Manually")','a:has-text("Apply Manually")',
+            'button:has-text("Apply without an account")','a:has-text("Apply without an account")',
+            'button:has-text("Autofill with Resume")'
+        ]
+        for sel in manual:
+            try:
+                loc=page.locator(sel).first
+                if loc.count() and loc.is_visible():
+                    diag["manual_selector"]=sel;loc.click(timeout=5000)
+                    page.wait_for_timeout(1800);diag["url_after_manual"]=page.url;break
+            except Exception:pass
+        texts=page.locator("button, a, [role=button]").all_inner_texts()
+        diag["visible_actions"]=[re.sub(r"\\s+"," ",x).strip() for x in texts if x.strip()][:50]
+        body=page.locator("body").inner_text(timeout=5000)
+        diag["body_excerpt"]=re.sub(r"\\s+"," ",body).strip()[:1200]
+        nb=_norm(body)
+        if any(x in nb for x in ("sign in","signin","log in","login")):diag["gate"]="SIGN_IN"
+        if any(x in nb for x in ("create account","create an account")):
+            diag["gate"]="CREATE_ACCOUNT" if not diag["gate"] else diag["gate"]+"+CREATE_ACCOUNT"
+    except Exception as exc:
+        diag["diagnostic_error"]=str(exc)
     diag["final_url"]=page.url
     return diag
 
@@ -145,7 +156,7 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=headless);page=browser.new_page()
         try:
-            page.goto(url,wait_until="domcontentloaded",timeout=45000)
+            page.goto(url,wait_until="domcontentloaded",timeout=60000)
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["navigation"]=_workday_enter_application(page)
             body=page.locator("body").inner_text(timeout=10000)
