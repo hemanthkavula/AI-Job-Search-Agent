@@ -6,7 +6,6 @@ from app.eligibility import two_category_filter
 from app.scoring import analyze_job
 from app.resume_generator import generate_resume
 from app.db import save_job
-from app.application_queue import enqueue
 
 def process_job(raw: dict,min_score: int=65) -> dict:
     profile=load_profile()
@@ -22,6 +21,8 @@ def process_job(raw: dict,min_score: int=65) -> dict:
         return {"status":"LOW_SCORE","analysis":analysis,"eligibility":eligibility}
 
     resume_path=generate_resume(job,analysis,profile)
-    application_id=save_job(job,analysis); queue_id=enqueue(application_id,resume_path)
-    return {"status":"READY_FOR_REVIEW","application_id":application_id,"queue_id":queue_id,
+    application_id=save_job(job,analysis)
+    # Legacy single-job API path: keep the generated resume linked to the saved
+    # application record without depending on the production manifest queue.
+    return {"status":"READY_FOR_REVIEW","application_id":application_id,
       "analysis":analysis,"eligibility":eligibility,"resume_path":resume_path,"job_url":job.url}
