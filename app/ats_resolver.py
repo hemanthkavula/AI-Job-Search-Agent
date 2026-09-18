@@ -1,7 +1,7 @@
 from __future__ import annotations
 import re
 from urllib import request
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, unquote
 from app.source_registry import detect_ats
 
 ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com")
