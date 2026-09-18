@@ -34,7 +34,7 @@ def jd_skill_terms(jd):
     """Extract ATS-friendly technologies and material DE/application-integration concepts directly from the complete JD."""
     text=jd or ""
     catalog={
-      "Python":("python",),"SQL":("sql",),"Scala":("scala",),"Java":("java",),"Go":("golang","go"),"Rust":("rust",),
+      "Python":("python",),"SQL":("sql",),"Scala":("scala",),"Java":("java",),"Go":("golang",),"Rust":("rust",),
       "PySpark":("pyspark",),"Apache Spark":("apache spark","spark"),"Apache Kafka":("apache kafka","kafka"),
       "Apache Flink":("apache flink","flink"),"Databricks":("databricks",),"Snowflake":("snowflake",),"dbt":("dbt",),
       "Dagster":("dagster",),"Airflow":("airflow",),"Fivetran":("fivetran",),"Airbyte":("airbyte",),
@@ -86,7 +86,13 @@ def inferable_terms(jd):
       "Continuous Improvement":["continuous improvement","technology updates","roadmap","recommend enhancements"],
       "Data Modeling":["data model","data modeling","data modelling"],
       "Testing & Quality Assurance":["unit testing","integration testing","performance testing","quality assurance","qa process"],
-      "Security & Governance":["secure data","security policies","access control","governance","compliance"]
+      "Security & Governance":["secure data","security policies","access control","governance","compliance"],
+      "Machine Learning & AI":["machine learning","ml models","artificial intelligence","ai models","model training","model inference"],
+      "Generative AI":["generative ai","genai","large language model","large language models","llm","llms"],
+      "MLOps":["mlops","model deployment","model serving","model monitoring","model registry"],
+      "Vector Search & Embeddings":["vector database","vector databases","vector search","embeddings","embedding models"],
+      "Retrieval-Augmented Generation":["retrieval augmented generation","retrieval-augmented generation","rag"],
+      "Data Science Collaboration":["data scientists","data science teams","machine learning engineers","ml engineers"]
     }
     return [label for label,terms in mapping.items() if any(t in low for t in terms)]
 
