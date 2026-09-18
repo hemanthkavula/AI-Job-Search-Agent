@@ -27,7 +27,7 @@ def detect_ats(url):
    m=re.search(pat,url,re.I)
    if m:
     if provider=="workday":return provider,"|".join(x for x in m.groups() if x)
-    return provider,m.group(1)
+    return provider,next((x for x in m.groups() if x),None)
  return None,None
 
 def learn_from_jobs(jobs,registry):
