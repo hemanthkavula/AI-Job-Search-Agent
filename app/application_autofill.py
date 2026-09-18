@@ -79,6 +79,47 @@ def _resolve_resume(value):
         except Exception:pass
     return None
 
+
+def _workday_enter_application(page):
+    """Advance from a Workday job page into the application flow without submitting."""
+    # Workday labels vary by tenant. Prefer visible Apply buttons and avoid
+    # destructive/submit actions. Stop once controls beyond the job page appear.
+    candidates=[
+        'button:has-text("Apply")',
+        'a:has-text("Apply")',
+        '[data-automation-id="applyButton"]',
+        'button:has-text("Apply Now")',
+        'a:has-text("Apply Now")'
+    ]
+    for sel in candidates:
+        try:
+            loc=page.locator(sel).first
+            if loc.count() and loc.is_visible():
+                loc.click(timeout=5000)
+                page.wait_for_timeout(1200)
+                break
+        except Exception:
+            pass
+    # Some tenants show a modal requiring a choice between account sign-in and
+    # manual application. Prefer a non-authenticated/manual path when offered.
+    manual=[
+        'button:has-text("Apply Manually")',
+        'a:has-text("Apply Manually")',
+        'button:has-text("Use My Last Application")',
+        'button:has-text("Autofill with Resume")',
+        'button:has-text("Apply without an account")',
+        'a:has-text("Apply without an account")'
+    ]
+    for sel in manual:
+        try:
+            loc=page.locator(sel).first
+            if loc.count() and loc.is_visible():
+                loc.click(timeout=5000)
+                page.wait_for_timeout(1200)
+                break
+        except Exception:
+            pass
+
 def autofill(item:dict,headless=True)->dict:
     """Fill deterministic fields and upload the validated PDF. Never submit."""
     profile=load_profile();identity=_identity(profile);url=item.get("url")
@@ -90,6 +131,8 @@ def autofill(item:dict,headless=True)->dict:
         browser=p.chromium.launch(headless=headless);page=browser.new_page()
         try:
             page.goto(url,wait_until="domcontentloaded",timeout=45000)
+            if (item.get("ats_provider") or "").lower()=="workday":
+                _workday_enter_application(page)
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
