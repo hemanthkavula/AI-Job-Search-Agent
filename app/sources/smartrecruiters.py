@@ -1,11 +1,28 @@
 from __future__ import annotations
 import json
 import re
+from pathlib import Path
 from html import unescape
 from urllib.request import urlopen, Request
 from urllib.parse import urlencode
 
 BASE = "https://api.smartrecruiters.com/v1/companies"
+ROOT = Path(__file__).resolve().parents[2]
+CACHE_DIR = ROOT / "generated" / "smartrecruiters_cache"
+
+def _cache_path(company_identifier: str) -> Path:
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",company_identifier)
+    return CACHE_DIR / f"{safe}.json"
+
+def _load_cache(company_identifier: str) -> dict:
+    path=_cache_path(company_identifier)
+    if not path.exists():return {}
+    try:return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:return {}
+
+def _save_cache(company_identifier: str, payload: dict) -> None:
+    path=_cache_path(company_identifier);path.parent.mkdir(parents=True,exist_ok=True)
+    tmp=path.with_suffix(".tmp");tmp.write_text(json.dumps(payload,indent=2),encoding="utf-8");tmp.replace(path)
 
 # Keep discovery cheap: only fetch full posting details for plausible Data Engineer roles.
 DE_TITLE_PATTERNS = (
@@ -57,12 +74,24 @@ def fetch_jobs(company_identifier: str, timeout: int = 12, hours: int = 24) -> l
     limit = 100
     listing_count = 0
     candidate_count = 0
+    incremental = hours <= 2
+    cache = _load_cache(company_identifier) if incremental else {}
+    previous_ids = set(cache.get("posting_ids") or [])
+    current_ids = []
 
     while True:
         url = f"{BASE}/{company_identifier}/postings?{urlencode({'limit': limit, 'offset': offset})}"
         payload = _get_json(url, timeout)
         rows = payload.get("content") or []
+        page_ids=[str(row.get("uuid") or row.get("id") or "") for row in rows]
+        page_ids=[x for x in page_ids if x]
+        # In an hourly cycle, a fully-known newest page means we reached the previous
+        # completed frontier. Stop before counting/processing it. The timestamp window
+        # remains the primary freshness gate; this cache only avoids repeat traversal.
+        if incremental and rows and page_ids and all(x in previous_ids for x in page_ids):
+            break
         listing_count += len(rows)
+        current_ids.extend(page_ids)
 
         # Reject stale listings before any detailed-JD request. releasedDate is supplied
         # on SmartRecruiters listing rows, so old postings should not cost detail calls.
@@ -121,9 +150,12 @@ def fetch_jobs(company_identifier: str, timeout: int = 12, hours: int = 24) -> l
         if not rows or offset >= total:
             break
 
+    if incremental:
+        merged=list(dict.fromkeys(current_ids + list(previous_ids)))[:2000]
+        _save_cache(company_identifier,{"posting_ids":merged})
     print(
         f"SmartRecruiters / {company_identifier}: "
-        f"{listing_count} listings scanned ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs",
+        f"{listing_count} new rows scanned ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs",
         flush=True,
     )
     return out
