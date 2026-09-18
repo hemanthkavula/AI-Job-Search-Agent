@@ -25,13 +25,34 @@ def _field_key(label):
 def _question_answer(label,item):
     x=_norm(label);known=item.get("known_answers") or {}
     if "authorized" in x and ("work" in x or "employment" in x):return known.get("authorized_to_work_us")
-    if ("sponsor" in x or "sponsorship" in x) and ("now" in x or "currently" in x):return known.get("requires_sponsorship_now")
+    # Combined "now or in the future" questions must be Yes for future H-1B need.
     if ("sponsor" in x or "sponsorship" in x) and ("future" in x or "later" in x):return known.get("requires_future_sponsorship")
+    if ("sponsor" in x or "sponsorship" in x) and ("now" in x or "currently" in x):return known.get("requires_sponsorship_now")
     if "sponsor" in x or "sponsorship" in x:return known.get("requires_future_sponsorship")
     return None
 
 def _label(el):
-    return el.get_attribute("aria-label") or el.get_attribute("placeholder") or el.get_attribute("name") or el.get_attribute("id") or ""
+    """Resolve real visible form labels, including modern ATS wrappers."""
+    try:
+        return el.evaluate("""e => {
+          const parts=[];
+          const add=v=>{if(v && !parts.includes(v.trim())) parts.push(v.trim())};
+          add(e.getAttribute('aria-label')); add(e.getAttribute('placeholder'));
+          const ids=(e.getAttribute('aria-labelledby')||'').split(/\\s+/).filter(Boolean);
+          ids.forEach(id=>{const n=document.getElementById(id); if(n)add(n.innerText||n.textContent)});
+          if(e.id){const l=document.querySelector('label[for="'+CSS.escape(e.id)+'"]');if(l)add(l.innerText||l.textContent)}
+          const own=e.closest('label');if(own)add(own.innerText||own.textContent);
+          const fs=e.closest('fieldset');if(fs){const lg=fs.querySelector('legend');if(lg)add(lg.innerText||lg.textContent)}
+          let p=e.parentElement;
+          for(let i=0;p && i<3;i++,p=p.parentElement){
+            const l=p.querySelector(':scope > label, :scope > span, :scope > div');
+            if(l && l!==e)add(l.innerText||l.textContent);
+          }
+          add(e.getAttribute('name'));add(e.getAttribute('id'));
+          return parts.join(' | ').replace(/\\s+/g,' ').trim();
+        }""")
+    except Exception:
+        return el.get_attribute("aria-label") or el.get_attribute("placeholder") or el.get_attribute("name") or el.get_attribute("id") or ""
 
 def _choose(el,value):
     tag=el.evaluate("(e)=>e.tagName.toLowerCase()");typ=(el.get_attribute("type") or "").lower()
@@ -77,9 +98,13 @@ def autofill(item:dict,headless=True)->dict:
                 el=controls.nth(i);typ=(el.get_attribute("type") or "").lower();label=_label(el);required=el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
                 if typ in ("hidden","submit","button"):continue
                 if typ=="file":
-                    try:el.set_input_files(str(resume.resolve()));result["filled"].append({"field":label or "resume","value":"validated PDF"})
-                    except Exception:
-                        if required:result["unresolved_required"].append(label or "resume upload")
+                    file_label=_norm(label)
+                    if any(t in file_label for t in ("resume","cv","curriculum vitae")):
+                        try:el.set_input_files(str(resume.resolve()));result["filled"].append({"field":label or "resume","value":"validated PDF"})
+                        except Exception:
+                            if required:result["unresolved_required"].append(label or "resume upload")
+                    elif required:
+                        result["unresolved_required"].append(label or "required file upload")
                     continue
                 key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
                 if value not in (None,""):
@@ -94,7 +119,13 @@ def autofill(item:dict,headless=True)->dict:
                     except Exception:pass
                     if not current:result["unresolved_required"].append(label or f"field_{i}")
             result["unresolved_required"]=sorted(set(result["unresolved_required"]))
-            result["status"]="MANUAL_ACTION_REQUIRED" if result["unresolved_required"] else "AUTOFILLED_REVIEW_REQUIRED"
+            # A page with zero mapped fields is not a successful autofill. Workday
+            # commonly lands on a job-description/sign-in step before its application form.
+            if not result["filled"]:
+                result["status"]="MANUAL_ACTION_REQUIRED"
+                result["reason"]="No application form fields were mapped; application form may require an Apply/sign-in step."
+            else:
+                result["status"]="MANUAL_ACTION_REQUIRED" if result["unresolved_required"] else "AUTOFILLED_REVIEW_REQUIRED"
         except Exception as exc:
             result["status"]="MANUAL_ACTION_REQUIRED";result["reason"]=str(exc)
         finally:browser.close()
