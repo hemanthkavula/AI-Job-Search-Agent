@@ -5,6 +5,7 @@ from urllib import request
 from app.config import load_profile
 from app.eligibility import two_category_filter
 from app.filters import passes_hard_filters
+from app.ats_resolver import resolve_original_ats
 
 MIN_COMPLETE_JD_CHARS=1200
 
@@ -32,17 +33,18 @@ def _extract_dice(page):
 
 def resolve_full_jd(job):
     """Resolve full JD only after lightweight eligibility. Never calls an LLM."""
+    job=resolve_original_ats(job)
     current=(job.get("description") or "").strip()
     if job.get("description_complete") and len(current)>=MIN_COMPLETE_JD_CHARS:return job
     source=(job.get("source") or "").lower()
-    page=_fetch_public_page(job.get("url"))
+    page=_fetch_public_page(job.get("original_url") or job.get("url"))
     resolved=_extract_dice(page) if source=="dice" else _clean_html(page)
     out=dict(job)
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
     out["description_complete"]=len(final)>=MIN_COMPLETE_JD_CHARS
-    out["jd_resolution_source"]="public_job_detail_page" if len(resolved)>len(current) else "source_payload"
+    out["jd_resolution_source"]="original_ats_or_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
     return out
 
 def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
