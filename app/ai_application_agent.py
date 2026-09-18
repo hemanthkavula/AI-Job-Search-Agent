@@ -45,6 +45,40 @@ def _profile_facts(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _source_context(item: dict[str, Any]) -> dict[str, Any]:
+    """Separate ATS hosting technology from the truthful recruiting source."""
+    raw = str(item.get("source") or "").strip()
+    norm = raw.lower()
+    ats_hosts = {
+        "workday", "greenhouse", "lever", "ashby", "smartrecruiters",
+        "icims", "jobvite"
+    }
+    if norm in ats_hosts:
+        return {
+            "raw_source": raw,
+            "source_kind": "ATS_HOST",
+            "ats_provider": raw,
+            "recruiting_source": "direct employer careers/application site",
+            "instruction": (
+                f"{raw} is the ATS hosting provider, NOT a job board and NOT the answer "
+                "to 'How did you hear about us?'. Prefer an actual employer/company "
+                "website or careers-site option when present. Do not select Job Board "
+                f"merely because the application is hosted by {raw}."
+            ),
+        }
+    return {
+        "raw_source": raw,
+        "source_kind": "DISCOVERY_SOURCE",
+        "ats_provider": None,
+        "recruiting_source": raw,
+        "instruction": (
+            "This is the recorded discovery source. Use it only when the application's "
+            "actual choices truthfully match it; otherwise choose the closest truthful "
+            "web/company-careers option."
+        ),
+    }
+
+
 def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path) -> str:
     facts = _profile_facts(profile)
     known = item.get("known_answers") or {}
@@ -52,7 +86,7 @@ def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path) -> str:
         "job_url": item.get("application_url") or item.get("url"),
         "company": item.get("company"),
         "title": item.get("title"),
-        "discovery_source": item.get("source"),
+        "source_context": _source_context(item),
         "resume_path": str(resume),
         "candidate": facts,
         "known_answers": known,
@@ -68,7 +102,7 @@ Goal:
 3. Prefer resume-assisted/autofill-with-resume when offered. Upload ONLY the exact resume_path above.
 4. After resume parsing, inspect the resulting fields and correct deterministic candidate facts when needed.
 5. Fill only answers supported by candidate facts or known_answers. Treat ALL supplied candidate fields as available facts, including phone. Never say phone is unsupported when candidate.phone is present.
-6. For "How did you hear about us?", inspect the ACTUAL options and choose a truthful option based on discovery_source/employer context. Search/select controls may be hierarchical: selecting a category such as "Job Board" is NOT complete if a second-level option appears. Continue until the field shows a committed leaf selection and the picker is closed. If the literal discovery source is not offered, choose the closest truthful employer website/job-board/web option. Never invent a referral, recruiter, staffing agency, school, or personal relationship.
+6. For "How did you hear about us?", use source_context carefully. An ATS host (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, iCIMS, Jobvite) is application infrastructure, NOT a job board/recruiting source. Never type/select "Workday" or choose "Job Board" merely because source_kind=ATS_HOST. When source_kind=ATS_HOST, inspect the ACTUAL choices and prefer a truthful employer/company website or careers-site choice (for example an employer-named .com/careers option) when available, then generic Website/Web/Online if needed. Only choose Job Board when the recorded source is actually a job board or the provenance otherwise supports it. Search/select controls may be hierarchical: selecting a parent category is NOT complete if child options appear. Continue until a leaf option is visibly committed and the picker is closed. Never invent a referral, recruiter, staffing agency, school, or personal relationship.
 7. Work authorization rules are authoritative:
    - authorized to work in the United States: YES
    - requires sponsorship now/currently: NO
