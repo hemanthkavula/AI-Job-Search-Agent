@@ -131,17 +131,24 @@ def _workday_enter_application(page):
             diag["url_after_apply"]=page.url
             try: page.wait_for_load_state("networkidle",timeout=8000)
             except Exception: pass
+        # Prefer Workday's resume-assisted flow. It parses the approved resume
+        # into My Information / My Experience and reduces brittle manual entry.
         manual=[
+            'button:has-text("Autofill with Resume")','a:has-text("Autofill with Resume")',
+            'button:has-text("Apply with Resume")','a:has-text("Apply with Resume")',
+            'button:has-text("Use My Resume")','a:has-text("Use My Resume")',
             'button:has-text("Apply Manually")','a:has-text("Apply Manually")',
-            'button:has-text("Apply without an account")','a:has-text("Apply without an account")',
-            'button:has-text("Autofill with Resume")'
+            'button:has-text("Apply without an account")','a:has-text("Apply without an account")'
         ]
         for sel in manual:
             try:
                 loc=page.locator(sel).first
                 if loc.count() and loc.is_visible():
                     diag["manual_selector"]=sel;loc.click(timeout=5000)
-                    page.wait_for_timeout(1800);diag["url_after_manual"]=page.url;break
+                    page.wait_for_timeout(1800);diag["url_after_manual"]=page.url
+                    # Resume-assisted Workday flows commonly expose a file input
+                    # immediately after choosing Autofill/Apply with Resume.
+                    break
             except Exception:pass
         texts=page.locator("button, a, [role=button]").all_inner_texts()
         diag["visible_actions"]=[re.sub(r"\\s+"," ",x).strip() for x in texts if x.strip()][:50]
@@ -264,6 +271,21 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
             page.goto(url,wait_until="domcontentloaded",timeout=60000)
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["navigation"]=_workday_enter_application(page)
+                # If resume-assisted flow is selected, upload the exact validated
+                # PDF before scanning the generated application fields.
+                chosen=(result["navigation"] or {}).get("manual_selector") or ""
+                if "Resume" in chosen:
+                    try:
+                        file_inputs=page.locator('input[type="file"]')
+                        for fi in range(file_inputs.count()):
+                            inp=file_inputs.nth(fi)
+                            try:
+                                inp.set_input_files(str(resume.resolve()))
+                                result["filled"].append({"field":"Workday resume import","value":"validated PDF"})
+                                break
+                            except Exception:pass
+                        page.wait_for_timeout(3500)
+                    except Exception:pass
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
