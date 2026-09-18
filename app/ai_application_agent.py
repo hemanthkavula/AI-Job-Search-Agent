@@ -154,7 +154,7 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) 
         available_file_paths=[str(resume)],
     )
     try:
-        history = await agent.run(max_steps=int(os.getenv("APPLICATION_AGENT_MAX_STEPS", "80")))
+        history = await agent.run(max_steps=int(os.getenv("APPLICATION_AGENT_MAX_STEPS", "160")))
         final = history.final_result() or ""
         upper = final.upper()
         if "READY_FOR_REVIEW" in upper:
