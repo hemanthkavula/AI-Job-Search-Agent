@@ -4,8 +4,10 @@ import argparse
 import asyncio
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -81,7 +83,7 @@ def _source_context(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path) -> str:
+def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path, allow_submit: bool = False) -> str:
     facts = _profile_facts(profile)
     known = item.get("known_answers") or {}
     payload = {
@@ -92,6 +94,8 @@ def _task(item: dict[str, Any], profile: dict[str, Any], resume: Path) -> str:
         "resume_path": str(resume),
         "candidate": facts,
         "known_answers": known,
+        "application_run_date": datetime.now(ZoneInfo("America/New_York")).strftime("%m/%d/%Y"),
+        "allow_final_submit": allow_submit,
     }
     return f"""
 You are operating a real job application for the candidate. Analyze the ACTUAL application UI before acting.
@@ -114,7 +118,7 @@ Goal:
 9. Do NOT guess salary, demographics/self-identification, disability/veteran answers, relocation/onsite willingness, legal attestations, employer-specific free text, or any fact absent from the supplied context. However, application_preferences in candidate facts are explicit candidate-approved answers and MAY be used for semantically equivalent required questions. In particular, legal_working_age=true means Yes to legal-age-to-work questions; background_check_willing=true means Yes to willingness-to-submit-to-background-check questions; relocation.willing_to_relocate=true and relocation.willing_to_relocate_at_own_expense=true mean Yes when a required question asks whether the candidate can work at the listed location OR is willing to relocate there at their own expense. Do not reinterpret these preferences beyond their stated scope.
 10. APPROVED APPLICATION PREFERENCES: application_preferences are explicit candidate-approved answers. For semantically equivalent REQUIRED questions only, use: legal_working_age; background_check_willing; relocation; voluntary_disclosures (veteran_status, gender, ethnicity, disability_status); application_terms; and application_signature. For ethnicity "Asian (South Asian)", select "Asian" when that is the available equivalent category; never map to another category. "No disability" may map only to an option meaning the candidate does not have a disability. If application_terms.accept_required_terms_and_privacy_acknowledgments=true, inspect the actual displayed/linked terms first, then accept required job-application Terms & Conditions/privacy acknowledgments necessary to continue. Do not accept optional marketing consent or unrelated separate agreements. If application_signature.authorized=true, enter application_signature.signature_text EXACTLY into a required job-application signature/e-signature field tied to the application or approved required terms. Never alter the signature or use it for unrelated agreements. If no semantically equivalent option exists, stop rather than guess.
 10. If a required unknown question, CAPTCHA, MFA, verification, sign-in/account gate that cannot safely be completed, or unrecoverable blocker appears: STOP and report MANUAL_ACTION_REQUIRED with the exact question/blocker. Before stopping, make reasonable UI-only recovery attempts (wait/re-inspect blank or partially rendered pages, reload once, try an available alternate application route, close picker with Escape/click outside, verify committed selection, retry Next after validation/rendering, scroll to errors). Never classify a temporary blank/loading page, a normal open dropdown, or a supplied fact such as phone as manual action.
-11. NEVER click the final Submit/Submit Application button. Stop on the final Review page after checking that known answers and the intended resume are present.
+11. FINAL SUBMISSION POLICY: application_run_date is authoritative for any required current-date/signature-date field; never infer or reuse a date from the job, resume, queue filename, or prior run. On the final Review page, perform a PRE-SUBMIT VALIDATION before any Submit action: verify the intended company/title/application, exact resume filename/path, all visible required fields have committed values, candidate identity/contact facts are consistent with supplied facts, work authorization/sponsorship answers match rule 7, approved application preferences were used only within scope, no visible validation errors remain, and the page is truly the final Review/Submit stage. If allow_final_submit=false, stop with READY_FOR_REVIEW and do not click Submit. If allow_final_submit=true and every pre-submit check passes, click the actual final Submit/Submit Application button exactly once, wait for navigation/processing, and verify a visible employer/ATS confirmation such as "Application submitted", "Thank you", "Your application has been submitted", confirmation/reference identifier, or equivalent success state. Only then return SUBMITTED. If submission outcome is ambiguous, do NOT click Submit a second time; report APPLICATION_FLOW_ERROR with the observed state.
 12. Do not modify the resume file.
 13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
 14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop. CRITICAL: do not call done, APPLICATION_FLOW_ERROR, or MANUAL_ACTION_REQUIRED while there is an obvious actionable control that advances the application (for example Select file/upload, Next, Continue, Save and Continue, a required field with a known answer, or an available alternate route). Execute the next supported action instead. APPLICATION_FLOW_ERROR is reserved for a genuinely unrecoverable browser/site failure after the recovery rules are exhausted.
@@ -124,6 +128,7 @@ Goal:
 18. ACTIONABLE-PAGE INVARIANT: before producing any terminal result, inspect the current page one final time. If the page contains an actionable application control whose action is supported by supplied facts/files, you MUST use it and continue. In particular, when the exact resume_path is available and a file upload/select-file control is visible, upload that file immediately; do not terminate merely after observing the control. After upload, wait for parsing/validation as needed and use Next/Continue when enabled.
 
 Return a concise final result containing one of:
+SUBMITTED
 READY_FOR_REVIEW
 MANUAL_ACTION_REQUIRED
 APPLICATION_FLOW_ERROR
@@ -140,7 +145,7 @@ def _build_tools():
     @tools.action(
         description=(
             "Finish the application-agent task. This action enforces terminal-state policy: "
-            "READY_FOR_REVIEW is accepted only after reaching Review; MANUAL_ACTION_REQUIRED "
+            "SUBMITTED is accepted only after a visible post-submit confirmation; READY_FOR_REVIEW is accepted only after reaching Review; MANUAL_ACTION_REQUIRED "
             "is accepted only for a genuine unknown required answer, CAPTCHA/MFA/verification/"
             "authentication blocker; APPLICATION_FLOW_ERROR is accepted only for a genuine "
             "unrecoverable browser/site failure. If supported actionable fields remain, the "
@@ -155,7 +160,21 @@ def _build_tools():
         normalized = (text or "").lower()
         first_line = (text or "").strip().splitlines()[0].upper() if (text or "").strip() else ""
 
-        if "READY_FOR_REVIEW" in first_line:
+        if "SUBMITTED" in first_line:
+            confirmation_markers = (
+                "application submitted", "has been submitted", "successfully submitted",
+                "thank you", "confirmation", "application received",
+            )
+            if not any(marker in normalized for marker in confirmation_markers):
+                return ActionResult(
+                    extracted_content=(
+                        "TERMINAL_REJECTED: SUBMITTED requires a visible post-submit employer/ATS confirmation. "
+                        "Do not click Submit again. Inspect the resulting page for confirmation."
+                    ),
+                    is_done=False,
+                    success=False,
+                )
+        elif "READY_FOR_REVIEW" in first_line:
             if "review" not in normalized:
                 return ActionResult(
                     extracted_content=(
@@ -207,7 +226,7 @@ def _build_tools():
         else:
             return ActionResult(
                 extracted_content=(
-                    "TERMINAL_REJECTED: final text must begin with READY_FOR_REVIEW, "
+                    "TERMINAL_REJECTED: final text must begin with SUBMITTED, READY_FOR_REVIEW, "
                     "MANUAL_ACTION_REQUIRED, or APPLICATION_FLOW_ERROR. Continue if actionable controls remain."
                 ),
                 is_done=False,
@@ -286,7 +305,7 @@ def _build_tools():
 
     return tools
 
-async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) -> dict[str, Any]:
+async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool, allow_submit: bool = False) -> dict[str, Any]:
     try:
         from browser_use import Agent, Browser, ChatOpenAI
     except ImportError as exc:
@@ -311,7 +330,7 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) 
     # expose only this job's exact PDF to the agent.
     tools = _build_tools()
     agent = Agent(
-        task=_task(item, profile, resume),
+        task=_task(item, profile, resume, allow_submit=allow_submit),
         llm=llm,
         browser=browser,
         tools=tools,
@@ -321,14 +340,16 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) 
         history = await agent.run(max_steps=int(os.getenv("APPLICATION_AGENT_MAX_STEPS", "160")))
         final = history.final_result() or ""
         upper = final.upper()
-        if "READY_FOR_REVIEW" in upper:
+        if "SUBMITTED" in upper:
+            status = "SUBMITTED"
+        elif "READY_FOR_REVIEW" in upper:
             status = "READY_FOR_REVIEW"
         elif "MANUAL_ACTION_REQUIRED" in upper:
             status = "MANUAL_ACTION_REQUIRED"
         else:
             status = "APPLICATION_FLOW_ERROR"
         return {"external_id": item.get("external_id"), "url": url, "status": status,
-                "agent_result": final, "submitted": False, "resume_pdf": str(resume)}
+                "agent_result": final, "submitted": status == "SUBMITTED", "resume_pdf": str(resume)}
     except Exception as exc:
         return {"external_id": item.get("external_id"), "url": url,
                 "status": "APPLICATION_FLOW_ERROR", "error": str(exc), "submitted": False}
@@ -348,7 +369,7 @@ async def _main_async(args) -> int:
     profile = load_profile()
     results = []
     for item in items[: args.limit if args.limit else None]:
-        results.append(await _run_one(item, profile, args.headed))
+        results.append(await _run_one(item, profile, args.headed, allow_submit=args.submit))
     out = ROOT / "generated" / "ai_application_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -362,6 +383,11 @@ def main() -> int:
     ap.add_argument("--queue", required=True)
     ap.add_argument("--limit", type=int, default=1)
     ap.add_argument("--headed", action="store_true")
+    ap.add_argument(
+        "--submit",
+        action="store_true",
+        help="After pre-submit validation, allow one final Submit click and require visible confirmation.",
+    )
     args = ap.parse_args()
     return asyncio.run(_main_async(args))
 
