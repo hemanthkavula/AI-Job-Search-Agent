@@ -26,10 +26,10 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  manifest_rel=f"generated/cycles/{stamp}_manifest.json"
  discovery=discover_and_filter(sources,hours,ledger_path=ledger)
  _write(eligible_rel,discovery)
- finalized=finalize_report(ROOT/eligible_rel,ROOT/finalized_rel)
+ finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
-  manifest=prepare(ROOT/finalized_rel,ROOT/manifest_rel,limit=limit)
+  manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),limit=limit)
   _sync_manifest(manifest,ledger)
  summary={"cycle_id":stamp,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
