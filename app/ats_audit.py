@@ -18,7 +18,22 @@ TERM_ALIASES={
  "Batch Processing":["batch processing","batch pipeline","batch pipelines","batch workflow","batch workflows"],
  "Real-Time Data Processing":["real-time data processing","real time data processing","real-time pipeline","real-time pipelines","real time pipeline","streaming pipeline","streaming pipelines","event-driven pipeline","event-driven pipelines"],
  "Data Lineage":["Data Lineage","lineage"],"Data Quality":["Data Quality","data-quality","Great Expectations"],
- "Kinesis":["Kinesis","Amazon Kinesis"],"BigQuery":["BigQuery","Google BigQuery"],"Azure Synapse Analytics":["Azure Synapse Analytics","Azure Synapse","Synapse Analytics"],"Azure Data Factory":["Azure Data Factory","Data Factory","ADF"],"Performance Tuning":["Performance Tuning","Performance Optimization","optimized","optimizing"],"Databricks":["Databricks"],"Snowflake":["Snowflake"],"Dagster":["Dagster"],"Kubernetes":["Kubernetes"],"Terraform":["Terraform"],"CI/CD":["CI/CD","continuous integration","continuous delivery","continuous deployment"]}
+ "Kinesis":["Kinesis","Amazon Kinesis"],"BigQuery":["BigQuery","Google BigQuery"],"Azure Synapse Analytics":["Azure Synapse Analytics","Azure Synapse","Synapse Analytics"],"Azure Data Factory":["Azure Data Factory","Data Factory","ADF"],"Performance Tuning":["Performance Tuning","Performance Optimization","optimized","optimizing"],"Databricks":["Databricks"],"Snowflake":["Snowflake"],"Dagster":["Dagster"],"Kubernetes":["Kubernetes"],"Terraform":["Terraform"],"CI/CD":["CI/CD","continuous integration","continuous delivery","continuous deployment"],
+ "Requirements Gathering":["requirements gathering","gathering requirements","gather requirements","business requirements","technical requirements","requirements analysis"],
+ "Solution Design & Development":["solution design","solution development","design and development","design, development","design/develop","designed and developed","developed and designed"],
+ "Solution Implementation & Support":["implementation and support","implement and support","implemented and supported","production support","application support","solution support"],
+ "Data Integration Solutions":["data integration solutions","data integrations","integration solutions","data integration","integrations"],
+ "Reusable Enterprise Solutions":["reusable enterprise solutions","reusable solutions","reusable data interfaces","reusable interfaces","reusable applications","reusable apps","repurposed"],
+ "Proof of Concepts":["proof of concept","proof-of-concept","proof of concepts","proof-of-concepts","poc","prototype"],
+ "Customer-Facing Solutions":["customer-facing solutions","customer facing solutions","customer-facing applications","customer facing applications","customer service delivery"],
+ "Application Lifecycle Management":["application lifecycle management","enterprise alm","alm process","alm practices","build environments"],
+ "Enterprise ALM":["enterprise alm","application lifecycle management","alm process","alm practices"],
+ "Enterprise Data Interfaces":["enterprise data interfaces","data interfaces","enterprise interfaces"],
+ "Cross-Functional Collaboration":["cross-functional","cross functional","collaborate with","partner with","liaise with","stakeholders"],
+ "Continuous Improvement":["continuous improvement","recommend enhancements","process improvements","platform improvements","technology roadmap"],
+ "Data Modeling":["data modeling","data modelling","data model","dimensional modeling","star schema"],
+ "Testing & Quality Assurance":["unit testing","integration testing","performance testing","quality assurance","qa process","testing"],
+ "Security & Governance":["security and governance","secure data","security policies","access control","data governance","compliance","regulated data"]}
 # Languages commonly presented as alternatives in DE JDs. A resume does not need every alternative.
 OPTIONAL_LANGUAGE_ALTERNATIVES={"Go","Rust","Scala","Java"}
 
