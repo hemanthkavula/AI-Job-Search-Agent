@@ -3,12 +3,10 @@ import re
 from app.eligibility import two_category_filter
 
 ALLOWED_TITLE_PATTERNS=[
- r"^(?:senior |sr\.? |lead |principal |staff |aws |azure |cloud |big |etl |analytics )?data engineer(?:\s+(?:i|ii|iii|iv|1|2|3|4))?(?:\s*[-–—,:].*)?$",
- r"^(?:senior |sr\.? |lead |principal |staff )?data platform engineer(?:\s*[-–—,:].*)?$",
- r"^(?:senior |sr\.? |lead |principal |staff )?data infrastructure engineer(?:\s*[-–—,:].*)?$",
- r"^(?:senior |sr\.? |lead |principal |staff )?data pipeline engineer(?:\s*[-–—,:].*)?$",
- r"^(?:avp,?\s*)?(?:senior |sr\.? )?data engineer(?:\s*[-–—,:].*)?$",
- r"^engineer\s+(?:i|ii|iii|iv|1|2|3|4)\s*[-–—:]\s*data engineer(?:\s*[-–—,:].*)?$",
+ r"\\bdata engineer(?:ing)?\\b",
+ r"\\bdata platform engineer\\b", r"\\bdata infrastructure engineer\\b",
+ r"\\bdata pipeline engineer\\b", r"\\bdata warehouse engineer\\b",
+ r"\\betl engineer\\b", r"\\bbig data engineer\\b",
 ]
 EXCLUDED_TITLE_TERMS={
  "analyst","scientist","frontend","front end","qa engineer","business intelligence","power bi developer","tableau developer",
@@ -42,8 +40,10 @@ def _title_for_match(title):
     return t.strip()
 def title_is_target(title):
     t=_title_for_match(title)
+    # Broad Data Engineering family: modifiers may appear before or after the core title
+    # (Senior/AWS/Azure/GCP/PySpark/Cloud/Lead/Staff/Principal/etc.).
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    return any(re.search(p,t) for p in ALLOWED_TITLE_PATTERNS)
+    return any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS)
 
 def location_is_us(location,source=None):
     raw=(location or "").strip();src=_clean(source)
