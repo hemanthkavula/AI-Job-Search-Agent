@@ -22,6 +22,7 @@ def _audit_failure_summary(audit):
     if (audit.get("internal_ats_score") or 0)<95: reasons.append(f"ATS={audit.get('internal_ats_score')}<95")
     if (audit.get("keyword_coverage") or 0)<95: reasons.append(f"JD_coverage={audit.get('keyword_coverage')}<95")
     if audit.get("missing_jd_keywords"): reasons.append("missing="+", ".join(audit["missing_jd_keywords"]))
+    if "experience_depth" in failed: reasons.append("experience_depth="+str(audit.get("experience_depth_coverage"))+"%; gaps="+", ".join(audit.get("experience_depth_gaps",[])))
     if failed: reasons.append("failed_gates="+", ".join(failed))
     if audit.get("metric_violations"): reasons.append("metric_violations="+json.dumps(audit["metric_violations"],ensure_ascii=False))
     if audit.get("unapproved_metric_claims"): reasons.append(f"unapproved_metric_claims={len(audit['unapproved_metric_claims'])}")
@@ -44,7 +45,9 @@ def _audit_feedback(audit):
         "bullet_count_score":audit.get("bullet_count_score"),
         "skills_taxonomy_score":audit.get("skills_taxonomy_score"),
         "quality_gates":audit.get("quality_gates",{}),
-        "retry_instruction":"Correct every failed audit gate while keeping strong content from the previous version. Prioritize missing JD keywords and exact JD terminology, then fix structure, repetition, readability, and metric violations. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, numerical outcomes, or specific accomplishments."
+        "experience_depth_coverage":audit.get("experience_depth_coverage"),
+        "experience_depth_gaps":audit.get("experience_depth_gaps",[]),
+        "retry_instruction":"Correct every failed audit gate while keeping strong content from the previous version. Prioritize missing JD keywords and exact JD terminology. If experience_depth fails, move the strongest legitimate hands-on required capabilities into coherent Professional Experience bullets rather than leaving them only in Summary/Skills. Then fix structure, repetition, readability, and metric violations. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, numerical outcomes, or specific accomplishments."
     }
 
 def _matches(raw,company=None,title=None,external_id=None):
