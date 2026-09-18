@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-import os, subprocess, shutil
+import os, subprocess, shutil, re
 from xml.sax.saxutils import escape
 from docx import Document
 from reportlab.lib.pagesizes import LETTER
@@ -66,3 +66,42 @@ def convert_docx_to_pdf(docx_path: str) -> str | None:
     pdf=SimpleDocTemplate(str(target),pagesize=LETTER,rightMargin=.5*inch,leftMargin=.5*inch,topMargin=.4*inch,bottomMargin=.4*inch)
     pdf.build(story)
     return str(target) if target.exists() else None
+
+
+def _docx_signature(docx_path: str) -> dict:
+    """Extract deterministic text/structure signals from the generated DOCX."""
+    doc=Document(str(docx_path))
+    paragraphs=[re.sub(r"\s+"," ",p.text).strip() for p in doc.paragraphs if p.text.strip()]
+    bullets=sum(1 for p in doc.paragraphs if p.text.strip() and p.style and "List Bullet" in p.style.name)
+    sections=[x.upper() for x in paragraphs if x.upper() in {"PROFESSIONAL SUMMARY","TECHNICAL SKILLS","PROFESSIONAL EXPERIENCE","EDUCATION"}]
+    return {"paragraphs":paragraphs,"bullets":bullets,"sections":sections}
+
+def _pdf_text(pdf_path: str) -> tuple[str,int]:
+    """Use a lightweight PDF parser when available; never OCR resume artifacts."""
+    try:
+        from pypdf import PdfReader
+        reader=PdfReader(str(pdf_path))
+        text="\n".join((p.extract_text() or "") for p in reader.pages)
+        return re.sub(r"\s+"," ",text).strip(),len(reader.pages)
+    except Exception:
+        return "",0
+
+def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
+    """Require material text/section parity before an artifact can be submitted."""
+    if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size==0:
+        return {"passed":False,"reason":"PDF was not created","text_coverage":0,"sections_match":False,"page_count":0}
+    sig=_docx_signature(docx_path);pdf_text,pages=_pdf_text(pdf_path)
+    if not pdf_text:
+        return {"passed":False,"reason":"PDF text could not be validated","text_coverage":0,"sections_match":False,"page_count":pages}
+    pdf_norm=pdf_text.lower()
+    # Paragraph-level containment tolerates normal line wrapping while catching
+    # missing bullets/sections caused by renderer failures or clipping.
+    material=[p for p in sig["paragraphs"] if len(p)>=8]
+    matched=sum(1 for p in material if re.sub(r"\s+"," ",p).lower() in pdf_norm)
+    coverage=round(100*matched/max(1,len(material)),1)
+    sections=[s for s in sig["sections"] if s.lower() in pdf_norm]
+    sections_match=len(sections)==len(sig["sections"])
+    passed=coverage>=95 and sections_match and pages>0
+    return {"passed":passed,"reason":None if passed else "DOCX/PDF material text or section mismatch",
+            "text_coverage":coverage,"sections_match":sections_match,"docx_bullet_count":sig["bullets"],
+            "sections":sig["sections"],"page_count":pages}
