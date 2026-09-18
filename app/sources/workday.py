@@ -111,11 +111,13 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             term_cache=tenant_cache.setdefault(search_term,{})
             previous=set(term_cache.get("paths") or [])
             current=[row.get("externalPath") for row in rows if row.get("externalPath")]
-            # Hourly mode only needs the newest frontier. Once a page is entirely
-            # known from a previous successful scan, stop before historical paging.
+            # Compare against the cache from the PREVIOUS completed run. Do not add
+            # pages to the stop-set while traversing the current run, otherwise the
+            # cache cannot form a stable cross-run frontier.
             if current and all(x in previous for x in current):
                 break
-            term_cache["paths"]=list(dict.fromkeys(current+list(previous)))[:500]
+            seen_this_run=term_cache.setdefault("_current_paths",[])
+            seen_this_run.extend(x for x in current if x not in seen_this_run)
             term_cache["checked_at"]=datetime.now(timezone.utc).isoformat()
         if not rows:
             break
@@ -173,6 +175,11 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             break
 
     if incremental:
+        for term_cache in tenant_cache.values():
+            current=term_cache.pop("_current_paths",[])
+            if current:
+                prior=term_cache.get("paths") or []
+                term_cache["paths"]=list(dict.fromkeys(current+prior))[:2000]
         _save_cache(cache)
     out=list(out_by_path.values())
     print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
