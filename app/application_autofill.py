@@ -81,7 +81,9 @@ def _resolve_resume(value):
 
 
 def _workday_enter_application(page):
-    """Advance from a Workday job page into the application flow without submitting."""
+    """Advance into Workday and return navigation diagnostics; never submit."""
+    diag={"provider":"workday","url_before":page.url,"apply_selector":None,"manual_selector":None,
+          "url_after_apply":None,"url_after_manual":None,"visible_actions":[],"gate":None}
     # Workday labels vary by tenant. Prefer visible Apply buttons and avoid
     # destructive/submit actions. Stop once controls beyond the job page appear.
     candidates=[
@@ -95,8 +97,10 @@ def _workday_enter_application(page):
         try:
             loc=page.locator(sel).first
             if loc.count() and loc.is_visible():
+                diag["apply_selector"]=sel
                 loc.click(timeout=5000)
-                page.wait_for_timeout(1200)
+                page.wait_for_timeout(1800)
+                diag["url_after_apply"]=page.url
                 break
         except Exception:
             pass
@@ -114,16 +118,27 @@ def _workday_enter_application(page):
         try:
             loc=page.locator(sel).first
             if loc.count() and loc.is_visible():
+                diag["manual_selector"]=sel
                 loc.click(timeout=5000)
-                page.wait_for_timeout(1200)
+                page.wait_for_timeout(1800)
+                diag["url_after_manual"]=page.url
                 break
         except Exception:
             pass
+    try:
+        texts=page.locator("button, a").all_inner_texts()
+        diag["visible_actions"]=[re.sub(r"\\s+"," ",x).strip() for x in texts if x.strip()][:40]
+        body=_norm(page.locator("body").inner_text(timeout=5000))
+        if any(x in body for x in ("sign in","signin","log in","login")):diag["gate"]="SIGN_IN"
+        if any(x in body for x in ("create account","create an account")):diag["gate"]="CREATE_ACCOUNT" if not diag["gate"] else diag["gate"]+"+CREATE_ACCOUNT"
+    except Exception:pass
+    diag["final_url"]=page.url
+    return diag
 
 def autofill(item:dict,headless=True)->dict:
     """Fill deterministic fields and upload the validated PDF. Never submit."""
     profile=load_profile();identity=_identity(profile);url=item.get("url")
-    result={"external_id":item.get("external_id"),"url":url,"status":"FILLING","filled":[],"unresolved_required":[],"blockers":[],"submitted":False}
+    result={"external_id":item.get("external_id"),"url":url,"status":"FILLING","filled":[],"unresolved_required":[],"blockers":[],"submitted":False,"navigation":None}
     resume=_resolve_resume(item.get("resume_path"))
     if resume is None:
         return {**result,"status":"MANUAL_ACTION_REQUIRED","reason":"Validated resume file is missing","expected_resume_path":item.get("resume_path")}
@@ -132,7 +147,7 @@ def autofill(item:dict,headless=True)->dict:
         try:
             page.goto(url,wait_until="domcontentloaded",timeout=45000)
             if (item.get("ats_provider") or "").lower()=="workday":
-                _workday_enter_application(page)
+                result["navigation"]=_workday_enter_application(page)
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
