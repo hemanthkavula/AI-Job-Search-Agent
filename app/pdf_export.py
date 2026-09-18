@@ -32,6 +32,52 @@ def _native_convert(src: Path, target: Path) -> bool:
     return False
 
 def convert_docx_to_pdf(docx_path: str) -> str | None:
+    """Convert the exact generated DOCX with Word/LibreOffice.
+
+    A separately rebuilt PDF is intentionally forbidden: if the native office
+    renderer fails, return None so the caller can retry conversion. This keeps
+    the PDF visually tied to the approved Word resume.
+    """
+    src=Path(docx_path).resolve(); target=src.with_suffix(".pdf")
+    try:
+        if target.exists(): target.unlink()
+    except Exception: pass
+    return str(target) if _native_convert(src,target) else None
+
+from __future__ import annotations
+from pathlib import Path
+import os, subprocess, shutil, re
+from xml.sax.saxutils import escape
+from docx import Document
+from reportlab.lib.pagesizes import LETTER
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+def _native_convert(src: Path, target: Path) -> bool:
+    """Prefer a real office renderer so PDF layout matches the DOCX."""
+    if os.name=="nt":
+        ps = (
+          "$w=New-Object -ComObject Word.Application;"
+          "$w.Visible=$false;"
+          f"$d=$w.Documents.Open('{str(src).replace(chr(39), chr(39)*2)}');"
+          f"$d.SaveAs([ref]'{str(target).replace(chr(39), chr(39)*2)}',[ref]17);"
+          "$d.Close();$w.Quit()"
+        )
+        try:
+            subprocess.run(["powershell","-NoProfile","-Command",ps],check=True,timeout=60,capture_output=True)
+            if target.exists() and target.stat().st_size>0:return True
+        except Exception:pass
+    office=shutil.which("libreoffice") or shutil.which("soffice")
+    if office:
+        try:
+            subprocess.run([office,"--headless","--convert-to","pdf","--outdir",str(target.parent),str(src)],check=True,timeout=60,capture_output=True)
+            if target.exists() and target.stat().st_size>0:return True
+        except Exception:pass
+    return False
+
+def convert_docx_to_pdf(docx_path: str) -> str | None:
     """Convert DOCX to PDF, preferring Word/LibreOffice for layout fidelity.
     ReportLab is retained only as a portability fallback."""
     src=Path(docx_path).resolve(); target=src.with_suffix(".pdf")
