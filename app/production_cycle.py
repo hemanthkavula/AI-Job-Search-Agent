@@ -47,7 +47,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),limit=limit)
   _sync_manifest(manifest,ledger)
- summary={"cycle_id":stamp,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
+ summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
           "ready_to_apply":sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest),
