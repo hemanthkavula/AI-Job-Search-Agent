@@ -1,49 +1,46 @@
 # AI Job Search Agent
 
-AI-assisted job-search workflow for discovering, scoring, tailoring, reviewing, and tracking Data Engineering applications.
+A source-agnostic U.S. Data Engineering job-search agent for broad discovery, eligibility verification, full-JD retrieval, truthful JD-tailored resume generation, internal ATS/evidence/quality auditing, application tracking, and eventual supported ATS submission.
 
-## V1 workflow
-1. Ingest a job description.
-2. Apply hard filters for target role and employment type.
-3. Score the role against the candidate profile.
-4. Generate a truthful tailoring plan.
-5. Queue the application for human review.
-6. Track status in SQLite.
+## Production objective
 
-Final submission is intentionally review-gated. Browser/ATS adapters can be added after the core workflow is validated.
+Run every hour from **7:00 AM through 6:00 PM**, process newly posted Data Engineering roles from the prior 24 hours, avoid duplicates, prepare/apply to eligible roles, and produce an end-of-day report after the final cycle.
 
-## Target roles
-- Data Engineer
-- Senior Data Engineer
-- AWS Data Engineer
-- Azure Data Engineer
-- Cloud Data Engineer
-- Data Platform Engineer
-- Lead Data Engineer
+The system is **not company-specific**. Company/title debug flags (for example Quest Diagnostics) exist only for controlled testing.
 
-## Quick start
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-copy .env.example .env
-uvicorn app.main:app --reload
+## Current stage
+
+The core discovery → eligibility → full-JD → resume → audit pipeline is functional and being validated. Broad dynamic discovery, persistent cross-hour orchestration, universal ATS application adapters, the 07:00–18:00 scheduler, and the automated daily report are not yet production-complete.
+
+See **[PROJECT_STATUS.md](PROJECT_STATUS.md)** for the full architecture, completed work, current limitations, latest validation results, daily schedule, application policy, and implementation roadmap.
+
+## Core workflow
+
+```text
+Broad discovery
+→ <=24h freshness
+→ U.S. + Full-Time/W2 + DE-family filters
+→ experience/sponsorship/citizenship checks
+→ deduplication
+→ complete original JD
+→ final eligibility
+→ deterministic JD/evidence coverage plan
+→ strongest tailored V1 resume
+→ ATS/evidence/human-quality audit
+→ retry only exact failed gates (max 3)
+→ DOCX/PDF after pass
+→ READY_TO_APPLY
+→ supported ATS submission / manual-action state
+→ persistent ledger
+→ daily report
 ```
 
-Open `http://127.0.0.1:8000/docs`.
+There is no JD-match-score discovery gate: an otherwise eligible job is tailored rather than rejected because the base resume has a low keyword match.
 
-## Example
-POST `/jobs/analyze` with:
-```json
-{
-  "company": "Example Corp",
-  "title": "Senior AWS Data Engineer",
-  "location": "New Jersey",
-  "employment_type": "Full-Time",
-  "description": "Python SQL PySpark AWS Glue S3 Redshift Kafka Terraform..."
-}
-```
+## Supported discovery adapters today
 
-## Safety / accuracy
-The agent never invents skills, employers, dates, certifications, degrees, or metrics. Work-authorization, sponsorship, salary, relocation, demographic/EEO, legal attestations, and final submission remain review-gated.
+Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Dice, and ZipRecruiter adapters exist. The current ATS registry includes a finite company set, so broad dynamic discovery is the next major discovery milestone; the project does not claim universal internet coverage today.
+
+## Safety and accuracy
+
+The agent must never invent employers, dates, education, certifications, technologies, metrics, business outcomes, or answers to employer screening questions. Explicit no-future-sponsorship, incompatible citizenship, and clearance requirements are hard eligibility stops. Unknown sponsorship continues under the configured candidate policy.
