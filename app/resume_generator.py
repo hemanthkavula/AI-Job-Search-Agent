@@ -223,10 +223,11 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
-    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
+    root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
     timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
-    path=out/f"{stem}_{timestamp}.docx";doc.save(path)
+    job_dir=root/f"{safe_name(job.company)}_{safe_name(job.title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
+    path=job_dir/f"{stem}.docx";doc.save(path)
     return str(path)
 
 
@@ -256,7 +257,8 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
-    out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
+    root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
     timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
-    path=out/f"{stem}_{timestamp}.docx";doc.save(path);return str(path)
+    job_dir=root/f"{safe_name(job.company)}_{safe_name(job.title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
+    path=job_dir/f"{stem}.docx";doc.save(path);return str(path)
