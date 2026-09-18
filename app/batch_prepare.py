@@ -13,6 +13,7 @@ from app.jd_coverage_plan import build_coverage_plan
 load_dotenv()
 
 MAX_RESUME_ATTEMPTS=3
+MAX_ARTIFACT_ATTEMPTS=3
 MIN_COVERAGE_TARGETS=3
 
 
@@ -93,13 +94,23 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
-            pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
-            artifact_validation=validate_docx_pdf_parity(resume,pdf_path) if audit["passed"] else {"passed":False,"reason":"Resume audit did not pass"}
+            pdf_path=None
+            artifact_validation={"passed":False,"reason":"Resume audit did not pass","attempts":0}
+            if audit["passed"]:
+                # Artifact failure is a rendering problem, not a content problem.
+                # Keep the approved DOCX unchanged and retry converting that SAME
+                # Word file. Never spend another LLM call or rebuild a different PDF.
+                for artifact_attempt in range(1,MAX_ARTIFACT_ATTEMPTS+1):
+                    pdf_path=convert_docx_to_pdf(resume)
+                    artifact_validation=validate_docx_pdf_parity(resume,pdf_path)
+                    artifact_validation["attempts"]=artifact_attempt
+                    if artifact_validation["passed"]:break
+                    print(f"PDF parity failed; regenerating PDF from the same approved DOCX ({artifact_attempt}/{MAX_ARTIFACT_ATTEMPTS}) | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             if not audit["passed"]:
                 next_action="HOLD_ATS_REVIEW"
             elif not artifact_validation["passed"]:
                 next_action="HOLD_ARTIFACT_VALIDATION"
-                print("ARTIFACT HOLD | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
+                print("ARTIFACT HOLD after conversion retries | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             else:
                 next_action="READY_TO_APPLY"
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
