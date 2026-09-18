@@ -135,7 +135,7 @@ def _workday_enter_application(page):
     diag["final_url"]=page.url
     return diag
 
-def autofill(item:dict,headless=True)->dict:
+def autofill(item:dict,headless=True,review_seconds=0)->dict:
     """Fill deterministic fields and upload the validated PDF. Never submit."""
     profile=load_profile();identity=_identity(profile);url=item.get("url")
     result={"external_id":item.get("external_id"),"url":url,"status":"FILLING","filled":[],"unresolved_required":[],"blockers":[],"submitted":False,"navigation":None}
@@ -186,17 +186,21 @@ def autofill(item:dict,headless=True)->dict:
                 result["status"]="MANUAL_ACTION_REQUIRED" if result["unresolved_required"] else "AUTOFILLED_REVIEW_REQUIRED"
         except Exception as exc:
             result["status"]="MANUAL_ACTION_REQUIRED";result["reason"]=str(exc)
-        finally:browser.close()
+        finally:
+            if not headless and review_seconds>0:
+                print(f"Browser will stay open for {review_seconds} seconds for review...")
+                page.wait_for_timeout(review_seconds*1000)
+            browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless))
+        results.append(autofill(item,headless,review_seconds))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);a=ap.parse_args()
+    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
