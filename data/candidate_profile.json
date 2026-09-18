@@ -274,6 +274,13 @@
     "relocation": {
       "willing_to_relocate": true,
       "willing_to_relocate_at_own_expense": true
+    },
+    "voluntary_disclosures": {
+      "disability_status": "No disability"
+    },
+    "application_signature": {
+      "authorized": true,
+      "signature_text": "Hemanth Kavula"
     }
   }
 }
