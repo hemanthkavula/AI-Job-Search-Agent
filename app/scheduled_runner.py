@@ -33,6 +33,7 @@ BOOTSTRAP_HOUR=7
 FINAL_HOUR=18
 BOOTSTRAP_WINDOW_HOURS=24
 INCREMENTAL_WINDOW_HOURS=1
+RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
 def _load_state():
     if not STATE_PATH.exists(): return {}
@@ -53,8 +54,10 @@ def _window_for(now,state):
 
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
     now=datetime.now(ET)
+    if not force and now.weekday() not in RUN_WEEKDAYS:
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     if not force and not (BOOTSTRAP_HOUR <= now.hour <= FINAL_HOUR):
-        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"07:00-18:59 America/New_York"}
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     state=_load_state()
     hours,mode=_window_for(now,state)
     summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
