@@ -7,7 +7,7 @@ from app.sources.mcp_jobs import call_tool, rows_from_payload
 
 ENDPOINT = "https://mcp.dice.com/mcp"
 SEARCH_TERMS = (
-    "Data Engineer","Senior Data Engineer","Lead Data Engineer","Staff Data Engineer","Principal Data Engineer",
+    "Data Engineer","Senior Data Engineer","Sr Data Engineer","Sr. Data Engineer","Lead Data Engineer","Staff Data Engineer","Principal Data Engineer",
     "AWS Data Engineer","Azure Data Engineer","Cloud Data Engineer","Big Data Engineer","Data Platform Engineer",
     "Data Infrastructure Engineer","Data Pipeline Engineer","ETL Data Engineer","Analytics Data Engineer",
 )
