@@ -79,7 +79,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
-            print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
             if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
@@ -87,12 +87,12 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 generated=generate_with_llm(job,profile,_audit_feedback(audit),coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
-                print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+                print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
             audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=convert_docx_to_pdf(resume) if audit["passed"] else None
             next_action="READY_TO_APPLY" if audit["passed"] else "HOLD_ATS_REVIEW"
-            print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | human={audit.get('human_quality_score')}",flush=True)
+            print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"next_action":next_action,"application_status":"NOT_STARTED"})
