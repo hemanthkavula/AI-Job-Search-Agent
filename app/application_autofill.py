@@ -92,7 +92,7 @@ def _workday_select_dropdown(page,el,value,item=None):
     """Inspect this tenant's real choices and select the best truthful source for this application."""
     try:
         el.click(timeout=3000);page.wait_for_timeout(900)
-        selectors='[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], [data-automation-id*="promptOption"], li'
+        selectors='[role="option"], [data-automation-id="promptOption"], [data-automation-id="promptOptionText"], [data-uxi-widget-type="selectoption"], [data-uxi-widget-type="option"]'
         def collect():
             rows=[];opts=page.locator(selectors)
             for i in range(min(opts.count(),350)):
@@ -100,7 +100,7 @@ def _workday_select_dropdown(page,el,value,item=None):
                 try:
                     if o.is_visible():
                         txt=re.sub(r"\\s+"," ",o.inner_text() or "").strip()
-                        if txt and len(txt)<180:rows.append((txt,o))
+                        if txt and len(txt)<180 and _norm(txt) not in ("expanded","collapsed","search","select one"):rows.append((txt,o))
                 except Exception:pass
             return rows
         rows=collect()
@@ -118,7 +118,11 @@ def _workday_select_dropdown(page,el,value,item=None):
         ranked.sort(key=lambda z:(-z[0],z[1]))
         _,_,chosen,opt=ranked[0]
         opt.click(timeout=3000);page.wait_for_timeout(600)
-        return el.input_value()=="" or _norm(chosen) in _norm(el.locator("xpath=..").inner_text())
+        try:
+            container=el.locator("xpath=ancestor::*[@data-uxi-widget-type='selectinput' or @data-automation-id='formField'][1]")
+            rendered=_norm(container.inner_text() if container.count() else el.locator("xpath=..").inner_text())
+        except Exception:rendered=""
+        return "0 items selected" not in rendered and (_norm(chosen) in rendered or el.input_value()=="")
     except Exception:return False
 
 def _choose(el,value):
@@ -150,6 +154,17 @@ def _resolve_resume(value):
         except Exception:pass
     return None
 
+
+def _wait_for_application_controls(page,timeout_ms=15000):
+    elapsed=0
+    while elapsed<timeout_ms:
+        try:
+            body=page.locator("body").inner_text(timeout=2500)
+            controls=page.locator('input:not([type="hidden"]), textarea, select, [role="combobox"]').count()
+            if "Loading" not in body and controls>0:return True
+        except Exception:pass
+        page.wait_for_timeout(500);elapsed+=500
+    return False
 
 def _application_preflight(page):
     """Analyze the current application page before filling it. Every application gets its own plan."""
@@ -292,33 +307,15 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value,item)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    formatted=f"({digits[:3]}) {digits[3:6]}-{digits[6:]}" if len(digits)==10 else digits
-                    # Workday's US phone control is masked. Normal typing/fill can
-                    # consume the first three digits as mask navigation. Use the
-                    # native value setter with the fully formatted number and fire
-                    # the same events a paste/change would produce.
-                    el.evaluate("""(e,v) => {
-                        const p=HTMLInputElement.prototype;
-                        const setter=Object.getOwnPropertyDescriptor(p,'value').set;
-                        setter.call(e,v);
-                        e.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertFromPaste',data:v}));
-                        e.dispatchEvent(new Event('change',{bubbles:true}));
-                    }""",formatted)
-                    page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
+                    # Workday's mask was swallowing the first three digits because the
+                    # caret started after its formatting prefix. Clear, reset selection
+                    # to the beginning, then send the ten national digits as key events.
+                    el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
+                    el.evaluate("(e)=>{e.focus();try{e.setSelectionRange(0,0)}catch(_){}}")
+                    el.press_sequentially(digits,delay=80);page.wait_for_timeout(250)
+                    el.press("Tab");page.wait_for_timeout(350)
                     current=re.sub(r"\\D+","",el.input_value())
-                    if current!=digits:
-                        # Controlled-component fallback: clear, focus at the beginning,
-                        # and paste the complete formatted value in one operation.
-                        el.click();el.press("Control+A");el.press("Backspace")
-                        el.evaluate("""(e,v) => {
-                            e.focus();
-                            const dt=new DataTransfer();dt.setData('text/plain',v);
-                            e.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:dt}));
-                        }""",formatted)
-                        page.wait_for_timeout(350);el.press("Tab");page.wait_for_timeout(350)
-                        current=re.sub(r"\\D+","",el.input_value())
-                    selected=current==digits
-                else:
+                    selected=current==digits                else:
                     selected=_choose(el,value)
                 if selected:
                     if key=="phone":
@@ -382,7 +379,7 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
                         "value":src.input_value() if src.evaluate("e=>'value' in e") else None,
                         "outer_html":src.evaluate("e=>e.outerHTML")[:1800]
                     }
-                step["visible_options"]=[re.sub(r"\\s+"," ",x).strip() for x in page.locator('[role="option"], [role="listbox"] *, [data-uxi-widget-type*="option"], [data-automation-id*="promptOption"], li').all_inner_texts() if x.strip()][:80]
+                step["visible_options"]=[re.sub(r"\\s+"," ",x or "").strip() for x in page.locator('[role="option"], [data-automation-id="promptOption"], [data-automation-id="promptOptionText"], [data-uxi-widget-type="selectoption"], [data-uxi-widget-type="option"]').all_inner_texts() if (x or "").strip()][:80]
             except Exception as exc:step["source_diagnostic_error"]=str(exc)
             try:
                 ph=page.locator('input[data-automation-id="phoneNumber"], input[id*="phoneNumber--phoneNumber"]').first
@@ -443,6 +440,7 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
             result["application_analysis"]={"landing":_application_preflight(page)}
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["navigation"]=_workday_enter_application(page)
+                _wait_for_application_controls(page,15000)
                 result["application_analysis"]["after_apply_entry"]=_application_preflight(page)
                 # If resume-assisted flow is selected, upload the exact validated
                 # PDF before scanning the generated application fields.
