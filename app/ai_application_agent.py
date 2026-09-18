@@ -137,6 +137,90 @@ def _build_tools():
 
     @tools.action(
         description=(
+            "Finish the application-agent task. This action enforces terminal-state policy: "
+            "READY_FOR_REVIEW is accepted only after reaching Review; MANUAL_ACTION_REQUIRED "
+            "is accepted only for a genuine unknown required answer, CAPTCHA/MFA/verification/"
+            "authentication blocker; APPLICATION_FLOW_ERROR is accepted only for a genuine "
+            "unrecoverable browser/site failure. If supported actionable fields remain, the "
+            "finish request is rejected and the agent must continue."
+        )
+    )
+    async def done(
+        text: str,
+        success: bool = False,
+        files_to_display: list[str] | None = None,
+    ) -> ActionResult:
+        normalized = (text or "").lower()
+        first_line = (text or "").strip().splitlines()[0].upper() if (text or "").strip() else ""
+
+        if "READY_FOR_REVIEW" in first_line:
+            if "review" not in normalized:
+                return ActionResult(
+                    extracted_content=(
+                        "TERMINAL_REJECTED: READY_FOR_REVIEW requires the actual Review page. "
+                        "Inspect the current page and continue through supported actionable controls."
+                    ),
+                    is_done=False,
+                    success=False,
+                )
+        elif "MANUAL_ACTION_REQUIRED" in first_line:
+            genuine_manual_markers = (
+                "captcha", "mfa", "multi-factor", "verification code", "authentication",
+                "sign-in", "sign in", "login required", "unknown required",
+                "not supplied", "not provided", "cannot safely answer",
+            )
+            ordinary_incomplete_markers = (
+                "still needs to be entered", "remains select one", "picker is open",
+                "not yet selected", "not yet committed", "phone number still needs",
+                "state remains", "supported fields unresolved",
+            )
+            has_genuine_blocker = any(marker in normalized for marker in genuine_manual_markers)
+            ordinary_only = any(marker in normalized for marker in ordinary_incomplete_markers)
+            if ordinary_only or not has_genuine_blocker:
+                return ActionResult(
+                    extracted_content=(
+                        "TERMINAL_REJECTED: the current state is an ordinary incomplete form, not a "
+                        "manual-action blocker. Re-inspect the page and complete every visible field/control "
+                        "supported by candidate facts (including address/state/phone/source/radios), then "
+                        "use Next/Continue. Only stop for a genuinely unknown required answer, CAPTCHA, "
+                        "MFA/verification/authentication gate, or unrecoverable failure."
+                    ),
+                    is_done=False,
+                    success=False,
+                )
+        elif "APPLICATION_FLOW_ERROR" in first_line:
+            failure_markers = (
+                "unrecoverable", "browser crashed", "browser failure", "site failure",
+                "navigation failed", "page unavailable",
+            )
+            if not any(marker in normalized for marker in failure_markers):
+                return ActionResult(
+                    extracted_content=(
+                        "TERMINAL_REJECTED: APPLICATION_FLOW_ERROR requires a concrete unrecoverable "
+                        "browser/site failure after recovery attempts. Continue the application."
+                    ),
+                    is_done=False,
+                    success=False,
+                )
+        else:
+            return ActionResult(
+                extracted_content=(
+                    "TERMINAL_REJECTED: final text must begin with READY_FOR_REVIEW, "
+                    "MANUAL_ACTION_REQUIRED, or APPLICATION_FLOW_ERROR. Continue if actionable controls remain."
+                ),
+                is_done=False,
+                success=False,
+            )
+
+        return ActionResult(
+            is_done=True,
+            success=success,
+            extracted_content=text,
+            long_term_memory=f"Task completed with terminal state: {first_line}",
+        )
+
+    @tools.action(
+        description=(
             "Recover a stubborn visible form control by semantic description. Use this after normal indexed "
             "clicks fail. Describe the exact visible question and intended supported value. The action tries "
             "the semantic target itself, its label/container, and keyboard activation. It is generic across ATS "
