@@ -5,6 +5,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from app.resume_generator import ROOT, safe_name
+import re
 
 ACCENT=RGBColor(31,78,121); GRAY=RGBColor(89,89,89); BLUE="1F4E79"
 
@@ -32,12 +33,29 @@ def _company_header(doc,base):
     _run(p.add_run("\t"+base["dates"]),9,False,GRAY)
     p=doc.add_paragraph();_compact(p,0,2);_run(p.add_run(base["title"]),9.5,True,ACCENT)
 
+def canonical_resume_title(title):
+    """Reduce noisy posting titles to the clean role title used on the resume/file."""
+    raw=re.sub(r"\s+"," ",str(title or "")).strip()
+    # Prefer the literal Data Engineer family phrase and preserve seniority immediately
+    # before it. Everything after the core role (tech stack, location, promo text) is noise.
+    m=re.search(r"(?i)\b(?:(principal|staff|lead|senior|sr\.?|junior|jr\.?)\s+)?data\s+engineer(?:ing)?\b",raw)
+    if m:
+        level=(m.group(1) or "").lower().rstrip(".")
+        level={"sr":"Senior","jr":"Junior"}.get(level,level.title())
+        core="Data Engineering" if re.search(r"(?i)data\s+engineering",m.group(0)) else "Data Engineer"
+        return f"{level} {core}".strip()
+    # For adjacent DE-family titles, strip common marketing prefixes and stack/location
+    # suffixes while retaining the actual role name.
+    cleaned=re.sub(r"(?i)^\s*(?:immediate interviews?|urgent(?: hiring)?|hiring now)\s*[-:|]\s*","",raw)
+    cleaned=re.split(r"\s+(?:[-|/]\s*)(?=(?:airflow|dbt|kubernetes|openshift|aws|azure|gcp|snowflake|databricks|hybrid|remote|onsite|on-site)\b)",cleaned,1,flags=re.I)[0]
+    return cleaned.strip(" -|:/") or "Senior Data Engineer"
+
 def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
     """Formatting-only renderer. Generated resume wording is passed through unchanged."""
     doc=Document();s=doc.sections[0];s.top_margin=Inches(.42);s.bottom_margin=Inches(.42);s.left_margin=Inches(.48);s.right_margin=Inches(.48)
     doc.styles["Normal"].font.name="Arial";doc.styles["Normal"].font.size=Pt(9.2);doc.styles["Normal"].paragraph_format.space_after=Pt(0)
     p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,2);_run(p.add_run(profile["name"]),16,True,ACCENT)
-    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,3);_run(p.add_run(job.title or profile.get("headline","Senior Data Engineer")),11,False,ACCENT)
+    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,3);_run(p.add_run(canonical_resume_title(job.title or profile.get("headline","Senior Data Engineer"))),11,False,ACCENT)
     c=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,3)
     vals=[x for x in [c.get("phone"),c.get("email"),c.get("linkedin")] if x]
     for i,v in enumerate(vals):
@@ -62,4 +80,5 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
         p=doc.add_paragraph();_compact(p,0,1);_run(p.add_run(e["degree"]),9.5,True)
         p=doc.add_paragraph();_compact(p,0,1);_run(p.add_run(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}"),9.2)
     out=ROOT/output_dir;out.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
-    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title));path=out/f"{stem}.docx";doc.save(path);return str(path)
+    clean_title=canonical_resume_title(job.title)
+    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(clean_title));path=out/f"{stem}.docx";doc.save(path);return str(path)
