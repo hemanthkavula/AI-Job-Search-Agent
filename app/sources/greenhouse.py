@@ -21,7 +21,11 @@ def fetch_jobs(board_token: str, timeout: int = 20) -> list[dict]:
             "title": j.get("title",""),
             "location": (j.get("location") or {}).get("name"),
             "url": j.get("absolute_url"),
+            "original_url": j.get("absolute_url"),
+            "ats_provider":"greenhouse","ats_identifier":board_token,
+            "job_id":j.get("id"),"requisition_id":j.get("requisition_id"),
             "description": html.unescape(j.get("content") or ""),
+            "description_complete": bool(j.get("content")),
             "updated_at": j.get("updated_at"),
         })
     return out
