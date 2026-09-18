@@ -276,11 +276,18 @@
       "willing_to_relocate_at_own_expense": true
     },
     "voluntary_disclosures": {
-      "disability_status": "No disability"
+      "disability_status": "No disability",
+      "veteran_status": "Not a veteran",
+      "gender": "Male",
+      "ethnicity": "Asian (South Asian)"
     },
     "application_signature": {
       "authorized": true,
       "signature_text": "Hemanth Kavula"
+    },
+    "application_terms": {
+      "accept_required_terms_and_privacy_acknowledgments": true,
+      "scope": "Required job-application Terms & Conditions and privacy acknowledgments necessary to continue/submit, after inspecting the actual application text or linked terms."
     }
   }
 }
