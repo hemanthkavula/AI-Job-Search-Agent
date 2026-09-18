@@ -12,6 +12,21 @@ ROOT=Path(__file__).resolve().parent.parent
 def _write(path,payload):
  p=ROOT/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(payload,indent=2),encoding="utf-8");return str(p)
 
+def _sync_finalized(rows,ledger_path):
+ ledger=load_ledger(ledger_path)
+ for row in rows:
+  raw=row.get("raw") or row
+  status=row.get("action") or raw.get("action")
+  if not status:continue
+  record_seen(raw,ledger,status,
+              original_url=raw.get("original_url"),
+              ats_provider=raw.get("ats_provider"),
+              ats_identifier=raw.get("ats_identifier"),
+              requisition_id=raw.get("requisition_id") or raw.get("job_id"),
+              jd_hash=raw.get("jd_hash"),
+              description_complete=raw.get("description_complete"))
+ save_ledger(ledger,ledger_path)
+
 def _sync_manifest(rows,ledger_path):
  ledger=load_ledger(ledger_path)
  for row in rows:
@@ -27,6 +42,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  discovery=discover_and_filter(sources,hours,ledger_path=ledger)
  _write(eligible_rel,discovery)
  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
+ _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger)
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),limit=limit)
