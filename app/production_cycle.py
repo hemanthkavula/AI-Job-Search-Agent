@@ -15,7 +15,7 @@ def _write(path,payload):
 def _sync_finalized(rows,ledger_path):
  ledger=load_ledger(ledger_path)
  for row in rows:
-  raw=row.get("raw") or row
+  raw=row.get("job") or row.get("raw") or row
   status=row.get("action") or raw.get("action")
   if not status:continue
   record_seen(raw,ledger,status,
