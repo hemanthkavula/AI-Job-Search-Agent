@@ -7,6 +7,7 @@ from app.discovery import discover
 from app.freshness import fresh_jobs
 from app.filters import passes_hard_filters
 from app.eligibility import two_category_filter
+from app.job_ledger import load_ledger, save_ledger, seen_or_submitted, record_seen
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -57,11 +58,15 @@ def _dedup_eligible(items):
         seen.setdefault(base,[]).append(item);kept.append(item)
     return kept,duplicates
 
-def run(source_config,hours=24,only_source=None,dice_search_terms=None):
+def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json"):
     """Discover and eligibility-filter jobs only; no JD/resume score is used."""
-    profile=load_profile();jobs,errors=discover(load_sources(source_config),only_source,dice_search_terms);jobs24,stale,already=fresh_jobs(jobs,hours)
+    profile=load_profile();ledger=load_ledger(ledger_path);jobs,errors=discover(load_sources(source_config),only_source,dice_search_terms);jobs24,stale,already=fresh_jobs(jobs,hours)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
+        processed,key,prior=seen_or_submitted(raw,ledger)
+        if processed:
+            skipped.append({"job":raw,"reasons":["already processed in persistent ledger"],"action":"SKIP_ALREADY_PROCESSED"});reason_counts["already_processed_ledger"]+=1;continue
+        record_seen(raw,ledger,"DISCOVERED")
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not ok:
             skipped.append({"job":raw,"reasons":reasons,"eligibility":eligibility,"action":"SKIP"})
@@ -69,12 +74,14 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None):
             continue
         eligible.append({"job":raw,"eligibility":eligibility,"action":"ELIGIBLE_FOR_RESUME"})
     eligible,duplicates=_dedup_eligible(eligible)
+    for item in eligible:record_seen(item["job"],ledger,"ELIGIBLE_FOR_RESUME")
+    save_ledger(ledger,ledger_path)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
         "non_us_location":reason_counts["non_us_location"],"not_full_time_or_w2":reason_counts["not_full_time_or_w2"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
         "work_authorization_restriction":reason_counts["work_authorization_restriction"],"duplicates_removed":len(duplicates),
-        "other_hard_filter":reason_counts["other_hard_filter"],"eligible_for_resume":len(eligible),
+        "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
@@ -85,7 +92,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None):
 
 def _print_diagnostics(d,hours):
     print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
-    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Non-US/unverified location","non_us_location"),("Not Full-Time/W2","not_full_time_or_w2"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Clearance/citizenship restriction","work_authorization_restriction"),("Duplicates removed","duplicates_removed"),("Other hard filter","other_hard_filter"),("Eligible for resume","eligible_for_resume")]
+    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Non-US/unverified location","non_us_location"),("Not Full-Time/W2","not_full_time_or_w2"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Clearance/citizenship restriction","work_authorization_restriction"),("Duplicates removed","duplicates_removed"),("Other hard filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
@@ -107,6 +114,6 @@ def _print_rejection_samples(items,limit=20):
         print(f"   reasons: {'; '.join(item.get('reasons') or [])}",flush=True)
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/eligible_jobs.json");p.add_argument("--diagnostic-limit",type=int,default=20);p.add_argument("--only-source",choices=["greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter"]);p.add_argument("--dice-term",action="append");a=p.parse_args()
-    report=run(a.sources,a.hours,a.only_source,a.dice_term);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
+    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--output",default="generated/eligible_jobs.json");p.add_argument("--diagnostic-limit",type=int,default=20);p.add_argument("--only-source",choices=["greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter"]);p.add_argument("--dice-term",action="append");p.add_argument("--ledger",default="generated/job_ledger.json");a=p.parse_args()
+    report=run(a.sources,a.hours,a.only_source,a.dice_term,a.ledger);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
     print(json.dumps({k:v for k,v in report.items() if k not in ("results","hard_filter_rejections","duplicate_rejections")},indent=2));_print_diagnostics(report["filter_reason_counts"],a.hours);_print_eligible(report["results"]);_print_rejection_samples(report["hard_filter_rejections"],a.diagnostic_limit);print(f"\nSaved eligible jobs to {out}")
