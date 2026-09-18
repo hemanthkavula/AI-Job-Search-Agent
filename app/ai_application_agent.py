@@ -128,8 +128,6 @@ and explain the current page, completed steps, and any unresolved required items
 def _build_tools():
     """Add generic semantic recovery for controls the normal browser index cannot activate."""
     from browser_use import ActionResult, Tools
-    from browser_use.browser import BrowserSession
-    from browser_use.llm.base import BaseChatModel
 
     tools = Tools()
 
@@ -145,8 +143,8 @@ def _build_tools():
     async def activate_form_control(
         question: str,
         value: str,
-        browser_session: BrowserSession,
-        page_extraction_llm: BaseChatModel,
+        browser_session,
+        page_extraction_llm,
     ) -> ActionResult:
         page = await browser_session.must_get_current_page()
         prompts = [
