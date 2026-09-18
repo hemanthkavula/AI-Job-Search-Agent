@@ -40,10 +40,15 @@ def _title_for_match(title):
     return t.strip()
 def title_is_target(title):
     t=_title_for_match(title)
-    # Broad Data Engineering family: modifiers may appear before or after the core title
-    # (Senior/AWS/Azure/GCP/PySpark/Cloud/Lead/Staff/Principal/etc.).
+    # User's governing title rule: if the title contains the phrase "data engineer"
+    # anywhere as words, it belongs to the target family. Prefixes/suffixes and
+    # specializations do not disqualify it (e.g. Senior Data Engineer - Airflow,
+    # AWS Data Engineer, Data Engineer II, Lead Data Engineer / Snowflake).
+    if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
+    # Keep a small adjacent DE-family set for titles that do not literally contain
+    # "data engineer", such as Data Platform Engineer.
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    return any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS)
+    return any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:])
 
 def location_is_us(location,source=None):
     raw=(location or "").strip();src=_clean(source)
