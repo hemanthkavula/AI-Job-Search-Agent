@@ -189,6 +189,15 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
     steps=[]
     for n in range(1,max_steps+1):
         page.wait_for_timeout(1500)
+        # Workday often paints the step shell first and keeps the actual form
+        # behind a transient "Loading" state. Do not inspect/advance that shell.
+        for _ in range(20):
+            try:
+                body_now=page.locator("body").inner_text(timeout=3000)
+                interactive=page.locator('input:not([type="hidden"]), textarea, select, [role="combobox"]').count()
+                if "Loading" not in body_now and interactive>0:break
+            except Exception:pass
+            page.wait_for_timeout(500)
         filled,unresolved=_fill_current_page(page,item,identity,resume,result)
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
@@ -197,6 +206,17 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
         if BLOCKER_RE.search(body):
             result["blockers"].append("CAPTCHA/MFA/verification challenge detected");break
         if unresolved:break
+        # A rendered Workday step with no mapped controls is not safe to advance:
+        # capture its DOM shape so custom Workday widgets can be mapped next.
+        visible_inputs=page.locator('input:not([type="hidden"]), textarea, select, [role="combobox"]').count()
+        if filled==0 and visible_inputs==0:
+            step["render_state"]="NO_INTERACTIVE_CONTROLS"
+            try:
+                step["automation_ids"]=page.locator("[data-automation-id]").evaluate_all(
+                    "els => [...new Set(els.map(e=>e.getAttribute('data-automation-id')).filter(Boolean))].slice(0,120)"
+                )
+            except Exception:step["automation_ids"]=[]
+            break
         # Never click Submit. Only advance intermediate Workday pages.
         nxt=None
         for sel in ('button:has-text("Save and Continue")','button:has-text("Next")',
