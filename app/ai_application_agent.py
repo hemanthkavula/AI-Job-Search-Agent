@@ -101,7 +101,7 @@ Goal:
 1. Open the job URL and locate the employer's real application flow.
 2. Inspect each page before filling it. Do not assume Workday, Greenhouse, Lever, Ashby, SmartRecruiters, iCIMS, Jobvite, or any other fixed ATS.
 3. Prefer resume-assisted/autofill-with-resume when offered. Upload ONLY the exact resume_path above. RENDERING RECOVERY: after selecting an application path, a temporarily blank/header-footer-only page is an ordinary recoverable loading state, NOT MANUAL_ACTION_REQUIRED. Wait and re-inspect at least twice (use increasing waits such as 5 then 8 seconds). If still blank, reload once and wait/re-inspect. If the preferred resume-autofill route still does not render, go back to the application-start choice and use Apply Manually (or the equivalent alternate application path) when available. Continue the application there and upload the exact resume later if that flow offers a resume/document control. Do not abandon an application solely because one route temporarily fails to render.
-4. After resume parsing, inspect the resulting fields and correct deterministic candidate facts when needed.
+4. After resume parsing, inspect the resulting fields and correct deterministic candidate facts when needed. REQUIRED-FIELDS-ONLY: fill fields that the actual application marks as required (for example with * / required / aria-required=true) when the answer is supported by candidate facts. Optional fields should normally be left blank and must never block progress. Do not spend steps completing optional address lines, optional links, optional profile fields, or other unrequired inputs merely because candidate data exists.
 5. Fill only answers supported by candidate facts or known_answers. Treat ALL supplied candidate fields as available facts, including phone. Never say phone is unsupported when candidate.phone is present.
 6. For "How did you hear about us?", use source_context carefully. An ATS host (Workday, Greenhouse, Lever, Ashby, SmartRecruiters, iCIMS, Jobvite) is application infrastructure, NOT a job board/recruiting source. Never type/select "Workday" or choose "Job Board" merely because source_kind=ATS_HOST. When source_kind=ATS_HOST, inspect the ACTUAL choices and prefer a truthful employer/company website or careers-site choice (for example an employer-named .com/careers option) when available, then generic Website/Web/Online if needed. Only choose Job Board when the recorded source is actually a job board or the provenance otherwise supports it. Search/select controls may be hierarchical: selecting a parent category is NOT complete if child options appear. Continue until a leaf option is visibly committed and the picker is closed. Never invent a referral, recruiter, staffing agency, school, or personal relationship.
 7. Work authorization rules are authoritative:
@@ -180,8 +180,8 @@ def _build_tools():
                 return ActionResult(
                     extracted_content=(
                         "TERMINAL_REJECTED: the current state is an ordinary incomplete form, not a "
-                        "manual-action blocker. Re-inspect the page and complete every visible field/control "
-                        "supported by candidate facts (including address/state/phone/source/radios), then "
+                        "manual-action blocker. Re-inspect the page and complete every REQUIRED visible field/control "
+                        "supported by candidate facts (including required address/state/phone/source/radios). Skip optional fields, then "
                         "use Next/Continue. Only stop for a genuinely unknown required answer, CAPTCHA, "
                         "MFA/verification/authentication gate, or unrecoverable failure."
                     ),
