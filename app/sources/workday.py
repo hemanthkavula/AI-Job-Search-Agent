@@ -7,7 +7,18 @@ from html import unescape
 from urllib.request import Request, urlopen
 from pathlib import Path
 
-SEARCH_TERMS = ("Data Engineer", "Senior Data Engineer", "Sr Data Engineer", "Sr. Data Engineer", "Lead Data Engineer", "Staff Data Engineer", "Principal Data Engineer", "AWS Data Engineer", "Azure Data Engineer", "Cloud Data Engineer", "Spark Data Engineer", "PySpark Data Engineer", "Python Data Engineer", "ETL Data Engineer", "Big Data Engineer", "Data Platform Engineer", "Data Infrastructure Engineer", "Data Pipeline Engineer", "Data Analytics Engineer", "Data Integration Engineer", "Analytics Engineer")
+# Workday search is token/sub-string based, so querying every seniority and
+# technology prefix repeats the same large result sets. These family roots cover
+# the same DE title space with far fewer API pages.
+SEARCH_TERMS = (
+    "Data Engineer",
+    "Data Engineering",
+    "Data Platform Engineer",
+    "Data Infrastructure Engineer",
+    "Data Pipeline Engineer",
+    "Data Integration Engineer",
+    "Analytics Engineer",
+)
 ROOT=Path(__file__).resolve().parents[2]
 CACHE_DIR=ROOT/"generated"/"workday_cache"
 
@@ -103,6 +114,16 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     # scanned concurrently by discovery.py.
     tenant_cache=_load_cache(tenant,site)
     incremental=hours<=2
+    # Site-wide frontier: a job returned for "Senior Data Engineer" is commonly
+    # returned again for "Data Engineer", cloud variants, etc. Seed the frontier
+    # from older per-term caches so this optimization works immediately after
+    # upgrading instead of requiring a full new cache warm-up.
+    previous_global=set(tenant_cache.get("_global_paths") or [])
+    if not previous_global:
+        for key,value in tenant_cache.items():
+            if key.startswith("_") or not isinstance(value,dict): continue
+            previous_global.update(value.get("paths") or [])
+    current_global=[]
 
     for search_term in SEARCH_TERMS:
       offset = 0
@@ -119,13 +140,15 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             term_cache=tenant_cache.setdefault(search_term,{})
             previous=set(term_cache.get("paths") or [])
             current=[row.get("externalPath") for row in rows if row.get("externalPath")]
-            # Compare against the cache from the PREVIOUS completed run. Do not add
-            # pages to the stop-set while traversing the current run, otherwise the
-            # cache cannot form a stable cross-run frontier.
-            if current and all(x in previous for x in current):
+            # Stop at a frontier known from the PREVIOUS completed site scan. A
+            # site-wide frontier is substantially more effective than one cache per
+            # search phrase because Workday returns the same posting for many terms.
+            known_frontier=previous_global or previous
+            if current and known_frontier and all(x in known_frontier for x in current):
                 break
             seen_this_run=term_cache.setdefault("_current_paths",[])
             seen_this_run.extend(x for x in current if x not in seen_this_run)
+            current_global.extend(x for x in current if x not in current_global)
             term_cache["checked_at"]=datetime.now(timezone.utc).isoformat()
         if not rows:
             break
@@ -183,11 +206,14 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             break
 
     if incremental:
-        for term_cache in tenant_cache.values():
+        for key,term_cache in list(tenant_cache.items()):
+            if key.startswith("_") or not isinstance(term_cache,dict): continue
             current=term_cache.pop("_current_paths",[])
             if current:
                 prior=term_cache.get("paths") or []
                 term_cache["paths"]=list(dict.fromkeys(current+prior))[:2000]
+        tenant_cache["_global_paths"]=list(dict.fromkeys(current_global+list(previous_global)))[:5000]
+        tenant_cache["_global_checked_at"]=datetime.now(timezone.utc).isoformat()
         _save_cache(tenant,site,tenant_cache)
     out=list(out_by_path.values())
     print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
