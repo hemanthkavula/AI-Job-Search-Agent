@@ -267,5 +267,13 @@
       "docx",
       "pdf"
     ]
+  },
+  "application_preferences": {
+    "legal_working_age": true,
+    "background_check_willing": true,
+    "relocation": {
+      "willing_to_relocate": true,
+      "willing_to_relocate_at_own_expense": true
+    }
   }
 }
