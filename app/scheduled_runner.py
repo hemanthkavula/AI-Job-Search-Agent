@@ -2,10 +2,31 @@ from __future__ import annotations
 import argparse, json
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+except ImportError:
+    ZoneInfo=None
+    ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
 
-ET=ZoneInfo("America/New_York")
+def _eastern_tz():
+    """Use IANA Eastern time when available; fall back to Windows local Eastern time.
+
+    Windows Python installations may not ship the IANA tz database. The fallback
+    intentionally uses the machine's local timezone so DST remains correct when
+    the Windows timezone is configured as Eastern Time.
+    """
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo("America/New_York")
+        except ZoneInfoNotFoundError:
+            pass
+    local=datetime.now().astimezone().tzinfo
+    if local is None:
+        raise RuntimeError("Unable to determine local timezone. Install tzdata or configure Windows timezone to Eastern Time.")
+    return local
+
+ET=_eastern_tz()
 ROOT=Path(__file__).resolve().parent.parent
 STATE_PATH=ROOT/"generated"/"scheduler_state.json"
 BOOTSTRAP_HOUR=7
