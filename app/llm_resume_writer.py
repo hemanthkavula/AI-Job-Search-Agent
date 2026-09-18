@@ -16,7 +16,7 @@ Do not force every Technical Skills keyword into Professional Experience. Experi
 Do not invent a specific project, architecture, migration, deployment path, certification, metric, or business outcome solely to place a keyword. Never claim a false specific accomplishment.
 If the JD presents true alternatives (for example Beam OR Flink OR Spark Streaming), do not automatically include every alternative; cover the requirement with the most relevant option unless the JD materially expects multiple technologies.
 Distribute technical content coherently. Fidelity stays financial/trading, Cigna stays healthcare, Target stays retail/e-commerce.
-Do not fabricate certifications, team sizes, project names, numerical outcomes, or business results. Never invent a metric merely to strengthen a bullet. Treat qualitative latency/scale claims such as sub-minute, sub-second, low-latency with a specific bound, millions/billions, or other numeric/near-numeric performance claims as metrics unless they are explicitly present in candidate evidence.
+Do not fabricate certifications, team sizes, project names, numerical outcomes, or business results. Never invent a metric merely to strengthen a bullet. Treat qualitative latency/scale claims such as sub-minute, sub-second, low-latency with a specific bound, millions/billions, or other numeric/near-numeric performance claims as metrics unless they are explicitly present in candidate evidence. Do NOT generate unapproved bounded or near-numeric claims such as sub-minute, sub-second, under-N, less-than-N, N+, or similar latency/scale/count claims. If the JD asks for low latency but candidate evidence has no approved bound, use non-quantified wording such as low-latency, near-real-time, timely, scalable, or performance-optimized instead.
 STRICT METRIC RULE: Fidelity may have at most 2 metric-bearing bullets, Cigna at most 2, and Target must contain ZERO numeric scale, percentage, volume, latency, count, or performance metrics.
 Never stack boilerplate clauses, create keyword-dump bullets, or repeat the same phrases. Each bullet should communicate one coherent engineering accomplishment or responsibility.
 Optimize for complete-JD alignment, title relevance, recruiter readability and concise impact while preserving fixed factual history and avoiding fabricated specific accomplishments.
@@ -69,7 +69,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       "quality_rules":{
         "optimize_human_readability":True,"no_keyword_stuffing":True,"no_inventory_dumping":True,
         "no_repeated_boilerplate":True,"one_coherent_idea_per_bullet":True,"self_check_before_output":True,
-        "fidelity_metric_bullets_max":2,"cigna_metric_bullets_max":2,"target_metric_bullets_max":0,
+        "fidelity_metric_bullets_max":2,"cigna_metric_bullets_max":2,"target_metric_bullets_max":0,"never_create_unapproved_near_numeric_latency_or_scale_claims":True,
         "fidelity_bullets":8,"cigna_bullets":7,"target_bullets":6
       },
       "output_schema":{
