@@ -108,7 +108,15 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool) 
     model = os.getenv("APPLICATION_AGENT_MODEL", "gpt-5.6-luna")
     llm = ChatOpenAI(model=model)
     browser = Browser(headless=not headed)
-    agent = Agent(task=_task(item, profile, resume), llm=llm, browser=browser)
+    # Browser Use blocks arbitrary local uploads unless paths are explicitly
+    # allow-listed. The resume has already passed our artifact validation, so
+    # expose only this job's exact PDF to the agent.
+    agent = Agent(
+        task=_task(item, profile, resume),
+        llm=llm,
+        browser=browser,
+        available_file_paths=[str(resume)],
+    )
     try:
         history = await agent.run(max_steps=int(os.getenv("APPLICATION_AGENT_MAX_STEPS", "80")))
         final = history.final_result() or ""
