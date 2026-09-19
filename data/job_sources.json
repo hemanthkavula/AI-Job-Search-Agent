@@ -43,6 +43,10 @@
     {
       "company": "Pinterest",
       "board_token": "pinterestjobadvertisements"
+    },
+    {
+      "company": "Sony Interactive Entertainment",
+      "board_token": "sonyinteractiveentertainmentglobal"
     }
   ],
   "lever": [
@@ -403,6 +407,34 @@
       "host": "travelhrportal.wd1.myworkdayjobs.com",
       "tenant": "travelhrportal",
       "site": "Jobs",
+      "locale": "en-US"
+    },
+    {
+      "company": "CVS Health",
+      "host": "cvshealth.wd1.myworkdayjobs.com",
+      "tenant": "cvshealth",
+      "site": "CVS_Health_Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Lowe's",
+      "host": "lowes.wd5.myworkdayjobs.com",
+      "tenant": "lowes",
+      "site": "LWS_External_CS",
+      "locale": "en-US"
+    },
+    {
+      "company": "Equifax",
+      "host": "equifax.wd5.myworkdayjobs.com",
+      "tenant": "equifax",
+      "site": "External",
+      "locale": "en-US"
+    },
+    {
+      "company": "Discover",
+      "host": "discover.wd5.myworkdayjobs.com",
+      "tenant": "discover",
+      "site": "Discover",
       "locale": "en-US"
     }
   ],
