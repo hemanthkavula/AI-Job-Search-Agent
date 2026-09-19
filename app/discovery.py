@@ -9,6 +9,7 @@ from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
+from app.ats_resolver import resolve_original_ats
 import json
 
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
@@ -72,6 +73,15 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         dedup[job["external_id"]]=job
     rows=list(dedup.values())
 
+    # Broad discovery sources often point at an aggregator URL first. Resolve those
+    # pages before learning so the employer's real ATS can seed future direct scans.
+    learnable=[]
+    for row in rows:
+        if row.get("source") in {"dice","ziprecruiter"}:
+            learnable.append(resolve_original_ats(row))
+        else:
+            learnable.append(row)
+
     # Emit a provider-level summary for every supported source so a provider that
     # returned zero jobs is still visible instead of looking as if it never ran.
     configured_units={
@@ -105,7 +115,10 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             f"jobs_returned={provider_counts.get(provider,0)} | healthy_units={ok_for_provider} | failed_units={errors_for_provider}",
             flush=True,
         )
-    learned=learn_from_jobs(rows,registry)
+    learned=learn_from_jobs(learnable,registry)
+    if learned:
+        for item in learned:
+            print(f"LEARNED ATS {item.get('provider')}: {item.get('company')} | {item.get('identifier')}",flush=True)
     if learned:save_registry(registry,registry_path)
     # Persist source health independently from cycle output so the dashboard and
     # scheduler can surface degraded ATS/job-board coverage instead of silently
