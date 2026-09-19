@@ -109,8 +109,7 @@ def _print_eligible(results):
         if raw.get("url"):print(f"   {raw['url']}",flush=True)
 
 def _print_rejection_samples(items,limit=20):
-    print("
-ELIGIBILITY REJECTION SAMPLES",flush=True)
+    print("\\nELIGIBILITY REJECTION SAMPLES",flush=True)
     if not items:print("None",flush=True);return
     for i,item in enumerate(items[:limit],1):
         raw=item["job"]
