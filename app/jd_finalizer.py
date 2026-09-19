@@ -72,6 +72,12 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
+        # Resume generation is paid. Resolve the public application destination first
+        # and hold jobs whose ATS cannot be verified, rather than paying for a resume
+        # that the automated application stage cannot safely use.
+        if raw.get("ats_provider") not in {"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite"}:
+            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application ATS/provider could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
+            continue
         finalized.append({"job":raw,"eligibility":eligibility,"action":"FINAL_JD_VERIFIED"})
     result={"finalized":len(finalized),"held_or_rejected":len(held),"results":finalized,"rejections":held}
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(result,indent=2),encoding="utf-8")
