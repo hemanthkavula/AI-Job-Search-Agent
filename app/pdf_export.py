@@ -58,16 +58,26 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
     env["SAL_DISABLE_SYNCHRONOUS_PRINTER_DETECTION"] = "1"
     try:
         proc = subprocess.run(cmd, check=False, timeout=90, capture_output=True, text=True, env=env)
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            return False, f"LibreOffice conversion failed (exit {proc.returncode}): {detail}"
+
+        if target.exists() and target.stat().st_size > 0:
+            return True, "ok"
+        return False, "LibreOffice completed but PDF was not created"
     except Exception as exc:
         return False, f"LibreOffice conversion failed to start: {exc}"
-
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip()
-        return False, f"LibreOffice conversion failed (exit {proc.returncode}): {detail}"
-
-    if target.exists() and target.stat().st_size > 0:
-        return True, "ok"
-    return False, "LibreOffice completed but PDF was not created"
+    finally:
+        # The profile is conversion scratch space, not a resume artifact.
+        # Best-effort cleanup also handles Windows read-only files left by LO.
+        if profile_dir.exists():
+            def _onerror(func, path, exc_info):
+                try:
+                    os.chmod(path, 0o700)
+                    func(path)
+                except OSError:
+                    pass
+            shutil.rmtree(profile_dir, onerror=_onerror)
 
 
 def convert_docx_to_pdf(docx_path: str) -> str | None:
