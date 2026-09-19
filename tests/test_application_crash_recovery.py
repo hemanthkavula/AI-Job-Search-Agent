@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from app.job_identity import canonical_job_key
 from app.job_ledger import seen_or_submitted
 from app.scheduled_runner import _retry_application_items
 
@@ -42,7 +43,8 @@ def _ledger(status, *, payload=True):
     }
     if payload:
         row["retry_application"] = _queue_item()
-    return {"jobs": {"test:job-123": row}, "aliases": {"test:job-123": "test:job-123"}}
+    key = canonical_job_key(_job())
+    return {"jobs": {key: row}, "aliases": {alias: key for alias in [key]}}
 
 
 @pytest.mark.parametrize(
