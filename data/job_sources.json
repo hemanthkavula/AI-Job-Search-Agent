@@ -504,6 +504,20 @@
       "tenant": "cisco",
       "site": "Cisco_Careers",
       "locale": "en-US"
+    },
+    {
+      "company": "Accenture",
+      "host": "accenture.wd103.myworkdayjobs.com",
+      "tenant": "accenture",
+      "site": "AccentureCareers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Elevance Health",
+      "host": "elevancehealth.wd1.myworkdayjobs.com",
+      "tenant": "elevancehealth",
+      "site": "ANT",
+      "locale": "en-US"
     }
   ],
   "dice": {
@@ -545,6 +559,10 @@
     {
       "company": "American Express",
       "base_url": "https://egug.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1"
+    },
+    {
+      "company": "JPMorgan Chase",
+      "base_url": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001"
     }
   ]
 }
