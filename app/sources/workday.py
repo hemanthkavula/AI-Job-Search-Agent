@@ -109,6 +109,8 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     limit = 20
     listing_count = 0
     candidate_count = 0
+    duplicate_candidate_count = 0
+    detail_failure_count = 0
     out_by_path: dict[str,dict] = {}
     # One cache file per tenant/site avoids lost updates because Workday tenants are
     # scanned concurrently by discovery.py.
@@ -166,12 +168,23 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             candidate_count += 1
             external_path = row.get("externalPath") or ""
             if not external_path:
+                detail_failure_count += 1
+                continue
+            # The same Workday posting is returned by several search terms.
+            # Count it once as a unique DE candidate and never refetch its detail.
+            if external_path in out_by_path:
+                duplicate_candidate_count += 1
                 continue
             try:
                 detail_payload = _json(f"{base}{external_path}", timeout)
                 detail = detail_payload.get("jobPostingInfo") or detail_payload
             except Exception:
-                detail = {}
+                detail_failure_count += 1
+                continue
+            description = _plain(detail.get("jobDescription"))
+            if not description:
+                detail_failure_count += 1
+                continue
 
             req_id = detail.get("jobReqId") or detail.get("jobPostingId") or external_path.rsplit("_", 1)[-1]
             title = detail.get("title") or row.get("title") or ""
@@ -188,7 +201,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
                 "location": location,
                 "employment_type": detail.get("timeType"),
                 "url": public_url,
-                "description": _plain(detail.get("jobDescription")),
+                "description": description,
                 "updated_at": posted,
                 "posted_on": row.get("postedOn"),
             }
@@ -216,5 +229,12 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
         tenant_cache["_global_checked_at"]=datetime.now(timezone.utc).isoformat()
         _save_cache(tenant,site,tenant_cache)
     out=list(out_by_path.values())
-    print(f"Workday / {company}: {listing_count} targeted search results ({hours}h window), {candidate_count} DE candidates, {len(out)} detailed JDs", flush=True)
+    unique_candidates=len(out)+detail_failure_count
+    print(
+        f"Workday / {company}: {listing_count} search rows scanned ({hours}h window), "
+        f"{unique_candidates} unique DE candidates, {len(out)} detailed JDs"
+        + (f", {detail_failure_count} detail failures" if detail_failure_count else "")
+        + (f", {duplicate_candidate_count} duplicate search hits" if duplicate_candidate_count else ""),
+        flush=True,
+    )
     return out
