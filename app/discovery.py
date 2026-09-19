@@ -12,7 +12,9 @@ from app.source_registry import load_registry, save_registry, learn_from_jobs, a
 import json
 
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json", source_hours=None) -> list[dict]:
-    source_hours=source_hours or {}\n    def _hours(source): return source_hours.get(source,hours)\n    registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
+    source_hours=source_hours or {}
+    def _hours(source): return source_hours.get(source,hours)
+    registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
     for provider in ("greenhouse","lever","ashby","smartrecruiters"):
         existing=list(config.get(provider,[]));seen={str(x) for x in existing}
