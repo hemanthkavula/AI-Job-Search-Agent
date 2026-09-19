@@ -599,7 +599,11 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
 def _submission_confirmation(page):
     """Require positive ATS confirmation evidence after a final-submit click."""
     try:
-        page.wait_for_timeout(1200)
+        # External ATS forms may POST and redirect asynchronously. Give the submit
+        # transition time to settle before deciding confirmation is absent.
+        page.wait_for_timeout(3000)
+        try:page.wait_for_load_state("domcontentloaded",timeout=8000)
+        except Exception:pass
         body=_norm(page.locator("body").inner_text(timeout=8000))
     except Exception:
         body=""
