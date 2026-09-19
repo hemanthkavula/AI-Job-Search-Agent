@@ -419,9 +419,11 @@ def _fill_current_page(page,item,identity,resume,result):
             except Exception:
                 consent_context=label
             lx=_norm((label or "")+" "+(consent_context or ""))
-            if required and any(t in lx for t in ("privacy policy","terms of service","terms and conditions","i agree")):
+            if any(t in lx for t in ("privacy policy","terms of service","terms and conditions","i agree","agreement")):
                 try:
-                    if not el.is_checked():el.check()
+                    if not el.is_checked():el.check(force=True)
+                    page.wait_for_timeout(200)
+                    if not el.is_checked():raise RuntimeError("ATS consent checkbox did not remain checked")
                     result["filled"].append({"field":label or "required ATS consent","value":"accepted"})
                 except Exception:
                     unresolved.append(label or "required ATS consent")
