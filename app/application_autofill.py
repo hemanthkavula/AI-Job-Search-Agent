@@ -177,9 +177,9 @@ def _technical_question_answer(label,profile):
     }
     asked=[]
     for canonical,names in aliases.items():
-        if any(re.search(r"\\b"+re.escape(name)+r"\\b",x) for name in names):asked.append((canonical,names))
+        if any(re.search(r"\b"+re.escape(name)+r"\b",x) for name in names):asked.append((canonical,names))
     if not asked:return None
-    supported=all(any(re.search(r"\\b"+re.escape(name)+r"\\b",evidence) for name in names) for _,names in asked)
+    supported=all(any(re.search(r"\b"+re.escape(name)+r"\b",evidence) for name in names) for _,names in asked)
     # Never invent technology-specific year counts. Only the profile's explicit
     # overall experience may answer a generic total-experience question.
     if "years" in x:
