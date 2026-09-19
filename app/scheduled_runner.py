@@ -95,6 +95,11 @@ def _application_ledger_status(result):
         return "RETRY_APPLICATION"
     if status in {"INSPECTED_NO_CHANGES"}:
         return "RETRY_APPLICATION"
+    # A fully autofilled application intentionally stopped at the final review
+    # boundary is healthy pending work, not a blocker. Keep it replayable so a
+    # later explicitly authorized run can submit the same approved payload.
+    if status=="AUTOFILLED_REVIEW_REQUIRED" and not result.get("unresolved_required") and not result.get("blockers"):
+        return "READY_TO_APPLY"
     return "MANUAL_ACTION_REQUIRED"
 
 APPLICATION_REPLAY_STATUSES={"RETRY_APPLICATION","READY_TO_APPLY","IN_PROGRESS","APPLICATION_IN_PROGRESS"}
@@ -260,6 +265,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_results"]=output
         summary["applications_processed"]=len(application_results)
         summary["applications_submitted"]=sum(x.get("status")=="SUBMITTED" and x.get("submitted") for x in application_results)
+        summary["applications_ready_for_review"]=sum(_application_ledger_status(x)=="READY_TO_APPLY" for x in application_results)
         summary["applications_blocked"]=sum(_application_ledger_status(x) in {"SECURITY_BLOCKED","MANUAL_ACTION_REQUIRED"} for x in application_results)
         summary["applications_retryable"]=sum(_application_ledger_status(x)=="RETRY_APPLICATION" for x in application_results)
     else:
