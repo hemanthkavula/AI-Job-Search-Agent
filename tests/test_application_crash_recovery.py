@@ -99,7 +99,8 @@ def test_terminal_application_states_never_replay(tmp_path, status):
 def test_replay_requires_complete_persisted_application_payload(tmp_path, bad_payload):
     ledger = _ledger("RETRY_APPLICATION", payload=False)
     if bad_payload is not None:
-        ledger["jobs"]["test:job-123"]["retry_application"] = bad_payload
+        key = canonical_job_key(_job())
+        ledger["jobs"][key]["retry_application"] = bad_payload
     path = tmp_path / "ledger.json"
     path.write_text(json.dumps(ledger), encoding="utf-8")
 
