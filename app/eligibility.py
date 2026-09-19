@@ -58,12 +58,12 @@ def experience_check(job: dict, profile: dict) -> dict:
     rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
     min_req=profile.get("preferences",{}).get("min_required_years",4)
-    max_req=profile.get("preferences",{}).get("max_required_years",8)
+    max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    eligible=req <= max_req
+    eligible=min_req <= req < max_req
     return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
+      "category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),
       "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
@@ -76,6 +76,13 @@ def sponsorship_check(job: dict, profile: dict) -> dict:
         return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
     return {"category":"SPONSORSHIP_UNKNOWN","eligible":None,"evidence":"Sponsorship policy is not explicit in the posting; continue under candidate policy."}
 
+CLEARANCE_PATTERNS=(
+ "ts/sci","top secret","secret clearance","active clearance",
+ "security clearance required","must hold a security clearance",
+ "must possess a security clearance","must have a security clearance",
+ "public trust clearance required","active public trust"
+)
+
 def citizenship_check(job: dict, profile: dict) -> dict:
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
     if any(x in text for x in CITIZENSHIP_PATTERNS):
@@ -83,7 +90,14 @@ def citizenship_check(job: dict, profile: dict) -> dict:
                 "evidence":"Posting explicitly requires U.S. citizenship."}
     return {"category":"CITIZENSHIP_NOT_REQUIRED","eligible":True,"evidence":None}
 
+def clearance_check(job: dict, profile: dict) -> dict:
+    text=_clean(f"{job.get('title','')} {job.get('description','')}")
+    if any(x in text for x in CLEARANCE_PATTERNS):
+        return {"category":"CLEARANCE_REQUIRED","eligible":False,
+                "evidence":"Posting explicitly requires a security/public-trust clearance."}
+    return {"category":"CLEARANCE_NOT_REQUIRED","eligible":True,"evidence":None}
+
 def two_category_filter(job: dict, profile: dict) -> dict:
-    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile)
-    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"]
-    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship}
+    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile); clearance=clearance_check(job,profile)
+    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"] and clearance["eligible"]
+    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship,"clearance":clearance}
