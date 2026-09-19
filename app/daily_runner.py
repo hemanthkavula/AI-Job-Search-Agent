@@ -93,6 +93,15 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     configured_sources={name for name in ("greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter") if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
     failed_sources={e.get("source") for e in errors if e.get("source")}
     source_status={name:("ERROR" if name in failed_sources else "OK") for name in configured_sources}
+    # Preserve provider-level failure details in the machine-readable report so
+    # scheduler failures can be diagnosed without rerunning discovery manually.
+    # Keep the original adapter error objects intact; they should already avoid
+    # credentials/secrets and are more useful than a generic ERROR flag.
+    source_errors={}
+    for error in errors:
+        source=error.get("source")
+        if source:
+            source_errors.setdefault(source,[]).append(error)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
@@ -102,7 +111,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
         "eligible":len(eligible),"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
-        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,
+        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,
         "results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
     }
 
