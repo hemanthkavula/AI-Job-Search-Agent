@@ -22,7 +22,7 @@ def load_status():return _load(STATUS)
 def save_seen(seen):
     STATE.parent.mkdir(parents=True,exist_ok=True);STATE.write_text(json.dumps(seen,indent=2),encoding="utf-8")
 
-def fresh_jobs(jobs,hours=24):
+def fresh_jobs(jobs,hours=24,since=None,now=None):
     """Return only jobs with trustworthy posting timestamps inside the requested window.
 
     Strict mode intentionally does NOT treat first-seen time as proof that a job was
@@ -30,7 +30,7 @@ def fresh_jobs(jobs,hours=24):
     excluded from automatic processing because the user requires postings from the
     last 24 hours only.
     """
-    now=datetime.now(timezone.utc);cutoff=now-timedelta(hours=hours)
+    now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)\n    cutoff=_parse(since) if since else now-timedelta(hours=hours)\n    if cutoff is None:cutoff=now-timedelta(hours=hours)
     seen=load_seen();status=load_status();fresh=[];stale=[];already=[]
     terminal={"SUBMITTED","PERMANENT_SKIP"}
     for job in jobs:
