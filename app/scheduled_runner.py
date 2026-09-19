@@ -221,7 +221,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     summary["scan_cutoff_local"]=cutoff.isoformat()
     summary["scan_window_hours"]=hours
     _save_state(state)
-    summary["source_watermarks"]=next_watermarks\n    summary["scheduler_mode"]=mode
+    summary["source_watermarks"]=next_watermarks
+    summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=now.hour==FINAL_HOUR
     return summary
