@@ -35,7 +35,7 @@ def dashboard_html() -> str:
       ("Final JD verified",latest.get("final_jd_verified",0)),
       ("Ready to apply",counts.get("READY_TO_APPLY",0)),
       ("Artifact holds",counts.get("HOLD_ARTIFACT_VALIDATION",0)),
-      ("Submitted",counts.get("SUBMITTED",0)),
+      ("Submitted",counts.get("SUBMITTED_CONFIRMED",0)+counts.get("SUBMITTED",0)),
       ("Manual action",counts.get("MANUAL_ACTION_REQUIRED",0)),
       ("Source errors",sum(1 for x in source_health.values() if x.get("status")=="ERROR")),
     ]
