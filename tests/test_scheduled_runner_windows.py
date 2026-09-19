@@ -51,3 +51,29 @@ def test_first_run_without_state_uses_previous_close():
     assert mode=="bootstrap"
     assert cutoff==_dt(2026,9,22,18)
     assert hours==13
+
+
+def test_missed_previous_close_resumes_from_last_success():
+    now=_dt(2026,9,22,7)  # Tuesday
+    hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,21,17).isoformat()})
+    assert mode=="bootstrap"
+    assert cutoff==_dt(2026,9,21,17)
+    assert hours==14
+
+
+def test_missed_friday_close_is_not_lost_over_weekend():
+    now=_dt(2026,9,21,7)  # Monday
+    hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,18,17).isoformat()})
+    assert mode=="bootstrap"
+    assert cutoff==_dt(2026,9,18,17)
+    assert hours==62
+
+
+def test_dst_weekend_uses_friday_18_eastern_wall_clock():
+    # Monday after the November 2026 DST transition.
+    now=_dt(2026,11,2,7)
+    hours,mode,cutoff=_window_for(now,{})
+    assert mode=="bootstrap"
+    assert cutoff.hour==18
+    assert cutoff.date().isoformat()=="2026-10-30"
+    assert cutoff.utcoffset()!=now.replace(day=30,month=10,hour=18).utcoffset() or cutoff.hour==18
