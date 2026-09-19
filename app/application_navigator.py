@@ -68,14 +68,41 @@ def scopes(page):
     return out
 
 
+def _security_frame_url(url: str) -> bool:
+    low = (url or "").lower()
+    return "hcaptcha.com" in low or "recaptcha" in low
+
+
+def _active_security_challenge(scope, url: str, text: str) -> bool:
+    """Ignore dormant/invisible CAPTCHA infrastructure; stop only for an active challenge."""
+    low_url = (url or "").lower()
+    clean = re.sub(r"\s+", " ", text or "").strip()
+    low_text = clean.lower()
+
+    # Non-CAPTCHA verification/MFA text is an active blocker when rendered.
+    if re.search(r"verification code|two[- ]factor|\bmfa\b", low_text, re.I):
+        return True
+
+    if not _security_frame_url(low_url):
+        return bool(re.search(r"captcha|recaptcha|hcaptcha", low_text, re.I))
+
+    # ATS pages commonly preload invisible hCaptcha/reCAPTCHA frames. Their mere
+    # presence is not a challenge. Treat a security frame as active only when it
+    # exposes user-facing challenge/error language.
+    active_markers = (
+        "please try again", "verify you are human", "verify you are a human",
+        "complete the captcha", "security verification", "challenge",
+    )
+    return any(marker in low_text for marker in active_markers)
+
+
 def _blocker_details(page):
     found = []
     for scope in scopes(page):
         url = getattr(scope, "url", "") or ""
         text = _text(scope)
-        haystack = f"{url} {text}"
-        if BLOCKER_RE.search(haystack) or "hcaptcha.com" in url or "recaptcha" in url.lower():
-            found.append({"url": url, "excerpt": re.sub(r"\\s+", " ", text).strip()[:300]})
+        if _active_security_challenge(scope, url, text):
+            found.append({"url": url, "excerpt": re.sub(r"\s+", " ", text).strip()[:300]})
     return found
 
 
@@ -98,7 +125,7 @@ def analyze(page):
         "body_excerpt": re.sub(r"\s+", " ", body).strip()[:2500],
         "controls": sum(x["controls"] for x in frames),
         "frames": frames,
-        "blocker_detected": bool(BLOCKER_RE.search(body) or blocker_details),
+        "blocker_detected": bool(re.search(r"verification code|two[- ]factor|\\bmfa\\b", body, re.I) or blocker_details),
         "blocker_details": blocker_details,
     }
 
@@ -127,7 +154,7 @@ def enter_application(page, provider=None, timeout_ms=20000):
     rendered = wait_for_render(page, timeout_ms)
     body = rendered["body"]
     initial_blockers = _blocker_details(page)
-    if BLOCKER_RE.search(body) or initial_blockers:
+    if re.search(r"verification code|two[- ]factor|\\bmfa\\b", body, re.I) or initial_blockers:
         diag["blocker"] = "CAPTCHA/MFA/verification challenge detected"
         diag["blocker_details"] = initial_blockers
         return diag
