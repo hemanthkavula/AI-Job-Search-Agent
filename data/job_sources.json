@@ -536,5 +536,15 @@
       "company": "Atlassian",
       "base_url": "https://careers-americas.icims.com"
     }
+  ],
+  "oracle": [
+    {
+      "company": "Goldman Sachs",
+      "base_url": "https://hdpc.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/LateralHiring"
+    },
+    {
+      "company": "American Express",
+      "base_url": "https://egug.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1"
+    }
   ]
 }
