@@ -1,6 +1,6 @@
 from __future__ import annotations
 import argparse, json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 try:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -33,8 +33,6 @@ ROOT=Path(__file__).resolve().parent.parent
 STATE_PATH=ROOT/"generated"/"scheduler_state.json"
 BOOTSTRAP_HOUR=7
 FINAL_HOUR=18
-BOOTSTRAP_WINDOW_HOURS=24
-INCREMENTAL_WINDOW_HOURS=1
 RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
 def _load_state():
@@ -46,13 +44,34 @@ def _save_state(state):
     STATE_PATH.parent.mkdir(parents=True,exist_ok=True)
     STATE_PATH.write_text(json.dumps(state,indent=2),encoding="utf-8")
 
+def _parse_checkpoint(value):
+    if not value: return None
+    try:
+        dt=datetime.fromisoformat(value)
+        if dt.tzinfo is None: dt=dt.replace(tzinfo=ET)
+        return dt.astimezone(ET)
+    except (TypeError,ValueError):
+        return None
+
 def _window_for(now,state):
-    day=now.date().isoformat()
-    # The first successful run of each ET calendar day is the bootstrap scan.
-    # This also recovers safely if the machine missed exactly 07:00.
-    if state.get("bootstrap_date") != day:
-        return BOOTSTRAP_WINDOW_HOURS,"bootstrap"
-    return INCREMENTAL_WINDOW_HOURS,"incremental"
+    """Scan from the last successful discovery checkpoint to this run.
+
+    Normal hourly runs therefore cover one hour. Overnight runs cover 18:00 to
+    07:00, and Monday 07:00 naturally covers Friday 18:00 through Monday 07:00.
+    A missing checkpoint gets a conservative first-run fallback.
+    """
+    checkpoint=_parse_checkpoint(state.get("last_successful_discovery_at"))
+    if checkpoint and checkpoint < now:
+        seconds=(now-checkpoint).total_seconds()
+        return max(1,int((seconds+3599)//3600)),"checkpoint",checkpoint
+    if now.weekday()==0 and now.hour==BOOTSTRAP_HOUR:
+        start=now-timedelta(hours=61)
+        return 61,"weekend_bootstrap",start
+    if now.hour==BOOTSTRAP_HOUR:
+        start=now-timedelta(hours=13)
+        return 13,"overnight_bootstrap",start
+    start=now-timedelta(hours=1)
+    return 1,"incremental_fallback",start
 
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
     now=datetime.now(ET)
@@ -61,7 +80,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     if not force and not (BOOTSTRAP_HOUR <= now.hour <= FINAL_HOUR):
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     state=_load_state()
-    hours,mode=_window_for(now,state)
+    hours,mode,window_start=_window_for(now,state)
     summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
@@ -108,10 +127,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
 
-    state.update({"last_run_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
-    if mode=="bootstrap": state["bootstrap_date"]=now.date().isoformat()
+    state.update({"last_run_at":now.isoformat(),"last_successful_discovery_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
     _save_state(state)
     summary["scheduler_mode"]=mode
+    summary["scheduler_window_start"]=window_start.isoformat()
+    summary["scheduler_window_end"]=now.isoformat()
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=now.hour==FINAL_HOUR
     return summary
