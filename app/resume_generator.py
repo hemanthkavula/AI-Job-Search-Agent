@@ -21,6 +21,17 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 ROOT=Path(__file__).resolve().parent.parent
 ALIASES={"AWS Glue":["aws glue","glue"],"Amazon EMR":["amazon emr","emr"],"Amazon S3":["amazon s3","s3"],"Amazon Redshift":["amazon redshift","redshift"],"Azure Data Factory":["azure data factory","adf"],"Azure Synapse Analytics":["azure synapse","synapse"],"ADLS Gen2":["adls gen2","adls","azure data lake storage"],"Apache Spark":["apache spark","spark"],"Apache Kafka":["apache kafka","kafka"],"PySpark":["pyspark"],"Slowly Changing Dimensions":["slowly changing dimensions","scd type 2","scd"],"CI/CD Best Practices":["ci/cd","cicd"]}
+def clean_company_name(value):
+    """Return a clean display/file company name without legal suffixes or leading 'The'."""
+    s=re.sub(r"\s+"," ",str(value or "")).strip()
+    s=re.sub(r"(?i)^the\s+","",s)
+    # Handle inverted legal names such as "Computer Merchant, Ltd., The".
+    s=re.sub(r"(?i)[\s,.-]+(?:incorporated|inc|corporation|corp|limited|ltd|llc|l\.l\.c|plc|co|company)[.,\s]*$", "", s).strip(" ,.-")
+    s=re.sub(r"(?i)[\s,.-]+the$", "", s).strip(" ,.-")
+    # A trailing legal suffix may become exposed after removing ", The".
+    s=re.sub(r"(?i)[\s,.-]+(?:incorporated|inc|corporation|corp|limited|ltd|llc|l\.l\.c|plc|co|company)$", "", s).strip(" ,.-")
+    return s or str(value or "").strip()
+
 def safe_name(v):return re.sub(r"[^A-Za-z0-9_-]+","_",v).strip("_")[:80]
 def all_verified(profile):
     out=[]
@@ -224,7 +235,7 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
     root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
-    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(job.title))
+    stem=pattern.replace("{Company}",safe_name(clean_company_name(job.company))).replace("{JobTitle}",safe_name(job.title))
     timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
     job_dir=root/f"{safe_name(job.company)}_{safe_name(job.title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
     path=job_dir/f"{stem}.docx";doc.save(path)
