@@ -9,7 +9,7 @@ def test_inventory_only_removes_duplicate_with_protected_peer(tmp_path,monkeypat
     protected.write_bytes(b"same");duplicate.write_bytes(b"same");unique.write_bytes(b"unique")
     monkeypatch.setattr(cr,"ROOT",tmp_path)
     monkeypatch.setattr(cr,"RESUMES",resumes)
-    monkeypatch.setattr(cr,"referenced_resume_paths",lambda:{protected.resolve()})
+    monkeypatch.setattr(cr,"_ledger_reference_sets",lambda:({protected.resolve()},{protected.parent.resolve()}))
     monkeypatch.setattr(cr,"confirmed_resume_names",lambda:set())
     rows,removable,_=cr.inventory()
     assert removable==[duplicate]
@@ -23,7 +23,7 @@ def test_confirmed_filename_is_protected(tmp_path,monkeypatch):
     p=resumes/"old"/"submitted.pdf";p.parent.mkdir();p.write_bytes(b"x")
     monkeypatch.setattr(cr,"ROOT",tmp_path)
     monkeypatch.setattr(cr,"RESUMES",resumes)
-    monkeypatch.setattr(cr,"referenced_resume_paths",lambda:set())
+    monkeypatch.setattr(cr,"_ledger_reference_sets",lambda:(set(),set()))
     monkeypatch.setattr(cr,"confirmed_resume_names",lambda:{"submitted.pdf"})
     rows,removable,_=cr.inventory()
     assert not removable
