@@ -95,7 +95,7 @@ def cleanup(dry_run: bool = False) -> list[str]:
     for name in ("__pycache__", ".pytest_cache"):
         for path in list(ROOT.rglob(name)):
             rel=path.relative_to(ROOT)
-            if any(part in {".venv", ".git"} for part in rel.parts):
+            if any(part == ".git" or part.startswith(".venv") for part in rel.parts):
                 continue
             if path.is_dir():
                 removed.append(str(rel))
