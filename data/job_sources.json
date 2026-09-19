@@ -369,6 +369,41 @@
       "tenant": "usaa",
       "site": "USAAJOBSWD",
       "locale": "en-US"
+    },
+    {
+      "company": "Capital Group",
+      "host": "capgroup.wd1.myworkdayjobs.com",
+      "tenant": "capgroup",
+      "site": "capitalgroupcareers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Travelers",
+      "host": "travelers.wd5.myworkdayjobs.com",
+      "tenant": "travelers",
+      "site": "External",
+      "locale": "en-US"
+    },
+    {
+      "company": "General Motors",
+      "host": "generalmotors.wd5.myworkdayjobs.com",
+      "tenant": "generalmotors",
+      "site": "Careers_GM",
+      "locale": "en-US"
+    },
+    {
+      "company": "Comcast",
+      "host": "comcast.wd5.myworkdayjobs.com",
+      "tenant": "comcast",
+      "site": "Comcast_Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Egencia",
+      "host": "travelhrportal.wd1.myworkdayjobs.com",
+      "tenant": "travelhrportal",
+      "site": "Jobs",
+      "locale": "en-US"
     }
   ],
   "dice": {
