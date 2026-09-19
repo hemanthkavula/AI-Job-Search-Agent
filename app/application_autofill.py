@@ -895,35 +895,35 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
             action_scopes.append(page)
         seen_actions=set()
         for action_scope in action_scopes:
-          for sel in ('button','a','[role="button"]','input[type="button"]','input[type="submit"]'):
-            loc=action_scope.locator(sel)
-              for i in range(min(loc.count(),120)):
-                  el=loc.nth(i)
-                  try:
-                      if not el.is_visible(): continue
-                      tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
-                      txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
-                      nx=_norm(txt)
-                      action_key=(sel,nx)
-                      if action_key in seen_actions: continue
-                      seen_actions.add(action_key)
-                      typ=(el.get_attribute("type") or "").lower()
-                      final_exact=nx in ("submit application","send application","complete application","finish application")
-                      bare_submit=nx=="submit" and (typ=="submit" or tag=="button")
-                      apply_position=nx in ("apply for this position","apply for position") and (typ=="submit" or tag=="button")
-                      if final_exact or bare_submit or apply_position:
-                          step["stopped_before_final_submit"]=True
-                          step["final_submit_action"]=txt
-                          step["final_submit_scope_url"]=getattr(scope,"url",page.url)
-                          result["ready_for_final_submit"]=True
-                          result["final_submit_action"]=txt
-                          result["final_submit_scope_url"]=getattr(scope,"url",page.url)
-                          return steps
-                      score=0
-                      if nx in ("next","continue","save and continue","save & continue"): score=100
-                      elif "next" in nx or "continue" in nx: score=80
-                      if score: candidates.append((score,len(nx),el,txt))
-                  except Exception: pass
+            for sel in ('button','a','[role="button"]','input[type="button"]','input[type="submit"]'):
+                loc=action_scope.locator(sel)
+                for i in range(min(loc.count(),120)):
+                    el=loc.nth(i)
+                    try:
+                        if not el.is_visible(): continue
+                        tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+                        txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
+                        nx=_norm(txt)
+                        action_key=(sel,nx)
+                        if action_key in seen_actions: continue
+                        seen_actions.add(action_key)
+                        typ=(el.get_attribute("type") or "").lower()
+                        final_exact=nx in ("submit application","send application","complete application","finish application")
+                        bare_submit=nx=="submit" and (typ=="submit" or tag=="button")
+                        apply_position=nx in ("apply for this position","apply for position") and (typ=="submit" or tag=="button")
+                        if final_exact or bare_submit or apply_position:
+                            step["stopped_before_final_submit"]=True
+                            step["final_submit_action"]=txt
+                            step["final_submit_scope_url"]=getattr(action_scope,"url",page.url)
+                            result["ready_for_final_submit"]=True
+                            result["final_submit_action"]=txt
+                            result["final_submit_scope_url"]=getattr(action_scope,"url",page.url)
+                            return steps
+                        score=0
+                        if nx in ("next","continue","save and continue","save & continue"): score=100
+                        elif "next" in nx or "continue" in nx: score=80
+                        if score: candidates.append((score,len(nx),el,txt))
+                    except Exception: pass
         if not candidates:
             step["reason"]="No safe intermediate Next/Continue action found"
             break
