@@ -436,6 +436,13 @@
       "tenant": "discover",
       "site": "Discover",
       "locale": "en-US"
+    },
+    {
+      "company": "FIS",
+      "host": "fis.wd5.myworkdayjobs.com",
+      "tenant": "fis",
+      "site": "SearchJobs",
+      "locale": "en-US"
     }
   ],
   "dice": {
