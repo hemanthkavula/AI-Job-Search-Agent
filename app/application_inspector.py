@@ -149,6 +149,7 @@ def inspect_apply_route(
     url: str,
     headless=True,
     external_id="direct-inspection",
+    wait_for_human_seconds=0,
 ) -> dict:
     """Inspect dynamic ATS application entry without filling, uploading, or submitting."""
     result = {
@@ -168,8 +169,31 @@ def inspect_apply_route(
             result["navigation"] = navigation
             result["after_entry"] = analyze_dynamic(page)
             if navigation.get("blocker"):
-                result["blockers"].append(navigation["blocker"])
-                result["status"] = "MANUAL_ACTION_REQUIRED"
+                if wait_for_human_seconds > 0 and not headless:
+                    result["human_intervention"] = {
+                        "required": True,
+                        "type": "CAPTCHA_OR_VERIFICATION",
+                        "wait_seconds": wait_for_human_seconds,
+                        "resumed": False,
+                    }
+                    elapsed = 0
+                    while elapsed < wait_for_human_seconds:
+                        page.wait_for_timeout(1000)
+                        elapsed += 1
+                        check = analyze_dynamic(page)
+                        if not check.get("blocker_detected"):
+                            result["human_intervention"]["resumed"] = True
+                            result["human_intervention"]["elapsed_seconds"] = elapsed
+                            result["after_human_verification"] = check
+                            result["status"] = "APPLY_ROUTE_INSPECTED"
+                            break
+                    else:
+                        result["blockers"].append(navigation["blocker"])
+                        result["status"] = "MANUAL_ACTION_REQUIRED"
+                        result["reason"] = "Human verification was not completed before timeout."
+                else:
+                    result["blockers"].append(navigation["blocker"])
+                    result["status"] = "MANUAL_ACTION_REQUIRED"
             elif navigation.get("entered"):
                 result["status"] = "APPLY_ROUTE_INSPECTED"
             else:
