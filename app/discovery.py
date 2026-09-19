@@ -11,8 +11,8 @@ from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 import json
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json") -> list[dict]:
-    registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json", source_hours=None) -> list[dict]:
+    source_hours=source_hours or {}\n    def _hours(source): return source_hours.get(source,hours)\n    registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
     for provider in ("greenhouse","lever","ashby","smartrecruiters"):
         existing=list(config.get(provider,[]));seen={str(x) for x in existing}
@@ -38,11 +38,11 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             if not identifier:
                 errors.append({"source":"smartrecruiters","company":src.get("company"),"error":"Missing company_identifier"})
             else:
-                tasks.append((pool.submit(smartrecruiters_jobs,identifier,hours=hours),"smartrecruiters",src.get("company") or identifier))
+                tasks.append((pool.submit(smartrecruiters_jobs,identifier,hours=_hours("smartrecruiters")),"smartrecruiters",src.get("company") or identifier))
         for src in config.get("workday",[]) if only_source in (None,"workday") else []:
-            tasks.append((pool.submit(workday_jobs,src.get("company") or src["tenant"],src["host"],src["tenant"],src["site"],src.get("locale","en-US"),hours=hours),"workday",src.get("company") or src.get("tenant")))
+            tasks.append((pool.submit(workday_jobs,src.get("company") or src["tenant"],src["host"],src["tenant"],src["site"],src.get("locale","en-US"),hours=_hours("workday")),"workday",src.get("company") or src.get("tenant")))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
-            tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=hours),"dice","Dice"))
+            tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
             tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
         for future,source,company in tasks:
