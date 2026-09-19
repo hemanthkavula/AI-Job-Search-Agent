@@ -56,13 +56,25 @@ def _dedup_eligible(items):
         seen.setdefault(base,[]).append(item);kept.append(item)
     return kept,duplicates
 
-def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None):
+def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None):
     """Discover and eligibility-filter jobs only; no JD/resume score is used.
 
     `hours` is the incremental posting window. Use 24 for the first daily scan and
     1 for subsequent hourly scans; the persistent ledger prevents duplicate downstream work.
     """
-    profile=load_profile();ledger=load_ledger(ledger_path);jobs,errors=discover(load_sources(source_config),only_source,dice_search_terms,hours=hours);jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
+    profile=load_profile();ledger=load_ledger(ledger_path)
+    config=load_sources(source_config)
+    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours)
+    source_since=source_since or {}
+    if source_since:
+        jobs24=[];stale=[];already=[]
+        by_source={}
+        for job in jobs:by_source.setdefault(job.get("source"),[]).append(job)
+        for source,rows in by_source.items():
+            fresh,old,seen=fresh_jobs(rows,hours,since=source_since.get(source,since),now=scan_now)
+            jobs24.extend(fresh);stale.extend(old);already.extend(seen)
+    else:
+        jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
         processed,key,prior=seen_or_submitted(raw,ledger)
@@ -78,6 +90,9 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     eligible,duplicates=_dedup_eligible(eligible)
     for item in eligible:record_seen(item["job"],ledger,"ELIGIBLE_FOR_RESUME")
     save_ledger(ledger,ledger_path)
+    configured_sources={name for name in ("greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter") if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
+    failed_sources={e.get("source") for e in errors if e.get("source")}
+    source_status={name:("ERROR" if name in failed_sources else "OK") for name in configured_sources}
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
@@ -87,7 +102,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
         "eligible":len(eligible),"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
-        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,
+        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,
         "results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
     }
 
