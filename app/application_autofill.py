@@ -508,6 +508,53 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
             if not current and not selected_hint:unresolved.append(label or f"field_{i}")
     return len(result["filled"])-before,sorted(set(unresolved))
 
+def _normalized_field_value(key,value):
+    text=str(value or "").strip()
+    if key=="phone":return re.sub(r"\D+","",text)[-10:]
+    if key in ("email","linkedin"):return text.lower().rstrip("/")
+    if key=="postal_code":return re.sub(r"[^a-z0-9]","",text.lower())
+    return _norm(text)
+
+def _verify_deterministic_fields(scope,identity,result,correct=True):
+    """Read back identity/address fields the ATS retained and repair safe mismatches once."""
+    checks=[];failures=[]
+    controls=scope.locator("input, textarea, select")
+    for i in range(min(controls.count(),250)):
+        el=controls.nth(i)
+        try:
+            if not el.is_visible():continue
+            typ=(el.get_attribute("type") or "").lower()
+            if typ in ("hidden","file","checkbox","radio","submit","button","password"):continue
+            label=_label(el);key=_field_key(label)
+            expected=identity.get(key) if key else None
+            if expected in (None,""):continue
+            try:actual=el.input_value()
+            except Exception:continue
+            expected_norm=_normalized_field_value(key,expected)
+            actual_norm=_normalized_field_value(key,actual)
+            check={"field":label,"key":key,"expected":expected,"actual":actual,"matched":actual_norm==expected_norm}
+            if not check["matched"] and correct:
+                try:
+                    if key=="phone":
+                        digits=re.sub(r"\D+","",str(expected))[-10:]
+                        el.click();el.press("Control+A");el.press("Backspace")
+                        if "myworkdayjobs.com" in scope.page.url.lower() if hasattr(scope,"page") else False:
+                            el.press_sequentially(digits,delay=60)
+                        else:el.fill(digits)
+                    else:
+                        _choose(el,expected)
+                    el.press("Tab");scope.page.wait_for_timeout(250) if hasattr(scope,"page") else None
+                    actual=el.input_value()
+                    actual_norm=_normalized_field_value(key,actual)
+                    check.update({"actual_after_correction":actual,"matched":actual_norm==expected_norm,"corrected":True})
+                except Exception as exc:
+                    check["correction_error"]=str(exc)
+            if not check["matched"]:failures.append(label or key)
+            checks.append(check)
+        except Exception:continue
+    result.setdefault("field_verification",[]).extend(checks)
+    return sorted(set(failures))
+
 def _workday_resume_step(page,resume,result):
     """Handle Workday's resume-assisted first step and advance only after upload is present."""
     try:
@@ -562,6 +609,8 @@ def _workday_steps(page,item,identity,resume,result,profile=None,max_steps=8):
                 break
             continue
         filled,unresolved=_fill_current_page(page,item,identity,resume,result,profile)
+        verification_failures=_verify_deterministic_fields(page,identity,result)
+        unresolved=sorted(set(unresolved+verification_failures))
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
               "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800],
@@ -713,9 +762,11 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
         before_url=page.url
         before_filled=len(result["filled"])
         _,unresolved=_fill_current_page(scope,item,identity,resume,result,profile)
+        verification_failures=_verify_deterministic_fields(scope,identity,result)
+        unresolved=sorted(set(unresolved+verification_failures))
         analysis=analyze_application(page)
         step={"step":step_no,"url":before_url,"filled_count":len(result["filled"])-before_filled,
-              "unresolved_required":sorted(set(unresolved)),"analysis":analysis}
+              "unresolved_required":unresolved,"analysis":analysis}
         steps.append(step)
         if analysis.get("blocker_detected"):
             result["blockers"].append("CAPTCHA/MFA/verification challenge detected")
