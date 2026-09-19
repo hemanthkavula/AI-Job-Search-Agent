@@ -38,16 +38,13 @@ def _discard_resume_artifact(resume_path):
             shutil.rmtree(parent,ignore_errors=True)
     except Exception:pass
 
-def _render_base_resume(profile):
-    base_job=SimpleNamespace(
-        company="Base Resume",
-        title=profile.get("headline") or "Senior Data Engineer",
-        description="",
-        location=None,
-        employment_type=None,
-        url=None,
-    )
-    return render_llm_resume(base_job,profile,_base_resume_payload(profile),output_dir="generated/base_resume")
+def _render_base_resume(job,profile):
+    """Render the unchanged master/profile resume under the current company/job name.
+
+    The content stays master-resume content; only the artifact folder/filename and
+    displayed target role use the current job metadata.
+    """
+    return render_llm_resume(job,profile,_base_resume_payload(profile),output_dir="generated/resumes")
 
 
 def _audit_failure_summary(audit):
@@ -128,7 +125,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 # 0 targets and low-target full JDs (for example 1-2 when minimum is 3).
                 # Other resume/audit/artifact/application failures do NOT use this fallback.
                 print(f"INSUFFICIENT TARGETS ({coverage_plan['target_count']}<{min_targets}) | using standard base resume; skipping JD tailoring.",flush=True)
-                resume=_render_base_resume(profile)
+                resume=_render_base_resume(job,profile)
                 audit={
                     "passed":True,
                     "generation_source":"base_resume_insufficient_targets",
