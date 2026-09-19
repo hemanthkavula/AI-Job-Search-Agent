@@ -93,30 +93,43 @@ def _conversion_attempt(src: Path, target: Path) -> tuple[bool, str]:
     return _native_convert(src, target)
 
 
-def convert_docx_to_pdf(docx_path: str, attempts: int = 2) -> str | None:
-    """Convert the same approved DOCX, retrying rendering only; never rebuild content."""
+def convert_docx_to_pdf_detailed(docx_path: str, attempts: int = 2) -> dict:
+    """Convert one approved DOCX and return persistent conversion diagnostics."""
     src = Path(docx_path).resolve()
+    max_attempts = max(1, attempts)
+    result = {
+        "pdf_path": None,
+        "attempts": 0,
+        "reason": None,
+        "renderer": "libreoffice_headless",
+    }
     if not src.exists() or src.stat().st_size == 0:
-        print(f"PDF conversion skipped | DOCX missing or empty: {src}", flush=True)
-        return None
+        result["reason"] = f"DOCX missing or empty: {src}"
+        print(f"PDF conversion skipped | {result['reason']}", flush=True)
+        return result
 
     target = src.with_suffix(".pdf")
-    last_reason = "conversion not attempted"
-    for attempt in range(1, max(1, attempts) + 1):
-        ok, last_reason = _conversion_attempt(src, target)
+    for attempt in range(1, max_attempts + 1):
+        result["attempts"] = attempt
+        ok, reason = _conversion_attempt(src, target)
+        result["reason"] = None if ok else reason
         if ok:
+            result["pdf_path"] = str(target)
             if attempt > 1:
                 print(f"PDF conversion recovered on attempt {attempt}", flush=True)
-            return str(target)
-        print(
-            f"PDF conversion attempt {attempt}/{max(1, attempts)} failed | {last_reason}",
-            flush=True,
-        )
-        if attempt < max(1, attempts):
+            return result
+        print(f"PDF conversion attempt {attempt}/{max_attempts} failed | {reason}", flush=True)
+        if attempt < max_attempts:
             time.sleep(1.0)
 
-    print(f"PDF conversion exhausted retries | {last_reason}", flush=True)
-    return None
+    print(f"PDF conversion exhausted retries | {result['reason']}", flush=True)
+    return result
+
+
+def convert_docx_to_pdf(docx_path: str, attempts: int = 2) -> str | None:
+    """Backward-compatible path-only wrapper around detailed conversion."""
+    return convert_docx_to_pdf_detailed(docx_path, attempts=attempts)["pdf_path"]
+
 
 def _docx_signature(docx_path: str) -> dict:
     doc = Document(str(docx_path))
