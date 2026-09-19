@@ -37,7 +37,7 @@ def required_years(text: str):
     patterns=(
       r"(?:minimum(?: of)?|min\.?|at least)\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
       r"(?:requires?|required|requirement:?|qualifications?:?)\s+(?:a\s+)?(?:minimum(?: of)?\s+)?(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
-      r"(\d{1,2})\s*\+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(\d{1,2})\s*\+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:[a-z0-9&/+.\-]+\s+){0,5}?experience",
       r"(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience\s+(?:required|minimum)",
       r"(?:experience\s+)?min(?:imum)?\.?\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:software\s+engineering\s+)?experience",
     )
