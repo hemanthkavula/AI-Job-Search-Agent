@@ -114,7 +114,14 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             status=result.get("status") or "MANUAL_ACTION_REQUIRED"
             # Only confirmed submissions become SUBMITTED. Blockers stay terminal
             # MANUAL_ACTION_REQUIRED and are skipped by future discovery cycles.
-            ledger_status="SUBMITTED" if status=="SUBMITTED" and result.get("submitted") else "MANUAL_ACTION_REQUIRED"
+            if status=="SUBMITTED_CONFIRMED" and result.get("submitted"):
+                ledger_status="SUBMITTED_CONFIRMED"
+            elif status=="SUBMISSION_UNCONFIRMED":
+                ledger_status="SUBMISSION_UNCONFIRMED"
+            elif result.get("blockers"):
+                ledger_status="BLOCKED"
+            else:
+                ledger_status="MANUAL_ACTION_REQUIRED"
             record_seen(job,app_ledger,ledger_status,
                         application_result=status,
                         application_reason=result.get("reason"),
@@ -124,8 +131,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_stage_enabled"]=True
         summary["application_results"]=output
         summary["applications_processed"]=len(application_results)
-        summary["applications_submitted"]=sum(x.get("status")=="SUBMITTED" and x.get("submitted") for x in application_results)
-        summary["applications_blocked"]=sum(x.get("status")!="SUBMITTED" or not x.get("submitted") for x in application_results)
+        summary["applications_submitted"]=sum(x.get("status")=="SUBMITTED_CONFIRMED" and x.get("submitted") for x in application_results)
+        summary["applications_blocked"]=sum(x.get("status")!="SUBMITTED_CONFIRMED" or not x.get("submitted") for x in application_results)
     else:
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
