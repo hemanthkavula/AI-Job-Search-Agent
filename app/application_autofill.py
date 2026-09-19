@@ -558,18 +558,27 @@ def _dice_resume_upload(page,resume,result):
         # a native OS file chooser; Playwright must intercept that chooser instead
         # of allowing Windows' Open dialog to block automation.
         before_inputs=page.locator('input[type="file"]').count()
-        try:
-            with page.expect_file_chooser(timeout=3000) as chooser_info:
-                clicked=_dice_card_menu_action(page,resume_card,"Replace")
-            if not clicked:
-                return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
-            chooser_info.value.set_files(str(resume.resolve()))
-            uploaded=True
-        except Exception:
-            # Some Dice builds expose a new native file input without firing a
-            # chooser event. Only use an input created after the card-scoped
-            # Replace action; never fall back to the pre-existing Cover Letter input.
-            uploaded=False
+        uploaded=False
+        chooser_box={"chooser":None}
+        def _capture_chooser(chooser):
+            chooser_box["chooser"]=chooser
+        page.once("filechooser",_capture_chooser)
+        clicked=_dice_card_menu_action(page,resume_card,"Replace")
+        if not clicked:
+            try:page.remove_listener("filechooser",_capture_chooser)
+            except Exception:pass
+            return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
+        page.wait_for_timeout(500)
+        chooser=chooser_box.get("chooser")
+        if chooser is not None:
+            try:
+                chooser.set_files(str(resume.resolve()));uploaded=True
+            except Exception:pass
+        try:page.remove_listener("filechooser",_capture_chooser)
+        except Exception:pass
+        if not uploaded:
+            # Some Dice builds expose a new native file input without a chooser
+            # event. Only use an input created after the Resume-scoped Replace.
             files=page.locator('input[type="file"]')
             for i in range(before_inputs,min(files.count(),20)):
                 try:
