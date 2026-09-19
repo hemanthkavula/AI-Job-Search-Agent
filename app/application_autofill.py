@@ -494,6 +494,97 @@ def _workday_enter_application(page):
     diag["final_url"]=page.url
     return diag
 
+def _dice_resume_upload(page,resume,result):
+    """Replace Dice's saved profile resume with this application's tailored PDF and verify it."""
+    if "dice.com/job-applications/" not in (page.url or "").lower():
+        return {"handled":False}
+    expected=resume.name
+    try:
+        body=page.locator("body").inner_text(timeout=5000)
+    except Exception as exc:
+        return {"handled":False,"reason":str(exc)}
+    nb=_norm(body)
+    if "resume" not in nb or "cover letter" not in nb:
+        return {"handled":False}
+
+    # Dice may hide the native file control behind its Resume UI. Classify each
+    # file input using nearby text and never use a cover-letter control.
+    files=page.locator('input[type="file"]')
+    candidates=[]
+    for i in range(min(files.count(),20)):
+        el=files.nth(i)
+        try:
+            context=el.evaluate("""e => {
+              const parts=[];
+              const add=v=>{if(v)parts.push(String(v).trim())};
+              add(e.getAttribute('aria-label')); add(e.getAttribute('name')); add(e.id);
+              if(e.id){const l=document.querySelector('label[for="'+CSS.escape(e.id)+'"]');if(l)add(l.innerText||l.textContent)}
+              const own=e.closest('label');if(own)add(own.innerText||own.textContent);
+              let p=e.parentElement;
+              for(let n=0;p && n<5;n++,p=p.parentElement){
+                const t=(p.innerText||p.textContent||'').trim();
+                if(t && t.length<900)add(t);
+              }
+              return parts.join(' | ');
+            }""")
+            nx=_norm(context)
+            if "cover letter" in nx and "resume" not in nx:continue
+            score=100 if "resume" in nx and "cover letter" not in nx else 10
+            candidates.append((score,i,el,context))
+        except Exception:pass
+
+    candidates.sort(key=lambda x:(-x[0],x[1]))
+    for _,_,el,context in candidates:
+        try:
+            el.set_input_files(str(resume.resolve()))
+            page.wait_for_timeout(1200)
+            updated=page.locator("body").inner_text(timeout=5000)
+            if expected in updated:
+                result.setdefault("filled",[]).append({
+                    "field":"Dice resume",
+                    "value":expected,
+                })
+                result["dice_resume_verified"]=True
+                return {"handled":True,"verified":True,"filename":expected,"context":context[:300]}
+        except Exception:pass
+
+    # Some Dice variants create the native input only after clicking an Upload,
+    # Change, Replace, or Edit action in the Resume section.
+    actions=page.locator('button, [role="button"], a')
+    for i in range(min(actions.count(),100)):
+        a=actions.nth(i)
+        try:
+            if not a.is_visible():continue
+            txt=_norm(a.inner_text() or a.get_attribute("aria-label") or "")
+            if not any(t in txt for t in ("upload","change","replace","edit")):continue
+            context=_norm(a.evaluate("""e => {
+              let p=e.parentElement;
+              for(let n=0;p && n<5;n++,p=p.parentElement){
+                const t=(p.innerText||p.textContent||'').trim();
+                if(t && t.length<700)return t;
+              }
+              return '';
+            }"""))
+            if "resume" not in context or "cover letter" in context:continue
+            a.click(timeout=3000);page.wait_for_timeout(500)
+            files=page.locator('input[type="file"]')
+            for j in range(min(files.count(),20)):
+                f=files.nth(j)
+                try:
+                    f.set_input_files(str(resume.resolve()))
+                    page.wait_for_timeout(1200)
+                    updated=page.locator("body").inner_text(timeout=5000)
+                    if expected in updated:
+                        result.setdefault("filled",[]).append({"field":"Dice resume","value":expected})
+                        result["dice_resume_verified"]=True
+                        return {"handled":True,"verified":True,"filename":expected}
+                except Exception:pass
+        except Exception:pass
+
+    result["dice_resume_verified"]=False
+    return {"handled":True,"verified":False,"expected_filename":expected}
+
+
 def _required(el):
     return el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
 
@@ -1021,6 +1112,13 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                         return result
                 else:
                     result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
+            if provider=="dice":
+                result["dice_resume_upload"]=_dice_resume_upload(page,resume,result)
+                if result["dice_resume_upload"].get("handled") and not result["dice_resume_upload"].get("verified"):
+                    result["unresolved_required"]=["Dice tailored resume replacement could not be verified"]
+                    result["status"]="MANUAL_ACTION_REQUIRED"
+                    result["reason"]="Tailored resume was not verified in the Dice Resume section; refusing to advance."
+                    return result
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["workday_steps"]=_workday_steps(page,item,identity,resume,result,profile)
                 result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
