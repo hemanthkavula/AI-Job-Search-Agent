@@ -901,7 +901,7 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
             break
     return steps
 
-def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False)->dict:
+def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None)->dict:
     """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
     inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
     uploading files, or advancing any application step.
@@ -995,6 +995,18 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                         try:
                             result["final_submit_action"]=final[3]
                             result["final_submit_scope_url"]=final[4]
+                            # Persist a terminal uncertainty marker immediately before
+                            # the irreversible final click. If the process dies after
+                            # this point, the scheduler must require manual confirmation
+                            # instead of replaying and risking a duplicate application.
+                            if before_submit is not None:
+                                before_submit(item,{
+                                    "external_id":item.get("external_id"),
+                                    "url":page.url,
+                                    "final_submit_action":final[3],
+                                    "final_submit_scope_url":final[4],
+                                })
+                            result["submission_attempted"]=True
                             final[2].click(timeout=5000)
                             confirmation=_submission_confirmation(page)
                             result["submission_confirmation"]=confirmation
@@ -1024,12 +1036,12 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
             browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds,allow_submit))
+        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds,allow_submit,before_submit))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
