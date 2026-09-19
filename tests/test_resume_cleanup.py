@@ -16,7 +16,7 @@ def test_inventory_only_removes_duplicate_with_protected_peer(tmp_path,monkeypat
     statuses={Path(x["path"]).name:x["status"] for x in rows}
     assert statuses["resume.pdf"]=="KEEP_REFERENCED"
     assert statuses["copy.pdf"]=="DUPLICATE"
-    assert statuses["unique.pdf"]=="KEEP_UNPROVEN"
+    assert statuses["unique.pdf"]=="ORPHAN_CANDIDATE"
 
 def test_confirmed_filename_is_protected(tmp_path,monkeypatch):
     resumes=tmp_path/"generated"/"resumes";resumes.mkdir(parents=True)
@@ -25,6 +25,6 @@ def test_confirmed_filename_is_protected(tmp_path,monkeypatch):
     monkeypatch.setattr(cr,"RESUMES",resumes)
     monkeypatch.setattr(cr,"_ledger_reference_sets",lambda:(set(),set()))
     monkeypatch.setattr(cr,"confirmed_resume_names",lambda:{"submitted.pdf"})
-    rows,removable,_=cr.inventory()
+    rows,removable,_,_=cr.inventory()
     assert not removable
     assert rows[0]["status"]=="KEEP_CONFIRMED_HISTORY"
