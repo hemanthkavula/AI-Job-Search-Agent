@@ -5,6 +5,8 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
+import time
 from docx import Document
 
 
@@ -23,7 +25,7 @@ def _find_office() -> str | None:
 
 
 def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
-    """Render the approved DOCX headlessly. Never use Word COM/UI automation."""
+    """Render one approved DOCX headlessly using an isolated LibreOffice profile."""
     office = _find_office()
     if not office:
         return False, (
@@ -31,12 +33,12 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
             "DOCX-to-PDF conversion; Microsoft Word COM is intentionally disabled."
         )
 
-    # Use a dedicated temporary LibreOffice profile so stale GUI sessions/profile
-    # locks cannot trigger connection/recovery dialogs.
-    profile_dir = target.parent / ".lo_profile"
-    profile_dir.mkdir(parents=True, exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Keep the LibreOffice user profile OUTSIDE the resume output directory.
+    # OneDrive-synced job folders can delay/lock profile files on Windows and cause
+    # soffice to exit successfully without leaving the requested PDF.
+    profile_dir = Path(tempfile.mkdtemp(prefix="ai_job_resume_lo_"))
     profile_uri = profile_dir.resolve().as_uri()
-
     cmd = [
         office,
         "--headless",
@@ -52,46 +54,69 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
         str(src),
     ]
     env = dict(os.environ)
-    # LibreOffice can otherwise synchronously query an unavailable Windows/network
-    # printer even in --headless mode, producing a blocking "Waiting for printer
-    # connection" dialog. Disable that probe for unattended local/cloud rendering.
     env["SAL_DISABLE_SYNCHRONOUS_PRINTER_DETECTION"] = "1"
     try:
         proc = subprocess.run(cmd, check=False, timeout=90, capture_output=True, text=True, env=env)
+        detail = "\n".join(x.strip() for x in (proc.stdout, proc.stderr) if x and x.strip())
         if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "").strip()
-            return False, f"LibreOffice conversion failed (exit {proc.returncode}): {detail}"
+            return False, f"LibreOffice conversion failed (exit {proc.returncode}): {detail or 'no diagnostic output'}"
 
-        if target.exists() and target.stat().st_size > 0:
-            return True, "ok"
-        return False, "LibreOffice completed but PDF was not created"
+        # On Windows/OneDrive, filesystem visibility can lag behind soffice exit.
+        for _ in range(20):
+            if target.exists() and target.stat().st_size > 0:
+                return True, "ok"
+            time.sleep(0.25)
+        return False, (
+            "LibreOffice exited successfully but PDF was not created"
+            + (f": {detail}" if detail else "")
+        )
+    except subprocess.TimeoutExpired:
+        return False, "LibreOffice conversion timed out after 90 seconds"
     except Exception as exc:
         return False, f"LibreOffice conversion failed to start: {exc}"
     finally:
-        # The profile is conversion scratch space, not a resume artifact.
-        # Best-effort cleanup also handles Windows read-only files left by LO.
-        if profile_dir.exists():
-            def _onerror(func, path, exc_info):
-                try:
-                    os.chmod(path, 0o700)
-                    func(path)
-                except OSError:
-                    pass
-            shutil.rmtree(profile_dir, onerror=_onerror)
+        def _onerror(func, path, exc_info):
+            try:
+                os.chmod(path, 0o700)
+                func(path)
+            except OSError:
+                pass
+        shutil.rmtree(profile_dir, onerror=_onerror)
 
 
-def convert_docx_to_pdf(docx_path: str) -> str | None:
-    """Convert only the approved DOCX; never independently rebuild the PDF."""
-    src = Path(docx_path).resolve()
-    target = src.with_suffix(".pdf")
+def _conversion_attempt(src: Path, target: Path) -> tuple[bool, str]:
     try:
         if target.exists():
             target.unlink()
-    except Exception:
-        pass
-    ok, _ = _native_convert(src, target)
-    return str(target) if ok else None
+    except OSError as exc:
+        return False, f"Existing PDF could not be replaced: {exc}"
+    return _native_convert(src, target)
 
+
+def convert_docx_to_pdf(docx_path: str, attempts: int = 2) -> str | None:
+    """Convert the same approved DOCX, retrying rendering only; never rebuild content."""
+    src = Path(docx_path).resolve()
+    if not src.exists() or src.stat().st_size == 0:
+        print(f"PDF conversion skipped | DOCX missing or empty: {src}", flush=True)
+        return None
+
+    target = src.with_suffix(".pdf")
+    last_reason = "conversion not attempted"
+    for attempt in range(1, max(1, attempts) + 1):
+        ok, last_reason = _conversion_attempt(src, target)
+        if ok:
+            if attempt > 1:
+                print(f"PDF conversion recovered on attempt {attempt}", flush=True)
+            return str(target)
+        print(
+            f"PDF conversion attempt {attempt}/{max(1, attempts)} failed | {last_reason}",
+            flush=True,
+        )
+        if attempt < max(1, attempts):
+            time.sleep(1.0)
+
+    print(f"PDF conversion exhausted retries | {last_reason}", flush=True)
+    return None
 
 def _docx_signature(docx_path: str) -> dict:
     doc = Document(str(docx_path))
