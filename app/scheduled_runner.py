@@ -54,6 +54,26 @@ def _window_for(now,state):
         return BOOTSTRAP_WINDOW_HOURS,"bootstrap"
     return INCREMENTAL_WINDOW_HOURS,"incremental"
 
+def _application_ledger_status(result):
+    status=result.get("status") or ""
+    reason=(result.get("reason") or "").lower()
+    blockers=" ".join(result.get("blockers") or []).lower()
+    if status=="SUBMITTED" and result.get("submitted"):
+        return "SUBMITTED"
+    if any(x in blockers or x in reason for x in ("captcha","mfa","verification code","two-factor","two factor")):
+        return "SECURITY_BLOCKED"
+    if status in {"WAITING_FOR_HUMAN_VERIFICATION"}:
+        return "SECURITY_BLOCKED"
+    if any(x in reason for x in (
+        "timeout","timed out","connection","network","temporarily unavailable",
+        "service unavailable","502","503","504","page did not advance",
+        "could not reach application form","no safe application entry",
+    )):
+        return "RETRY_APPLICATION"
+    if status in {"INSPECTED_NO_CHANGES"}:
+        return "RETRY_APPLICATION"
+    return "MANUAL_ACTION_REQUIRED"
+
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
@@ -90,9 +110,9 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
                 "url":result.get("url"),
             }
             status=result.get("status") or "MANUAL_ACTION_REQUIRED"
-            # Only confirmed submissions become SUBMITTED. Blockers stay terminal
-            # MANUAL_ACTION_REQUIRED and are skipped by future discovery cycles.
-            ledger_status="SUBMITTED" if status=="SUBMITTED" and result.get("submitted") else "MANUAL_ACTION_REQUIRED"
+            # Confirmed submission is terminal. Security challenges are isolated
+            # without bypassing them. Transient ATS/browser failures remain retryable.
+            ledger_status=_application_ledger_status(result)
             record_seen(job,app_ledger,ledger_status,
                         application_result=status,
                         application_reason=result.get("reason"),
@@ -103,7 +123,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_results"]=output
         summary["applications_processed"]=len(application_results)
         summary["applications_submitted"]=sum(x.get("status")=="SUBMITTED" and x.get("submitted") for x in application_results)
-        summary["applications_blocked"]=sum(x.get("status")!="SUBMITTED" or not x.get("submitted") for x in application_results)
+        summary["applications_blocked"]=sum(_application_ledger_status(x) in {"SECURITY_BLOCKED","MANUAL_ACTION_REQUIRED"} for x in application_results)
+        summary["applications_retryable"]=sum(_application_ledger_status(x)=="RETRY_APPLICATION" for x in application_results)
     else:
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
