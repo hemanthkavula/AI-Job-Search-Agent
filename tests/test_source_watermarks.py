@@ -43,7 +43,11 @@ def test_source_window_uses_provider_watermark(monkeypatch, tmp_path):
             "last_successful_scan_at": global_prior.isoformat(),
             "source_watermarks": {"workday": workday_prior.isoformat()},
         })
-        monkeypatch.setattr(scheduled_runner, "datetime", type("Clock", (), {"now": staticmethod(lambda tz=None: now), "fromisoformat": staticmethod(datetime.fromisoformat)}))
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now
+        monkeypatch.setattr(scheduled_runner, "datetime", Clock)
         def fake_cycle(**kwargs):
             captured.update(kwargs)
             return {"cycle_id": "test", "application_queue": None, "queued_for_application": 0, "source_status": {}}
