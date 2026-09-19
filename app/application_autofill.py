@@ -12,8 +12,13 @@ load_dotenv(ROOT / ".env")
 
 def _norm(s):return re.sub(r"[^a-z0-9]+"," ",(s or "").lower()).strip()
 
-def _application_credentials():
-    """Load ATS login credentials from local environment only; never from queue/profile artifacts."""
+def _application_credentials(provider=None):
+    """Load ATS credentials from local environment only; Dice can override the generic login."""
+    if (provider or "").strip().lower()=="dice":
+        email=(os.getenv("DICE_LOGIN_EMAIL") or "").strip()
+        password=os.getenv("DICE_LOGIN_PASSWORD") or ""
+        if email and password:
+            return {"email":email,"password":password}
     return {
         "email": (os.getenv("APPLICATION_LOGIN_EMAIL") or "").strip(),
         "password": os.getenv("APPLICATION_LOGIN_PASSWORD") or "",
@@ -44,7 +49,7 @@ def _fill_login_gate(scope,result):
 def _dice_email_continue(page,result):
     """Dice uses an email-first auth gate; advance it before password sign-in/account creation."""
     if "dice.com/dashboard/login" not in page.url:return {"handled":False}
-    creds=_application_credentials()
+    creds=_application_credentials("dice")
     if not creds["email"]:return {"handled":False,"reason":"APPLICATION_LOGIN_EMAIL not configured"}
     try:
         email=page.locator('input[type="email"], input[name*="email" i], input[id*="email" i]').first
@@ -70,7 +75,11 @@ def _dice_email_continue(page,result):
 
 def _auth_action(scope, result):
     """Sign in or create an ATS account using local env credentials. Never handles CAPTCHA/MFA."""
-    creds=_application_credentials()
+    try:
+        scope_url=(scope.page.url if hasattr(scope,"page") else scope.url)
+    except Exception:
+        scope_url=""
+    creds=_application_credentials("dice" if "dice.com" in (scope_url or "").lower() else None)
     if not creds["email"] or not creds["password"]:
         return {"handled":False,"reason":"APPLICATION_LOGIN_EMAIL/PASSWORD not configured"}
     try:
