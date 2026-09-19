@@ -211,11 +211,22 @@ def _open_ended_answer(label,item,profile):
         title=(item.get("title") or "this data engineering role").strip()
         jd=_norm(item.get("description") or "")
         supported=[]
-        for skill in profile.get("priority_skills") or profile.get("skills") or []:
+        skill_pool=profile.get("priority_skills") or profile.get("skills") or []
+        for skill in skill_pool:
             token=_norm(str(skill))
             if token and token in jd:supported.append(str(skill))
+        # If the fixture/profile has no explicit summary, ground the interest answer
+        # in the first documented role/evidence rather than fabricating prose.
         if summary:
             base=summary[0]
+        else:
+            base=""
+            for role in roles:
+                evidence=[str(v).strip() for v in (role.get("evidence") or []) if str(v).strip()]
+                if evidence:
+                    base=evidence[0]
+                    break
+        if base:
             if supported:
                 return f"I'm interested in {title} because it aligns with my data engineering background, particularly {', '.join(supported[:4])}. {base}"
             return f"I'm interested in {title} because it aligns with my data engineering background. {base}"
