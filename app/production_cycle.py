@@ -35,7 +35,7 @@ def _sync_manifest(rows,ledger_path):
   record_seen(job,ledger,row.get("next_action") or "PREPARED",resume_path=row.get("resume_path"),pdf_path=row.get("pdf_path"),ats_audit=row.get("ats_audit"),artifact_validation=row.get("artifact_validation"))
  save_ledger(ledger,ledger_path)
 
-def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None):
+def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None,external_id=None):
  stamp=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
  eligible_rel=f"generated/cycles/{stamp}_eligible.json"
  finalized_rel=f"generated/cycles/{stamp}_finalized.json"
@@ -47,7 +47,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger)
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
-  manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),limit=limit)
+  manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
   _sync_manifest(manifest,ledger)
  queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel)) if manifest else []
  summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
@@ -70,4 +70,5 @@ if __name__=="__main__":
  p.add_argument("--ledger",default="generated/job_ledger.json")
  p.add_argument("--generate-resumes",action="store_true",help="Enable paid LLM resume generation. Omit for free discovery/finalization dry runs.")
  p.add_argument("--limit",type=int,help="Optional resume-generation cap for controlled validation.")
- a=p.parse_args();print(json.dumps(run_cycle(a.sources,a.hours,a.ledger,a.generate_resumes,a.limit),indent=2))
+ p.add_argument("--external-id",help="Generate a resume only for the matching finalized job external_id.")
+ a=p.parse_args();print(json.dumps(run_cycle(a.sources,a.hours,a.ledger,a.generate_resumes,a.limit,a.external_id),indent=2))
