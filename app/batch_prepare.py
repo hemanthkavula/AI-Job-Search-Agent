@@ -84,6 +84,15 @@ def _audit_feedback(audit):
         "retry_instruction":"Correct every failed audit gate while keeping strong content from the previous version. Prioritize missing JD keywords and exact JD terminology. If experience_depth fails, move the strongest legitimate hands-on required capabilities into coherent Professional Experience bullets rather than leaving them only in Summary/Skills. Then fix structure, repetition, readability, and metric violations. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, numerical outcomes, or specific accomplishments."
     }
 
+def _retryable_resume_error(exc):
+    text=str(exc).lower()
+    transient_markers=(
+        "credit_balance_exhausted","insufficient_quota","rate limit","429",
+        "temporarily unavailable","timeout","timed out","connection error",
+        "connection reset","service unavailable","502","503","504"
+    )
+    return any(marker in text for marker in transient_markers)
+
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
     if company and company.lower() not in (raw.get("company_key") or raw.get("company") or "").lower():return False
@@ -191,7 +200,8 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             for h in locals().get("audit_history",[]):
                 _discard_resume_artifact(h.get("resume_path"))
                 h["resume_path"]=None
-            print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0};artifact_validation={"passed":False,"reason":str(exc)}
+            retryable=_retryable_resume_error(exc)
+            print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="RETRY_RESUME_GENERATION" if retryable else "HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0,"retryable":retryable};artifact_validation={"passed":False,"reason":str(exc)}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":locals().get("artifact_validation",{}),"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 
