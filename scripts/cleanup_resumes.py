@@ -159,6 +159,17 @@ def main():
             except OSError:pass
         result["applied"]=True
     print(json.dumps(result,indent=2))
+    print("\nActive application resume protection:")
+    print(f" - replayable jobs: {len(active)}")
+    print(f" - protected resumes: {len(active)-len(missing)}")
+    print(f" - missing resumes: {len(missing)}")
+    for item in missing:
+        print(f"   MISSING | {item['status']} | {item['company']} | {item['title']}")
+        candidates=item.get("resume_candidates") or []
+        if candidates:
+            for candidate in candidates:print(f"      candidate: {candidate}")
+        else:
+            print("      candidate: <no resume path stored in ledger>")
     print("\nOrphan candidate folders (REPORT ONLY; not auto-deleted):")
     for item in orphan_folders:
         print(f" - {item['path']} | {item['files']} file(s) | {item['bytes']} bytes")
