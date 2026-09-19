@@ -54,9 +54,17 @@ def learn_from_jobs(jobs,registry):
  return added
 
 def as_discovery_config(registry):
- out={"greenhouse":[],"lever":[],"ashby":[],"smartrecruiters":[]}
+ out={"greenhouse":[],"lever":[],"ashby":[],"smartrecruiters":[],"workday":[]}
  for x in registry.get("greenhouse",[]):out["greenhouse"].append({"company":x.get("company"),"board_token":x.get("identifier") or x.get("board_token")})
  for x in registry.get("lever",[]):out["lever"].append({"company":x.get("company"),"site":x.get("identifier") or x.get("site")})
  for x in registry.get("ashby",[]):out["ashby"].append({"company":x.get("company"),"board_name":x.get("identifier") or x.get("board_name")})
  for x in registry.get("smartrecruiters",[]):out["smartrecruiters"].append({"company":x.get("company"),"company_identifier":x.get("identifier") or x.get("company_identifier")})
+ for x in registry.get("workday",[]):
+  identifier=x.get("identifier") or ""
+  parts=identifier.split("|",1)
+  if len(parts)!=2:continue
+  tenant,site=parts
+  host=x.get("host")
+  if not host:continue
+  out["workday"].append({"company":x.get("company"),"host":host,"tenant":tenant,"site":site,"locale":x.get("locale","en-US")})
  return out
