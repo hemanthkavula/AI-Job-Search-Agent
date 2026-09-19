@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json,re
+import argparse,json,re,os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from app.config import load_profile
@@ -9,6 +9,35 @@ from app.application_navigator import enter_application, form_scope, analyze as 
 ROOT=Path(__file__).resolve().parents[1]
 
 def _norm(s):return re.sub(r"[^a-z0-9]+"," ",(s or "").lower()).strip()
+
+def _application_credentials():
+    """Load ATS login credentials from local environment only; never from queue/profile artifacts."""
+    return {
+        "email": (os.getenv("APPLICATION_LOGIN_EMAIL") or "").strip(),
+        "password": os.getenv("APPLICATION_LOGIN_PASSWORD") or "",
+    }
+
+def _fill_login_gate(scope,result):
+    """Fill deterministic login credentials without logging or persisting the password."""
+    creds=_application_credentials()
+    if not creds["email"] or not creds["password"]:
+        return False
+    email_sel='input[type="email"], input[name*="email" i], input[id*="email" i], input[autocomplete="username"]'
+    pass_sel='input[type="password"], input[autocomplete="current-password"]'
+    try:
+        email=scope.locator(email_sel).first
+        password=scope.locator(pass_sel).first
+        if not email.count() or not password.count() or not email.is_visible() or not password.is_visible():
+            return False
+        email.fill(creds["email"])
+        password.fill(creds["password"])
+        result.setdefault("filled",[]).append({"field":"ATS login email","value":creds["email"]})
+        result.setdefault("filled",[]).append({"field":"ATS login password","value":"[REDACTED]"})
+        result["login_credentials_filled"]=True
+        return True
+    except Exception as exc:
+        result["login_credentials_error"]=str(exc)
+        return False
 
 def _identity(profile):
     parts=(profile.get("name") or "").split()
