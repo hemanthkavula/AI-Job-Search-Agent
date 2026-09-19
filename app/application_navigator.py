@@ -68,6 +68,17 @@ def scopes(page):
     return out
 
 
+def _blocker_details(page):
+    found = []
+    for scope in scopes(page):
+        url = getattr(scope, "url", "") or ""
+        text = _text(scope)
+        haystack = f"{url} {text}"
+        if BLOCKER_RE.search(haystack) or "hcaptcha.com" in url or "recaptcha" in url.lower():
+            found.append({"url": url, "excerpt": re.sub(r"\\s+", " ", text).strip()[:300]})
+    return found
+
+
 def analyze(page):
     rendered = wait_for_render(page)
     body = rendered["body"]
@@ -79,6 +90,7 @@ def analyze(page):
             "body_length": len(text),
             "controls": _interactive_count(scope),
         })
+    blocker_details = _blocker_details(page)
     return {
         "url": page.url,
         "provider": provider_from_url(page.url),
@@ -86,7 +98,8 @@ def analyze(page):
         "body_excerpt": re.sub(r"\s+", " ", body).strip()[:2500],
         "controls": sum(x["controls"] for x in frames),
         "frames": frames,
-        "blocker_detected": bool(BLOCKER_RE.search(body)),
+        "blocker_detected": bool(BLOCKER_RE.search(body) or blocker_details),
+        "blocker_details": blocker_details,
     }
 
 
@@ -113,8 +126,10 @@ def enter_application(page, provider=None, timeout_ms=20000):
     diag = {"provider": provider, "start_url": page.url, "attempts": [], "entered": False}
     rendered = wait_for_render(page, timeout_ms)
     body = rendered["body"]
-    if BLOCKER_RE.search(body):
+    initial_blockers = _blocker_details(page)
+    if BLOCKER_RE.search(body) or initial_blockers:
         diag["blocker"] = "CAPTCHA/MFA/verification challenge detected"
+        diag["blocker_details"] = initial_blockers
         return diag
 
     if rendered["controls"] > 0 and page.locator('input[type="file"]').count() > 0:
@@ -146,6 +161,7 @@ def enter_application(page, provider=None, timeout_ms=20000):
                 attempt["after"] = after
                 if after["blocker_detected"]:
                     diag["blocker"] = "CAPTCHA/MFA/verification challenge detected"
+                    diag["blocker_details"] = after.get("blocker_details", [])
                     diag["final_url"] = page.url
                     return diag
                 if after["controls"] > 0 or page.url != diag["start_url"]:
