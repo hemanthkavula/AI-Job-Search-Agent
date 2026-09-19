@@ -60,15 +60,16 @@ def _scheduled_cutoff(now,state):
     """
     last=_parse_state_time(state.get("last_successful_scan_at"))
     today=now.date()
-    day_start=datetime(today.year,today.month,today.day,BOOTSTRAP_HOUR,tzinfo=ET)
-    if now.weekday()==0:
-        prior_close=day_start-timedelta(days=3,hours=BOOTSTRAP_HOUR-FINAL_HOUR)
-    else:
-        prior_close=day_start-timedelta(days=1,hours=BOOTSTRAP_HOUR-FINAL_HOUR)
+    # Construct the prior scheduled close as a local wall-clock time instead of
+    # subtracting elapsed hours. This preserves 18:00 Eastern across DST changes.
+    days_back=3 if now.weekday()==0 else 1
+    prior_date=today-timedelta(days=days_back)
+    prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
     if last is None:return prior_close,"bootstrap"
-    # A prior-day state must never make the morning bootstrap start earlier than
-    # the previous scheduled 18:00 close. Same-day missed runs do catch up.
-    if last.date()!=today:return max(last,prior_close),"bootstrap"
+    # The persisted watermark is authoritative. If the prior 18:00 run was
+    # missed (for example the last success was 17:00), resume at 17:00 so no
+    # posting interval is silently lost.
+    if last.date()!=today:return last,"bootstrap"
     return last,"incremental"
 
 def _window_for(now,state):
@@ -126,7 +127,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     state=_load_state()
     hours,mode,cutoff=_window_for(now,state)
-    summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
+    # Ask source adapters for a small overlap because they compute their own
+    # relative clocks; the exact cutoff below is still enforced by freshness.
+    discovery_hours=hours+(5.0/60.0)
+    summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
+                      since=cutoff.isoformat(),scan_now=now)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
     # answers, and other manual blockers are recorded and the batch continues.
@@ -191,7 +196,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["applications_processed"]=0
 
     state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
-    summary["scan_cutoff_local"]=cutoff.isoformat()
+    summary["scan_cutoff_local"]=cutoff.isoformat()\n    summary["scan_window_hours"]=hours
     _save_state(state)
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
