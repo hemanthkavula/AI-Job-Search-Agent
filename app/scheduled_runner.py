@@ -144,7 +144,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     hours,mode,cutoff=_window_for(now,state)
     # Each provider resumes from its own last successful discovery. Existing
     # scheduler state migrates safely by falling back to the global cutoff.
-    providers=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","dice","ziprecruiter")
+    providers=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","dice","ziprecruiter")
     watermarks=state.get("source_watermarks") or {}
     source_cutoffs={}
     source_hours={}
