@@ -952,7 +952,11 @@ def _final_submit_candidates(page):
                     # A bare "Submit" is acceptable only for a submit-type control inside
                     # the application form after all required questions are resolved.
                     typ=(el.get_attribute("type") or "").lower()
-                    bare_submit=nx=="submit" and typ=="submit"
+                    # Dice renders its final control as a normal <button>
+                    # labelled "Submit" rather than type="submit". _generic_steps
+                    # already recognizes that exact review-boundary control, so
+                    # final-submit lookup must use the same rule.
+                    bare_submit=nx=="submit" and (typ=="submit" or tag=="button")
                     # Some external ATS forms use employer-specific final labels such
                     # as "Apply for this Position" rather than "Submit Application".
                     apply_position=nx in ("apply for this position","apply for position") and (
