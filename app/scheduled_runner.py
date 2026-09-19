@@ -196,7 +196,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["applications_processed"]=0
 
     state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
-    summary["scan_cutoff_local"]=cutoff.isoformat()\n    summary["scan_window_hours"]=hours
+    summary["scan_cutoff_local"]=cutoff.isoformat()
+    summary["scan_window_hours"]=hours
     _save_state(state)
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
