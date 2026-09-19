@@ -9,6 +9,7 @@ import uvicorn
 
 ROOT=Path(__file__).resolve().parents[1]
 LEDGER=ROOT/"generated"/"job_ledger.json"
+CONFIRMED=ROOT/"data"/"confirmed_applications.json"
 app=FastAPI(title="AI Job Search Agent")
 
 def _json(path,default):
@@ -57,32 +58,47 @@ def _stage(status):
 
 def _jobs():
     ledger=_json(LEDGER,{"jobs":{}})
-    out=[]
+    confirmed=_json(CONFIRMED,{"applications":[]}).get("applications") or []
+    confirmed_by_external={x.get("external_id"):x for x in confirmed if x.get("external_id")}
+    confirmed_by_name={(str(x.get("company") or "").lower(),str(x.get("title") or "").lower()):x for x in confirmed}
+    out=[]; matched=set()
+    active={"READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION",
+            "RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED",
+            "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
     for key,row in (ledger.get("jobs") or {}).items():
-        status=row.get("application_status") or "DISCOVERED"
-        # Application dashboard: hide raw discovery noise and show only jobs that
-        # entered the resume/application workflow.
-        relevant=bool(
-            row.get("queue_item") or row.get("retry_application") or row.get("resume_path") or
-            row.get("pdf_path") or row.get("application_result") or
-            status in {"READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION",
-                       "RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED",
-                       "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
-        )
-        if not relevant:continue
+        name_key=(str(row.get("company") or "").lower(),str(row.get("title") or "").lower())
+        hist=None
+        for eid in row.get("external_ids") or []:
+            if eid in confirmed_by_external:hist=confirmed_by_external[eid];break
+        hist=hist or confirmed_by_name.get(name_key)
+        status=(hist or {}).get("status") or row.get("application_status") or "DISCOVERED"
+        if status not in active:continue
         rp=_resume_path(row)
+        resume_name=(hist or {}).get("resume") or (rp.name if rp else None)
+        resume_url="/resume/"+quote(key,safe="") if rp else None
+        if hist:matched.add((hist.get("company"),hist.get("title")))
         out.append({
-            "key":key,"company":row.get("company") or "Unknown company",
-            "title":row.get("title") or "Unknown role","status":status,"stage":_stage(status),
-            "source":row.get("source") or "","portal":_portal(row),
+            "key":key,"company":row.get("company") or (hist or {}).get("company") or "Unknown company",
+            "title":row.get("title") or (hist or {}).get("title") or "Unknown role",
+            "status":status,"stage":_stage(status),"source":row.get("source") or "",
+            "portal":(hist or {}).get("portal") or _portal(row),
             "url":row.get("url") or (row.get("queue_item") or {}).get("url") or "",
-            "resume":rp.name if rp else None,
-            "resume_url":"/resume/"+quote(key,safe="") if rp else None,
+            "resume":resume_name,"resume_url":resume_url,
             "updated":row.get("last_seen") or row.get("first_seen"),
-            "reason":row.get("application_reason") or "",
-            "applied_at":_applied_at(row),
+            "applied_at":(hist or {}).get("submitted_date") or _applied_at(row),
+            "reason":(hist or {}).get("confirmation") or row.get("application_reason") or "",
         })
-    out.sort(key=lambda x:x.get("updated") or "",reverse=True)
+    for hist in confirmed:
+        if (hist.get("company"),hist.get("title")) in matched:continue
+        out.append({
+            "key":"history:"+str(hist.get("external_id") or hist.get("company"))+":"+str(hist.get("title")),
+            "company":hist.get("company") or "Unknown company","title":hist.get("title") or "Unknown role",
+            "status":"SUBMITTED_CONFIRMED","stage":"Applied","source":"","portal":hist.get("portal") or "Company portal",
+            "url":hist.get("url") or "","resume":hist.get("resume"),"resume_url":None,
+            "updated":hist.get("submitted_date"),"applied_at":hist.get("submitted_date"),
+            "reason":hist.get("confirmation") or "Confirmed submitted."
+        })
+    out.sort(key=lambda x:x.get("updated") or x.get("applied_at") or "",reverse=True)
     return out
 
 @app.get("/api/applications")
@@ -122,28 +138,19 @@ def resume(job_key:str):
 @app.get("/",response_class=HTMLResponse)
 def dashboard():
     return HTMLResponse(r"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>My Job Applications</title><style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f6f7fb;color:#182033}
-.top{padding:26px max(20px,5vw);background:#101828;color:#fff}.top h1{margin:0;font-size:26px}.top p{color:#b7c0d1;margin:7px 0 0}
-main{padding:22px max(16px,5vw)}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-.stat,.job{background:#fff;border:1px solid #e4e8f0;border-radius:14px}.stat{padding:16px}.stat span{font-size:12px;color:#667085;font-weight:700;text-transform:uppercase}.stat b{display:block;font-size:28px;margin-top:5px}
-.controls{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.controls input,.controls select{padding:11px 13px;border:1px solid #d7dce5;border-radius:9px;background:#fff;font-size:14px}
-.controls input{flex:1;min-width:220px}.jobs{display:grid;gap:12px}.job{padding:18px;display:grid;grid-template-columns:minmax(240px,2fr) minmax(120px,.7fr) minmax(150px,.8fr) auto;gap:18px;align-items:center}
-.company{font-weight:800;font-size:16px}.title{margin-top:4px;color:#475467}.meta{font-size:12px;color:#7a8495;margin-top:7px}.label{font-size:11px;color:#8490a3;text-transform:uppercase;font-weight:800;margin-bottom:5px}.badge{display:inline-block;padding:6px 9px;border-radius:999px;background:#eef2f6;font-size:12px;font-weight:800}
-.applied{background:#dcfce7;color:#166534}.ready-to-apply,.applying{background:#dbeafe;color:#1d4ed8}.needs-attention,.verify-submission{background:#fef3c7;color:#92400e}.retrying{background:#f3e8ff;color:#7e22ce}
-.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.btn{display:inline-block;padding:9px 12px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;background:#101828;color:#fff}.btn.secondary{background:#fff;color:#344054;border:1px solid #d0d5dd}.empty{background:#fff;padding:35px;border-radius:14px;text-align:center;color:#667085}
-@media(max-width:850px){.stats{grid-template-columns:repeat(2,1fr)}.job{grid-template-columns:1fr}.actions{justify-content:flex-start}}
-@media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.top{padding:20px}.job{padding:15px}}
-</style></head><body><div class="top"><h1>My Job Applications</h1><p>Resume → queue → application → submission. Live from the agent ledger.</p></div><main>
-<div class="stats"><div class="stat"><span>In pipeline</span><b id="all">0</b></div><div class="stat"><span>Queue</span><b id="queue">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Needs attention</span><b id="attention">0</b></div></div>
-<div class="controls"><input id="search" placeholder="Search company or role"><select id="filter"><option value="">All statuses</option><option>Ready to apply</option><option>Applying</option><option>Applied</option><option>Needs attention</option><option>Verify submission</option><option>Retrying</option></select></div>
-<div class="jobs" id="jobs"></div></main><script>
-let rows=[];const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const cls=s=>String(s).toLowerCase().replaceAll(" ","-");
-function render(){let q=document.getElementById("search").value.toLowerCase(),f=document.getElementById("filter").value;let x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));document.getElementById("jobs").innerHTML=x.map(r=>`<div class="job"><div><div class="company">${esc(r.company)}</div><div class="title">${esc(r.title)}</div><div class="meta">${esc(r.portal)} • ${r.applied_at?"applied "+new Date(r.applied_at).toLocaleString():"updated "+(r.updated?new Date(r.updated).toLocaleString():"—")}</div></div><div><div class="label">Status</div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div><div class="label">Resume</div>${r.resume?`<a href="${r.resume_url}" target="_blank">${esc(r.resume)}</a>`:"Not generated yet"}</div><div class="actions">${r.url?`<a class="btn" href="${esc(r.url)}" target="_blank">Open application</a>`:""}${r.resume_url?`<a class="btn secondary" href="${r.resume_url}" target="_blank">Open resume</a>`:""}${r.stage==="Verify submission"?`<button class="btn secondary" onclick="confirmSubmitted(\'${encodeURIComponent(r.key)}\')">Mark submitted</button>`:""}</div></div>`).join("")||'<div class="empty">No application-pipeline jobs match this view.</div>'}
-async function confirmSubmitted(k){if(!confirm("Only mark this submitted if the employer/ATS portal shows it was submitted."))return;await fetch("/api/applications/"+k+"/confirm-submitted",{method:"POST"});await load()}
-async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}
-search.oninput=render;filter.onchange=render;load();setInterval(load,5000);
+<title>Application Tracker</title><style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f7f8fb;color:#101828}header{padding:24px 5%;background:#fff;border-bottom:1px solid #e4e7ec;display:flex;justify-content:space-between;align-items:center}h1{font-size:23px;margin:0}.sub{font-size:13px;color:#667085;margin-top:5px}.live{font-size:12px;color:#027a48;background:#ecfdf3;padding:7px 10px;border-radius:20px;font-weight:700}
+main{padding:22px 5%}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:16px}.stat span{font-size:11px;color:#667085;text-transform:uppercase;font-weight:800}.stat b{font-size:26px;display:block;margin-top:5px}
+.toolbar{display:flex;gap:10px;margin-bottom:14px}.toolbar input,.toolbar select{border:1px solid #d0d5dd;background:#fff;border-radius:9px;padding:10px 12px;font-size:14px}.toolbar input{flex:1}
+.table{background:#fff;border:1px solid #e4e7ec;border-radius:12px;overflow:hidden}.row{display:grid;grid-template-columns:minmax(220px,1.5fr) 130px minmax(180px,1fr) 110px 190px;gap:14px;align-items:center;padding:15px 18px;border-bottom:1px solid #eef0f3}.row:last-child{border-bottom:0}.head{background:#f9fafb;color:#667085;font-size:11px;text-transform:uppercase;font-weight:800;padding-top:11px;padding-bottom:11px}.company{font-weight:800}.role{font-size:13px;color:#475467;margin-top:3px}.portal{font-size:12px;color:#667085;margin-top:4px}.badge{display:inline-block;padding:6px 9px;border-radius:20px;font-size:11px;font-weight:800;background:#f2f4f7}.applied{background:#ecfdf3;color:#027a48}.ready-to-apply,.applying{background:#eff8ff;color:#175cd3}.needs-attention,.verify-submission{background:#fffaeb;color:#b54708}.retrying{background:#f4f3ff;color:#5925dc}.resume{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.date{font-size:12px;color:#475467}.actions{display:flex;gap:7px}.btn{border:1px solid #d0d5dd;background:#fff;color:#344054;text-decoration:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap}.btn.primary{background:#101828;color:#fff;border-color:#101828}.empty{padding:35px;text-align:center;color:#667085}
+@media(max-width:900px){header{padding:18px 4%}main{padding:16px 4%}.stats{grid-template-columns:1fr 1fr}.head{display:none}.row{grid-template-columns:1fr}.table{background:transparent;border:0}.row{background:#fff;border:1px solid #e4e7ec;border-radius:12px;margin-bottom:10px}.resume{white-space:normal}.actions{flex-wrap:wrap}}
+</style></head><body><header><div><h1>Application Tracker</h1><div class="sub">Only jobs that reached the application workflow</div></div><div class="live">● Live</div></header><main>
+<div class="stats"><div class="stat"><span>Application pipeline</span><b id="all">0</b></div><div class="stat"><span>Ready / applying</span><b id="queue">0</b></div><div class="stat"><span>Submitted</span><b id="applied">0</b></div><div class="stat"><span>Needs attention</span><b id="attention">0</b></div></div>
+<div class="toolbar"><input id="search" placeholder="Search company or role"><select id="filter"><option value="">All application statuses</option><option>Applied</option><option>Ready to apply</option><option>Applying</option><option>Retrying</option><option>Needs attention</option><option>Verify submission</option></select></div>
+<div class="table"><div class="row head"><div>Company / role</div><div>Status</div><div>Resume used</div><div>Applied</div><div>Actions</div></div><div id="jobs"></div></div></main><script>
+let rows=[];const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const cls=s=>String(s).toLowerCase().replaceAll(" ","-");const dt=v=>{if(!v)return"—";let d=new Date(v.length===10?v+"T12:00:00":v);return isNaN(d)?v:d.toLocaleDateString()};
+function render(){let q=search.value.toLowerCase(),f=filter.value,x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));jobs.innerHTML=x.map(r=>`<div class="row"><div><div class="company">${esc(r.company)}</div><div class="role">${esc(r.title)}</div><div class="portal">${esc(r.portal)}</div></div><div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div class="resume">${r.resume_url?`<a href="${r.resume_url}" target="_blank">${esc(r.resume)}</a>`:esc(r.resume||"—")}</div><div class="date">${r.stage==="Applied"?dt(r.applied_at):"—"}</div><div class="actions">${r.url?`<a class="btn primary" href="${esc(r.url)}" target="_blank">Job / portal</a>`:""}${r.resume_url?`<a class="btn" href="${r.resume_url}" target="_blank">Resume</a>`:""}</div></div>`).join("")||'<div class="empty">No applications in this view.</div>'}
+async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}search.oninput=render;filter.onchange=render;load();setInterval(load,5000);
 </script></body></html>""")
 
 def main():
