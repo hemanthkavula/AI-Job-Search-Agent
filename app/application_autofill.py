@@ -80,16 +80,20 @@ def _auth_action(scope, result):
     if BLOCKER_RE.search(body):
         return {"handled":False,"blocker":"CAPTCHA/MFA/verification challenge detected"}
 
-    email=scope.locator('input[type="email"], input[name*="email" i], input[id*="email" i], input[autocomplete="username"]').first
-    password=scope.locator('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]').first
-    if not email.count() or not password.count():
-        return {"handled":False,"reason":"No login/account credential form detected"}
+    emails=scope.locator('input[type="email"], input[name*="email" i], input[id*="email" i], input[autocomplete="username"]')
+    passwords=scope.locator('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]')
+    email=next((emails.nth(i) for i in range(min(emails.count(),20)) if emails.nth(i).is_visible()),None)
+    password=next((passwords.nth(i) for i in range(min(passwords.count(),20)) if passwords.nth(i).is_visible()),None)
+    # Email-first login flows (notably Dice) no longer expose an editable email
+    # field on the password page. The email was already accepted on the prior step.
+    if password is None:
+        return {"handled":False,"reason":"No visible login/account password field detected"}
     try:
-        email.fill(creds["email"]); password.fill(creds["password"])
-        result.setdefault("filled",[]).extend([
-            {"field":"ATS account email","value":creds["email"]},
-            {"field":"ATS account password","value":"[REDACTED]"},
-        ])
+        if email is not None:email.fill(creds["email"])
+        password.fill(creds["password"])
+        logged=[{"field":"ATS account password","value":"[REDACTED]"}]
+        if email is not None:logged.insert(0,{"field":"ATS account email","value":creds["email"]})
+        result.setdefault("filled",[]).extend(logged)
         # Account creation commonly requires password confirmation.
         confirms=scope.locator('input[type="password"]')
         if confirms.count()>1:
