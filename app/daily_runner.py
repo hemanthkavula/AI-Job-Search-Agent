@@ -111,15 +111,18 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         unit=src.get("company") or src.get("tenant")
         if unit:
             source_unit_status[f"workday:{unit}"]="ERROR" if unit in failed_workday else "OK"
+    target_fresh=sum(bool(j.get("target_company")) for j in jobs24)
+    target_eligible=sum(bool((x.get("job") or {}).get("target_company")) for x in eligible)
+    target_rejected=sum(bool((x.get("job") or {}).get("target_company")) for x in skipped)
     diagnostics={
-        "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
+        "fresh_jobs_checked":len(jobs24),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
         "duplicates_removed":len(duplicates),
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
-        "eligible":len(eligible),"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
+        "eligible":len(eligible),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
         "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,"source_unit_status":source_unit_status,
         "results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
     }
