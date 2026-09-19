@@ -17,7 +17,7 @@ PRESERVE_FILES = {
     "discovered_sources.json",
     "source_health.json",
 }
-PRESERVE_DIRS = {"resumes"}
+PRESERVE_DIRS = {"resumes", "llm_resume_cache"}
 
 # Historical/debug output that is safe to rebuild.
 CLEAN_DIRS = {"cycles", "diagnostics"}
@@ -29,6 +29,7 @@ LEGACY_FILES = {
     "application_inspection.json",
     "application_autofill.json",
     "evening_report.md",
+    "ai_application_results.json",
 }
 
 
@@ -78,15 +79,27 @@ def cleanup(dry_run: bool = False) -> list[str]:
             if not dry_run:
                 path.unlink()
 
-    # Remove accidental Python/cache/temp artifacts anywhere under generated,
-    # but never traverse into or delete resume history.
+    # Remove accidental temp artifacts under generated, but preserve durable
+    # resume history and the paid-LLM cache.
     for path in list(GENERATED.rglob("*")):
         if any(part in PRESERVE_DIRS for part in path.relative_to(GENERATED).parts):
             continue
-        if path.is_file() and (path.suffix in {".pyc", ".tmp", ".log"} or path.name == ".DS_Store"):
+        if path.is_file() and (path.suffix in {".pyc", ".tmp", ".log"} or path.name in {".DS_Store", "Thumbs.db"}):
             removed.append(str(path.relative_to(ROOT)))
             if not dry_run:
                 path.unlink()
+
+    # Python/pytest caches are always rebuildable and should never be committed
+    # or treated as application state. Clean them across the project, excluding
+    # the virtual environment and .git.
+    for name in ("__pycache__", ".pytest_cache"):
+        for path in list(ROOT.rglob(name)):
+            rel=path.relative_to(ROOT)
+            if any(part in {".venv", ".git"} for part in rel.parts):
+                continue
+            if path.is_dir():
+                removed.append(str(rel))
+                if not dry_run:_rmtree(path)
 
     return removed
 
