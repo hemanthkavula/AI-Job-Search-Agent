@@ -458,6 +458,34 @@
       "tenant": "quickenloans",
       "site": "rocket_careers",
       "locale": "en-US"
+    },
+    {
+      "company": "RELX",
+      "host": "relx.wd3.myworkdayjobs.com",
+      "tenant": "relx",
+      "site": "relx",
+      "locale": "en-US"
+    },
+    {
+      "company": "LexisNexis",
+      "host": "relx.wd3.myworkdayjobs.com",
+      "tenant": "relx",
+      "site": "RiskSolutions",
+      "locale": "en-US"
+    },
+    {
+      "company": "Chewy",
+      "host": "chewy.wd5.myworkdayjobs.com",
+      "tenant": "chewy",
+      "site": "External",
+      "locale": "en-US"
+    },
+    {
+      "company": "Teladoc Health",
+      "host": "teladoc.wd503.myworkdayjobs.com",
+      "tenant": "teladoc",
+      "site": "teladochealth_is_hiring",
+      "locale": "en-US"
     }
   ],
   "dice": {
