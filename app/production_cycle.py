@@ -42,6 +42,14 @@ def _sync_manifest(rows,ledger_path):
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
   extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation")}
+  if row.get("next_action")=="READY_TO_APPLY":
+   queue_payload={
+    "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
+    "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
+    "resume_path":row.get("pdf_path") or row.get("resume_path"),"artifact_validation":row.get("artifact_validation"),
+    "status":"READY_FOR_ATS_ADAPTER",
+   }
+   if queue_payload.get("external_id") and queue_payload.get("resume_path"):extra["queue_item"]=queue_payload
   if row.get("next_action")=="RETRY_RESUME_GENERATION":
    extra["retry_job"]={
     "external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
