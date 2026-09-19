@@ -5,7 +5,7 @@ from pathlib import Path
 from app.daily_runner import run as discover_and_filter
 from app.jd_finalizer import finalize_report
 from app.batch_prepare import prepare
-from app.job_ledger import load_ledger,save_ledger,record_seen
+from app.job_ledger import load_ledger,save_ledger,record_seen,retryable_jobs
 from app.application_queue import build as build_application_queue
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -32,7 +32,16 @@ def _sync_manifest(rows,ledger_path):
  ledger=load_ledger(ledger_path)
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
-  record_seen(job,ledger,row.get("next_action") or "PREPARED",resume_path=row.get("resume_path"),pdf_path=row.get("pdf_path"),ats_audit=row.get("ats_audit"),artifact_validation=row.get("artifact_validation"))
+  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation")}
+  if row.get("next_action")=="RETRY_RESUME_GENERATION":
+   extra["retry_job"]={
+    "external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
+    "url":row.get("url"),"original_url":row.get("original_url"),"ats_provider":row.get("ats_provider"),"ats_identifier":row.get("ats_identifier"),
+    "ats_resolution":row.get("ats_resolution"),"application_route":row.get("application_route"),"tailoring_mode":row.get("tailoring_mode"),
+    "description":row.get("description"),"description_complete":row.get("description_complete"),"description_usable":row.get("description_usable"),
+    "employment_type":row.get("employment_type"),"location":row.get("location"),"eligibility":row.get("eligibility")
+   }
+  record_seen(job,ledger,row.get("next_action") or "PREPARED",**extra)
  save_ledger(ledger,ledger_path)
 
 def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None,external_id=None):
