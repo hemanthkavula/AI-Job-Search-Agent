@@ -190,11 +190,11 @@
     },
     {
       "company": "Snowflake",
-      "board": "snowflake"
+      "board_name": "snowflake"
     },
     {
       "company": "Ramp",
-      "board": "ramp"
+      "board_name": "ramp"
     }
   ],
   "smartrecruiters": [
