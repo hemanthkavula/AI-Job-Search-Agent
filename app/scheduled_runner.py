@@ -135,11 +135,19 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     state=_load_state()
     hours,mode,cutoff=_window_for(now,state)
-    # Ask source adapters for a small overlap because they compute their own
-    # relative clocks; the exact cutoff below is still enforced by freshness.
+    # Each provider resumes from its own last successful discovery. Existing
+    # scheduler state migrates safely by falling back to the global cutoff.
+    providers=("greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter")
+    watermarks=state.get("source_watermarks") or {}
+    source_cutoffs={}
+    source_hours={}
+    for provider in providers:
+        provider_cutoff=_parse_state_time(watermarks.get(provider)) or cutoff
+        source_cutoffs[provider]=provider_cutoff.isoformat()
+        source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0+(5.0/60.0)
     discovery_hours=hours+(5.0/60.0)
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
-                      since=cutoff.isoformat(),scan_now=now)
+                      since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
     # answers, and other manual blockers are recorded and the batch continues.
@@ -203,11 +211,17 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
 
-    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
+    # Advance only providers that completed without discovery errors. A failed
+    # provider keeps its old watermark and catches the missed interval next run.
+    source_status=summary.get("source_status") or {}
+    next_watermarks=dict(watermarks)
+    for provider,status in source_status.items():
+        if status=="OK":next_watermarks[provider]=now.isoformat()
+    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks})
     summary["scan_cutoff_local"]=cutoff.isoformat()
     summary["scan_window_hours"]=hours
     _save_state(state)
-    summary["scheduler_mode"]=mode
+    summary["source_watermarks"]=next_watermarks\n    summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=now.hour==FINAL_HOUR
     return summary
