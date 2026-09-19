@@ -1,5 +1,9 @@
 name: Hourly Production Job Cycle
 on:
+  push:
+    branches: [main, feature/checkpoint-discovery-window]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
   schedule:
     # GitHub cron is UTC. Trigger hourly across the full ET/EDT envelope;
@@ -27,6 +31,7 @@ jobs:
           key: job-agent-state-${{ github.run_id }}
           restore-keys: job-agent-state-
       - name: Run scheduled production cycle
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: python -m app.scheduled_runner --sources data/job_sources.json
       - uses: actions/upload-artifact@v4
         with:
