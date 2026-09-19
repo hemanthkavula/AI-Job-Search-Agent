@@ -240,7 +240,12 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # Advance only providers that completed without discovery errors. A failed
     # provider keeps its old watermark and catches the missed interval next run.
     source_status=summary.get("source_status") or {}
-    next_watermarks=dict(watermarks)
+    # Seed every provider with the cutoff actually used for this cycle. This
+    # safely migrates legacy state that only has the global watermark: a failed
+    # provider keeps the old cutoff instead of falling forward to the new global
+    # success timestamp on the next run.
+    next_watermarks={provider:source_cutoffs[provider] for provider in providers}
+    next_watermarks.update(watermarks)
     for provider,status in source_status.items():
         if status=="OK":next_watermarks[provider]=now.isoformat()
     state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks})
