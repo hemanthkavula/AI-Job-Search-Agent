@@ -102,15 +102,19 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             min_targets=1 if raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE" else MIN_COVERAGE_TARGETS
-            if coverage_plan["target_count"] == 0:
-                # No reliable JD targets: do not hold the application and do not spend
-                # an LLM call. Use the standard profile-backed base resume unchanged.
-                print("ZERO TARGETS | using standard base resume; skipping JD tailoring.",flush=True)
+            if coverage_plan["target_count"] < min_targets:
+                # Target extraction itself is the only reason this job would be held,
+                # so fall back to the standard profile-backed base resume. This covers
+                # 0 targets and low-target full JDs (for example 1-2 when minimum is 3).
+                # Other resume/audit/artifact/application failures do NOT use this fallback.
+                print(f"INSUFFICIENT TARGETS ({coverage_plan['target_count']}<{min_targets}) | using standard base resume; skipping JD tailoring.",flush=True)
                 resume=_render_base_resume(profile)
                 audit={
                     "passed":True,
-                    "generation_source":"base_resume_zero_targets",
+                    "generation_source":"base_resume_insufficient_targets",
                     "generation_attempts":0,
+                    "target_count":coverage_plan["target_count"],
+                    "minimum_target_count":min_targets,
                     "internal_ats_score":None,
                     "keyword_coverage":None,
                     "experience_depth_coverage":None,
@@ -121,8 +125,6 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 audit_history=[{"version":"BASE","resume_path":str(resume),"audit":audit}]
                 attempts=0
             else:
-                if coverage_plan["target_count"] < min_targets:
-                    raise RuntimeError(f"JD coverage extraction produced only {coverage_plan['target_count']} targets; holding job before paid resume generation because the JD could not be analyzed reliably.")
                 print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
                 generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
