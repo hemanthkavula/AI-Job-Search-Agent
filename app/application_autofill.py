@@ -409,8 +409,17 @@ def _fill_current_page(page,item,identity,resume,result):
         # Required consent checkboxes are safe to accept when they explicitly
         # reference the ATS privacy policy / terms needed to submit the application.
         if typ=="checkbox":
-            lx=_norm(label)
-            if required and any(t in lx for t in ("privacy policy","terms of service","terms and conditions")):
+            try:
+                consent_context=el.evaluate("""e => {
+                  const p=e.closest('label, fieldset, div, p') || e.parentElement;
+                  return ((p && (p.innerText || p.textContent)) || '') + ' ' +
+                         (e.getAttribute('aria-label') || '') + ' ' +
+                         (e.getAttribute('name') || '') + ' ' + (e.id || '');
+                }""")
+            except Exception:
+                consent_context=label
+            lx=_norm((label or "")+" "+(consent_context or ""))
+            if required and any(t in lx for t in ("privacy policy","terms of service","terms and conditions","i agree")):
                 try:
                     if not el.is_checked():el.check()
                     result["filled"].append({"field":label or "required ATS consent","value":"accepted"})
@@ -438,15 +447,18 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value,item)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    # Workday's mask was swallowing the first three digits because the
-                    # caret started after its formatting prefix. Clear, reset selection
-                    # to the beginning, then send the ten national digits as key events.
-                    el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
-                    el.evaluate("(e)=>{e.focus();try{e.setSelectionRange(0,0)}catch(_){}}")
-                    el.press_sequentially(digits,delay=80);page.wait_for_timeout(250)
-                    el.press("Tab");page.wait_for_timeout(350)
+                    # Workday uses a masked phone widget that needs key events. Generic
+                    # ATS forms (including isolved) are safer with a direct fill so the
+                    # leading area-code digits are not dropped.
+                    if "myworkdayjobs.com" in page.url.lower() or "workday" in page.url.lower():
+                        el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
+                        el.evaluate("(e)=>{e.focus();try{e.setSelectionRange(0,0)}catch(_){}}")
+                        el.press_sequentially(digits,delay=80);page.wait_for_timeout(250)
+                        el.press("Tab");page.wait_for_timeout(350)
+                    else:
+                        el.fill(digits);page.wait_for_timeout(150);el.press("Tab");page.wait_for_timeout(250)
                     current=re.sub(r"\\D+","",el.input_value())
-                    selected=current==digits
+                    selected=current.endswith(digits)
                 else:
                     selected=_choose(el,value)
                 if selected:
