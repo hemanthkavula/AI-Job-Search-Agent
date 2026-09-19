@@ -31,6 +31,14 @@
     {
       "company": "Robinhood",
       "board_token": "robinhood"
+    },
+    {
+      "company": "Affirm",
+      "board_token": "affirm"
+    },
+    {
+      "company": "Discord",
+      "board_token": "discord"
     }
   ],
   "lever": [
