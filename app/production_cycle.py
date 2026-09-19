@@ -53,13 +53,13 @@ def _sync_manifest(rows,ledger_path):
   record_seen(job,ledger,row.get("next_action") or "PREPARED",**extra)
  save_ledger(ledger,ledger_path)
 
-def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None,external_id=None,since=None,scan_now=None):
+def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None,external_id=None,since=None,scan_now=None,source_since=None,source_hours=None):
  stamp=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
  eligible_rel=f"generated/cycles/{stamp}_eligible.json"
  finalized_rel=f"generated/cycles/{stamp}_finalized.json"
  manifest_rel=f"generated/cycles/{stamp}_manifest.json"
  queue_rel=f"generated/cycles/{stamp}_application_queue.json"
- discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now)
+ discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours)
  _write(eligible_rel,discovery)
  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger)
@@ -90,7 +90,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "manifest":manifest_rel if generate_resumes else None,
           "application_queue":queue_rel if manifest else None,
           "queued_for_application":sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue),
-          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue)}
+          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
