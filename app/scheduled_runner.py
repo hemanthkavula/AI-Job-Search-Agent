@@ -176,6 +176,19 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
                  "company_key":queue_item.get("company") or "","title":queue_item.get("title") or "","url":queue_item.get("url")}
             record_seen(job,app_ledger,"APPLICATION_IN_PROGRESS",queue_item=queue_item,retry_application=queue_item)
         save_ledger(app_ledger,ledger)
+        def _before_submit(queue_item,submit_info):
+            # This write happens synchronously before the irreversible browser click.
+            # SUBMISSION_ATTEMPTED is terminal, so a crash cannot auto-replay it.
+            durable_ledger=load_ledger(ledger)
+            job={"external_id":queue_item.get("external_id"),"source":queue_item.get("source") or "unknown",
+                 "company_key":queue_item.get("company") or "","title":queue_item.get("title") or "",
+                 "url":submit_info.get("url") or queue_item.get("url")}
+            record_seen(job,durable_ledger,SUBMISSION_UNCERTAIN_STATUS,
+                        queue_item=queue_item,retry_application=None,
+                        submission_attempted=True,submission_attempt=submit_info,
+                        application_reason="Final submission is about to be clicked; manual confirmation required if execution is interrupted.")
+            save_ledger(durable_ledger,ledger)
+
         application_results=run_applications(
             queue_path=queue_path,
             output=output,
@@ -185,6 +198,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             inspect_only=False,
             wait_for_human_seconds=0,
             allow_submit=allow_submit,
+            before_submit=_before_submit if allow_submit else None,
         )
         app_ledger=load_ledger(ledger)
         for result in application_results:
