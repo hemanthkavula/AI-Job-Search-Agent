@@ -1,6 +1,6 @@
 from __future__ import annotations
 import argparse, json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 try:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -33,7 +33,6 @@ ROOT=Path(__file__).resolve().parent.parent
 STATE_PATH=ROOT/"generated"/"scheduler_state.json"
 BOOTSTRAP_HOUR=7
 FINAL_HOUR=18
-BOOTSTRAP_WINDOW_HOURS=24
 INCREMENTAL_WINDOW_HOURS=1
 RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
@@ -46,13 +45,36 @@ def _save_state(state):
     STATE_PATH.parent.mkdir(parents=True,exist_ok=True)
     STATE_PATH.write_text(json.dumps(state,indent=2),encoding="utf-8")
 
+def _parse_state_time(value):
+    if not value:return None
+    try:return datetime.fromisoformat(value).astimezone(ET)
+    except Exception:return None
+
+def _scheduled_cutoff(now,state):
+    """Return the exact lower bound for this scan.
+
+    Normal hourly runs start at the last successful scan. The first run of a
+    weekday starts at the previous weekday's 18:00 cutoff; Monday therefore
+    catches Friday 18:00 through Monday morning. If a daytime run was missed,
+    the next run catches up from the last successful scan instead of losing jobs.
+    """
+    last=_parse_state_time(state.get("last_successful_scan_at"))
+    today=now.date()
+    day_start=datetime(today.year,today.month,today.day,BOOTSTRAP_HOUR,tzinfo=ET)
+    if now.weekday()==0:
+        prior_close=day_start-timedelta(days=3,hours=BOOTSTRAP_HOUR-FINAL_HOUR)
+    else:
+        prior_close=day_start-timedelta(days=1,hours=BOOTSTRAP_HOUR-FINAL_HOUR)
+    if last is None:return prior_close,"bootstrap"
+    # A prior-day state must never make the morning bootstrap start earlier than
+    # the previous scheduled 18:00 close. Same-day missed runs do catch up.
+    if last.date()!=today:return max(last,prior_close),"bootstrap"
+    return last,"incremental"
+
 def _window_for(now,state):
-    day=now.date().isoformat()
-    # The first successful run of each ET calendar day is the bootstrap scan.
-    # This also recovers safely if the machine missed exactly 07:00.
-    if state.get("bootstrap_date") != day:
-        return BOOTSTRAP_WINDOW_HOURS,"bootstrap"
-    return INCREMENTAL_WINDOW_HOURS,"incremental"
+    cutoff,mode=_scheduled_cutoff(now,state)
+    seconds=max(1,(now-cutoff).total_seconds())
+    return seconds/3600.0,mode,cutoff
 
 def _application_ledger_status(result):
     status=result.get("status") or ""
@@ -103,7 +125,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     if not force and not (BOOTSTRAP_HOUR <= now.hour <= FINAL_HOUR):
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     state=_load_state()
-    hours,mode=_window_for(now,state)
+    hours,mode,cutoff=_window_for(now,state)
     summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
@@ -168,8 +190,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
 
-    state.update({"last_run_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
-    if mode=="bootstrap": state["bootstrap_date"]=now.date().isoformat()
+    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
+    summary["scan_cutoff_local"]=cutoff.isoformat()
     _save_state(state)
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
