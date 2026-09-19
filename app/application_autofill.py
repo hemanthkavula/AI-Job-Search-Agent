@@ -497,24 +497,35 @@ def _workday_enter_application(page):
 def _dice_card(page, heading):
     """Find the Dice document card by an exact visible heading, without crossing into sibling cards."""
     wanted=_norm(heading)
-    heads=page.locator("h1, h2, h3, h4, h5, h6, label, strong")
-    for i in range(min(heads.count(),200)):
-        h=heads.nth(i)
+    # Dice renders "Resume *" and "Cover letter Optional" as ordinary text in
+    # some builds, not semantic headings. Start from exact text nodes, then walk
+    # upward only until we reach the smallest ancestor containing that document's
+    # overflow button. This avoids ever selecting the sibling Cover Letter card.
+    nodes=page.locator("text=/^(Resume\\s*\\*?|Cover letter(?:\\s+Optional)?)$/i")
+    for i in range(min(nodes.count(),80)):
+        h=nodes.nth(i)
         try:
-            if not h.is_visible() or _norm(h.inner_text())!=wanted:continue
-            # Dice document cards contain exactly one document heading. Reject
-            # ancestors that also contain the sibling Resume/Cover Letter heading.
+            raw=_norm(h.inner_text())
+            is_wanted=(wanted=="resume" and raw in ("resume","resume *")) or (
+                wanted=="cover letter" and raw in ("cover letter","cover letter optional")
+            )
+            if not h.is_visible() or not is_wanted:continue
             node=h
-            for _ in range(6):
+            for _ in range(8):
                 node=node.locator("xpath=parent::*")
                 if not node.count():break
                 txt=_norm(node.inner_text())
                 has_resume=re.search(r"(^| )resume( |$)",txt) is not None
                 has_cover="cover letter" in txt
-                if wanted=="resume" and has_resume and not has_cover:
-                    return node
-                if wanted=="cover letter" and has_cover and not has_resume:
-                    return node
+                buttons=node.locator("button")
+                visible_buttons=0
+                for j in range(min(buttons.count(),10)):
+                    try:
+                        if buttons.nth(j).is_visible():visible_buttons+=1
+                    except Exception:pass
+                if not visible_buttons:continue
+                if wanted=="resume" and has_resume and not has_cover:return node
+                if wanted=="cover letter" and has_cover and not has_resume:return node
         except Exception:pass
     return None
 
