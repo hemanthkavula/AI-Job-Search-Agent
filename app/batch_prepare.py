@@ -9,6 +9,7 @@ from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
 from app.pdf_export import convert_docx_to_pdf, validate_docx_pdf_parity
 from app.jd_coverage_plan import build_coverage_plan
+from app.cost_optimizer import find_reusable, remember, resume_profile
 
 load_dotenv()
 
@@ -111,6 +112,9 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             if not (raw.get("description_complete") or raw.get("description_usable") or raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE"):raise RuntimeError("Job description is not usable for safe resume tailoring; run app.jd_finalizer before resume tailoring.")
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
+            optimization_profile,profile_scores=resume_profile(job.description)
+            reusable=find_reusable(job.description)
+            print(f"Cost optimizer | profile={optimization_profile} | reusable_similarity={reusable.get('similarity') if reusable else None}",flush=True)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             min_targets=1 if raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE" else MIN_COVERAGE_TARGETS
             if coverage_plan["target_count"] < min_targets:
@@ -183,6 +187,8 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 print("ARTIFACT HOLD after deterministic headless conversion | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             else:
                 next_action="READY_TO_APPLY"
+            if audit["passed"] and artifact_validation.get("passed"):
+                remember(job.description,resume_path=str(resume),pdf_path=str(pdf_path),company=job.company,title=job.title,ats_score=audit.get("internal_ats_score"))
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             # Clean up any draft that may have been rendered before a later pipeline failure.
