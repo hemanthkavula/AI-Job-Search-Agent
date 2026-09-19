@@ -242,7 +242,9 @@ def _question_answer(label,item,profile=None):
     if "disability" in x:return disclosures.get("disability_status")
     if "gender" in x or x=="sex":return disclosures.get("gender")
     if "ethnicity" in x or "race" in x:return disclosures.get("ethnicity")
-    technical=_technical_question_answer(label,profile)\n    if technical is not None:return technical\n    return _open_ended_answer(label,item,profile)
+    technical=_technical_question_answer(label,profile)
+    if technical is not None:return technical
+    return _open_ended_answer(label,item,profile)
 
 def _label(el):
     """Resolve real visible form labels, including modern ATS wrappers."""
