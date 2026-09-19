@@ -541,6 +541,65 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             step["next_error"]=str(exc);break
     return steps
 
+def _generic_steps(page,item,identity,resume,result,max_steps=12):
+    """Fill and advance generic ATS pages, stopping before any final application submission."""
+    steps=[]
+    for step_no in range(1,max_steps+1):
+        scope=form_scope(page)
+        before_url=page.url
+        before_filled=len(result["filled"])
+        _,unresolved=_fill_current_page(scope,item,identity,resume,result)
+        analysis=analyze_application(page)
+        step={"step":step_no,"url":before_url,"filled_count":len(result["filled"])-before_filled,
+              "unresolved_required":sorted(set(unresolved)),"analysis":analysis}
+        steps.append(step)
+        if analysis.get("blocker_detected"):
+            result["blockers"].append("CAPTCHA/MFA/verification challenge detected")
+            break
+        if unresolved:
+            break
+
+        candidates=[]
+        for sel in ('button','a','[role="button"]','input[type="button"]','input[type="submit"]'):
+            loc=scope.locator(sel)
+            for i in range(min(loc.count(),120)):
+                el=loc.nth(i)
+                try:
+                    if not el.is_visible(): continue
+                    tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+                    txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
+                    nx=_norm(txt)
+                    if any(x in nx for x in ("submit application","send application","complete application","finish application")):
+                        step["stopped_before_final_submit"]=True
+                        return steps
+                    score=0
+                    if nx in ("next","continue","save and continue","save & continue"): score=100
+                    elif "next" in nx or "continue" in nx: score=80
+                    if score: candidates.append((score,len(nx),el,txt))
+                except Exception: pass
+        if not candidates:
+            step["reason"]="No safe intermediate Next/Continue action found"
+            break
+        candidates.sort(key=lambda x:(-x[0],x[1]))
+        try:
+            candidates[0][2].click(timeout=5000)
+            step["advanced_with"]=candidates[0][3]
+            page.wait_for_timeout(1200)
+            try: page.wait_for_load_state("domcontentloaded",timeout=7000)
+            except Exception: pass
+            after=analyze_application(page)
+            step["after_advance"]=after
+            if after.get("blocker_detected"):
+                result["blockers"].append("CAPTCHA/MFA/verification challenge detected")
+                break
+            if page.url==before_url and after.get("body_excerpt")==analysis.get("body_excerpt"):
+                step["reason"]="Page did not advance after safe intermediate action"
+                break
+        except Exception as exc:
+            step["reason"]=str(exc)
+            break
+    return steps
+
 def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0)->dict:
     """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
     inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
@@ -610,8 +669,10 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                 result["workday_steps"]=_workday_steps(page,item,identity,resume,result)
                 result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
             else:
-                scope=form_scope(page)
-                _,result["unresolved_required"]=_fill_current_page(scope,item,identity,resume,result)
+                result["generic_steps"]=_generic_steps(page,item,identity,resume,result)
+                result["unresolved_required"]=sorted(set(
+                    q for s in result["generic_steps"] for q in s.get("unresolved_required",[])
+                ))
             # A page with zero mapped fields is not a successful autofill. Workday
             # commonly lands on a job-description/sign-in step before its application form.
             if result["blockers"]:
