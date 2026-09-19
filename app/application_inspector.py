@@ -12,7 +12,7 @@ BLOCKER_RE=re.compile(r"captcha|recaptcha|hcaptcha|verification code|two[- ]fact
 
 def _provider(url):
     host=urlparse(url or "").netloc.lower()
-    for token,name in (("greenhouse","greenhouse"),("lever","lever"),("ashby","ashby"),("myworkdayjobs","workday"),("smartrecruiters","smartrecruiters"),("icims","icims"),("jobvite","jobvite")):
+    for token,name in (("greenhouse","greenhouse"),("lever","lever"),("ashby","ashby"),("myworkdayjobs","workday"),("smartrecruiters","smartrecruiters"),("icims","icims"),("jobvite","jobvite"),("dice.com","dice")):
         if token in host:return name
     return "unknown"
 
@@ -39,7 +39,7 @@ def inspect_application(item:dict,headless=True)->dict:
         finally:browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_inspection.json",limit=None,headless=True):
+def inspect_url(url:str,headless=True,external_id="direct-inspection")->dict:\n    """Inspect a direct job/application URL without requiring a generated queue."""\n    return inspect_application({"external_id":external_id,"url":url,"ats_provider":_provider(url)},headless=headless)\n\ndef run(queue_path="generated/application_queue.json",output="generated/application_inspection.json",limit=None,headless=True):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));out=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
