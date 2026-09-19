@@ -39,6 +39,10 @@
     {
       "company": "Discord",
       "board_token": "discord"
+    },
+    {
+      "company": "Pinterest",
+      "board_token": "pinterestjobadvertisements"
     }
   ],
   "lever": [
