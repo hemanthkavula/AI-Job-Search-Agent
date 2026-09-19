@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
     if args.url:
         if args.inspect_apply_route:
-            rows = [inspect_apply_route(args.url, not args.headed)]
+            rows = [inspect_apply_route(args.url, not args.headed, wait_for_human_seconds=args.wait_for_human_seconds)]
         else:
             rows = [inspect_url(args.url, not args.headed)]
 
