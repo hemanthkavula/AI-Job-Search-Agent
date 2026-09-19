@@ -15,7 +15,7 @@ PROFILE_HINTS={
 }
 
 def jd_hash(description):
- text=re.sub(r"\\s+"," ",(description or "").strip().lower())
+ text=re.sub(r"\s+"," ",(description or "").strip().lower())
  return hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
 
 def resume_profile(description):
