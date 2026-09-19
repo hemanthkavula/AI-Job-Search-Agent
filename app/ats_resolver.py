@@ -4,7 +4,7 @@ from urllib import request
 from urllib.parse import urljoin, urlsplit, unquote
 from app.source_registry import detect_ats
 
-ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com")
+ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com")\nAPPLY_KEY_RE=re.compile(r'(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)|applyUrl')
 
 def _fetch(url):
  if not url:return ""
@@ -26,6 +26,10 @@ def _candidate_links(page,base):
  raw=[]
  raw.extend(re.findall(r'''(?i)href=["']([^"'#]+)["']''',value))
  raw.extend(re.findall(r'''(?i)https?://[^"'<>\\\s]+''',value))
+ # Prefer URLs explicitly stored in apply/application/redirect JSON properties.
+ raw.extend(m.group(1) for m in re.finditer(
+  r'''(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)'''+
+  r'''[^:]{0,30}:\s*["'](https?://[^"']+)["']''', value))
  for href in raw:
   u=unquote(urljoin(base,href)).rstrip("),.;")
   if any(host in u.lower() for host in ATS_HOST_HINTS):links.append(u)
