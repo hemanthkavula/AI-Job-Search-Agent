@@ -449,21 +449,7 @@ def _fill_current_page(page,item,identity,resume,result):
                     selected=_workday_select_dropdown(page,el,value,item)
                 elif key=="phone":
                     digits=re.sub(r"\\D+","",str(value))[-10:]
-                    # Workday uses a masked phone widget that needs key events. Generic
-                    # ATS forms (including isolved) are safer with a direct fill so the
-                    # leading area-code digits are not dropped.
-                    if "myworkdayjobs.com" in page.url.lower() or "workday" in page.url.lower():
-                        el.click();el.press("Control+A");el.press("Backspace");page.wait_for_timeout(150)
-                        el.evaluate("(e)=>{e.focus();try{e.setSelectionRange(0,0)}catch(_){}}")
-                        el.press_sequentially(digits,delay=80);page.wait_for_timeout(250)
-                        el.press("Tab");page.wait_for_timeout(350)
-                    else:
-                        el.fill(digits);page.wait_for_timeout(150);el.press("Tab");page.wait_for_timeout(250)
-                    current=re.sub(r"\\D+","",el.input_value())
-                    # A masked widget must retain all ten national digits. Never
-                    # treat a truncated value (for example only the last 7 digits)
-                    # as successfully filled.
-                    selected=current[-10:]==digits and len(current)>=10
+                    selected=_fill_phone_control(el,digits,page.url)
                 else:
                     selected=_choose(el,value)
                 if selected:
@@ -612,6 +598,31 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
         except Exception as exc:
             step["next_error"]=str(exc);break
     return steps
+
+def _fill_phone_control(el, digits, page_url=""):
+    """Fill masked/unmasked phone controls and verify that all ten digits survived."""
+    digits=re.sub(r"\\D+","",str(digits))[-10:]
+    if len(digits)!=10:return False
+    is_workday="myworkdayjobs.com" in (page_url or "").lower() or "workday" in (page_url or "").lower()
+    try:
+        el.click();el.press("Control+A");el.press("Backspace")
+        if is_workday:
+            el.evaluate("(e)=>{e.focus();try{e.setSelectionRange(0,0)}catch(_){}}")
+            el.press_sequentially(digits,delay=80)
+        else:
+            # Native value setters plus input/change events handle React/masked ATS controls
+            # that can discard the area code when ordinary fill() races their formatter.
+            el.evaluate("""(e,v)=>{const p=Object.getPrototypeOf(e);const d=Object.getOwnPropertyDescriptor(p,'value');
+                if(d&&d.set)d.set.call(e,v);else e.value=v;
+                e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}""",digits)
+        el.press("Tab")
+        current=re.sub(r"\\D+","",el.input_value() or "")
+        if current[-10:]==digits and len(current)>=10:return True
+        # One controlled retry with real key events for formatters that reject direct assignment.
+        el.click();el.press("Control+A");el.press("Backspace");el.press_sequentially(digits,delay=60);el.press("Tab")
+        current=re.sub(r"\\D+","",el.input_value() or "")
+        return current[-10:]==digits and len(current)>=10
+    except Exception:return False
 
 def _submission_confirmation(page):
     """Require positive ATS confirmation evidence after a final-submit click."""
