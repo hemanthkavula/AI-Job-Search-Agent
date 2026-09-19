@@ -4,6 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 from app.config import load_profile
 from app.application_inspector import BLOCKER_RE
+from app.application_navigator import enter_application, form_scope, analyze as analyze_application
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -484,10 +485,23 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
                 result["status"]="MANUAL_ACTION_REQUIRED" if result["application_analysis"]["landing"]["blocker_detected"] else "INSPECTED_NO_CHANGES"
                 result["reason"]="Inspection only; no fields filled, files uploaded, or application actions clicked."
                 return result
-            if (item.get("ats_provider") or "").lower()=="workday":
+            provider=(item.get("ats_provider") or "").lower()
+            if provider=="workday":
                 result["navigation"]=_workday_enter_application(page)
                 _wait_for_application_controls(page,15000)
                 result["application_analysis"]["after_apply_entry"]=_application_preflight(page)
+            else:
+                result["navigation"]=enter_application(page,provider)
+                result["application_analysis"]["after_apply_entry"]=analyze_application(page)
+                if result["navigation"].get("blocker"):
+                    result["blockers"].append(result["navigation"]["blocker"])
+                    result["status"]="MANUAL_ACTION_REQUIRED"
+                    result["reason"]="Application entry is blocked by CAPTCHA/MFA/verification."
+                    return result
+                if not result["navigation"].get("entered"):
+                    result["status"]="MANUAL_ACTION_REQUIRED"
+                    result["reason"]=result["navigation"].get("reason") or "Could not reach application form safely."
+                    return result
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body):
                 result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
@@ -495,7 +509,8 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
                 result["workday_steps"]=_workday_steps(page,item,identity,resume,result)
                 result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
             else:
-                _,result["unresolved_required"]=_fill_current_page(page,item,identity,resume,result)
+                scope=form_scope(page)
+                _,result["unresolved_required"]=_fill_current_page(scope,item,identity,resume,result)
             # A page with zero mapped fields is not a successful autofill. Workday
             # commonly lands on a job-description/sign-in step before its application form.
             if result["blockers"]:
