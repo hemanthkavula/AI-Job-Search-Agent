@@ -131,4 +131,8 @@ def passes_hard_filters(job:dict,profile:dict):
         reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
     if eligibility["sponsorship"]["eligible"] is False:
         reasons.append("future H-1B sponsorship unavailable")
+    if eligibility.get("citizenship",{}).get("eligible") is False:
+        reasons.append("US citizenship required")
+    if eligibility.get("clearance",{}).get("eligible") is False:
+        reasons.append("security/public-trust clearance required")
     return len(reasons)==0,reasons
