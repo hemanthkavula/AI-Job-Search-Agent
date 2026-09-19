@@ -36,7 +36,9 @@ def _ledger(status, *, payload=True):
         "external_ids": ["job-123"],
         "source": "test",
         "company": "Example",
+        "company_key": "Example",
         "title": "Data Engineer",
+        "url": "https://example.invalid/job-123",
     }
     if payload:
         row["retry_application"] = _queue_item()
