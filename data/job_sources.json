@@ -23,6 +23,14 @@
     {
       "company": "Stripe",
       "board_token": "stripe"
+    },
+    {
+      "company": "DoorDash",
+      "board_token": "doordashusa"
+    },
+    {
+      "company": "Robinhood",
+      "board_token": "robinhood"
     }
   ],
   "lever": [
