@@ -460,7 +460,10 @@ def _fill_current_page(page,item,identity,resume,result):
                     else:
                         el.fill(digits);page.wait_for_timeout(150);el.press("Tab");page.wait_for_timeout(250)
                     current=re.sub(r"\\D+","",el.input_value())
-                    selected=current.endswith(digits)
+                    # A masked widget must retain all ten national digits. Never
+                    # treat a truncated value (for example only the last 7 digits)
+                    # as successfully filled.
+                    selected=current[-10:]==digits and len(current)>=10
                 else:
                     selected=_choose(el,value)
                 if selected:
