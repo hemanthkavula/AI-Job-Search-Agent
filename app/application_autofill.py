@@ -639,15 +639,23 @@ def _submission_confirmation(page):
         "application submitted","application has been submitted","thank you for applying",
         "thanks for applying","we received your application","we have received your application",
         "application received","your application was received","successfully submitted",
+        "application successfully submitted","your application is complete","application complete",
+        "we'll be in touch","we will be in touch",
     )
     matched=next((p for p in phrases if p in body),None)
     url=_norm(page.url)
-    url_signal=any(x in url for x in ("confirmation","thank-you","thankyou","submitted","success"))
+    url_signal=any(x in url for x in ("confirmation","thank-you","thankyou","submitted","success","application-complete"))
+    confirmation_id=None
+    try:
+        m=re.search(r"(?:confirmation|application|reference)(?:\\s+(?:id|number|#))?\\s*[:#-]?\\s*([a-z0-9-]{5,})",body,re.I)
+        if m:confirmation_id=m.group(1)
+    except Exception:pass
     return {
-        "confirmed":bool(matched or url_signal),
+        "confirmed":bool(matched or url_signal or confirmation_id),
         "matched_phrase":matched,
         "url":page.url,
         "url_signal":url_signal,
+        "confirmation_id":confirmation_id,
         "body_excerpt":body[:1200],
     }
 
@@ -860,7 +868,7 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                             if validation_errors:
                                 result["post_submit_validation_errors"]=validation_errors
                             result["submitted"]=bool(confirmation["confirmed"])
-                            result["status"]="SUBMITTED" if confirmation["confirmed"] else "SUBMISSION_UNCONFIRMED"
+                            result["status"]="SUBMITTED_CONFIRMED" if confirmation["confirmed"] else "SUBMISSION_UNCONFIRMED"
                             if not confirmation["confirmed"]:
                                 result["reason"]=(
                                     "Final submit was rejected by ATS validation."
