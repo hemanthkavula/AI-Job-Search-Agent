@@ -18,7 +18,9 @@ def _reason_key(reason):
     r=(reason or "").lower()
     if "title outside" in r:return "wrong_job_family"
     if "experience requirement" in r:return "experience_mismatch"
-    if "sponsorship unavailable" in r:return "no_future_sponsorship"\n    if "citizenship" in r:return "citizenship_required"\n    if "clearance" in r:return "clearance_required"
+    if "sponsorship unavailable" in r:return "no_future_sponsorship"
+    if "citizenship" in r:return "citizenship_required"
+    if "clearance" in r:return "clearance_required"
     return "other_hard_filter"
 
 def _norm_company(value):
@@ -92,12 +94,14 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     }
 
 def _print_diagnostics(d,hours):
-    print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
+    print(f"
+LAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
     labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
-    print("\nELIGIBLE JOBS FOR RESUME STAGE",flush=True)
+    print("
+ELIGIBLE JOBS FOR RESUME STAGE",flush=True)
     if not results:print("None",flush=True);return
     for i,item in enumerate(results,1):
         raw=item["job"];elig=item["eligibility"];company=raw.get("company_key") or raw.get("company") or "Unknown"
@@ -107,7 +111,8 @@ def _print_eligible(results):
         if raw.get("url"):print(f"   {raw['url']}",flush=True)
 
 def _print_rejection_samples(items,limit=20):
-    print("\nELIGIBILITY REJECTION SAMPLES",flush=True)
+    print("
+ELIGIBILITY REJECTION SAMPLES",flush=True)
     if not items:print("None",flush=True);return
     for i,item in enumerate(items[:limit],1):
         raw=item["job"]
@@ -117,4 +122,5 @@ def _print_rejection_samples(items,limit=20):
 if __name__=="__main__":
     p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--output",help="Optional explicit output path. By default each standalone run gets a timestamped diagnostic file.");p.add_argument("--diagnostic-limit",type=int,default=20);p.add_argument("--only-source",choices=["greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter"]);p.add_argument("--dice-term",action="append");p.add_argument("--ledger",default="generated/job_ledger.json");a=p.parse_args()
     report=run(a.sources,a.hours,a.only_source,a.dice_term,a.ledger);stamp=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ");default_output=f"generated/diagnostics/{stamp}_{a.only_source or 'all'}_eligible.json";out=ROOT/(a.output or default_output);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
-    print(json.dumps({k:v for k,v in report.items() if k not in ("results","hard_filter_rejections","duplicate_rejections")},indent=2));_print_diagnostics(report["filter_reason_counts"],a.hours);_print_eligible(report["results"]);_print_rejection_samples(report["hard_filter_rejections"],a.diagnostic_limit);print(f"\nSaved eligible jobs to {out}")
+    print(json.dumps({k:v for k,v in report.items() if k not in ("results","hard_filter_rejections","duplicate_rejections")},indent=2));_print_diagnostics(report["filter_reason_counts"],a.hours);_print_eligible(report["results"]);_print_rejection_samples(report["hard_filter_rejections"],a.diagnostic_limit);print(f"
+Saved eligible jobs to {out}")
