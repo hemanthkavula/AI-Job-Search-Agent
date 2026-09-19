@@ -9,7 +9,7 @@ except ImportError:
     ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
 from app.application_autofill import run as run_applications
-from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due
+from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due, _lookup
 
 def _eastern_tz():
     """Use IANA Eastern time when available; fall back to Windows local Eastern time.
@@ -212,7 +212,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
                 "application_result_path":output,
             }
             if ledger_status=="RETRY_APPLICATION":
-                _,existing=__import__("app.job_ledger",fromlist=["_lookup"])._lookup(job,app_ledger)
+                _,existing=_lookup(job,app_ledger)
                 meta=retry_metadata(existing or {},"application")
                 extra.update(meta)
                 if meta["application_retry_exhausted"]:
