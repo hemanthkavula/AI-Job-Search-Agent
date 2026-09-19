@@ -73,8 +73,8 @@ def _window_for(now,state):
     start=now-timedelta(hours=1)
     return 1,"incremental_fallback",start
 
-def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
-    now=datetime.now(ET)
+def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False,now_override=None):
+    now=(now_override or datetime.now(ET)).astimezone(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
     if not force and not (BOOTSTRAP_HOUR <= now.hour <= FINAL_HOUR):
