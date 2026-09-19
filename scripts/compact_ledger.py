@@ -3,12 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 
+ROOT=Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
+
 from app.job_ledger import compact_ledger, load_ledger, save_ledger
 
-ROOT=Path(__file__).resolve().parents[1]
 DEFAULT=ROOT/"generated"/"job_ledger.json"
 
 def main():
