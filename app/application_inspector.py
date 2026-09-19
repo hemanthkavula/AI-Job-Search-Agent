@@ -221,6 +221,12 @@ if __name__ == "__main__":
     )
     ap.add_argument("--limit", type=int)
     ap.add_argument("--headed", action="store_true")
+    ap.add_argument(
+        "--wait-for-human-seconds",
+        type=int,
+        default=0,
+        help="In headed mode, keep the same browser session open for manual CAPTCHA/MFA verification, then resume inspection.",
+    )
     args = ap.parse_args()
 
     if args.url:
