@@ -5,8 +5,10 @@ from playwright.sync_api import sync_playwright
 from app.config import load_profile
 from app.application_inspector import BLOCKER_RE
 from app.application_navigator import enter_application, form_scope, analyze as analyze_application
+from dotenv import load_dotenv
 
 ROOT=Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
 
 def _norm(s):return re.sub(r"[^a-z0-9]+"," ",(s or "").lower()).strip()
 
@@ -38,6 +40,33 @@ def _fill_login_gate(scope,result):
     except Exception as exc:
         result["login_credentials_error"]=str(exc)
         return False
+
+def _dice_email_continue(page,result):
+    """Dice uses an email-first auth gate; advance it before password sign-in/account creation."""
+    if "dice.com/dashboard/login" not in page.url:return {"handled":False}
+    creds=_application_credentials()
+    if not creds["email"]:return {"handled":False,"reason":"APPLICATION_LOGIN_EMAIL not configured"}
+    try:
+        email=page.locator('input[type="email"], input[name*="email" i], input[id*="email" i]').first
+        if not email.count() or not email.is_visible():return {"handled":False,"reason":"Dice email field not found"}
+        email.fill(creds["email"])
+        actions=page.locator('button, [role="button"], input[type="submit"]')
+        for i in range(min(actions.count(),60)):
+            a=actions.nth(i)
+            try:
+                tag=a.evaluate("(e)=>e.tagName.toLowerCase()")
+                txt=_norm((a.get_attribute("value") if tag=="input" else a.inner_text()) or "")
+                if a.is_visible() and a.is_enabled() and txt=="continue with email":
+                    a.click(timeout=5000)
+                    result.setdefault("filled",[]).append({"field":"Dice account email","value":creds["email"]})
+                    result["dice_email_gate_advanced"]=True
+                    page.wait_for_timeout(1800)
+                    try:page.wait_for_load_state("domcontentloaded",timeout=7000)
+                    except Exception:pass
+                    return {"handled":True}
+            except Exception:pass
+        return {"handled":False,"reason":"Dice Continue with email action not found"}
+    except Exception as exc:return {"handled":False,"reason":str(exc)}
 
 def _auth_action(scope, result):
     """Sign in or create an ATS account using local env credentials. Never handles CAPTCHA/MFA."""
@@ -686,6 +715,11 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                     result["status"]="MANUAL_ACTION_REQUIRED"
                     result["reason"]=result["navigation"].get("reason") or "Could not reach application form safely."
                     return result
+            # Dice presents an email-only first gate. Advance it before looking for
+            # the password/account form; otherwise the email field is mistaken for the
+            # application itself and the run incorrectly searches for final Submit.
+            dice_gate=_dice_email_continue(page,result)
+            result["dice_email_gate"]=dice_gate
             # Handle ordinary ATS login/account creation automatically using local env credentials.
             auth=_auth_action(page,result)
             result["authentication"]=auth
