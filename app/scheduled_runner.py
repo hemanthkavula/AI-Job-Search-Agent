@@ -82,6 +82,9 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     state=_load_state()
     hours,mode,window_start=_window_for(now,state)
     summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
+    # Advance the checkpoint only after discovery/production returned successfully.
+    state.update({"last_run_at":now.isoformat(),"last_successful_discovery_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
+    _save_state(state)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
     # answers, and other manual blockers are recorded and the batch continues.
@@ -127,8 +130,6 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_stage_enabled"]=bool(apply_ready)
         summary["applications_processed"]=0
 
-    state.update({"last_run_at":now.isoformat(),"last_successful_discovery_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
-    _save_state(state)
     summary["scheduler_mode"]=mode
     summary["scheduler_window_start"]=window_start.isoformat()
     summary["scheduler_window_end"]=now.isoformat()
