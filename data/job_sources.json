@@ -51,6 +51,10 @@
     {
       "company": "Point72",
       "board_token": "point72"
+    },
+    {
+      "company": "ZoomInfo",
+      "board_token": "zoominfo"
     }
   ],
   "lever": [
