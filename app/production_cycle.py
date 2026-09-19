@@ -28,6 +28,15 @@ def _sync_finalized(rows,ledger_path):
               description_complete=raw.get("description_complete"))
  save_ledger(ledger,ledger_path)
 
+def _retry_items_from_ledger(ledger_path):
+ ledger_data=load_ledger(ledger_path)
+ items=[]
+ for raw in retryable_jobs(ledger_data):
+  elig=raw.get("eligibility")
+  if not isinstance(elig,dict):continue
+  items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
+ return items
+
 def _sync_manifest(rows,ledger_path):
  ledger=load_ledger(ledger_path)
  for row in rows:
@@ -54,6 +63,17 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  _write(eligible_rel,discovery)
  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger)
+ retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
+ finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
+ retry_ids={x["job"].get("external_id") for x in retry_items}
+ existing_ids={(x.get("job") or {}).get("external_id") for x in finalized_results}
+ for item in retry_items:
+  if item["job"].get("external_id") not in existing_ids:
+   finalized_results.append(item)
+ if retry_items:
+  finalized["results"]=finalized_results
+  finalized["finalized"]=sum(1 for x in finalized_results if x.get("action")=="FINAL_JD_VERIFIED")
+  _write(finalized_rel,finalized)
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
@@ -65,6 +85,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "ready_to_apply":sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest),
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
           "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
+          "retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),
           "eligible_report":eligible_rel,"finalized_report":finalized_rel,
           "manifest":manifest_rel if generate_resumes else None,
           "application_queue":queue_rel if manifest else None,
