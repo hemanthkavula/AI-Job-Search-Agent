@@ -1,0 +1,1092 @@
+{
+  "policy": {
+    "scope": "preferred_employer_universe",
+    "sponsorship_rule": "Reject only when the current job posting explicitly states current/future sponsorship is unavailable; otherwise continue.",
+    "notes": "h1b_target reflects the user-provided target list and is not itself proof that every current role sponsors."
+  },
+  "counts": {
+    "unique_companies": 146,
+    "h1b_targets": 100,
+    "vendor_consulting_staffing": 60
+  },
+  "companies": [
+    {
+      "company": "Amazon",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Amazon Web Services (AWS)",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "AWS",
+        "Amazon Web Services"
+      ]
+    },
+    {
+      "company": "Google",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Microsoft",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Meta",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Apple",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "NVIDIA",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Walmart",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "JPMorgan Chase",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "JPMorgan",
+        "JPMorgan Chase & Co.",
+        "JPMC"
+      ]
+    },
+    {
+      "company": "Capital One",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Fidelity Investments",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Goldman Sachs",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Morgan Stanley",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Citi",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Citigroup"
+      ]
+    },
+    {
+      "company": "Bank of America",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "BofA"
+      ]
+    },
+    {
+      "company": "U.S. Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "US Bank"
+      ]
+    },
+    {
+      "company": "PayPal",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Mastercard",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Visa",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "American Express",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Discover",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Bloomberg",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Salesforce",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Oracle",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "IBM",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Intel",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Adobe",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Tesla",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Uber",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "DoorDash",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Netflix",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Spotify",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Pinterest",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "eBay",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "LinkedIn",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "TikTok",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "ByteDance",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Atlassian",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Robinhood",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Chewy",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "FedEx",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Federal Express"
+      ]
+    },
+    {
+      "company": "FedEx Dataworks",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "General Motors",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "GM Financial",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Ford",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Comcast",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "RELX",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "RELX Group"
+      ]
+    },
+    {
+      "company": "LexisNexis",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Lexis Nexis"
+      ]
+    },
+    {
+      "company": "Travelers",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "GEICO",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Prudential",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "FIS",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Equifax",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Lowe's",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Lowes"
+      ]
+    },
+    {
+      "company": "McKinsey & Company",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Deloitte",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Ernst & Young (EY)",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "EY",
+        "Ernst & Young"
+      ]
+    },
+    {
+      "company": "PwC",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Accenture",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Capgemini",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Cognizant",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Infosys",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Tata Consultancy Services (TCS)",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": [
+        "TCS",
+        "Tata Consultancy Services"
+      ]
+    },
+    {
+      "company": "HCLTech",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Wipro",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "LTIMindtree",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "CGI",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Kforce",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Randstad Digital",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Compunnel",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Insight Global",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Pyramid Consulting",
+      "categories": [
+        "h1b_target",
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Teladoc Health",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Elevance Health",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "CVS Health",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "CVS"
+      ]
+    },
+    {
+      "company": "Caremark",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "CVS Caremark"
+      ]
+    },
+    {
+      "company": "Optum",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Optum Technology"
+      ]
+    },
+    {
+      "company": "UnitedHealth Group",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "UHG"
+      ]
+    },
+    {
+      "company": "Capital Group",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Rocket Mortgage",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Sony Interactive Entertainment",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "PlayStation"
+      ]
+    },
+    {
+      "company": "Dish Network",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "DISH"
+      ]
+    },
+    {
+      "company": "ZoomInfo",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "USAA",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Egencia",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Point72",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Farmers Insurance",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Federal Express",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Expedia Group",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "ServiceNow",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Cisco",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Qualcomm",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "VMware/Broadcom",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "VMware",
+        "Broadcom"
+      ]
+    },
+    {
+      "company": "Workday",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Intuit",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Snowflake",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Databricks",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Palantir",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Airbnb",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Stripe",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Tech Mahindra",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "NTT DATA",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Mphasis",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Persistent Systems",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Virtusa",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "EPAM Systems",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Synechron",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "UST",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Hexaware",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Birlasoft",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Zensar Technologies",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "TEKsystems",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Apex Systems",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Experis",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Akkodis",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Motion Recruitment",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Collabera",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Dexian",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Artech",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "eTeam",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Mindlance",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "LanceSoft",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Net2Source",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "US Tech Solutions",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "SPECTRAFORCE",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "V-Soft Consulting",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "NLB Services",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Diverse Lynx",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Tanisha Systems",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Lorven Technologies",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "ApTask",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Tekfortune",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Intone Networks",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Saxon Global",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Strategic Staffing Solutions",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Genesis10",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Brooksource",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Eliassen Group",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Yoh",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Beacon Hill",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "The Judge Group",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "INSPYR Solutions",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Vaco",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Horizontal Talent",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Matlen Silver",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Mitchell Martin",
+      "categories": [
+        "vendor_consulting_staffing"
+      ],
+      "aliases": []
+    }
+  ]
+}
