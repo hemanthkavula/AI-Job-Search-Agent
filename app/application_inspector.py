@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 from playwright.sync_api import sync_playwright
+from app.application_navigator import analyze as analyze_dynamic, enter_application
 
 TEXT_FIELDS = {
     "first name": "first_name",
@@ -149,53 +150,37 @@ def inspect_apply_route(
     headless=True,
     external_id="direct-inspection",
 ) -> dict:
-    """Follow only an href-backed Apply link, then inspect without filling/submitting."""
-    result = inspect_url(
-        url,
-        headless=headless,
-        external_id=external_id,
-    )
-
-    if result.get("status") == "MANUAL_ACTION_REQUIRED":
-        return result
-
-    candidates = [
-        action
-        for action in result.get("actions", [])
-        if re.search(r"apply", action.get("text") or "", re.I)
-        and action.get("href")
-    ]
-
-    if not candidates:
-        result["status"] = "MANUAL_ACTION_REQUIRED"
-        result["reason"] = (
-            "No safe href-backed Apply link found; no click performed."
-        )
-        return result
-
-    chosen = candidates[0]
-    destination = urljoin(
-        result.get("final_url") or url,
-        chosen["href"],
-    )
-    routed = inspect_url(
-        destination,
-        headless=headless,
-        external_id=external_id,
-    )
-
-    result["apply_route"] = {
-        "entry_text": chosen["text"],
-        "destination": destination,
-        "inspection": routed,
+    """Inspect dynamic ATS application entry without filling, uploading, or submitting."""
+    result = {
+        "external_id": external_id,
+        "url": url,
+        "ats_provider": _provider(url),
+        "status": "INSPECTING_APPLY_ROUTE",
+        "blockers": [],
     }
-    result["status"] = (
-        "APPLY_ROUTE_INSPECTED"
-        if routed.get("status") != "MANUAL_ACTION_REQUIRED"
-        else "MANUAL_ACTION_REQUIRED"
-    )
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        page = browser.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            result["landing"] = analyze_dynamic(page)
+            navigation = enter_application(page, result["ats_provider"])
+            result["navigation"] = navigation
+            result["after_entry"] = analyze_dynamic(page)
+            if navigation.get("blocker"):
+                result["blockers"].append(navigation["blocker"])
+                result["status"] = "MANUAL_ACTION_REQUIRED"
+            elif navigation.get("entered"):
+                result["status"] = "APPLY_ROUTE_INSPECTED"
+            else:
+                result["status"] = "MANUAL_ACTION_REQUIRED"
+                result["reason"] = navigation.get("reason")
+        except Exception as exc:
+            result["status"] = "MANUAL_ACTION_REQUIRED"
+            result["reason"] = str(exc)
+        finally:
+            browser.close()
     return result
-
 
 def run(
     queue_path="generated/application_queue.json",
