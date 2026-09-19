@@ -4,6 +4,8 @@ import argparse
 import os
 import shutil
 import stat
+import subprocess
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,10 +36,43 @@ def reset(apply: bool = False) -> list[str]:
             except OSError:
                 raise exc_info[1]
 
+        def _try_remove_tree():
+            try:
+                shutil.rmtree(GENERATED, onexc=_remove_readonly)
+            except TypeError:
+                shutil.rmtree(GENERATED, onerror=_remove_readonly)
+
         try:
-            shutil.rmtree(GENERATED, onexc=_remove_readonly)
-        except TypeError:
-            shutil.rmtree(GENERATED, onerror=_remove_readonly)
+            _try_remove_tree()
+        except PermissionError as exc:
+            # WinError 32 means another process still has a generated artifact
+            # open (commonly Word/LibreOffice or OneDrive). Stop only known
+            # document/PDF helper processes, then retry a few times.
+            if getattr(exc, "winerror", None) != 32:
+                raise
+            for image in ("WINWORD.EXE", "soffice.exe", "soffice.bin", "AcroRd32.exe"):
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", image],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            last = exc
+            for _ in range(5):
+                time.sleep(1)
+                try:
+                    _try_remove_tree()
+                    last = None
+                    break
+                except PermissionError as retry_exc:
+                    last = retry_exc
+            if last is not None:
+                raise RuntimeError(
+                    "A generated file is still open in another process. Close any "
+                    "Word/LibreOffice/PDF windows and pause OneDrive syncing for this "
+                    "project, then rerun the reset."
+                ) from last
+
         GENERATED.mkdir(parents=True, exist_ok=True)
     return targets
 
