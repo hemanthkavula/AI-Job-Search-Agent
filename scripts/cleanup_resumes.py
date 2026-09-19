@@ -72,7 +72,8 @@ def active_application_resume_check():
         existing=[p for p in resolved if p and p.exists() and p.is_file()]
         protected=[p for p in existing if p.resolve() in refs or p.parent.resolve() in folders]
         item={"key":key,"company":row.get("company"),"title":row.get("title"),"status":status,
-              "protected_resume":str(protected[0].relative_to(ROOT)) if protected else None}
+              "protected_resume":str(protected[0].relative_to(ROOT)) if protected else None,
+              "resume_candidates":[str(p) for p in resolved]}
         rows.append(item)
         if not protected:missing.append(item)
     return rows,missing
@@ -146,7 +147,8 @@ def main():
             "orphan_candidate_folders":len(orphan_folders),
             "active_application_jobs":len(active),"protected_active_resumes":len(active)-len(missing),
             "missing_active_resumes":len(missing),"applied":False}
-    report={"summary":result,"orphan_folders":orphan_folders,"files":rows}
+    report={"summary":result,"active_applications":active,"missing_active_applications":missing,
+            "orphan_folders":orphan_folders,"files":rows}
     report_path=Path(args.report);report_path.parent.mkdir(parents=True,exist_ok=True)
     report_path.write_text(json.dumps(report,indent=2),encoding="utf-8")
     if args.apply:
