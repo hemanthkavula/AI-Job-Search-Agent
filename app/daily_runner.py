@@ -18,7 +18,7 @@ def _reason_key(reason):
     r=(reason or "").lower()
     if "title outside" in r:return "wrong_job_family"
     if "experience requirement" in r:return "experience_mismatch"
-    if "sponsorship unavailable" in r:return "no_future_sponsorship"
+    if "sponsorship unavailable" in r:return "no_future_sponsorship"\n    if "citizenship" in r:return "citizenship_required"\n    if "clearance" in r:return "clearance_required"
     return "other_hard_filter"
 
 def _norm_company(value):
