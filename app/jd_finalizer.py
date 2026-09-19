@@ -9,6 +9,7 @@ from app.ats_resolver import resolve_original_ats
 
 MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
+MIN_USABLE_JD_CHARS=250
 DICE_BOILERPLATE_MARKERS=("Search all similar jobs","Jobs Directory","Career Advice","Employers and Recruiters","Get the Dice app","Copyright ©","Apply Now To see how well you match")
 JD_SECTION_SIGNALS=("responsibilities","requirements","qualifications","what you'll do","what you will do","skills","experience","preferred","minimum qualifications","basic qualifications")
 
@@ -21,6 +22,14 @@ def _looks_like_complete_jd(text,source=""):
     if len(value)<MIN_COMPLETE_JD_CHARS:return False
     if (source or "").lower()=="dice" and sum(m.lower() in value.lower() for m in DICE_BOILERPLATE_MARKERS)>=2:return False
     return _jd_signal_score(value)>=MIN_JD_SIGNAL_SCORE
+
+def _looks_like_usable_jd(text,source=""):
+    value=(text or "").strip()
+    if len(value)<MIN_USABLE_JD_CHARS:return False
+    if (source or "").lower()=="dice" and sum(m.lower() in value.lower() for m in DICE_BOILERPLATE_MARKERS)>=2:return False
+    # Short provider excerpts are allowed for conservative base-resume tailoring
+    # when they contain at least one meaningful JD section signal.
+    return _jd_signal_score(value)>=1
 
 def _clean_html(text):
     text=re.sub(r"(?is)<(script|style).*?>.*?</\1>"," ",text or "")
@@ -58,6 +67,7 @@ def resolve_full_jd(job):
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
     out["description_complete"]=_looks_like_complete_jd(final,source)
+    out["description_usable"]=_looks_like_usable_jd(final,source)
     out["jd_signal_score"]=_jd_signal_score(final)
     out["jd_resolution_source"]="original_ats_or_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
     return out
@@ -68,8 +78,9 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
     for item in report.get("results",[]):
         if item.get("action")!="ELIGIBLE_FOR_RESUME":continue
         raw=resolve_full_jd(item["job"])
-        if not raw.get("description_complete"):
-            held.append({"job":raw,"action":"HOLD_INCOMPLETE_JD","reason":"Complete JD could not be resolved; no resume will be generated.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
+        if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
+            held.append({"job":raw,"action":"HOLD_UNUSABLE_JD","reason":"Job description is too limited to identify meaningful tailoring targets safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
+        raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
