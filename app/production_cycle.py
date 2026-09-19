@@ -5,7 +5,7 @@ from pathlib import Path
 from app.daily_runner import run as discover_and_filter
 from app.jd_finalizer import finalize_report
 from app.batch_prepare import prepare
-from app.job_ledger import load_ledger,save_ledger,record_seen,retryable_jobs,retry_metadata
+from app.job_ledger import load_ledger,save_ledger,record_seen,retryable_jobs,retry_metadata,_lookup
 from app.application_queue import build as build_application_queue
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -52,7 +52,7 @@ def _sync_manifest(rows,ledger_path):
    if queue_payload.get("external_id") and queue_payload.get("resume_path"):extra["queue_item"]=queue_payload
   status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="RETRY_RESUME_GENERATION":
-   _,existing=__import__("app.job_ledger",fromlist=["_lookup"])._lookup(job,ledger)
+   _,existing=_lookup(job,ledger)
    meta=retry_metadata(existing or {},"resume")
    extra.update(meta)
    if meta["resume_retry_exhausted"]:
