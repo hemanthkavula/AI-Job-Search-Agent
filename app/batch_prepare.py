@@ -7,13 +7,12 @@ from app.config import load_profile
 from app.reference_resume_formatter import render_llm_resume
 from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
-from app.pdf_export import convert_docx_to_pdf, validate_docx_pdf_parity
+from app.pdf_export import convert_docx_to_pdf_detailed, validate_docx_pdf_parity
 from app.jd_coverage_plan import build_coverage_plan
 
 load_dotenv()
 
 MAX_RESUME_ATTEMPTS=3
-MAX_ARTIFACT_ATTEMPTS=3
 MIN_COVERAGE_TARGETS=3
 
 def _base_resume_payload(profile):
@@ -168,10 +167,12 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 # Headless conversion is deterministic for an unchanged DOCX. Convert once;
                 # repeating the same render cannot repair a parity mismatch and can hide
                 # environment/setup problems. Preserve the approved DOCX for later retry.
-                artifact_attempt=1
-                pdf_path=convert_docx_to_pdf(resume)
+                conversion=convert_docx_to_pdf_detailed(resume,attempts=2)
+                pdf_path=conversion["pdf_path"]
                 artifact_validation=validate_docx_pdf_parity(resume,pdf_path)
-                artifact_validation["attempts"]=artifact_attempt
+                artifact_validation["attempts"]=conversion["attempts"]
+                artifact_validation["conversion_reason"]=conversion["reason"]
+                artifact_validation["renderer"]=conversion["renderer"]
                 if not artifact_validation["passed"]:
                     print("PDF parity/conversion failed; holding the unchanged approved DOCX | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             if not audit["passed"]:
