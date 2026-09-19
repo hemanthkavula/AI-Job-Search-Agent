@@ -712,7 +712,7 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
         scope=form_scope(page)
         before_url=page.url
         before_filled=len(result["filled"])
-        _,unresolved=_fill_current_page(scope,item,identity,resume,result)
+        _,unresolved=_fill_current_page(scope,item,identity,resume,result,profile)
         analysis=analyze_application(page)
         step={"step":step_no,"url":before_url,"filled_count":len(result["filled"])-before_filled,
               "unresolved_required":sorted(set(unresolved)),"analysis":analysis}
