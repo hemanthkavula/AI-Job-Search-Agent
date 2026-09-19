@@ -97,11 +97,19 @@ def _application_ledger_status(result):
         return "RETRY_APPLICATION"
     return "MANUAL_ACTION_REQUIRED"
 
+APPLICATION_REPLAY_STATUSES={"RETRY_APPLICATION","READY_TO_APPLY","IN_PROGRESS","APPLICATION_IN_PROGRESS"}
+
 def _retry_application_items(ledger_path):
+    """Recover application work that did not reach a terminal outcome.
+
+    Replays use the persisted queue item only. Confirmed/legacy submitted rows are
+    deliberately excluded so an interrupted process cannot resubmit a known
+    successful application.
+    """
     rows=[]
     for row in (load_ledger(ledger_path).get("jobs") or {}).values():
-        if row.get("application_status")!="RETRY_APPLICATION":continue
-        payload=row.get("retry_application")
+        if row.get("application_status") not in APPLICATION_REPLAY_STATUSES:continue
+        payload=row.get("retry_application") or row.get("queue_item")
         if isinstance(payload,dict) and payload.get("external_id") and payload.get("resume_path"):
             rows.append(payload)
     return rows
