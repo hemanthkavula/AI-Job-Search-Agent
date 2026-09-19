@@ -495,129 +495,108 @@ def _workday_enter_application(page):
     return diag
 
 def _dice_card(page, heading):
-    """Return the smallest Dice document card containing the requested heading."""
+    """Find the Dice document card by an exact visible heading, without crossing into sibling cards."""
     wanted=_norm(heading)
-    heads=page.locator("h1, h2, h3, h4, h5, h6, label, strong, div, span")
-    for i in range(min(heads.count(),300)):
+    heads=page.locator("h1, h2, h3, h4, h5, h6, label, strong")
+    for i in range(min(heads.count(),200)):
         h=heads.nth(i)
         try:
             if not h.is_visible() or _norm(h.inner_text())!=wanted:continue
-            card=h.locator("xpath=ancestor::*[self::div or self::section][.//button or .//*[@role='button']][1]")
-            if card.count():return card
+            # Dice document cards contain exactly one document heading. Reject
+            # ancestors that also contain the sibling Resume/Cover Letter heading.
+            node=h
+            for _ in range(6):
+                node=node.locator("xpath=parent::*")
+                if not node.count():break
+                txt=_norm(node.inner_text())
+                has_resume=re.search(r"(^| )resume( |$)",txt) is not None
+                has_cover="cover letter" in txt
+                if wanted=="resume" and has_resume and not has_cover:
+                    return node
+                if wanted=="cover letter" and has_cover and not has_resume:
+                    return node
         except Exception:pass
     return None
 
 def _dice_card_menu_action(page,card,action):
-    """Open one Dice document card's menu and choose an exact action."""
-    buttons=card.locator("button, [role='button']")
-    for i in range(min(buttons.count(),30)):
+    """Use only the overflow/menu button contained by one verified Dice document card."""
+    buttons=card.locator("button")
+    menu=None
+    for i in range(min(buttons.count(),20)):
         b=buttons.nth(i)
         try:
             if not b.is_visible():continue
-            txt=_norm((b.inner_text() or "")+" "+(b.get_attribute("aria-label") or "")+" "+(b.get_attribute("title") or ""))
-            # Dice's ellipsis can be icon-only. Prefer explicit menu labels, then
-            # the last visible button in the card (the document overflow control).
-            if any(t in txt for t in ("more","menu","options","ellipsis")):
-                b.click(timeout=3000);break
+            meta=_norm(" ".join(filter(None,[
+                b.inner_text(),b.get_attribute("aria-label"),b.get_attribute("title"),
+                b.get_attribute("data-testid"),b.get_attribute("data-automation-id"),
+            ])))
+            if any(t in meta for t in ("more","menu","options","ellipsis","overflow")):
+                menu=b;break
         except Exception:pass
-    else:
+    if menu is None:
+        # The screenshot shows the card overflow as an icon-only button. Accept
+        # the sole visible button only when it is inside this already-isolated card.
         visible=[]
-        for i in range(min(buttons.count(),30)):
+        for i in range(min(buttons.count(),20)):
             try:
                 if buttons.nth(i).is_visible():visible.append(buttons.nth(i))
             except Exception:pass
-        if not visible:return False
-        try:visible[-1].click(timeout=3000)
-        except Exception:return False
-    page.wait_for_timeout(300)
-    actions=page.locator("button, [role='menuitem'], [role='button'], li")
+        if len(visible)!=1:return False
+        menu=visible[0]
+    try:menu.click(timeout=3000)
+    except Exception:return False
+    page.wait_for_timeout(250)
     wanted=_norm(action)
-    for i in range(min(actions.count(),100)):
+    actions=page.locator('[role="menuitem"], [role="menu"] button, [role="menu"] li')
+    for i in range(min(actions.count(),50)):
         a=actions.nth(i)
         try:
             if a.is_visible() and _norm(a.inner_text())==wanted:
-                a.click(timeout=3000);page.wait_for_timeout(400);return True
+                a.click(timeout=3000);return True
         except Exception:pass
     return False
 
 def _dice_resume_upload(page,resume,result):
-    """Replace Dice Resume and clear Cover Letter using card-scoped controls."""
+    """Replace only Dice's Resume card. Never interact with Cover Letter upload controls."""
     if "dice.com/job-applications/" not in (page.url or "").lower():
         return {"handled":False}
     expected=resume.name
     resume_card=_dice_card(page,"Resume")
     if resume_card is None:
-        return {"handled":True,"verified":False,"reason":"Dice Resume card not found"}
+        return {"handled":True,"verified":False,"reason":"Isolated Dice Resume card not found"}
 
-    try:
-        resume_text=resume_card.inner_text()
-    except Exception:
-        resume_text=""
+    try:resume_text=resume_card.inner_text()
+    except Exception:resume_text=""
     if expected not in resume_text:
-        # Capture existing file inputs before Replace. Clicking Replace can invoke
-        # a native OS file chooser; Playwright must intercept that chooser instead
-        # of allowing Windows' Open dialog to block automation.
-        before_inputs=page.locator('input[type="file"]').count()
-        uploaded=False
         chooser_box={"chooser":None}
-        def _capture_chooser(chooser):
-            chooser_box["chooser"]=chooser
+        def _capture_chooser(chooser):chooser_box["chooser"]=chooser
         page.once("filechooser",_capture_chooser)
         clicked=_dice_card_menu_action(page,resume_card,"Replace")
         if not clicked:
             try:page.remove_listener("filechooser",_capture_chooser)
             except Exception:pass
-            return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
+            return {"handled":True,"verified":False,"reason":"Resume-card Replace action not found; Cover Letter was not touched"}
         page.wait_for_timeout(500)
         chooser=chooser_box.get("chooser")
-        if chooser is not None:
-            try:
-                chooser.set_files(str(resume.resolve()));uploaded=True
+        if chooser is None:
+            try:page.remove_listener("filechooser",_capture_chooser)
             except Exception:pass
-        try:page.remove_listener("filechooser",_capture_chooser)
-        except Exception:pass
-        if not uploaded:
-            # Some Dice builds expose a new native file input without a chooser
-            # event. Only use an input created after the Resume-scoped Replace.
-            files=page.locator('input[type="file"]')
-            for i in range(before_inputs,min(files.count(),20)):
-                try:
-                    files.nth(i).set_input_files(str(resume.resolve()));uploaded=True;break
-                except Exception:pass
-        if not uploaded:
-            return {"handled":True,"verified":False,"reason":"Dice Resume Replace opened, but its file chooser could not be filled safely"}
+            return {"handled":True,"verified":False,"reason":"Resume Replace did not emit a file chooser; refusing to use any page-level upload input"}
+        try:
+            chooser.set_files(str(resume.resolve()))
+        except Exception as exc:
+            return {"handled":True,"verified":False,"reason":f"Resume chooser could not be filled: {exc}"}
         page.wait_for_timeout(1500)
 
-    # Re-resolve after React updates and verify the Resume card itself.
     resume_card=_dice_card(page,"Resume")
     try:resume_text=resume_card.inner_text() if resume_card is not None else ""
     except Exception:resume_text=""
     if expected not in resume_text:
-        return {"handled":True,"verified":False,"reason":"Tailored filename did not appear in Dice Resume card","expected_filename":expected}
-
-    # Cover letter is optional. Remove a stale document only from the separately
-    # scoped Cover letter card; never upload the resume there.
-    cover_card=_dice_card(page,"Cover letter")
-    cover_cleared=True
-    if cover_card is not None:
-        try:cover_text=cover_card.inner_text()
-        except Exception:cover_text=""
-        if re.search(r"\.(pdf|docx?|txt|rtf)\b",cover_text,re.I):
-            cover_cleared=_dice_card_menu_action(page,cover_card,"Delete")
-            if cover_cleared:
-                page.wait_for_timeout(700)
-                cover_card=_dice_card(page,"Cover letter")
-                try:cover_text=cover_card.inner_text() if cover_card is not None else ""
-                except Exception:cover_text=""
-                cover_cleared=not bool(re.search(r"\.(pdf|docx?|txt|rtf)\b",cover_text,re.I))
-
-    if not cover_cleared:
-        return {"handled":True,"verified":False,"reason":"Dice Cover Letter could not be cleared safely"}
+        return {"handled":True,"verified":False,"reason":"Tailored filename did not appear in the isolated Dice Resume card","expected_filename":expected}
 
     result.setdefault("filled",[]).append({"field":"Dice resume","value":expected})
     result["dice_resume_verified"]=True
-    result["dice_cover_letter_cleared"]=True
-    return {"handled":True,"verified":True,"filename":expected,"cover_letter_cleared":True}
+    return {"handled":True,"verified":True,"filename":expected}
 
 def _required(el):
     return el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
