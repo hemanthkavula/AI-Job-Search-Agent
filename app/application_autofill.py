@@ -541,6 +541,46 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             step["next_error"]=str(exc);break
     return steps
 
+def _submission_confirmation(page):
+    """Require positive ATS confirmation evidence after a final-submit click."""
+    try:
+        page.wait_for_timeout(1200)
+        body=_norm(page.locator("body").inner_text(timeout=8000))
+    except Exception:
+        body=""
+    phrases=(
+        "application submitted","application has been submitted","thank you for applying",
+        "thanks for applying","we received your application","we have received your application",
+        "application received","your application was received","successfully submitted",
+    )
+    matched=next((p for p in phrases if p in body),None)
+    url=_norm(page.url)
+    url_signal=any(x in url for x in ("confirmation","thank-you","thankyou","submitted","success"))
+    return {
+        "confirmed":bool(matched or url_signal),
+        "matched_phrase":matched,
+        "url":page.url,
+        "url_signal":url_signal,
+        "body_excerpt":body[:1200],
+    }
+
+def _find_final_submit(scope):
+    candidates=[]
+    for sel in ('button','[role="button"]','input[type="submit"]'):
+        loc=scope.locator(sel)
+        for i in range(min(loc.count(),120)):
+            el=loc.nth(i)
+            try:
+                if not el.is_visible(): continue
+                tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+                txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
+                nx=_norm(txt)
+                if any(x in nx for x in ("submit application","send application","complete application","finish application")):
+                    candidates.append((len(nx),el,txt))
+            except Exception: pass
+    candidates.sort(key=lambda x:x[0])
+    return candidates[0] if candidates else None
+
 def _generic_steps(page,item,identity,resume,result,max_steps=12):
     """Fill and advance generic ATS pages, stopping before any final application submission."""
     steps=[]
@@ -600,7 +640,7 @@ def _generic_steps(page,item,identity,resume,result,max_steps=12):
             break
     return steps
 
-def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0)->dict:
+def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False)->dict:
     """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
     inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
     uploading files, or advancing any application step.
@@ -683,6 +723,25 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                 result["reason"]="No application form fields were mapped; application form may require an Apply/sign-in step."
             else:
                 result["status"]="MANUAL_ACTION_REQUIRED" if result["unresolved_required"] else "AUTOFILLED_REVIEW_REQUIRED"
+                if allow_submit and not result["unresolved_required"] and not result["blockers"]:
+                    scope=form_scope(page)
+                    final=_find_final_submit(scope)
+                    if final:
+                        try:
+                            result["final_submit_action"]=final[2]
+                            final[1].click(timeout=5000)
+                            confirmation=_submission_confirmation(page)
+                            result["submission_confirmation"]=confirmation
+                            result["submitted"]=bool(confirmation["confirmed"])
+                            result["status"]="SUBMITTED" if confirmation["confirmed"] else "SUBMISSION_UNCONFIRMED"
+                            if not confirmation["confirmed"]:
+                                result["reason"]="Final submit was clicked, but no verifiable ATS confirmation was detected."
+                        except Exception as exc:
+                            result["status"]="SUBMISSION_UNCONFIRMED"
+                            result["reason"]=str(exc)
+                    else:
+                        result["status"]="MANUAL_ACTION_REQUIRED"
+                        result["reason"]="Submission authorized, but no unambiguous final-submit control was found."
         except Exception as exc:
             result["status"]="MANUAL_ACTION_REQUIRED";result["reason"]=str(exc)
         finally:
@@ -692,14 +751,14 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
             browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds))
+        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds,allow_submit))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");ap.add_argument("--wait-for-human-seconds",type=int,default=0,help="In headed mode, keep the same browser session open for CAPTCHA/MFA completion, then resume automatically.");a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only,a.wait_for_human_seconds);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");ap.add_argument("--wait-for-human-seconds",type=int,default=0,help="In headed mode, keep the same browser session open for CAPTCHA/MFA completion, then resume automatically.");ap.add_argument("--allow-submit",action="store_true",help="Explicitly authorize clicking an unambiguous final application submit control. Success is recorded only after confirmation evidence.");a=ap.parse_args()
+    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only,a.wait_for_human_seconds,a.allow_submit);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
