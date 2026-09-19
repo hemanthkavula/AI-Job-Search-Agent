@@ -39,6 +39,52 @@ def _fill_login_gate(scope,result):
         result["login_credentials_error"]=str(exc)
         return False
 
+def _auth_action(scope, result):
+    """Sign in or create an ATS account using local env credentials. Never handles CAPTCHA/MFA."""
+    creds=_application_credentials()
+    if not creds["email"] or not creds["password"]:
+        return {"handled":False,"reason":"APPLICATION_LOGIN_EMAIL/PASSWORD not configured"}
+    try:
+        body=_norm(scope.locator("body").inner_text(timeout=5000))
+    except Exception:
+        body=""
+    if BLOCKER_RE.search(body):
+        return {"handled":False,"blocker":"CAPTCHA/MFA/verification challenge detected"}
+
+    email=scope.locator('input[type="email"], input[name*="email" i], input[id*="email" i], input[autocomplete="username"]').first
+    password=scope.locator('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]').first
+    if not email.count() or not password.count():
+        return {"handled":False,"reason":"No login/account credential form detected"}
+    try:
+        email.fill(creds["email"]); password.fill(creds["password"])
+        result.setdefault("filled",[]).extend([
+            {"field":"ATS account email","value":creds["email"]},
+            {"field":"ATS account password","value":"[REDACTED]"},
+        ])
+        # Account creation commonly requires password confirmation.
+        confirms=scope.locator('input[type="password"]')
+        if confirms.count()>1:
+            for i in range(1,min(confirms.count(),3)):
+                try:
+                    if confirms.nth(i).is_visible(): confirms.nth(i).fill(creds["password"])
+                except Exception: pass
+        actions=scope.locator('button, input[type="submit"], [role="button"]')
+        create_mode=any(t in body for t in ("create account","create an account","register","sign up"))
+        patterns=("create account","register","sign up","continue") if create_mode else ("sign in","log in","login","continue")
+        for wanted in patterns:
+            for i in range(min(actions.count(),80)):
+                a=actions.nth(i)
+                try:
+                    txt=_norm((a.inner_text() if a.evaluate("(e)=>e.tagName.toLowerCase()")!="input" else a.get_attribute("value")) or "")
+                    if a.is_visible() and wanted in txt and not any(x in txt for x in ("submit application","send application","complete application")):
+                        a.click(timeout=5000)
+                        result["auth_action"]="CREATE_ACCOUNT" if create_mode else "SIGN_IN"
+                        return {"handled":True,"action":result["auth_action"]}
+                except Exception: pass
+        return {"handled":False,"reason":"Credentials filled but no safe authentication action found"}
+    except Exception as exc:
+        return {"handled":False,"reason":str(exc)}
+
 def _identity(profile):
     parts=(profile.get("name") or "").split()
     contact=profile.get("contact") or {}
@@ -531,6 +577,14 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                     result["status"]="MANUAL_ACTION_REQUIRED"
                     result["reason"]=result["navigation"].get("reason") or "Could not reach application form safely."
                     return result
+            # Handle ordinary ATS login/account creation automatically using local env credentials.
+            auth=_auth_action(page,result)
+            result["authentication"]=auth
+            if auth.get("handled"):
+                page.wait_for_timeout(1800)
+                try: page.wait_for_load_state("domcontentloaded",timeout=8000)
+                except Exception: pass
+                result["application_analysis"]["after_auth"]=analyze_application(page)
             body=page.locator("body").inner_text(timeout=10000)
             if BLOCKER_RE.search(body) or (result.get("navigation") or {}).get("blocker"):
                 if wait_for_human_seconds>0 and not headless:
