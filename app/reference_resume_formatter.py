@@ -4,7 +4,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from app.resume_generator import ROOT, safe_name
+from app.resume_generator import ROOT, safe_name, clean_company_name
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import re
@@ -83,7 +83,7 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
         p=doc.add_paragraph();_compact(p,0,1);_run(p.add_run(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}"),9.2)
     root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
     clean_title=canonical_resume_title(job.title)
-    stem=pattern.replace("{Company}",safe_name(job.company)).replace("{JobTitle}",safe_name(clean_title))
+    stem=pattern.replace("{Company}",safe_name(clean_company_name(job.company))).replace("{JobTitle}",safe_name(clean_title))
     timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
     job_dir=root/f"{safe_name(job.company)}_{safe_name(clean_title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
     path=job_dir/f"{stem}.docx";doc.save(path);return str(path)
