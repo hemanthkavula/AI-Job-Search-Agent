@@ -504,9 +504,13 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
     for i in range(min(controls.count(),250)):
         el=controls.nth(i)
         try:
-            if not el.is_visible():continue
+            typ=(el.get_attribute("type") or "").lower()
         except Exception:continue
-        typ=(el.get_attribute("type") or "").lower();label=_label(el);required=_required(el)
+        if typ!="file":
+            try:
+                if not el.is_visible():continue
+            except Exception:continue
+        label=_label(el);required=_required(el)
         if typ in ("hidden","submit","button"):continue
         # Required consent checkboxes are safe to accept when they explicitly
         # reference the ATS privacy policy / terms needed to submit the application.
