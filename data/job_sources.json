@@ -85,6 +85,10 @@
     {
       "company": "Spotify",
       "site": "spotify"
+    },
+    {
+      "company": "Highspot",
+      "site": "highspot"
     }
   ],
   "ashby": [
@@ -175,6 +179,10 @@
     {
       "company": "Snowflake",
       "board": "snowflake"
+    },
+    {
+      "company": "Ramp",
+      "board": "ramp"
     }
   ],
   "smartrecruiters": [
