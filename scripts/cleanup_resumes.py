@@ -44,6 +44,33 @@ def _ledger_reference_sets():
             except Exception:pass
     return exact,folders
 
+ACTIVE_APPLICATION_STATUSES={
+    "READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION",
+    "RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED",
+    "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED",
+}
+
+def active_application_resume_check():
+    """Verify active/application-state jobs have a protected resume artifact before cleanup."""
+    ledger=_json(LEDGER,{"jobs":{}})
+    refs,folders=_ledger_reference_sets()
+    rows=[];missing=[]
+    for key,row in (ledger.get("jobs") or {}).items():
+        status=row.get("application_status") or ""
+        if status not in ACTIVE_APPLICATION_STATUSES:continue
+        candidates=[row.get("pdf_path"),row.get("resume_path")]
+        for name in ("queue_item","retry_application"):
+            payload=row.get(name) or {}
+            if isinstance(payload,dict):candidates.append(payload.get("resume_path"))
+        resolved=[_resolve(x) for x in candidates if x]
+        existing=[p for p in resolved if p and p.exists() and p.is_file()]
+        protected=[p for p in existing if p.resolve() in refs or p.parent.resolve() in folders]
+        item={"key":key,"company":row.get("company"),"title":row.get("title"),"status":status,
+              "protected_resume":str(protected[0].relative_to(ROOT)) if protected else None}
+        rows.append(item)
+        if not protected:missing.append(item)
+    return rows,missing
+
 def confirmed_resume_names():
     rows=_json(CONFIRMED,{"applications":[]}).get("applications") or []
     return {str(x.get("resume")) for x in rows if x.get("resume")}
@@ -102,14 +129,16 @@ def main():
     ap.add_argument("--apply",action="store_true",help="Delete only byte-identical unreferenced duplicates; orphan candidates remain untouched.")
     ap.add_argument("--report",default=str(ROOT/"generated"/"resume_cleanup_report.json"))
     args=ap.parse_args()
-    rows,removable,orphans,orphan_folders=inventory()
+    rows,removable,orphans,orphan_folders=inventory()\n    active,missing=active_application_resume_check()
     counts={}
     for row in rows:counts[row["status"]]=counts.get(row["status"],0)+1
     result={"files":len(rows),"counts":counts,"duplicate_files":len(removable),
             "duplicate_bytes":sum(p.stat().st_size for p in removable),
             "orphan_candidate_files":len(orphans),
             "orphan_candidate_bytes":sum(p.stat().st_size for p in orphans),
-            "orphan_candidate_folders":len(orphan_folders),"applied":False}
+            "orphan_candidate_folders":len(orphan_folders),
+            "active_application_jobs":len(active),"protected_active_resumes":len(active)-len(missing),
+            "missing_active_resumes":len(missing),"applied":False}
     report={"summary":result,"orphan_folders":orphan_folders,"files":rows}
     report_path=Path(args.report);report_path.parent.mkdir(parents=True,exist_ok=True)
     report_path.write_text(json.dumps(report,indent=2),encoding="utf-8")
