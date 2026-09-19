@@ -533,12 +533,37 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
                 unresolved.append(label or "required checkbox")
             continue
         if typ=="file":
-            fl=_norm(label)
-            if any(t in fl for t in ("resume","cv","curriculum vitae")):
-                try:el.set_input_files(str(resume.resolve()));result["filled"].append({"field":label or "resume","value":"validated PDF"})
+            # File inputs must be classified from their own local field context.
+            # Parent/container text can include both "Resume" and "Cover Letter"
+            # (notably Dice), which previously caused the tailored resume to be
+            # uploaded into an optional cover-letter input as well.
+            try:
+                file_context=el.evaluate("""e => {
+                  const parts=[];
+                  const add=v=>{if(v && !parts.includes(String(v).trim())) parts.push(String(v).trim())};
+                  add(e.getAttribute('aria-label')); add(e.getAttribute('name')); add(e.id);
+                  if(e.id){const l=document.querySelector('label[for="'+CSS.escape(e.id)+'"]');if(l)add(l.innerText||l.textContent)}
+                  const own=e.closest('label');if(own)add(own.innerText||own.textContent);
+                  const wrapper=e.closest('[data-testid], [data-automation-id], fieldset');
+                  if(wrapper){
+                    const heading=wrapper.querySelector('legend, label, h1, h2, h3, h4');
+                    if(heading)add(heading.innerText||heading.textContent);
+                  }
+                  return parts.join(' | ');
+                }""")
+            except Exception:
+                file_context=label
+            fl=_norm(file_context)
+            is_cover_letter=any(t in fl for t in ("cover letter","coverletter"))
+            is_resume=any(t in fl for t in ("resume","curriculum vitae")) or re.search(r"\\bcv\\b",fl)
+            if is_resume and not is_cover_letter:
+                try:
+                    el.set_input_files(str(resume.resolve()))
+                    result["filled"].append({"field":file_context or "resume","value":"validated PDF"})
                 except Exception:
-                    if required:unresolved.append(label or "resume upload")
-            elif required:unresolved.append(label or "required file upload")
+                    if required:unresolved.append(file_context or "resume upload")
+            elif required:
+                unresolved.append(file_context or "required file upload")
             continue
         x=_norm(label)
         if "phone extension" in x or x.endswith(" extension"):
