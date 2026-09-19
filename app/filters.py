@@ -117,9 +117,9 @@ def passes_hard_filters(job:dict,profile:dict):
     3) Future sponsorship must not be explicitly unavailable
     4) Experience requirement must fit the configured target window
 
-    Location, citizenship and clearance remain metadata for later application
-    handling; employment type is a hard gate because the configured search targets
-    Full-Time/W-2 roles.
+    Citizenship and required security clearance are also hard gates so ineligible
+    jobs are rejected before any resume-generation/API spend. Employment type is a
+    hard gate because the configured search targets Full-Time/W-2 roles.
     """
     reasons=[]
     if not title_is_target(job.get("title"),job.get("description")):
@@ -131,4 +131,8 @@ def passes_hard_filters(job:dict,profile:dict):
         reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
     if eligibility["sponsorship"]["eligible"] is False:
         reasons.append("future H-1B sponsorship unavailable")
+    if eligibility["citizenship"]["eligible"] is False:
+        reasons.append("US citizenship requirement")
+    if eligibility["clearance"]["eligible"] is False:
+        reasons.append("security clearance requirement")
     return len(reasons)==0,reasons
