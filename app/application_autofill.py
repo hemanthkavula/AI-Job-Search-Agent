@@ -132,7 +132,7 @@ def _identity(profile):
     contact=profile.get("contact") or {}
     address=contact.get("address") or {}
     raw_phone=contact.get("phone","")
-    digits=re.sub(r"\\D+","",raw_phone)
+    digits=re.sub(r"\D+","",raw_phone)
     us_phone=digits[-10:] if len(digits)>=10 else digits
     return {"first_name":parts[0] if parts else "","last_name":parts[-1] if len(parts)>1 else "",
             "full_name":profile.get("name",""),"email":contact.get("email",""),"phone":us_phone,
