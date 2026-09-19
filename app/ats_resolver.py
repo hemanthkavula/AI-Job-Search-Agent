@@ -4,7 +4,8 @@ from urllib import request
 from urllib.parse import urljoin, urlsplit, unquote
 from app.source_registry import detect_ats
 
-ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com")\nAPPLY_KEY_RE=re.compile(r'(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)|applyUrl')
+ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com")
+APPLY_KEY_RE=re.compile(r'(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)|applyUrl')
 
 def _fetch(url):
  if not url:return ""
