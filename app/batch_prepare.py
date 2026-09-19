@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json
+import argparse,json,shutil
 from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
@@ -26,6 +26,17 @@ def _base_resume_payload(profile):
             for row in (profile.get("experience") or [])
         ],
     }
+
+def _discard_resume_artifact(resume_path):
+    """Remove an unapproved resume and its job folder; failed candidates leave no DOCX/PDF artifacts."""
+    if not resume_path:return
+    try:
+        p=Path(resume_path)
+        parent=p.parent
+        if p.exists():p.unlink()
+        if parent.exists() and parent.is_dir():
+            shutil.rmtree(parent,ignore_errors=True)
+    except Exception:pass
 
 def _render_base_resume(profile):
     base_job=SimpleNamespace(
@@ -158,6 +169,14 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 if not artifact_validation["passed"]:
                     print("PDF parity/conversion failed; holding the unchanged approved DOCX | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             if not audit["passed"]:
+                # Tailored drafts are temporary until the quality audit passes.
+                # Failed jobs must not leave resume folders or Word/PDF artifacts.
+                _discard_resume_artifact(resume)
+                for h in audit_history:
+                    _discard_resume_artifact(h.get("resume_path"))
+                    h["resume_path"]=None
+                resume=None
+                pdf_path=None
                 next_action="HOLD_ATS_REVIEW"
             elif not artifact_validation["passed"]:
                 next_action="HOLD_ARTIFACT_VALIDATION"
@@ -166,6 +185,12 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 next_action="READY_TO_APPLY"
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
+            # Clean up any draft that may have been rendered before a later pipeline failure.
+            try:_discard_resume_artifact(locals().get("resume"))
+            except Exception:pass
+            for h in locals().get("audit_history",[]):
+                _discard_resume_artifact(h.get("resume_path"))
+                h["resume_path"]=None
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0};artifact_validation={"passed":False,"reason":str(exc)}
         manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":locals().get("artifact_validation",{}),"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
