@@ -406,6 +406,19 @@ def _fill_current_page(page,item,identity,resume,result):
         except Exception:continue
         typ=(el.get_attribute("type") or "").lower();label=_label(el);required=_required(el)
         if typ in ("hidden","submit","button"):continue
+        # Required consent checkboxes are safe to accept when they explicitly
+        # reference the ATS privacy policy / terms needed to submit the application.
+        if typ=="checkbox":
+            lx=_norm(label)
+            if required and any(t in lx for t in ("privacy policy","terms of service","terms and conditions")):
+                try:
+                    if not el.is_checked():el.check()
+                    result["filled"].append({"field":label or "required ATS consent","value":"accepted"})
+                except Exception:
+                    unresolved.append(label or "required ATS consent")
+            elif required:
+                unresolved.append(label or "required checkbox")
+            continue
         if typ=="file":
             fl=_norm(label)
             if any(t in fl for t in ("resume","cv","curriculum vitae")):
@@ -622,9 +635,15 @@ def _final_submit_candidates(page):
                     exact=nx in ("submit application","send application","complete application","finish application")
                     # A bare "Submit" is acceptable only for a submit-type control inside
                     # the application form after all required questions are resolved.
-                    bare_submit=nx=="submit" and (el.get_attribute("type") or "").lower()=="submit"
-                    if exact or bare_submit:
-                        candidates.append((0 if exact else 1,len(nx),el,txt,getattr(scope,"url",page.url)))
+                    typ=(el.get_attribute("type") or "").lower()
+                    bare_submit=nx=="submit" and typ=="submit"
+                    # Some external ATS forms use employer-specific final labels such
+                    # as "Apply for this Position" rather than "Submit Application".
+                    apply_position=nx in ("apply for this position","apply for position") and (
+                        typ=="submit" or tag=="button"
+                    )
+                    if exact or bare_submit or apply_position:
+                        candidates.append((0 if exact or apply_position else 1,len(nx),el,txt,getattr(scope,"url",page.url)))
                 except Exception:pass
     candidates.sort(key=lambda x:(x[0],x[1]))
     return candidates
