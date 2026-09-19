@@ -50,8 +50,9 @@ def resolve_full_jd(job):
     current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
     if job.get("description_complete") and _looks_like_complete_jd(current,source):return job
-    page=_fetch_public_page(job.get("original_url") or job.get("url"))
-    resolved=_extract_dice(page) if source=="dice" else _clean_html(page)
+    fetch_url=job.get("original_url") or job.get("url")
+    page=_fetch_public_page(fetch_url)
+    resolved=_extract_dice(page) if source=="dice" and "dice.com" in (fetch_url or "").lower() else _clean_html(page)
     out=dict(job)
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
