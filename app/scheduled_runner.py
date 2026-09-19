@@ -74,6 +74,28 @@ def _application_ledger_status(result):
         return "RETRY_APPLICATION"
     return "MANUAL_ACTION_REQUIRED"
 
+def _retry_application_items(ledger_path):
+    rows=[]
+    for row in (load_ledger(ledger_path).get("jobs") or {}).values():
+        if row.get("application_status")!="RETRY_APPLICATION":continue
+        payload=row.get("retry_application")
+        if isinstance(payload,dict) and payload.get("external_id") and payload.get("resume_path"):
+            rows.append(payload)
+    return rows
+
+def _merge_retry_queue(queue_path,ledger_path):
+    path=ROOT/queue_path
+    current=json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    existing={x.get("external_id") for x in current}
+    added=0
+    for item in _retry_application_items(ledger_path):
+        if item.get("external_id") in existing:continue
+        current.append(item);existing.add(item.get("external_id"));added+=1
+    if added:
+        path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_text(json.dumps(current,indent=2),encoding="utf-8")
+    return current,added
+
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
@@ -88,6 +110,15 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # answers, and other manual blockers are recorded and the batch continues.
     # Persist terminal outcomes in the ledger so hourly scans do not retry them.
     queue_path=summary.get("application_queue")
+    if apply_ready:
+        if not queue_path:
+            queue_path=f"generated/cycles/{summary['cycle_id']}_application_queue.json"
+            (ROOT/queue_path).parent.mkdir(parents=True,exist_ok=True)
+            (ROOT/queue_path).write_text("[]",encoding="utf-8")
+            summary["application_queue"]=queue_path
+        merged_queue,retry_added=_merge_retry_queue(queue_path,ledger)
+        summary["application_retries_queued"]=retry_added
+        summary["queued_for_application"]=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in merged_queue)
     if apply_ready and queue_path and summary.get("queued_for_application",0):
         output=f"generated/cycles/{summary['cycle_id']}_application_results.json"
         application_results=run_applications(
@@ -101,23 +132,31 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             allow_submit=allow_submit,
         )
         app_ledger=load_ledger(ledger)
+        queue_rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
         for result in application_results:
+            queue_item=next((x for x in queue_rows if x.get("external_id")==result.get("external_id")),{})
             job={
                 "external_id":result.get("external_id"),
-                "source":next((x.get("source") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),"unknown"),
-                "company_key":next((x.get("company") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),""),
-                "title":next((x.get("title") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),""),
-                "url":result.get("url"),
+                "source":queue_item.get("source") or "unknown",
+                "company_key":queue_item.get("company") or "",
+                "title":queue_item.get("title") or "",
+                "url":result.get("url") or queue_item.get("url"),
             }
             status=result.get("status") or "MANUAL_ACTION_REQUIRED"
             # Confirmed submission is terminal. Security challenges are isolated
             # without bypassing them. Transient ATS/browser failures remain retryable.
             ledger_status=_application_ledger_status(result)
-            record_seen(job,app_ledger,ledger_status,
-                        application_result=status,
-                        application_reason=result.get("reason"),
-                        application_blockers=result.get("blockers") or [],
-                        application_result_path=output)
+            extra={
+                "application_result":status,
+                "application_reason":result.get("reason"),
+                "application_blockers":result.get("blockers") or [],
+                "application_result_path":output,
+            }
+            if ledger_status=="RETRY_APPLICATION":
+                extra["retry_application"]=queue_item
+            else:
+                extra["retry_application"]=None
+            record_seen(job,app_ledger,ledger_status,**extra)
         save_ledger(app_ledger,ledger)
         summary["application_stage_enabled"]=True
         summary["application_results"]=output
