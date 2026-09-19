@@ -14,3 +14,8 @@ def test_apply_entry_never_matches_final_submit_as_safe_entry():
     assert APPLY_RE.search("Apply Now")
     assert FINAL_RE.search("Submit Application")
     assert FINAL_RE.search("Submit")
+
+def test_blocker_regex_recognizes_common_verification_challenges():
+    assert BLOCKER_RE.search("hcaptcha")
+    assert BLOCKER_RE.search("verification code")
+    assert BLOCKER_RE.search("two-factor")
