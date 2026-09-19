@@ -43,13 +43,18 @@ def _sync_manifest(rows,ledger_path):
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
   extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation")}
   if row.get("next_action")=="READY_TO_APPLY":
-   queue_payload={
-    "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
-    "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
-    "resume_path":row.get("pdf_path") or row.get("resume_path"),"artifact_validation":row.get("artifact_validation"),
-    "status":"READY_FOR_ATS_ADAPTER",
-   }
-   if queue_payload.get("external_id") and queue_payload.get("resume_path"):extra["queue_item"]=queue_payload
+   pdf_path=row.get("pdf_path")
+   if pdf_path and Path(pdf_path).suffix.lower()==".pdf":
+    queue_payload={
+     "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
+     "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
+     "resume_path":pdf_path,"artifact_validation":row.get("artifact_validation"),
+     "status":"READY_FOR_ATS_ADAPTER",
+    }
+    if queue_payload.get("external_id"):extra["queue_item"]=queue_payload
+   else:
+    status="HOLD_ARTIFACT_VALIDATION"
+    extra["application_reason"]="Validated PDF resume is required before application."
   status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="RETRY_RESUME_GENERATION":
    _,existing=_lookup(job,ledger)
