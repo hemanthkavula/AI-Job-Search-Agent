@@ -18,10 +18,18 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters"):
-        existing=list(config.get(provider,[]));seen={str(x) for x in existing}
-        for row in learned_config.get(provider,[]):
-            if str(row) not in seen:existing.append(row)
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday"):
+        existing=list(config.get(provider,[]))
+        if provider=="workday":
+            seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
+            for row in learned_config.get(provider,[]):
+                key=(row.get("host"),row.get("tenant"),row.get("site"))
+                if key not in seen:
+                    existing.append(row);seen.add(key)
+        else:
+            seen={str(x) for x in existing}
+            for row in learned_config.get(provider,[]):
+                if str(row) not in seen:existing.append(row)
         merged[provider]=existing
     config=merged
     jobs=[]
