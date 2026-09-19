@@ -670,6 +670,22 @@ def _find_final_submit(page):
     rows=_final_submit_candidates(page)
     return rows[0] if rows else None
 
+def _visible_validation_errors(page):
+    """Capture visible ATS validation messages after a final-submit attempt."""
+    rows=[]
+    try:
+        loc=page.locator('[role="alert"], .error, .errors, .alert-danger, .invalid-feedback, [class*="error" i]')
+        for i in range(min(loc.count(),80)):
+            el=loc.nth(i)
+            try:
+                if el.is_visible():
+                    txt=re.sub(r"\\s+"," ",el.inner_text() or "").strip()
+                    if txt and any(p in _norm(txt) for p in ("error","required","missing","please complete","please enter","invalid")):
+                        rows.append(txt)
+            except Exception:pass
+    except Exception:pass
+    return list(dict.fromkeys(rows))[:20]
+
 def _generic_steps(page,item,identity,resume,result,max_steps=12):
     """Fill and advance generic ATS pages, stopping before any final application submission."""
     steps=[]
@@ -826,10 +842,17 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                             final[2].click(timeout=5000)
                             confirmation=_submission_confirmation(page)
                             result["submission_confirmation"]=confirmation
+                            validation_errors=_visible_validation_errors(page)
+                            if validation_errors:
+                                result["post_submit_validation_errors"]=validation_errors
                             result["submitted"]=bool(confirmation["confirmed"])
                             result["status"]="SUBMITTED" if confirmation["confirmed"] else "SUBMISSION_UNCONFIRMED"
                             if not confirmation["confirmed"]:
-                                result["reason"]="Final submit was clicked, but no verifiable ATS confirmation was detected."
+                                result["reason"]=(
+                                    "Final submit was rejected by ATS validation."
+                                    if validation_errors else
+                                    "Final submit was clicked, but no verifiable ATS confirmation was detected."
+                                )
                         except Exception as exc:
                             result["status"]="SUBMISSION_UNCONFIRMED"
                             result["reason"]=str(exc)
