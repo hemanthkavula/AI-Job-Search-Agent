@@ -16,7 +16,7 @@ def _plain(value: str) -> str:
     return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
 
 def _job_links(base_url: str, body: str) -> list[str]:
-    links=re.findall(r'href=[\\"\\']([^\\"\\']*/job/[^\\"\\'?#]+)',body,re.I)
+    links=re.findall(r"href=['\\\"]([^'\\\"]*/job/[^'\\\"?#]+)",body,re.I)
     out=[];seen=set()
     for href in links:
         url=urljoin(base_url,html.unescape(href))
@@ -25,7 +25,8 @@ def _job_links(base_url: str, body: str) -> list[str]:
     return out
 
 def _jsonld(body: str) -> dict:
-    for raw in re.findall(r"<script[^>]+type=[\\"\\']application/ld\\+json[\\"\\'][^>]*>(.*?)</script>",body,re.I|re.S):
+    pattern=r"<script[^>]+type=['\\\"]application/ld\\+json['\\\"][^>]*>(.*?)</script>"
+    for raw in re.findall(pattern,body,re.I|re.S):
         try:data=json.loads(html.unescape(raw.strip()))
         except Exception:continue
         for row in (data if isinstance(data,list) else [data]):
