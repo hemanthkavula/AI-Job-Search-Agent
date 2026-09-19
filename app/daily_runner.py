@@ -56,7 +56,7 @@ def _dedup_eligible(items):
         seen.setdefault(base,[]).append(item);kept.append(item)
     return kept,duplicates
 
-def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None):
+def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None,source_unit_hours=None):
     """Discover and eligibility-filter jobs only; no JD/resume score is used.
 
     `hours` is the incremental posting window. Use 24 for the first daily scan and
@@ -64,7 +64,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     """
     profile=load_profile();ledger=load_ledger(ledger_path)
     config=load_sources(source_config)
-    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours)
+    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours,source_unit_hours=source_unit_hours)
     source_since=source_since or {}
     if source_since:
         jobs24=[];stale=[];already=[]
@@ -102,6 +102,15 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         source=error.get("source")
         if source:
             source_errors.setdefault(source,[]).append(error)
+    # Workday is composed of independent company/tenant scans. Expose their
+    # status separately so one broken tenant does not force every healthy tenant
+    # to replay the same historical interval.
+    source_unit_status={}
+    failed_workday={e.get("company") for e in errors if e.get("source")=="workday"}
+    for src in config.get("workday",[]) or []:
+        unit=src.get("company") or src.get("tenant")
+        if unit:
+            source_unit_status[f"workday:{unit}"]="ERROR" if unit in failed_workday else "OK"
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
@@ -111,7 +120,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
         "eligible":len(eligible),"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
-        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,
+        "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,"source_unit_status":source_unit_status,
         "results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
     }
 
