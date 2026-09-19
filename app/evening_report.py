@@ -5,7 +5,7 @@ from datetime import datetime
 
 def build(manifest_path="generated/application_manifest.json", output="generated/evening_report.md"):
     p=Path(manifest_path); rows=json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
-    applied=[r for r in rows if r.get("application_status")=="SUBMITTED"]
+    applied=[r for r in rows if r.get("application_status") in ("SUBMITTED","SUBMITTED_CONFIRMED")]
     ready=[r for r in rows if r.get("next_action")=="READY_TO_APPLY"]
     held=[r for r in rows if r.get("next_action")=="HOLD_ATS_REVIEW"]
     lines=[f"# Job Automation Report — {datetime.now().strftime('%Y-%m-%d')}","",f"- Prepared: {len(rows)}",f"- Submitted: {len(applied)}",f"- Ready to apply: {len(ready)}",f"- Held for ATS review: {len(held)}","",
