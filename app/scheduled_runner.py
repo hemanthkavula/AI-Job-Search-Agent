@@ -9,7 +9,7 @@ except ImportError:
     ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
 from app.application_autofill import run as run_applications
-from app.job_ledger import load_ledger, save_ledger, record_seen
+from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due
 
 def _eastern_tz():
     """Use IANA Eastern time when available; fall back to Windows local Eastern time.
@@ -110,6 +110,7 @@ def _retry_application_items(ledger_path):
     rows=[]
     for row in (load_ledger(ledger_path).get("jobs") or {}).values():
         if row.get("application_status") not in APPLICATION_REPLAY_STATUSES:continue
+        if row.get("application_status")=="RETRY_APPLICATION" and not _retry_due(row,"application"):continue
         payload=row.get("retry_application") or row.get("queue_item")
         if isinstance(payload,dict) and payload.get("external_id") and payload.get("resume_path"):
             rows.append(payload)
@@ -211,7 +212,15 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
                 "application_result_path":output,
             }
             if ledger_status=="RETRY_APPLICATION":
-                extra["retry_application"]=queue_item
+                _,existing=__import__("app.job_ledger",fromlist=["_lookup"])._lookup(job,app_ledger)
+                meta=retry_metadata(existing or {},"application")
+                extra.update(meta)
+                if meta["application_retry_exhausted"]:
+                    ledger_status="MANUAL_ACTION_REQUIRED"
+                    extra["retry_application"]=None
+                    extra["retry_exhausted_reason"]="Application retry limit reached"
+                else:
+                    extra["retry_application"]=queue_item
             else:
                 extra["retry_application"]=None
             if ledger_status==SUBMISSION_UNCERTAIN_STATUS:
