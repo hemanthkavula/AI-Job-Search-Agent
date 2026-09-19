@@ -2,10 +2,13 @@ from app.target_companies import load_targets,match_target,annotate_jobs
 
 def test_complete_user_target_universe_is_loaded():
     payload=load_targets()
-    assert payload["counts"]=={"unique_companies":146,"h1b_targets":100,"vendor_consulting_staffing":60}
+    assert payload["counts"]=={"unique_companies":145,"h1b_targets":99,"vendor_consulting_staffing":60}
     names={x["company"] for x in payload["companies"]}
     for name in ("Amazon","Capital One","Databricks","Tata Consultancy Services (TCS)","TEKsystems","Mitchell Martin"):
         assert name in names
+    assert "Fidelity Investments" not in names
+    assert "Cigna Healthcare" not in names
+    assert "Target" not in names
 
 def test_target_aliases_match_common_employer_names():
     assert match_target("JPMorgan Chase & Co.")["company"]=="JPMorgan Chase"
