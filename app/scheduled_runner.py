@@ -148,8 +148,23 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         source_cutoffs[provider]=provider_cutoff.isoformat()
         source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0+(5.0/60.0)
     discovery_hours=hours+(5.0/60.0)
+    # Workday tenants have independent failure domains. Preserve a watermark per
+    # company so healthy tenants advance even when one tenant returns 5xx.
+    try:
+        source_config=json.loads((ROOT/sources).read_text(encoding="utf-8"))
+    except Exception:
+        source_config={}
+    unit_watermarks=state.get("source_unit_watermarks") or {}
+    source_unit_hours={}
+    for src in source_config.get("workday",[]) or []:
+        unit=src.get("company") or src.get("tenant")
+        if not unit:continue
+        key=f"workday:{unit}"
+        unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get("workday")) or cutoff
+        source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0+(5.0/60.0)
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
-                      since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours)
+                      since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours,
+                      source_unit_hours=source_unit_hours)
 
     # Application failures are isolated per job: CAPTCHA/MFA, unknown required
     # answers, and other manual blockers are recorded and the batch continues.
@@ -262,11 +277,26 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     next_watermarks.update(watermarks)
     for provider,status in source_status.items():
         if status=="OK":next_watermarks[provider]=now.isoformat()
-    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks})
+    next_unit_watermarks=dict(unit_watermarks)
+    unit_status=summary.get("source_unit_status") or {}
+    for key,status in unit_status.items():
+        if key not in next_unit_watermarks:
+            next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
+        if status=="OK":
+            next_unit_watermarks[key]=now.isoformat()
+    # Keep the provider-level Workday watermark as the oldest tenant watermark.
+    # This remains a conservative fallback for legacy code/state while actual
+    # Workday network windows use the more precise per-tenant values above.
+    workday_values=[_parse_state_time(v) for k,v in next_unit_watermarks.items() if k.startswith("workday:")]
+    workday_values=[v for v in workday_values if v is not None]
+    if workday_values:
+        next_watermarks["workday"]=min(workday_values).isoformat()
+    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks})
     summary["scan_cutoff_local"]=cutoff.isoformat()
     summary["scan_window_hours"]=hours
     _save_state(state)
     summary["source_watermarks"]=next_watermarks
+    summary["source_unit_watermarks"]=next_unit_watermarks
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=now.hour==FINAL_HOUR
