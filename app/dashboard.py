@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse, html, json, mimetypes
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 from fastapi import FastAPI, HTTPException
@@ -39,6 +40,9 @@ def _portal(row):
     if "ziprecruiter" in source:return "ZipRecruiter"
     return row.get("source") or "Company site"
 
+def _applied_at(row):
+    return row.get("submitted_at") or row.get("application_submitted_at") or (row.get("submission_confirmation") or {}).get("confirmed_at")
+
 def _stage(status):
     s=status or "DISCOVERED"
     if s in {"SUBMITTED","SUBMITTED_CONFIRMED"}:return "Applied"
@@ -76,6 +80,7 @@ def _jobs():
             "resume_url":"/resume/"+quote(key,safe="") if rp else None,
             "updated":row.get("last_seen") or row.get("first_seen"),
             "reason":row.get("application_reason") or "",
+            "applied_at":_applied_at(row),
         })
     out.sort(key=lambda x:x.get("updated") or "",reverse=True)
     return out
@@ -88,6 +93,22 @@ def applications():
         "applied":sum(x["stage"]=="Applied" for x in rows),
         "attention":sum(x["stage"] in {"Needs attention","Verify submission"} for x in rows),
     }}
+
+@app.post("/api/applications/{job_key:path}/confirm-submitted")
+def confirm_submitted(job_key:str):
+    ledger=_json(LEDGER,{"jobs":{}})
+    row=(ledger.get("jobs") or {}).get(job_key)
+    if not row:raise HTTPException(404,"Job not found")
+    now=datetime.now(timezone.utc).isoformat()
+    row["application_status"]="SUBMITTED_CONFIRMED"
+    row["application_result"]="SUBMITTED"
+    row["submitted_at"]=row.get("submitted_at") or now
+    row["last_seen"]=now
+    row["submission_confirmed_manually"]=True
+    row["application_reason"]="Submission confirmed in the employer/application portal."
+    row["retry_application"]=None
+    LEDGER.write_text(json.dumps(ledger,indent=2),encoding="utf-8")
+    return {"ok":True,"status":"SUBMITTED_CONFIRMED","submitted_at":row["submitted_at"]}
 
 @app.get("/resume/{job_key:path}")
 def resume(job_key:str):
@@ -119,7 +140,8 @@ main{padding:22px max(16px,5vw)}.stats{display:grid;grid-template-columns:repeat
 <div class="jobs" id="jobs"></div></main><script>
 let rows=[];const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cls=s=>String(s).toLowerCase().replaceAll(" ","-");
-function render(){let q=document.getElementById("search").value.toLowerCase(),f=document.getElementById("filter").value;let x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));document.getElementById("jobs").innerHTML=x.map(r=>`<div class="job"><div><div class="company">${esc(r.company)}</div><div class="title">${esc(r.title)}</div><div class="meta">${esc(r.portal)} • updated ${r.updated?new Date(r.updated).toLocaleString():"—"}</div></div><div><div class="label">Status</div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div><div class="label">Resume</div>${r.resume?`<a href="${r.resume_url}" target="_blank">${esc(r.resume)}</a>`:"Not generated yet"}</div><div class="actions">${r.url?`<a class="btn" href="${esc(r.url)}" target="_blank">Open application</a>`:""}${r.resume_url?`<a class="btn secondary" href="${r.resume_url}" target="_blank">Open resume</a>`:""}</div></div>`).join("")||'<div class="empty">No application-pipeline jobs match this view.</div>'}
+function render(){let q=document.getElementById("search").value.toLowerCase(),f=document.getElementById("filter").value;let x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));document.getElementById("jobs").innerHTML=x.map(r=>`<div class="job"><div><div class="company">${esc(r.company)}</div><div class="title">${esc(r.title)}</div><div class="meta">${esc(r.portal)} • ${r.applied_at?"applied "+new Date(r.applied_at).toLocaleString():"updated "+(r.updated?new Date(r.updated).toLocaleString():"—")}</div></div><div><div class="label">Status</div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div><div class="label">Resume</div>${r.resume?`<a href="${r.resume_url}" target="_blank">${esc(r.resume)}</a>`:"Not generated yet"}</div><div class="actions">${r.url?`<a class="btn" href="${esc(r.url)}" target="_blank">Open application</a>`:""}${r.resume_url?`<a class="btn secondary" href="${r.resume_url}" target="_blank">Open resume</a>`:""}${r.stage==="Verify submission"?`<button class="btn secondary" onclick="confirmSubmitted(\'${encodeURIComponent(r.key)}\')">Mark submitted</button>`:""}</div></div>`).join("")||'<div class="empty">No application-pipeline jobs match this view.</div>'}
+async function confirmSubmitted(k){if(!confirm("Only mark this submitted if the employer/ATS portal shows it was submitted."))return;await fetch("/api/applications/"+k+"/confirm-submitted",{method:"POST"});await load()}
 async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}
 search.oninput=render;filter.onchange=render;load();setInterval(load,5000);
 </script></body></html>""")
