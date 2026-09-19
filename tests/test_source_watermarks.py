@@ -13,7 +13,11 @@ def test_failed_provider_keeps_old_watermark(monkeypatch, tmp_path):
             "last_successful_scan_at": prior.isoformat(),
             "source_watermarks": {"workday": prior.isoformat(), "dice": prior.isoformat()},
         })
-        monkeypatch.setattr(scheduled_runner, "datetime", type("Clock", (), {"now": staticmethod(lambda tz=None: now), "fromisoformat": staticmethod(datetime.fromisoformat)}))
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now
+        monkeypatch.setattr(scheduled_runner, "datetime", Clock)
         monkeypatch.setattr(scheduled_runner, "run_cycle", lambda **kwargs: {
             "cycle_id": "test", "application_queue": None, "queued_for_application": 0,
             "source_status": {"workday": "ERROR", "dice": "OK"},
