@@ -113,17 +113,19 @@ def passes_hard_filters(job:dict,profile:dict):
     """Apply only the three governing eligibility criteria.
 
     1) Data Engineering family (title, or adjacent title supported by JD evidence)
-    2) Future sponsorship must not be explicitly unavailable
-    3) Experience requirement must fit the configured target window
+    2) Full-time/W-2 employment target
+    3) Future sponsorship must not be explicitly unavailable
+    4) Experience requirement must fit the configured target window
 
-    Location, employment type, W2/contract wording, citizenship and clearance are
-    retained as metadata for later application handling but are not eligibility
-    gates. This prevents older policy from silently rejecting otherwise eligible
-    Data Engineering postings.
+    Location, citizenship and clearance remain metadata for later application
+    handling; employment type is a hard gate because the configured search targets
+    Full-Time/W-2 roles.
     """
     reasons=[]
     if not title_is_target(job.get("title"),job.get("description")):
         reasons.append("title/JD outside data-engineering job family")
+    if not employment_is_target(job.get("employment_type"),job.get("description")):
+        reasons.append("employment type outside Full-Time/W-2 target")
     eligibility=two_category_filter(job,profile)
     if not eligibility["experience"]["eligible"]:
         reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
