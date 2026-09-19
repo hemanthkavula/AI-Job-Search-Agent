@@ -10,6 +10,7 @@ from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
+from app.target_companies import annotate_jobs
 import json
 
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
@@ -71,7 +72,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     dedup={}
     for job in jobs:
         dedup[job["external_id"]]=job
-    rows=list(dedup.values())
+    rows=annotate_jobs(list(dedup.values()))
 
     # Broad discovery sources often point at an aggregator URL first. Resolve those
     # pages before learning so the employer's real ATS can seed future direct scans.
