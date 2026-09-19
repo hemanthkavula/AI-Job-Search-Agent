@@ -225,6 +225,10 @@
     {
       "company": "ServiceNow",
       "company_identifier": "ServiceNow"
+    },
+    {
+      "company": "Intuit",
+      "company_identifier": "Intuit2"
     }
   ],
   "workday": [
