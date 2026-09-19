@@ -39,6 +39,7 @@ def _candidate_links(page,base):
 def resolve_original_ats(job):
  """Best-effort resolution from aggregator/detail URL to an employer ATS URL; no LLM and no application action."""
  out=dict(job);start=job.get("original_url") or job.get("url") or ""
+ out["original_url"]=start
  provider,identifier=detect_ats(start)
  if provider:
   out.update({"original_url":start,"ats_provider":provider,"ats_identifier":identifier,"ats_resolution":"direct"})
