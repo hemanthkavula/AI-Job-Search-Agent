@@ -121,7 +121,7 @@ Goal:
 9. Do NOT guess salary, demographics/self-identification, disability/veteran answers, relocation/onsite willingness, legal attestations, employer-specific free text, or any fact absent from the supplied context. However, application_preferences in candidate facts are explicit candidate-approved answers and MAY be used for semantically equivalent required questions. In particular, legal_working_age=true means Yes to legal-age-to-work questions; background_check_willing=true means Yes to willingness-to-submit-to-background-check questions; relocation.willing_to_relocate=true and relocation.willing_to_relocate_at_own_expense=true mean Yes when a required question asks whether the candidate can work at the listed location OR is willing to relocate there at their own expense. Do not reinterpret these preferences beyond their stated scope.
 10. APPROVED APPLICATION PREFERENCES: application_preferences are explicit candidate-approved answers. For semantically equivalent REQUIRED questions only, use: legal_working_age; background_check_willing; relocation; voluntary_disclosures (veteran_status, gender, ethnicity, disability_status); application_terms; and application_signature. For ethnicity "Asian (South Asian)", select "Asian" when that is the available equivalent category; never map to another category. "No disability" may map only to an option meaning the candidate does not have a disability. If application_terms.accept_required_terms_and_privacy_acknowledgments=true, inspect the actual displayed/linked terms first, then accept required job-application Terms & Conditions/privacy acknowledgments necessary to continue. Do not accept optional marketing consent or unrelated separate agreements. If application_signature.authorized=true, enter application_signature.signature_text EXACTLY into a required job-application signature/e-signature field tied to the application or approved required terms. Never alter the signature or use it for unrelated agreements. If no semantically equivalent option exists, stop rather than guess.
 10. If a required unknown question, CAPTCHA, MFA, verification, sign-in/account gate that cannot safely be completed, or unrecoverable blocker appears: STOP and report MANUAL_ACTION_REQUIRED with the exact question/blocker. Before stopping, make reasonable UI-only recovery attempts (wait/re-inspect blank or partially rendered pages, reload once, try an available alternate application route, close picker with Escape/click outside, verify committed selection, retry Next after validation/rendering, scroll to errors). Never classify a temporary blank/loading page, a normal open dropdown, or a supplied fact such as phone as manual action.
-11. FINAL SUBMISSION POLICY: application_run_date is authoritative for any required current-date/signature-date field; never infer or reuse a date from the job, resume, queue filename, or prior run. On the final Review page, perform a PRE-SUBMIT VALIDATION before any Submit action: verify the intended company/title/application, exact resume filename/path, all visible required fields have committed values, candidate identity/contact facts are consistent with supplied facts, work authorization/sponsorship answers match rule 7, approved application preferences were used only within scope, no visible validation errors remain, and the page is truly the final Review/Submit stage. If allow_final_submit=false, stop with READY_FOR_REVIEW and do not click Submit. If allow_final_submit=true and every pre-submit check passes, click the actual final Submit/Submit Application button exactly once, wait for navigation/processing, and verify a visible employer/ATS confirmation such as "Application submitted", "Thank you", "Your application has been submitted", confirmation/reference identifier, or equivalent success state. Only then return SUBMITTED. If submission outcome is ambiguous, do NOT click Submit a second time; report APPLICATION_FLOW_ERROR with the observed state.
+11. FINAL SUBMISSION POLICY: application_run_date is authoritative for any required current-date/signature-date field; never infer or reuse a date from the job, resume, queue filename, or prior run. On the final Review page, perform a PRE-SUBMIT VALIDATION before any Submit action: verify the intended company/title/application, exact resume filename/path, all visible required fields have committed values, candidate identity/contact facts are consistent with supplied facts, work authorization/sponsorship answers match rule 7, approved application preferences were used only within scope, no visible validation errors remain, and the page is truly the final Review/Submit stage. If allow_final_submit=false, stop with READY_FOR_REVIEW and do not click Submit. If allow_final_submit=true and every pre-submit check passes, click the actual final Submit/Submit Application button exactly once, wait for navigation/processing, and verify a visible employer/ATS confirmation such as "Application submitted", "Thank you", "Your application has been submitted", confirmation/reference identifier, or equivalent success state. Only then return SUBMITTED_CONFIRMED. If submission outcome is ambiguous, do NOT click Submit a second time; report APPLICATION_FLOW_ERROR with the observed state.
 12. Do not modify the resume file.
 13. Before declaring a page complete, verify visible required fields and committed selections. Do not claim a radio/dropdown was selected unless the UI visibly reflects it.
 14. Continue until Review unless rule 10 truly applies. The fact that one interaction is uncertain is a reason to inspect/retry, not a reason to stop. CRITICAL: do not call done, APPLICATION_FLOW_ERROR, or MANUAL_ACTION_REQUIRED while there is an obvious actionable control that advances the application (for example Select file/upload, Next, Continue, Save and Continue, a required field with a known answer, or an available alternate route). Execute the next supported action instead. APPLICATION_FLOW_ERROR is reserved for a genuinely unrecoverable browser/site failure after the recovery rules are exhausted.
@@ -148,7 +148,7 @@ def _build_tools():
     @tools.action(
         description=(
             "Finish the application-agent task. This action enforces terminal-state policy: "
-            "SUBMITTED is accepted only after a visible post-submit confirmation; READY_FOR_REVIEW is accepted only after reaching Review; MANUAL_ACTION_REQUIRED "
+            "SUBMITTED_CONFIRMED is accepted only after a visible post-submit confirmation; READY_FOR_REVIEW is accepted only after reaching Review; MANUAL_ACTION_REQUIRED "
             "is accepted only for a genuine unknown required answer, CAPTCHA/MFA/verification/"
             "authentication blocker; APPLICATION_FLOW_ERROR is accepted only for a genuine "
             "unrecoverable browser/site failure. If supported actionable fields remain, the "
@@ -163,7 +163,7 @@ def _build_tools():
         normalized = (text or "").lower()
         first_line = (text or "").strip().splitlines()[0].upper() if (text or "").strip() else ""
 
-        if "SUBMITTED" in first_line:
+        if "SUBMITTED_CONFIRMED" in first_line:
             confirmation_markers = (
                 "application submitted", "has been submitted", "successfully submitted",
                 "thank you", "confirmation", "application received",
@@ -171,7 +171,7 @@ def _build_tools():
             if not any(marker in normalized for marker in confirmation_markers):
                 return ActionResult(
                     extracted_content=(
-                        "TERMINAL_REJECTED: SUBMITTED requires a visible post-submit employer/ATS confirmation. "
+                        "TERMINAL_REJECTED: SUBMITTED_CONFIRMED requires a visible post-submit employer/ATS confirmation. "
                         "Do not click Submit again. Inspect the resulting page for confirmation."
                     ),
                     is_done=False,
@@ -352,7 +352,7 @@ async def _run_one(item: dict[str, Any], profile: dict[str, Any], headed: bool, 
         else:
             status = "APPLICATION_FLOW_ERROR"
         return {"external_id": item.get("external_id"), "url": url, "status": status,
-                "agent_result": final, "submitted": status == "SUBMITTED", "resume_pdf": str(resume)}
+                "agent_result": final, "submitted": status == "SUBMITTED_CONFIRMED", "resume_pdf": str(resume)}
     except Exception as exc:
         return {"external_id": item.get("external_id"), "url": url,
                 "status": "APPLICATION_FLOW_ERROR", "error": str(exc), "submitted": False}
@@ -375,7 +375,7 @@ async def _main_async(args) -> int:
     results = []
     for item in items[: args.limit if args.limit else None]:
         processed, _, prior = seen_or_submitted(item, ledger)
-        if processed and (prior or {}).get("application_status") == "SUBMITTED":
+        if processed and (prior or {}).get("application_status") in {"SUBMITTED","SUBMITTED_CONFIRMED"}:
             results.append({
                 "external_id": item.get("external_id"),
                 "url": item.get("application_url") or item.get("url"),
@@ -387,14 +387,14 @@ async def _main_async(args) -> int:
         result = await _run_one(item, profile, args.headed, allow_submit=args.submit)
         results.append(result)
         status = result.get("status")
-        if status in {"SUBMITTED", "READY_FOR_REVIEW", "MANUAL_ACTION_REQUIRED", "APPLICATION_FLOW_ERROR"}:
-            ledger_status = "SUBMITTED" if status == "SUBMITTED" else status
+        if status in {"SUBMITTED_CONFIRMED", "READY_FOR_REVIEW", "MANUAL_ACTION_REQUIRED", "APPLICATION_FLOW_ERROR"}:
+            ledger_status = "SUBMITTED_CONFIRMED" if status == "SUBMITTED_CONFIRMED" else status
             record_seen(
                 item,
                 ledger,
                 ledger_status,
                 application_result=result.get("agent_result") or result.get("error"),
-                submitted_at=(datetime.now(ZoneInfo("America/New_York")).isoformat() if status == "SUBMITTED" else None),
+                submitted_at=(datetime.now(ZoneInfo("America/New_York")).isoformat() if status == "SUBMITTED_CONFIRMED" else None),
             )
             save_ledger(ledger, ledger_path)
     out = ROOT / "generated" / "ai_application_results.json"
