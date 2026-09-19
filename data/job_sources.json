@@ -47,6 +47,10 @@
     {
       "company": "Sony Interactive Entertainment",
       "board_token": "sonyinteractiveentertainmentglobal"
+    },
+    {
+      "company": "Point72",
+      "board_token": "point72"
     }
   ],
   "lever": [
@@ -442,6 +446,13 @@
       "host": "fis.wd5.myworkdayjobs.com",
       "tenant": "fis",
       "site": "SearchJobs",
+      "locale": "en-US"
+    },
+    {
+      "company": "Rocket Mortgage",
+      "host": "quickenloans.wd5.myworkdayjobs.com",
+      "tenant": "quickenloans",
+      "site": "rocket_careers",
       "locale": "en-US"
     }
   ],
