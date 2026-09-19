@@ -26,11 +26,11 @@ def _lookup(job,ledger):
 PROCESSED_STATUSES={
     # FINAL_JD_VERIFIED is intentionally NOT terminal: a free discovery/finalization
     # cycle must not prevent a later paid resume-generation cycle from processing it.
-    "READY_TO_APPLY","HOLD_ATS_REVIEW",
-    "SUBMITTED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","IN_PROGRESS","PERMANENT_SKIP",
+    "HOLD_ATS_REVIEW",
+    "SUBMITTED","SUBMITTED_CONFIRMED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",
 }
 
-RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION","RETRY_APPLICATION"}
+RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION","RETRY_APPLICATION","READY_TO_APPLY","IN_PROGRESS","APPLICATION_IN_PROGRESS"}
 
 def seen_or_submitted(job,ledger):
     key,row=_lookup(job,ledger)
