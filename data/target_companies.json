@@ -2,11 +2,11 @@
   "policy": {
     "scope": "preferred_employer_universe",
     "sponsorship_rule": "Reject only when the current job posting explicitly states current/future sponsorship is unavailable; otherwise continue.",
-    "notes": "h1b_target reflects the user-provided target list and is not itself proof that every current role sponsors."
+    "notes": "Company universe supplied by the user. Resume employers Fidelity Investments, Cigna Healthcare, and Target are excluded from this search list. Existing discovery, Data Engineering-family, experience, sponsorship, and application rules remain unchanged."
   },
   "counts": {
-    "unique_companies": 146,
-    "h1b_targets": 100,
+    "unique_companies": 145,
+    "h1b_targets": 99,
     "vendor_consulting_staffing": 60
   },
   "companies": [
@@ -82,13 +82,6 @@
     },
     {
       "company": "Capital One",
-      "categories": [
-        "h1b_target"
-      ],
-      "aliases": []
-    },
-    {
-      "company": "Fidelity Investments",
       "categories": [
         "h1b_target"
       ],
