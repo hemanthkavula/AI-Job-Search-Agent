@@ -191,6 +191,38 @@ def _technical_question_answer(label,profile):
         return "Yes" if supported else None
     return None
 
+def _open_ended_answer(label,item,profile):
+    """Build short application prose only from explicit profile evidence and the current job."""
+    x=_norm(label)
+    if not x:return None
+    summary=[str(v).strip() for v in (profile.get("summary_source") or []) if str(v).strip()]
+    roles=profile.get("experience") or []
+    if any(t in x for t in ("complex pipeline","data pipeline","pipeline you built","pipeline you designed","technical project","project you")):
+        evidence=[]
+        for role in roles:
+            for line in role.get("evidence") or []:
+                lx=_norm(line)
+                if any(t in lx for t in ("pipeline","etl","streaming","ingest")):
+                    evidence.append(str(line).strip())
+            if evidence:break
+        if evidence:
+            return " ".join(evidence[:2])
+    if any(t in x for t in ("why are you interested","why interested","why this role","why do you want","what interests you","drawn to this role")):
+        title=(item.get("title") or "this data engineering role").strip()
+        jd=_norm(item.get("description") or "")
+        supported=[]
+        for skill in profile.get("priority_skills") or profile.get("skills") or []:
+            token=_norm(str(skill))
+            if token and token in jd:supported.append(str(skill))
+        if summary:
+            base=summary[0]
+            if supported:
+                return f"I'm interested in {title} because it aligns with my data engineering background, particularly {', '.join(supported[:4])}. {base}"
+            return f"I'm interested in {title} because it aligns with my data engineering background. {base}"
+    if any(t in x for t in ("tell us about yourself","tell me about yourself","briefly describe your experience","summarize your experience")) and summary:
+        return " ".join(summary[:2])
+    return None
+
 def _question_answer(label,item,profile=None):
     x=_norm(label);known=item.get("known_answers") or {};profile=profile or {}
     prefs=profile.get("application_preferences") or {}
@@ -210,7 +242,7 @@ def _question_answer(label,item,profile=None):
     if "disability" in x:return disclosures.get("disability_status")
     if "gender" in x or x=="sex":return disclosures.get("gender")
     if "ethnicity" in x or "race" in x:return disclosures.get("ethnicity")
-    return _technical_question_answer(label,profile)
+    technical=_technical_question_answer(label,profile)\n    if technical is not None:return technical\n    return _open_ended_answer(label,item,profile)
 
 def _label(el):
     """Resolve real visible form labels, including modern ATS wrappers."""
