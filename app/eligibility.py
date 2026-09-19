@@ -13,6 +13,11 @@ SPONSOR_POSITIVE_PATTERNS=(
  "visa sponsorship is available","sponsorship is available","we sponsor","will sponsor",
  "h-1b sponsorship","h1b sponsorship","employment visa sponsorship","visa transfer"
 )
+CITIZENSHIP_PATTERNS=(
+ "u.s. citizenship is required","us citizenship is required","must be a u.s. citizen",
+ "must be a us citizen","must be a united states citizen","u.s. citizens only",
+ "us citizens only","united states citizens only","must be a citizen of the united states"
+)
 
 def _clean(v): return re.sub(r"\s+"," ",(v or "").lower()).strip()
 
@@ -71,7 +76,14 @@ def sponsorship_check(job: dict, profile: dict) -> dict:
         return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
     return {"category":"SPONSORSHIP_UNKNOWN","eligible":None,"evidence":"Sponsorship policy is not explicit in the posting; continue under candidate policy."}
 
+def citizenship_check(job: dict, profile: dict) -> dict:
+    text=_clean(f"{job.get('title','')} {job.get('description','')}")
+    if any(x in text for x in CITIZENSHIP_PATTERNS):
+        return {"category":"US_CITIZENSHIP_REQUIRED","eligible":False,
+                "evidence":"Posting explicitly requires U.S. citizenship."}
+    return {"category":"CITIZENSHIP_NOT_REQUIRED","eligible":True,"evidence":None}
+
 def two_category_filter(job: dict, profile: dict) -> dict:
-    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile)
-    eligible=exp["eligible"] and sponsor["eligible"] is not False
-    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor}
+    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile)
+    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"]
+    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship}
