@@ -927,11 +927,41 @@ def _submission_confirmation(page):
     matched=next((p for p in phrases if p in body),None)
     url=_norm(page.url)
     url_signal=any(x in url for x in ("confirmation","thank-you","thankyou","submitted","success"))
+
+    # Dice can accept the application without navigating away from the wizard or
+    # rendering a success phrase. On its final review page, successful submission
+    # removes the irreversible Submit control while leaving the review content in
+    # place. Treat that transition as Dice-specific positive evidence only when we
+    # are still on the Dice application wizard and the page still identifies the
+    # final review step.
+    dice_review_submitted=False
+    if "dice.com/job-applications/" in url and "/wizard" in url and (
+        "step 2 of 2" in body or "review your application" in body
+    ):
+        try:
+            submit_visible=False
+            for sel in ('button','[role="button"]','input[type="submit"]','input[type="button"]'):
+                loc=page.locator(sel)
+                for i in range(min(loc.count(),80)):
+                    el=loc.nth(i)
+                    try:
+                        if not el.is_visible():continue
+                        tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+                        txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or el.get_attribute("aria-label") or ""
+                        if _norm(txt)=="submit":
+                            submit_visible=True
+                            break
+                    except Exception:pass
+                if submit_visible:break
+            dice_review_submitted=not submit_visible
+        except Exception:pass
+
     return {
-        "confirmed":bool(matched or url_signal),
+        "confirmed":bool(matched or url_signal or dice_review_submitted),
         "matched_phrase":matched,
         "url":page.url,
         "url_signal":url_signal,
+        "dice_review_submit_disappeared":dice_review_submitted,
         "body_excerpt":body[:1200],
     }
 
