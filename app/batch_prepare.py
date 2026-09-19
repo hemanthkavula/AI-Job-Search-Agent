@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json,shutil
+import argparse,json,os,shutil,stat,time
 from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
@@ -28,13 +28,36 @@ def _base_resume_payload(profile):
 def _discard_resume_artifact(resume_path):
     """Remove an unapproved resume and its job folder; failed candidates leave no DOCX/PDF artifacts."""
     if not resume_path:return
+    p=Path(resume_path)
+    parent=p.parent
+
+    def _writable(path):
+        try:os.chmod(path,stat.S_IWRITE)
+        except OSError:pass
+
+    def _onerror(func,path,exc_info):
+        _writable(path)
+        try:func(path)
+        except OSError:raise exc_info[1]
+
     try:
-        p=Path(resume_path)
-        parent=p.parent
-        if p.exists():p.unlink()
         if parent.exists() and parent.is_dir():
-            shutil.rmtree(parent,ignore_errors=True)
-    except Exception:pass
+            for item in parent.rglob("*"):_writable(item)
+            _writable(parent)
+            for attempt in range(3):
+                try:
+                    try:shutil.rmtree(parent,onexc=_onerror)
+                    except TypeError:shutil.rmtree(parent,onerror=_onerror)
+                    break
+                except PermissionError:
+                    if attempt==2:raise
+                    time.sleep(0.25)
+        elif p.exists():
+            _writable(p);p.unlink()
+    except Exception as exc:
+        # Cleanup failure must be visible; silently leaving stale resume folders
+        # makes later runs and the dashboard ambiguous.
+        print(f"WARNING: failed to remove rejected resume artifact {p}: {exc}",flush=True)
 
 def _render_base_resume(job,profile):
     """Render the unchanged master/profile resume under the current company/job name.
