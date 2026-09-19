@@ -512,5 +512,15 @@
   },
   "ziprecruiter": {
     "enabled": true
-  }
+  },
+  "successfactors": [
+    {
+      "company": "Wipro",
+      "base_url": "https://careers.wipro.com"
+    },
+    {
+      "company": "Capgemini",
+      "base_url": "https://careers.capgemini.com"
+    }
+  ]
 }
