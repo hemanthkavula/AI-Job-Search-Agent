@@ -11,6 +11,18 @@
     {
       "company": "Applecart",
       "board_token": "applecart"
+    },
+    {
+      "company": "Databricks",
+      "board_token": "databricks"
+    },
+    {
+      "company": "Airbnb",
+      "board_token": "airbnb"
+    },
+    {
+      "company": "Stripe",
+      "board_token": "stripe"
     }
   ],
   "lever": [
