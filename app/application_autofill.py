@@ -465,10 +465,13 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             step["next_error"]=str(exc);break
     return steps
 
-def autofill(item:dict,headless=True,review_seconds=0)->dict:
-    """Fill deterministic fields and upload the validated PDF. Never submit."""
+def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
+    """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
+    inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
+    uploading files, or advancing any application step.
+    """
     profile=load_profile();identity=_identity(profile);url=item.get("url")
-    result={"external_id":item.get("external_id"),"url":url,"status":"FILLING","filled":[],"unresolved_required":[],"blockers":[],"submitted":False,"navigation":None}
+    result={"external_id":item.get("external_id"),"url":url,"status":"INSPECTING" if inspect_only else "FILLING","inspect_only":inspect_only,"filled":[],"unresolved_required":[],"blockers":[],"submitted":False,"navigation":None}
     resume=_resolve_resume(item.get("resume_path"))
     if resume is None:
         return {**result,"status":"MANUAL_ACTION_REQUIRED","reason":"Validated resume file is missing","expected_resume_path":item.get("resume_path")}
@@ -477,6 +480,10 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
         try:
             page.goto(url,wait_until="domcontentloaded",timeout=60000)
             result["application_analysis"]={"landing":_application_preflight(page)}
+            if inspect_only:
+                result["status"]="MANUAL_ACTION_REQUIRED" if result["application_analysis"]["landing"]["blocker_detected"] else "INSPECTED_NO_CHANGES"
+                result["reason"]="Inspection only; no fields filled, files uploaded, or application actions clicked."
+                return result
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["navigation"]=_workday_enter_application(page)
                 _wait_for_application_controls(page,15000)
@@ -508,14 +515,14 @@ def autofill(item:dict,headless=True,review_seconds=0)->dict:
             browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless,review_seconds))
+        results.append(autofill(item,headless,review_seconds,inspect_only))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");a=ap.parse_args()
+    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
