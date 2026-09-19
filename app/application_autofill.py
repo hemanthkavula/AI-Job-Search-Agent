@@ -130,29 +130,45 @@ def _auth_action(scope, result):
 def _identity(profile):
     parts=(profile.get("name") or "").split()
     contact=profile.get("contact") or {}
+    address=contact.get("address") or {}
     raw_phone=contact.get("phone","")
     digits=re.sub(r"\\D+","",raw_phone)
     us_phone=digits[-10:] if len(digits)>=10 else digits
     return {"first_name":parts[0] if parts else "","last_name":parts[-1] if len(parts)>1 else "",
             "full_name":profile.get("name",""),"email":contact.get("email",""),"phone":us_phone,
-            "linkedin":contact.get("linkedin","")}
+            "linkedin":contact.get("linkedin",""),"address_line1":address.get("line1",""),
+            "city":address.get("city",""),"state":address.get("state",""),
+            "postal_code":address.get("postal_code",""),"country":address.get("country","")}
 
 def _field_key(label):
     x=_norm(label)
     if "phone extension" in x or x.endswith(" extension") or "country phone code" in x:return None
     rules=(("first name","first_name"),("last name","last_name"),("full name","full_name"),("email","email"),
-           ("phone number","phone"),("mobile","phone"),("linkedin","linkedin"))
+           ("phone number","phone"),("mobile","phone"),("linkedin","linkedin"),
+           ("street address","address_line1"),("address line 1","address_line1"),("address 1","address_line1"),
+           ("postal code","postal_code"),("zip code","postal_code"),("zipcode","postal_code"),
+           ("city","city"),("state","state"),("country","country"))
     return next((k for token,k in rules if token in x),None)
 
-def _question_answer(label,item):
-    x=_norm(label);known=item.get("known_answers") or {}
+def _question_answer(label,item,profile=None):
+    x=_norm(label);known=item.get("known_answers") or {};profile=profile or {}
+    prefs=profile.get("application_preferences") or {}
+    disclosures=prefs.get("voluntary_disclosures") or {}
+    relocation=prefs.get("relocation") or {}
     if "how did you hear about us" in x:return known.get("source") or "Company Website"
-    if "employed by adobe in the past" in x:return known.get("previously_employed_by_company") or "No"
+    if "previously employed" in x or ("employed by" in x and "past" in x):return known.get("previously_employed_by_company") or "No"
     if "authorized" in x and ("work" in x or "employment" in x):return known.get("authorized_to_work_us")
     # Combined "now or in the future" questions must be Yes for future H-1B need.
     if ("sponsor" in x or "sponsorship" in x) and ("future" in x or "later" in x):return known.get("requires_future_sponsorship")
     if ("sponsor" in x or "sponsorship" in x) and ("now" in x or "currently" in x):return known.get("requires_sponsorship_now")
     if "sponsor" in x or "sponsorship" in x:return known.get("requires_future_sponsorship")
+    if "18 years" in x or "legal working age" in x:return "Yes" if prefs.get("legal_working_age") else None
+    if "background check" in x:return "Yes" if prefs.get("background_check_willing") else None
+    if "relocat" in x:return "Yes" if relocation.get("willing_to_relocate") else "No"
+    if "veteran" in x:return disclosures.get("veteran_status")
+    if "disability" in x:return disclosures.get("disability_status")
+    if "gender" in x or x=="sex":return disclosures.get("gender")
+    if "ethnicity" in x or "race" in x:return disclosures.get("ethnicity")
     return None
 
 def _label(el):
@@ -395,7 +411,7 @@ def _workday_enter_application(page):
 def _required(el):
     return el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
 
-def _fill_current_page(page,item,identity,resume,result):
+def _fill_current_page(page,item,identity,resume,result,profile=None):
     """Fill only deterministic fields on the current ATS step."""
     before=len(result["filled"]);unresolved=[]
     controls=page.locator("input, textarea, select")
@@ -441,7 +457,7 @@ def _fill_current_page(page,item,identity,resume,result):
         x=_norm(label)
         if "phone extension" in x or x.endswith(" extension"):
             continue
-        key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item)
+        key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item,profile)
         if value not in (None,""):
             try:
                 selected=False
@@ -520,7 +536,7 @@ def _workday_resume_step(page,resume,result):
         return True,None
     except Exception as exc:return False,str(exc)
 
-def _workday_steps(page,item,identity,resume,result,max_steps=8):
+def _workday_steps(page,item,identity,resume,result,profile=None,max_steps=8):
     """Advance Workday step-by-step only while every required field is safely answered."""
     steps=[]
     for n in range(1,max_steps+1):
@@ -545,7 +561,7 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
                 result["blockers"].append("Workday resume upload/advance failed")
                 break
             continue
-        filled,unresolved=_fill_current_page(page,item,identity,resume,result)
+        filled,unresolved=_fill_current_page(page,item,identity,resume,result,profile)
         body=page.locator("body").inner_text(timeout=7000)
         step={"step":n,"url":page.url,"filled_count":filled,"unresolved_required":unresolved,
               "body_excerpt":re.sub(r"\\s+"," ",body).strip()[:800],
@@ -689,7 +705,7 @@ def _visible_validation_errors(page):
     except Exception:pass
     return list(dict.fromkeys(rows))[:20]
 
-def _generic_steps(page,item,identity,resume,result,max_steps=12):
+def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
     """Fill and advance generic ATS pages, stopping before any final application submission."""
     steps=[]
     for step_no in range(1,max_steps+1):
@@ -819,10 +835,10 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                 else:
                     result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
             if (item.get("ats_provider") or "").lower()=="workday":
-                result["workday_steps"]=_workday_steps(page,item,identity,resume,result)
+                result["workday_steps"]=_workday_steps(page,item,identity,resume,result,profile)
                 result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
             else:
-                result["generic_steps"]=_generic_steps(page,item,identity,resume,result)
+                result["generic_steps"]=_generic_steps(page,item,identity,resume,result,profile)
                 result["unresolved_required"]=sorted(set(
                     q for s in result["generic_steps"] for q in s.get("unresolved_required",[])
                 ))
