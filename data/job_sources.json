@@ -250,6 +250,48 @@
       "tenant": "usbank",
       "site": "US_Bank_Careers",
       "locale": "en-US"
+    },
+    {
+      "company": "Capital One",
+      "host": "capitalone.wd12.myworkdayjobs.com",
+      "tenant": "capitalone",
+      "site": "Capital_One",
+      "locale": "en-US"
+    },
+    {
+      "company": "Visa",
+      "host": "visa.wd5.myworkdayjobs.com",
+      "tenant": "visa",
+      "site": "Visa",
+      "locale": "en-US"
+    },
+    {
+      "company": "Mastercard",
+      "host": "mastercard.wd1.myworkdayjobs.com",
+      "tenant": "mastercard",
+      "site": "CorporateCareers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Bank of America",
+      "host": "ghr.wd1.myworkdayjobs.com",
+      "tenant": "ghr",
+      "site": "Lateral-US",
+      "locale": "en-US"
+    },
+    {
+      "company": "PayPal",
+      "host": "paypal.wd1.myworkdayjobs.com",
+      "tenant": "paypal",
+      "site": "jobs",
+      "locale": "en-US"
+    },
+    {
+      "company": "GEICO",
+      "host": "geico.wd1.myworkdayjobs.com",
+      "tenant": "geico",
+      "site": "External",
+      "locale": "en-US"
     }
   ],
   "dice": {
