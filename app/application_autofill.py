@@ -554,29 +554,29 @@ def _dice_resume_upload(page,resume,result):
     except Exception:
         resume_text=""
     if expected not in resume_text:
-        if not _dice_card_menu_action(page,resume_card,"Replace"):
-            return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
-        files=page.locator('input[type="file"]')
-        before=files.count()
-        uploaded=False
-        # After Replace, Dice exposes the active chooser. Prefer a file input
-        # associated with Resume; if exactly one chooser exists, it is the one
-        # created by the card-scoped Replace action.
-        candidates=[]
-        for i in range(min(files.count(),20)):
-            f=files.nth(i)
-            try:
-                ctx=_norm((f.get_attribute("aria-label") or "")+" "+(f.get_attribute("name") or "")+" "+(f.get_attribute("id") or ""))
-                if "cover" in ctx:continue
-                candidates.append((100 if "resume" in ctx else 10,i,f))
-            except Exception:pass
-        candidates.sort(key=lambda x:(-x[0],x[1]))
-        for _,_,f in candidates:
-            try:
-                f.set_input_files(str(resume.resolve()));uploaded=True;break
-            except Exception:pass
+        # Capture existing file inputs before Replace. Clicking Replace can invoke
+        # a native OS file chooser; Playwright must intercept that chooser instead
+        # of allowing Windows' Open dialog to block automation.
+        before_inputs=page.locator('input[type="file"]').count()
+        try:
+            with page.expect_file_chooser(timeout=3000) as chooser_info:
+                clicked=_dice_card_menu_action(page,resume_card,"Replace")
+            if not clicked:
+                return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
+            chooser_info.value.set_files(str(resume.resolve()))
+            uploaded=True
+        except Exception:
+            # Some Dice builds expose a new native file input without firing a
+            # chooser event. Only use an input created after the card-scoped
+            # Replace action; never fall back to the pre-existing Cover Letter input.
+            uploaded=False
+            files=page.locator('input[type="file"]')
+            for i in range(before_inputs,min(files.count(),20)):
+                try:
+                    files.nth(i).set_input_files(str(resume.resolve()));uploaded=True;break
+                except Exception:pass
         if not uploaded:
-            return {"handled":True,"verified":False,"reason":"Dice Resume Replace opened, but its file chooser could not be filled"}
+            return {"handled":True,"verified":False,"reason":"Dice Resume Replace opened, but its file chooser could not be filled safely"}
         page.wait_for_timeout(1500)
 
     # Re-resolve after React updates and verify the Resume card itself.
