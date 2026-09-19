@@ -13,6 +13,13 @@ SPONSOR_POSITIVE_PATTERNS=(
  "visa sponsorship is available","sponsorship is available","we sponsor","will sponsor",
  "h-1b sponsorship","h1b sponsorship","employment visa sponsorship","visa transfer"
 )
+CLEARANCE_PATTERNS=(
+ "active secret clearance","active top secret clearance","active ts/sci","active security clearance",
+ "secret clearance required","top secret clearance required","ts/sci required","security clearance required",
+ "must possess a secret clearance","must possess a top secret clearance","must hold a secret clearance",
+ "must hold a top secret clearance","ability to obtain a security clearance","eligible to obtain a security clearance",
+ "ability to obtain and maintain a security clearance","must be able to obtain a security clearance"
+)
 CITIZENSHIP_PATTERNS=(
  "u.s. citizenship is required","us citizenship is required","must be a u.s. citizen",
  "must be a us citizen","must be a united states citizen","u.s. citizens only",
@@ -57,13 +64,14 @@ def experience_check(job: dict, profile: dict) -> dict:
     full=f"{job.get('title','')} {job.get('description','')}"
     rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
-    min_req=profile.get("preferences",{}).get("min_required_years",4)
-    max_req=profile.get("preferences",{}).get("max_required_years",8)
+    min_req=profile.get("preferences",{}).get("min_required_years",3)
+    max_req=profile.get("preferences",{}).get("max_required_years",6)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    eligible=req <= max_req
+    eligible=min_req <= req <= max_req
+    category="EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR")
     return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
+      "category":category,
       "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
@@ -83,7 +91,14 @@ def citizenship_check(job: dict, profile: dict) -> dict:
                 "evidence":"Posting explicitly requires U.S. citizenship."}
     return {"category":"CITIZENSHIP_NOT_REQUIRED","eligible":True,"evidence":None}
 
+def clearance_check(job: dict, profile: dict) -> dict:
+    text=_clean(f"{job.get('title','')} {job.get('description','')}")
+    if any(x in text for x in CLEARANCE_PATTERNS):
+        return {"category":"CLEARANCE_REQUIRED","eligible":False,
+                "evidence":"Posting explicitly requires or requires ability to obtain a security clearance."}
+    return {"category":"NO_CLEARANCE_REQUIRED","eligible":True,"evidence":None}
+
 def two_category_filter(job: dict, profile: dict) -> dict:
-    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile)
-    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"]
-    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship}
+    exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile); clearance=clearance_check(job,profile)
+    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"] and clearance["eligible"]
+    return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship,"clearance":clearance}
