@@ -11,7 +11,7 @@ def test_inventory_only_removes_duplicate_with_protected_peer(tmp_path,monkeypat
     monkeypatch.setattr(cr,"RESUMES",resumes)
     monkeypatch.setattr(cr,"_ledger_reference_sets",lambda:({protected.resolve()},{protected.parent.resolve()}))
     monkeypatch.setattr(cr,"confirmed_resume_names",lambda:set())
-    rows,removable,_=cr.inventory()
+    rows,removable,_,_=cr.inventory()
     assert removable==[duplicate]
     statuses={Path(x["path"]).name:x["status"] for x in rows}
     assert statuses["resume.pdf"]=="KEEP_REFERENCED"
