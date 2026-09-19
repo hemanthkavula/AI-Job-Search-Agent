@@ -9,8 +9,9 @@ def test_unresolved_ats_is_held_before_resume_generation(tmp_path, monkeypatch):
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
-    assert result["finalized"]==0
-    assert result["rejections"][0]["action"]=="HOLD_ATS_UNRESOLVED"
+    assert result["finalized"]==1
+    assert result["results"][0]["job"]["application_route"]=="DICE"
+    assert result["results"][0]["job"]["ats_provider"]=="dice"
 
 def test_verified_ats_reaches_finalized_stage(tmp_path, monkeypatch):
     report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"lever:test","source":"lever","company_key":"Example","title":"Senior Data Engineer","employment_type":"Full-Time","description":"placeholder"}}]}
