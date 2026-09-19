@@ -150,6 +150,47 @@ def _field_key(label):
            ("city","city"),("state","state"),("country","country"))
     return next((k for token,k in rules if token in x),None)
 
+def _profile_evidence_text(profile):
+    chunks=[]
+    for skill in profile.get("skills") or []:chunks.append(str(skill))
+    for category,values in (profile.get("skill_categories") or {}).items():
+        chunks.append(str(category));chunks.extend(str(v) for v in (values or []))
+    for role in profile.get("experience") or []:
+        chunks.extend([str(role.get("title") or ""),str(role.get("company") or ""),str(role.get("environment") or "")])
+        chunks.extend(str(v) for v in (role.get("evidence") or []))
+    chunks.extend(str(v) for v in (profile.get("summary_source") or []))
+    return _norm(" ".join(chunks))
+
+def _technical_question_answer(label,profile):
+    """Answer only narrow, evidence-backed technical yes/no and years questions."""
+    x=_norm(label);evidence=_profile_evidence_text(profile)
+    if not x or not evidence:return None
+    if not any(t in x for t in ("experience","experienced","worked with","hands on","proficient","knowledge of","years")):
+        return None
+    aliases={
+        "python":("python",),"sql":("sql",),"pyspark":("pyspark",),"spark":("apache spark","spark"),
+        "databricks":("databricks",),"snowflake":("snowflake",),"kafka":("kafka",),
+        "airflow":("airflow",),"dbt":("dbt",),"terraform":("terraform",),"docker":("docker",),
+        "kubernetes":("kubernetes",),"aws":("aws","amazon web services"),"azure":("azure",),
+        "redshift":("redshift",),"glue":("aws glue","glue"),"bigquery":("bigquery",),
+        "flink":("flink",),"beam":("apache beam","beam"),"dagster":("dagster",),
+    }
+    asked=[]
+    for canonical,names in aliases.items():
+        if any(re.search(r"\\b"+re.escape(name)+r"\\b",x) for name in names):asked.append((canonical,names))
+    if not asked:return None
+    supported=all(any(re.search(r"\\b"+re.escape(name)+r"\\b",evidence) for name in names) for _,names in asked)
+    # Never invent technology-specific year counts. Only the profile's explicit
+    # overall experience may answer a generic total-experience question.
+    if "years" in x:
+        tech_specific=any(canonical for canonical,_ in asked)
+        if tech_specific:return None
+        years=profile.get("candidate_experience_years")
+        return str(years) if years is not None else None
+    if any(t in x for t in ("do you","have you","are you","experience with","experienced with","worked with","proficient")):
+        return "Yes" if supported else None
+    return None
+
 def _question_answer(label,item,profile=None):
     x=_norm(label);known=item.get("known_answers") or {};profile=profile or {}
     prefs=profile.get("application_preferences") or {}
@@ -168,8 +209,7 @@ def _question_answer(label,item,profile=None):
     if "veteran" in x:return disclosures.get("veteran_status")
     if "disability" in x:return disclosures.get("disability_status")
     if "gender" in x or x=="sex":return disclosures.get("gender")
-    if "ethnicity" in x or "race" in x:return disclosures.get("ethnicity")
-    return None
+    if "ethnicity" in x or "race" in x:return disclosures.get("ethnicity")\n    return _technical_question_answer(label,profile)
 
 def _label(el):
     """Resolve real visible form labels, including modern ATS wrappers."""
