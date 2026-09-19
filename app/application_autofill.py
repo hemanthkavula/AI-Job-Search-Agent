@@ -895,8 +895,17 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
                     tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
                     txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
                     nx=_norm(txt)
-                    if any(x in nx for x in ("submit application","send application","complete application","finish application")):
+                    typ=(el.get_attribute("type") or "").lower()
+                    final_exact=nx in ("submit application","send application","complete application","finish application")
+                    bare_submit=nx=="submit" and (typ=="submit" or tag=="button")
+                    apply_position=nx in ("apply for this position","apply for position") and (typ=="submit" or tag=="button")
+                    if final_exact or bare_submit or apply_position:
                         step["stopped_before_final_submit"]=True
+                        step["final_submit_action"]=txt
+                        step["final_submit_scope_url"]=getattr(scope,"url",page.url)
+                        result["ready_for_final_submit"]=True
+                        result["final_submit_action"]=txt
+                        result["final_submit_scope_url"]=getattr(scope,"url",page.url)
                         return steps
                     score=0
                     if nx in ("next","continue","save and continue","save & continue"): score=100
