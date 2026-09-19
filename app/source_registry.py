@@ -50,6 +50,10 @@ def learn_from_jobs(jobs,registry):
   rows=registry.setdefault(provider,[])
   if any((x.get("identifier") or x.get("board_token") or x.get("site") or x.get("board_name") or x.get("company_identifier"))==identifier for x in rows):continue
   row={"company":job.get("company_key") or job.get("company") or "Unknown","identifier":identifier,"learned_from":job.get("source")}
+  if provider=="workday":
+   parsed=urlparse(job.get("original_url") or job.get("url") or "")
+   row["host"]=parsed.netloc
+   row["locale"]="en-US"
   rows.append(row);added.append({"provider":provider,**row})
  return added
 
