@@ -145,7 +145,7 @@
       "US"
     ],
     "strict_location_filter": false,
-    "max_required_years": 8,
+    "max_required_years": 7,
     "min_required_years": 4
   },
   "work_authorization": {
