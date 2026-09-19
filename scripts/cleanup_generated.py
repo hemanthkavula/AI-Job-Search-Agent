@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
+import stat
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +32,34 @@ LEGACY_FILES = {
 }
 
 
+def _remove_readonly(func, path, exc_info):
+    """Retry deletion after clearing Windows/OneDrive read-only attributes."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except OSError:
+        raise exc_info[1]
+
+
+def _rmtree(path: Path) -> None:
+    # Clear read-only flags first; OneDrive/Windows can leave generated files
+    # non-writable even though they are safe to remove.
+    for item in path.rglob("*"):
+        try:
+            os.chmod(item, stat.S_IWRITE)
+        except OSError:
+            pass
+    try:
+        os.chmod(path, stat.S_IWRITE)
+    except OSError:
+        pass
+    try:
+        shutil.rmtree(path, onexc=_remove_readonly)
+    except TypeError:
+        # Python <3.12 compatibility.
+        shutil.rmtree(path, onerror=_remove_readonly)
+
+
 def cleanup(dry_run: bool = False) -> list[str]:
     GENERATED.mkdir(parents=True, exist_ok=True)
     removed: list[str] = []
@@ -39,7 +69,7 @@ def cleanup(dry_run: bool = False) -> list[str]:
         if path.exists():
             removed.append(str(path.relative_to(ROOT)))
             if not dry_run:
-                shutil.rmtree(path)
+                _rmtree(path)
 
     for name in sorted(LEGACY_FILES):
         path = GENERATED / name
