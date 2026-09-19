@@ -39,7 +39,11 @@ def inspect_application(item:dict,headless=True)->dict:
         finally:browser.close()
     return result
 
-def inspect_url(url:str,headless=True,external_id="direct-inspection")->dict:\n    """Inspect a direct job/application URL without requiring a generated queue."""\n    return inspect_application({"external_id":external_id,"url":url,"ats_provider":_provider(url)},headless=headless)\n\ndef run(queue_path="generated/application_queue.json",output="generated/application_inspection.json",limit=None,headless=True):
+def inspect_url(url:str,headless=True,external_id="direct-inspection")->dict:
+    """Inspect a direct job/application URL without requiring a generated queue."""
+    return inspect_application({"external_id":external_id,"url":url,"ats_provider":_provider(url)},headless=headless)
+
+def run(queue_path="generated/application_queue.json",output="generated/application_inspection.json",limit=None,headless=True):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));out=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
@@ -48,5 +52,16 @@ def inspect_url(url:str,headless=True,external_id="direct-inspection")->dict:\n 
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(out,indent=2),encoding="utf-8");return out
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_inspection.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed);print(json.dumps({"inspected":len(rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"ready_for_mapping":sum(x["status"]=="INSPECTED_READY_FOR_MAPPING" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--queue",default="generated/application_queue.json")
+    ap.add_argument("--url")
+    ap.add_argument("--output",default="generated/application_inspection.json")
+    ap.add_argument("--limit",type=int)
+    ap.add_argument("--headed",action="store_true")
+    a=ap.parse_args()
+    if a.url:
+        rows=[inspect_url(a.url,not a.headed)]
+        p=Path(a.output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(rows,indent=2),encoding="utf-8")
+    else:
+        rows=run(a.queue,a.output,a.limit,not a.headed)
+    print(json.dumps({"inspected":len(rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"ready_for_mapping":sum(x["status"]=="INSPECTED_READY_FOR_MAPPING" for x in rows),"output":a.output},indent=2))
