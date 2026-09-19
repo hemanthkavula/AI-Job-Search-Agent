@@ -494,62 +494,121 @@ def _workday_enter_application(page):
     diag["final_url"]=page.url
     return diag
 
+def _dice_card(page, heading):
+    """Return the smallest Dice document card containing the requested heading."""
+    wanted=_norm(heading)
+    heads=page.locator("h1, h2, h3, h4, h5, h6, label, strong, div, span")
+    for i in range(min(heads.count(),300)):
+        h=heads.nth(i)
+        try:
+            if not h.is_visible() or _norm(h.inner_text())!=wanted:continue
+            card=h.locator("xpath=ancestor::*[self::div or self::section][.//button or .//*[@role='button']][1]")
+            if card.count():return card
+        except Exception:pass
+    return None
+
+def _dice_card_menu_action(page,card,action):
+    """Open one Dice document card's menu and choose an exact action."""
+    buttons=card.locator("button, [role='button']")
+    for i in range(min(buttons.count(),30)):
+        b=buttons.nth(i)
+        try:
+            if not b.is_visible():continue
+            txt=_norm((b.inner_text() or "")+" "+(b.get_attribute("aria-label") or "")+" "+(b.get_attribute("title") or ""))
+            # Dice's ellipsis can be icon-only. Prefer explicit menu labels, then
+            # the last visible button in the card (the document overflow control).
+            if any(t in txt for t in ("more","menu","options","ellipsis")):
+                b.click(timeout=3000);break
+        except Exception:pass
+    else:
+        visible=[]
+        for i in range(min(buttons.count(),30)):
+            try:
+                if buttons.nth(i).is_visible():visible.append(buttons.nth(i))
+            except Exception:pass
+        if not visible:return False
+        try:visible[-1].click(timeout=3000)
+        except Exception:return False
+    page.wait_for_timeout(300)
+    actions=page.locator("button, [role='menuitem'], [role='button'], li")
+    wanted=_norm(action)
+    for i in range(min(actions.count(),100)):
+        a=actions.nth(i)
+        try:
+            if a.is_visible() and _norm(a.inner_text())==wanted:
+                a.click(timeout=3000);page.wait_for_timeout(400);return True
+        except Exception:pass
+    return False
+
 def _dice_resume_upload(page,resume,result):
-    """Replace Dice's saved profile resume with this application's tailored PDF and verify it."""
+    """Replace Dice Resume and clear Cover Letter using card-scoped controls."""
     if "dice.com/job-applications/" not in (page.url or "").lower():
         return {"handled":False}
     expected=resume.name
+    resume_card=_dice_card(page,"Resume")
+    if resume_card is None:
+        return {"handled":True,"verified":False,"reason":"Dice Resume card not found"}
+
     try:
-        body=page.locator("body").inner_text(timeout=5000)
-    except Exception as exc:
-        return {"handled":False,"reason":str(exc)}
-    nb=_norm(body)
-    if "resume" not in nb or "cover letter" not in nb:
-        return {"handled":False}
+        resume_text=resume_card.inner_text()
+    except Exception:
+        resume_text=""
+    if expected not in resume_text:
+        if not _dice_card_menu_action(page,resume_card,"Replace"):
+            return {"handled":True,"verified":False,"reason":"Dice Resume Replace action not found"}
+        files=page.locator('input[type="file"]')
+        before=files.count()
+        uploaded=False
+        # After Replace, Dice exposes the active chooser. Prefer a file input
+        # associated with Resume; if exactly one chooser exists, it is the one
+        # created by the card-scoped Replace action.
+        candidates=[]
+        for i in range(min(files.count(),20)):
+            f=files.nth(i)
+            try:
+                ctx=_norm((f.get_attribute("aria-label") or "")+" "+(f.get_attribute("name") or "")+" "+(f.get_attribute("id") or ""))
+                if "cover" in ctx:continue
+                candidates.append((100 if "resume" in ctx else 10,i,f))
+            except Exception:pass
+        candidates.sort(key=lambda x:(-x[0],x[1]))
+        for _,_,f in candidates:
+            try:
+                f.set_input_files(str(resume.resolve()));uploaded=True;break
+            except Exception:pass
+        if not uploaded:
+            return {"handled":True,"verified":False,"reason":"Dice Resume Replace opened, but its file chooser could not be filled"}
+        page.wait_for_timeout(1500)
 
-    # Dice Step 1 has two document slots. Never guess from an ambiguous native
-    # file input: only use one whose local context is Resume without Cover Letter.
-    files=page.locator('input[type="file"]')
-    candidates=[]
-    for i in range(min(files.count(),20)):
-        el=files.nth(i)
-        try:
-            context=el.evaluate("""e => {
-              const parts=[];
-              const add=v=>{if(v)parts.push(String(v).trim())};
-              add(e.getAttribute('aria-label')); add(e.getAttribute('name')); add(e.id);
-              if(e.id){const l=document.querySelector('label[for="'+CSS.escape(e.id)+'"]');if(l)add(l.innerText||l.textContent)}
-              const own=e.closest('label');if(own)add(own.innerText||own.textContent);
-              let p=e.parentElement;
-              for(let n=0;p && n<5;n++,p=p.parentElement){
-                const t=(p.innerText||p.textContent||'').trim();
-                if(t && t.length<900)add(t);
-              }
-              return parts.join(' | ');
-            }""")
-            nx=_norm(context)
-            if "resume" in nx and "cover letter" not in nx:
-                candidates.append((i,el,context))
-        except Exception:pass
+    # Re-resolve after React updates and verify the Resume card itself.
+    resume_card=_dice_card(page,"Resume")
+    try:resume_text=resume_card.inner_text() if resume_card is not None else ""
+    except Exception:resume_text=""
+    if expected not in resume_text:
+        return {"handled":True,"verified":False,"reason":"Tailored filename did not appear in Dice Resume card","expected_filename":expected}
 
-    for _,el,context in candidates:
-        try:
-            el.set_input_files(str(resume.resolve()))
-            page.wait_for_timeout(1200)
-            updated=page.locator("body").inner_text(timeout=5000)
-            if expected in updated:
-                result.setdefault("filled",[]).append({"field":"Dice resume","value":expected})
-                result["dice_resume_verified"]=True
-                return {"handled":True,"verified":True,"filename":expected,"context":context[:300]}
-        except Exception:pass
+    # Cover letter is optional. Remove a stale document only from the separately
+    # scoped Cover letter card; never upload the resume there.
+    cover_card=_dice_card(page,"Cover letter")
+    cover_cleared=True
+    if cover_card is not None:
+        try:cover_text=cover_card.inner_text()
+        except Exception:cover_text=""
+        if re.search(r"\.(pdf|docx?|txt|rtf)\b",cover_text,re.I):
+            cover_cleared=_dice_card_menu_action(page,cover_card,"Delete")
+            if cover_cleared:
+                page.wait_for_timeout(700)
+                cover_card=_dice_card(page,"Cover letter")
+                try:cover_text=cover_card.inner_text() if cover_card is not None else ""
+                except Exception:cover_text=""
+                cover_cleared=not bool(re.search(r"\.(pdf|docx?|txt|rtf)\b",cover_text,re.I))
 
-    result["dice_resume_verified"]=False
-    return {
-        "handled":True,
-        "verified":False,
-        "expected_filename":expected,
-        "reason":"No unambiguous Dice Resume file input was found; refusing to use the Cover Letter slot.",
-    }
+    if not cover_cleared:
+        return {"handled":True,"verified":False,"reason":"Dice Cover Letter could not be cleared safely"}
+
+    result.setdefault("filled",[]).append({"field":"Dice resume","value":expected})
+    result["dice_resume_verified"]=True
+    result["dice_cover_letter_cleared"]=True
+    return {"handled":True,"verified":True,"filename":expected,"cover_letter_cleared":True}
 
 def _required(el):
     return el.get_attribute("required") is not None or el.get_attribute("aria-required")=="true"
