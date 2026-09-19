@@ -32,6 +32,7 @@ def test_technology_specific_years_are_not_invented():
     assert _question_answer("How many years of Python experience do you have?",ITEM,p) is None
 
 
-def test_open_ended_technical_question_is_left_for_evidence_writer():
+def test_open_ended_technical_question_uses_evidence_writer():
     p=_profile()
-    assert _question_answer("Describe a complex Databricks pipeline you designed.",ITEM,p) is None
+    answer=_question_answer("Describe a complex Databricks pipeline you designed.",ITEM,p)
+    assert answer=="Built PySpark pipelines on Databricks and AWS Glue using SQL."
