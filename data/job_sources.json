@@ -564,5 +564,42 @@
       "company": "JPMorgan Chase",
       "base_url": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001"
     }
+  ],
+  "career_site": [
+    {
+      "company": "Amazon",
+      "search_url": "https://www.amazon.jobs/en/search?base_query=data+engineer&loc_query=United+States",
+      "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
+    },
+    {
+      "company": "Amazon Web Services (AWS)",
+      "search_url": "https://www.amazon.jobs/en/search?base_query=data+engineer&loc_query=United+States",
+      "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
+    },
+    {
+      "company": "Microsoft",
+      "search_url": "https://careers.microsoft.com/v2/global/en/search.html?q=data%20engineer",
+      "job_url_pattern": "apply\\\\.careers\\\\.microsoft\\\\.com/.+"
+    },
+    {
+      "company": "Cognizant",
+      "search_url": "https://careers.cognizant.com/us-en/jobs/?keywords=data%20engineer",
+      "job_url_pattern": "careers\\\\.cognizant\\\\.com/.+/jobs/.+"
+    },
+    {
+      "company": "Infosys",
+      "search_url": "https://www.infosys.com/careers/americas/apply.html",
+      "job_url_pattern": "career\\\\.infosys\\\\.com/.+"
+    },
+    {
+      "company": "Tech Mahindra",
+      "search_url": "https://careers.techmahindra.com/CurrentOpportunity.aspx",
+      "job_url_pattern": "careers\\\\.techmahindra\\\\.com/.+"
+    },
+    {
+      "company": "Tata Consultancy Services (TCS)",
+      "search_url": "https://www.tcs.com/careers",
+      "job_url_pattern": "tcs\\\\.com/.+careers.+"
+    }
   ]
 }
