@@ -171,6 +171,10 @@
     {
       "company": "Teamworks",
       "board_name": "teamworks"
+    },
+    {
+      "company": "Snowflake",
+      "board": "snowflake"
     }
   ],
   "smartrecruiters": [
