@@ -107,7 +107,8 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "manifest":manifest_rel if generate_resumes else None,
           "application_queue":queue_rel if manifest else None,
           "queued_for_application":sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue),
-          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{})}
+          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
+          "source_errors":discovery.get("source_errors",{})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
