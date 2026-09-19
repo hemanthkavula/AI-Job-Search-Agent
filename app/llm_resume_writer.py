@@ -1,5 +1,6 @@
 from __future__ import annotations
-import json, os, re
+import hashlib, json, os, re
+from pathlib import Path
 from urllib import request, error
 
 SYSTEM_PROMPT = """You are an expert ATS resume writer for senior data engineering roles.
@@ -92,11 +93,40 @@ def _extract_output_text(payload):
             if part.get("type")=="output_text" and part.get("text"):chunks.append(part["text"])
     return "".join(chunks)
 
+CACHE_DIR=Path("generated")/"llm_resume_cache"
+
+def _cache_key(model,prompt):
+    """Hash the exact quality-driving inputs so identical resume requests never spend twice."""
+    payload=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"prompt":prompt},sort_keys=True,separators=(",",":"),ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def _read_cache(cache_key):
+    path=CACHE_DIR/f"{cache_key}.json"
+    if not path.exists():return None
+    try:
+        value=json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value,dict) else None
+    except Exception:return None
+
+def _write_cache(cache_key,value):
+    CACHE_DIR.mkdir(parents=True,exist_ok=True)
+    path=CACHE_DIR/f"{cache_key}.json"
+    tmp=path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(value,ensure_ascii=False),encoding="utf-8")
+    tmp.replace(path)
+
 def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     key=os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:return None
     endpoint=os.getenv("RESUME_LLM_ENDPOINT","https://api.openai.com/v1/responses");model=os.getenv("RESUME_LLM_MODEL","gpt-5.6")
-    body=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"input":json.dumps(build_prompt(job,profile,audit_feedback,coverage_plan)),"max_output_tokens":12000}).encode("utf-8")
+    prompt=build_prompt(job,profile,audit_feedback,coverage_plan)
+    cache_key=_cache_key(model,prompt)
+    cached=_read_cache(cache_key)
+    if cached is not None:
+        print(f"Resume LLM cache HIT | {cache_key[:12]} | API call skipped",flush=True)
+        return cached
+    print(f"Resume LLM cache MISS | {cache_key[:12]} | calling API",flush=True)
+    body=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"input":json.dumps(prompt),"max_output_tokens":12000}).encode("utf-8")
     req=request.Request(endpoint,data=body,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},method="POST")
     try:
         with request.urlopen(req,timeout=180) as resp:payload=json.loads(resp.read().decode("utf-8"))
@@ -105,5 +135,8 @@ def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     except error.URLError as exc:raise RuntimeError(f"OpenAI API connection error: {exc.reason}") from exc
     text=_extract_output_text(payload)
     if not text:raise RuntimeError(f"OpenAI Responses API returned no output text: {json.dumps(payload)[:1200]}")
-    try:return json.loads(text)
+    try:result=json.loads(text)
     except json.JSONDecodeError as exc:raise RuntimeError(f"OpenAI returned non-JSON resume output: {text[:1200]}") from exc
+    if not isinstance(result,dict):raise RuntimeError("OpenAI returned a resume payload that is not a JSON object")
+    _write_cache(cache_key,result)
+    return result
