@@ -30,7 +30,9 @@ def fresh_jobs(jobs,hours=24,since=None,now=None):
     excluded from automatic processing because the user requires postings from the
     last 24 hours only.
     """
-    now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)\n    cutoff=_parse(since) if since else now-timedelta(hours=hours)\n    if cutoff is None:cutoff=now-timedelta(hours=hours)
+    now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    cutoff=_parse(since) if since else now-timedelta(hours=hours)
+    if cutoff is None:cutoff=now-timedelta(hours=hours)
     seen=load_seen();status=load_status();fresh=[];stale=[];already=[]
     terminal={"SUBMITTED","PERMANENT_SKIP"}
     for job in jobs:
