@@ -1,12 +1,17 @@
 from __future__ import annotations
-import argparse,json,html\nfrom datetime import datetime
+import argparse,json,html
+from datetime import datetime
 from pathlib import Path
-from fastapi import FastAPI\nfrom fastapi.responses import HTMLResponse\nimport uvicorn
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+import uvicorn
 
 ROOT=Path(__file__).resolve().parents[1]
 LEDGER=ROOT/"generated"/"job_ledger.json"
 CYCLES=ROOT/"generated"/"cycles"
-SOURCE_HEALTH=ROOT/"generated"/"source_health.json"\nSTATE=ROOT/"generated"/"scheduler_state.json"\napp=FastAPI(title="AI Job Search Agent Dashboard")
+SOURCE_HEALTH=ROOT/"generated"/"source_health.json"
+STATE=ROOT/"generated"/"scheduler_state.json"
+app=FastAPI(title="AI Job Search Agent Dashboard")
 
 def _json(path,default):
     try:return json.loads(Path(path).read_text(encoding="utf-8"))
