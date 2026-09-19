@@ -564,22 +564,32 @@ def _submission_confirmation(page):
         "body_excerpt":body[:1200],
     }
 
-def _find_final_submit(scope):
+def _final_submit_candidates(page):
+    """Find final-submit controls across the main document and accessible ATS frames."""
     candidates=[]
-    for sel in ('button','[role="button"]','input[type="submit"]'):
-        loc=scope.locator(sel)
-        for i in range(min(loc.count(),120)):
-            el=loc.nth(i)
-            try:
-                if not el.is_visible(): continue
-                tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
-                txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or ""
-                nx=_norm(txt)
-                if any(x in nx for x in ("submit application","send application","complete application","finish application")):
-                    candidates.append((len(nx),el,txt))
-            except Exception: pass
-    candidates.sort(key=lambda x:x[0])
-    return candidates[0] if candidates else None
+    for scope in [page]+[f for f in page.frames if f != page.main_frame]:
+        for sel in ('button','[role="button"]','input[type="submit"]','input[type="button"]'):
+            loc=scope.locator(sel)
+            for i in range(min(loc.count(),160)):
+                el=loc.nth(i)
+                try:
+                    if not el.is_visible() or not el.is_enabled():continue
+                    tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+                    txt=(el.get_attribute("value") if tag=="input" else el.inner_text()) or el.get_attribute("aria-label") or ""
+                    nx=_norm(txt)
+                    exact=nx in ("submit application","send application","complete application","finish application")
+                    # A bare "Submit" is acceptable only for a submit-type control inside
+                    # the application form after all required questions are resolved.
+                    bare_submit=nx=="submit" and (el.get_attribute("type") or "").lower()=="submit"
+                    if exact or bare_submit:
+                        candidates.append((0 if exact else 1,len(nx),el,txt,getattr(scope,"url",page.url)))
+                except Exception:pass
+    candidates.sort(key=lambda x:(x[0],x[1]))
+    return candidates
+
+def _find_final_submit(page):
+    rows=_final_submit_candidates(page)
+    return rows[0] if rows else None
 
 def _generic_steps(page,item,identity,resume,result,max_steps=12):
     """Fill and advance generic ATS pages, stopping before any final application submission."""
@@ -724,12 +734,12 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
             else:
                 result["status"]="MANUAL_ACTION_REQUIRED" if result["unresolved_required"] else "AUTOFILLED_REVIEW_REQUIRED"
                 if allow_submit and not result["unresolved_required"] and not result["blockers"]:
-                    scope=form_scope(page)
-                    final=_find_final_submit(scope)
+                    final=_find_final_submit(page)
                     if final:
                         try:
-                            result["final_submit_action"]=final[2]
-                            final[1].click(timeout=5000)
+                            result["final_submit_action"]=final[3]
+                            result["final_submit_scope_url"]=final[4]
+                            final[2].click(timeout=5000)
                             confirmation=_submission_confirmation(page)
                             result["submission_confirmation"]=confirmation
                             result["submitted"]=bool(confirmation["confirmed"])
