@@ -16,6 +16,39 @@ def save_ledger(ledger,path=DEFAULT_LEDGER):
     p=Path(path);p.parent.mkdir(parents=True,exist_ok=True)
     p.write_text(json.dumps(ledger,indent=2),encoding="utf-8")
 
+# Fields that must survive compaction because they can affect deduplication,
+# retries, application recovery, or the dashboard.
+_COMPACT_KEEP_FIELDS={
+    "first_seen","last_seen","company","title","source","url","application_status",
+    "sources","external_ids","submitted_at","application_result","application_reason",
+    "application_blockers","application_result_path","submission_attempted",
+    "submission_attempt","resume_retry_count","resume_retry_after","resume_retry_exhausted",
+    "application_retry_count","application_retry_after","application_retry_exhausted",
+    "retry_exhausted_reason","queue_item","retry_application","retry_job",
+}
+
+def compact_ledger(ledger):
+    """Drop stale non-operational payload fields without changing job identity/state.
+
+    Every job key and alias is retained, so deduplication behavior is unchanged.
+    Operational/application rows retain the fields required for retries, recovery,
+    submission history, and dashboard display.
+    """
+    jobs=ledger.get("jobs") or {}
+    compacted={}
+    removed_fields=0
+    for key,row in jobs.items():
+        if not isinstance(row,dict):
+            compacted[key]=row
+            continue
+        kept={k:v for k,v in row.items() if k in _COMPACT_KEEP_FIELDS}
+        removed_fields+=len(row)-len(kept)
+        compacted[key]=kept
+    result=dict(ledger)
+    result["jobs"]=compacted
+    result["aliases"]=dict(ledger.get("aliases") or {})
+    return result,{"jobs":len(compacted),"aliases":len(result["aliases"]),"removed_fields":removed_fields}
+
 def _lookup(job,ledger):
     jobs=ledger.get("jobs",{});aliases=ledger.get("aliases",{})
     for candidate in identity_keys(job):
