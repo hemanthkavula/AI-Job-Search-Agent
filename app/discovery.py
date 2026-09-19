@@ -63,6 +63,40 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     for job in jobs:
         dedup[job["external_id"]]=job
     rows=list(dedup.values())
+
+    # Emit a provider-level summary for every supported source so a provider that
+    # returned zero jobs is still visible instead of looking as if it never ran.
+    configured_units={
+        "greenhouse": len(config.get("greenhouse",[])),
+        "lever": len(config.get("lever",[])),
+        "ashby": len(config.get("ashby",[])),
+        "smartrecruiters": len(config.get("smartrecruiters",[])),
+        "workday": len(config.get("workday",[])),
+        "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
+        "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
+    }
+    provider_counts={}
+    for row in rows:
+        provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter"):
+        if only_source not in (None,provider):
+            continue
+        relevant=[v for v in health.values() if v.get("source")==provider]
+        errors_for_provider=sum(v.get("status")=="ERROR" for v in relevant)
+        ok_for_provider=sum(v.get("status")=="OK" for v in relevant)
+        if not configured_units.get(provider):
+            status="DISABLED"
+        elif errors_for_provider and ok_for_provider:
+            status="PARTIAL"
+        elif errors_for_provider:
+            status="ERROR"
+        else:
+            status="OK"
+        print(
+            f"SOURCE {provider}: status={status} | configured_units={configured_units.get(provider,0)} | "
+            f"jobs_returned={provider_counts.get(provider,0)} | healthy_units={ok_for_provider} | failed_units={errors_for_provider}",
+            flush=True,
+        )
     learned=learn_from_jobs(rows,registry)
     if learned:save_registry(registry,registry_path)
     # Persist source health independently from cycle output so the dashboard and
