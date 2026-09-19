@@ -26,9 +26,9 @@ def _resolve(value):
     try:return p.resolve()
     except Exception:return p
 
-def referenced_resume_paths():
-    """Return exact resume artifacts referenced by durable application state."""
-    refs=set()
+def _ledger_reference_sets():
+    """Return exact referenced files plus job folders implied by those files."""
+    exact=set();folders=set()
     ledger=_json(LEDGER,{"jobs":{}})
     for row in (ledger.get("jobs") or {}).values():
         values=[row.get("pdf_path"),row.get("resume_path")]
@@ -37,11 +37,14 @@ def referenced_resume_paths():
             if isinstance(payload,dict):values.append(payload.get("resume_path"))
         for value in values:
             p=_resolve(value)
-            if p:refs.add(p)
-    return refs
+            if not p:continue
+            exact.add(p)
+            try:
+                if RESUMES.resolve() in p.parents:folders.add(p.parent.resolve())
+            except Exception:pass
+    return exact,folders
 
 def confirmed_resume_names():
-    """Historical confirmations may retain a filename even when an old path is absent."""
     rows=_json(CONFIRMED,{"applications":[]}).get("applications") or []
     return {str(x.get("resume")) for x in rows if x.get("resume")}
 
@@ -53,55 +56,77 @@ def _hash(path):
 
 def inventory():
     RESUMES.mkdir(parents=True,exist_ok=True)
-    refs=referenced_resume_paths();confirmed=confirmed_resume_names()
+    refs,ref_folders=_ledger_reference_sets();confirmed=confirmed_resume_names()
     files=[p for p in RESUMES.rglob("*") if p.is_file()]
     hashes={}
+    digests={}
     for p in files:
-        try:hashes.setdefault(_hash(p),[]).append(p)
+        try:
+            d=_hash(p);digests[p]=d;hashes.setdefault(d,[]).append(p)
         except OSError:pass
-    rows=[];removable=[]
+
+    rows=[];duplicate_removable=[];orphan_candidates=[]
     for p in files:
-        rp=p.resolve()
-        exact=rp in refs
-        historical=p.name in confirmed
-        try:digest=_hash(p)
-        except OSError:digest=None
-        peers=hashes.get(digest,[]) if digest else []
-        # A duplicate is removable only when another byte-identical copy exists
-        # and this exact path is not referenced or named in confirmed history.
+        rp=p.resolve();exact=rp in refs;historical=p.name in confirmed
+        folder_protected=p.parent.resolve() in ref_folders
+        peers=hashes.get(digests.get(p),[])
         protected_peer=next((x for x in peers if x.resolve() in refs or x.name in confirmed),None)
         duplicate=not exact and not historical and protected_peer is not None
-        status="KEEP_REFERENCED" if exact else "KEEP_CONFIRMED_HISTORY" if historical else "DUPLICATE" if duplicate else "KEEP_UNPROVEN"
-        if duplicate:removable.append(p)
+        # A file in the same generated job folder as an actively referenced resume
+        # is treated as the companion artifact (for example approved DOCX + submitted PDF).
+        if exact:status="KEEP_REFERENCED"
+        elif historical:status="KEEP_CONFIRMED_HISTORY"
+        elif folder_protected:status="KEEP_COMPANION"
+        elif duplicate:status="DUPLICATE"
+        else:status="ORPHAN_CANDIDATE"
+        if duplicate:duplicate_removable.append(p)
+        if status=="ORPHAN_CANDIDATE":orphan_candidates.append(p)
         rows.append({"path":str(p.relative_to(ROOT)),"bytes":p.stat().st_size,"status":status,
                      "duplicate_of":str(protected_peer.relative_to(ROOT)) if duplicate else None})
-    empty=[p for p in RESUMES.rglob("*") if p.is_dir() and not any(p.iterdir())]
-    return rows,removable,empty
+
+    # A whole folder can be considered an orphan candidate only if every file in
+    # that folder is an ORPHAN_CANDIDATE. This remains report-only: --apply never
+    # deletes orphan candidates automatically.
+    by_folder={}
+    for row in rows:
+        p=ROOT/row["path"];by_folder.setdefault(p.parent,[]).append(row)
+    orphan_folders=[]
+    for folder,items in by_folder.items():
+        if items and all(x["status"]=="ORPHAN_CANDIDATE" for x in items):
+            orphan_folders.append({"path":str(folder.relative_to(ROOT)),"files":len(items),
+                                   "bytes":sum(x["bytes"] for x in items)})
+    return rows,duplicate_removable,orphan_candidates,orphan_folders
 
 def main():
-    ap=argparse.ArgumentParser(description="Safely inventory/deduplicate generated resumes using durable application references.")
-    ap.add_argument("--apply",action="store_true",help="Delete only byte-identical unreferenced duplicates and empty folders.")
+    ap=argparse.ArgumentParser(description="Inventory and safely deduplicate generated resumes using durable application references.")
+    ap.add_argument("--apply",action="store_true",help="Delete only byte-identical unreferenced duplicates; orphan candidates remain untouched.")
+    ap.add_argument("--report",default=str(ROOT/"generated"/"resume_cleanup_report.json"))
     args=ap.parse_args()
-    rows,removable,empty=inventory()
+    rows,removable,orphans,orphan_folders=inventory()
     counts={}
     for row in rows:counts[row["status"]]=counts.get(row["status"],0)+1
     result={"files":len(rows),"counts":counts,"duplicate_files":len(removable),
-            "duplicate_bytes":sum(p.stat().st_size for p in removable),"empty_folders":len(empty),"applied":False}
+            "duplicate_bytes":sum(p.stat().st_size for p in removable),
+            "orphan_candidate_files":len(orphans),
+            "orphan_candidate_bytes":sum(p.stat().st_size for p in orphans),
+            "orphan_candidate_folders":len(orphan_folders),"applied":False}
+    report={"summary":result,"orphan_folders":orphan_folders,"files":rows}
+    report_path=Path(args.report);report_path.parent.mkdir(parents=True,exist_ok=True)
+    report_path.write_text(json.dumps(report,indent=2),encoding="utf-8")
     if args.apply:
         for p in removable:
             if p.exists():p.unlink()
-        # deepest first; only remove folders that are actually empty after file cleanup
         for p in sorted([x for x in RESUMES.rglob("*") if x.is_dir()],key=lambda x:len(x.parts),reverse=True):
             try:p.rmdir()
             except OSError:pass
         result["applied"]=True
     print(json.dumps(result,indent=2))
-    print("\nCandidates:")
-    for row in rows:
-        if row["status"]=="DUPLICATE":
-            print(f" - {row['path']} -> duplicate of {row['duplicate_of']}")
-    if not removable:print(" - none")
-    print("\nSafety: KEEP_UNPROVEN files are intentionally not deleted.")
+    print("\nOrphan candidate folders (REPORT ONLY; not auto-deleted):")
+    for item in orphan_folders:
+        print(f" - {item['path']} | {item['files']} file(s) | {item['bytes']} bytes")
+    if not orphan_folders:print(" - none")
+    print(f"\nDetailed report: {report_path}")
+    print("Safety: --apply removes only proven byte-identical duplicates. ORPHAN_CANDIDATE files are never auto-deleted.")
 
 if __name__=="__main__":
     main()
