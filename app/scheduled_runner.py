@@ -98,6 +98,7 @@ def _application_ledger_status(result):
     return "MANUAL_ACTION_REQUIRED"
 
 APPLICATION_REPLAY_STATUSES={"RETRY_APPLICATION","READY_TO_APPLY","IN_PROGRESS","APPLICATION_IN_PROGRESS"}
+SUBMISSION_UNCERTAIN_STATUS="SUBMISSION_ATTEMPTED"
 
 def _retry_application_items(ledger_path):
     """Recover application work that did not reach a terminal outcome.
@@ -164,6 +165,16 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["queued_for_application"]=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in merged_queue)
     if apply_ready and queue_path and summary.get("queued_for_application",0):
         output=f"generated/cycles/{summary['cycle_id']}_application_results.json"
+        # Persist work before opening the browser. A restart can safely recover
+        # pre-submit interruptions from this exact queue payload.
+        queue_rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
+        app_ledger=load_ledger(ledger)
+        for queue_item in queue_rows:
+            if queue_item.get("status")!="READY_FOR_ATS_ADAPTER":continue
+            job={"external_id":queue_item.get("external_id"),"source":queue_item.get("source") or "unknown",
+                 "company_key":queue_item.get("company") or "","title":queue_item.get("title") or "","url":queue_item.get("url")}
+            record_seen(job,app_ledger,"APPLICATION_IN_PROGRESS",queue_item=queue_item,retry_application=queue_item)
+        save_ledger(app_ledger,ledger)
         application_results=run_applications(
             queue_path=queue_path,
             output=output,
@@ -175,7 +186,6 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             allow_submit=allow_submit,
         )
         app_ledger=load_ledger(ledger)
-        queue_rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
         for result in application_results:
             queue_item=next((x for x in queue_rows if x.get("external_id")==result.get("external_id")),{})
             job={
@@ -189,6 +199,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             # Confirmed submission is terminal. Security challenges are isolated
             # without bypassing them. Transient ATS/browser failures remain retryable.
             ledger_status=_application_ledger_status(result)
+            # If final submission was authorized and the browser reports a
+            # submission attempt without verifiable confirmation, never replay it
+            # automatically. Duplicate applications are worse than a manual check.
+            if allow_submit and result.get("submission_attempted") and ledger_status!="SUBMITTED":
+                ledger_status=SUBMISSION_UNCERTAIN_STATUS
             extra={
                 "application_result":status,
                 "application_reason":result.get("reason"),
@@ -199,6 +214,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
                 extra["retry_application"]=queue_item
             else:
                 extra["retry_application"]=None
+            if ledger_status==SUBMISSION_UNCERTAIN_STATUS:
+                extra["application_reason"]=result.get("reason") or "Submission was attempted but confirmation was not verified; manual confirmation required before any retry."
             record_seen(job,app_ledger,ledger_status,**extra)
         save_ledger(app_ledger,ledger)
         summary["application_stage_enabled"]=True
