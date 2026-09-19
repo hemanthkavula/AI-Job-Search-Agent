@@ -604,6 +604,16 @@
       "company": "Tata Consultancy Services (TCS)",
       "search_url": "https://www.tcs.com/careers",
       "job_url_pattern": "tcs\\\\.com/.+careers.+"
+    },
+    {
+      "company": "Qualcomm",
+      "search_url": "https://careers.qualcomm.com/careers?query=data%20engineer&location=United%20States",
+      "job_url_pattern": "careers\\\\.qualcomm\\\\.com/careers/job/"
+    },
+    {
+      "company": "IBM",
+      "search_url": "https://www.ibm.com/careers/search?q=data%20engineer&location=United%20States",
+      "job_url_pattern": "ibm\\\\.com/careers/.+"
     }
   ]
 }
