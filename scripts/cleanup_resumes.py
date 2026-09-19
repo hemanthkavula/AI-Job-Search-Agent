@@ -45,13 +45,19 @@ def _ledger_reference_sets():
     return exact,folders
 
 ACTIVE_APPLICATION_STATUSES={
+    # Only states that can be replayed into the ATS automatically must have a
+    # recoverable queue/resume artifact. Terminal/manual states are historical
+    # application records and may legitimately lack a local resume path.
     "READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION",
-    "RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED",
-    "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED",
 }
 
 def active_application_resume_check():
-    """Verify active/application-state jobs have a protected resume artifact before cleanup."""
+    """Verify every replayable ATS application has a recoverable protected PDF.
+
+    This mirrors scheduled_runner.APPLICATION_REPLAY_STATUSES. Historical terminal
+    states (submitted/manual/security/uncertain) are not replayed automatically and
+    therefore are reported elsewhere rather than blocking resume cleanup.
+    """
     ledger=_json(LEDGER,{"jobs":{}})
     refs,folders=_ledger_reference_sets()
     rows=[];missing=[]
