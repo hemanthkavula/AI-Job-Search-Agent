@@ -17,16 +17,18 @@ def _json(path,default):
     except Exception:return default
 
 def _resume_path(row):
+    # Show only the PDF artifact that can be submitted to an ATS.
     candidates=[
-        row.get("resume_path"),row.get("pdf_path"),
+        row.get("pdf_path"),
         (row.get("queue_item") or {}).get("resume_path"),
         (row.get("retry_application") or {}).get("resume_path"),
+        row.get("resume_path"),
     ]
     for value in candidates:
         if value:
             p=Path(value)
             if not p.is_absolute():p=ROOT/p
-            if p.exists() and p.is_file():return p
+            if p.suffix.lower()==".pdf" and p.exists() and p.is_file():return p
     return None
 
 def _portal(row):
@@ -133,7 +135,8 @@ def resume(job_key:str):
     if not row:raise HTTPException(404,"Job not found")
     p=_resume_path(row)
     if not p:raise HTTPException(404,"Resume not available")
-    return FileResponse(p,media_type=mimetypes.guess_type(p.name)[0] or "application/octet-stream",filename=p.name)
+    if p.suffix.lower()!=".pdf":raise HTTPException(404,"PDF resume not available")
+    return FileResponse(p,media_type="application/pdf",headers={"Content-Disposition":f'inline; filename="{p.name}"'})
 
 @app.get("/",response_class=HTMLResponse)
 def dashboard():
@@ -147,9 +150,9 @@ main{padding:22px 5%}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap
 </style></head><body><header><div><h1>Application Tracker</h1><div class="sub">Only jobs that reached the application workflow</div></div><div class="live">● Live</div></header><main>
 <div class="stats"><div class="stat"><span>Application pipeline</span><b id="all">0</b></div><div class="stat"><span>Ready / applying</span><b id="queue">0</b></div><div class="stat"><span>Submitted</span><b id="applied">0</b></div><div class="stat"><span>Needs attention</span><b id="attention">0</b></div></div>
 <div class="toolbar"><input id="search" placeholder="Search company or role"><select id="filter"><option value="">All application statuses</option><option>Applied</option><option>Ready to apply</option><option>Applying</option><option>Retrying</option><option>Needs attention</option><option>Verify submission</option></select></div>
-<div class="table"><div class="row head"><div>Company / role</div><div>Status</div><div>Resume used</div><div>Applied</div><div>Actions</div></div><div id="jobs"></div></div></main><script>
+<div class="table"><div class="row head"><div>Company / role</div><div>Status</div><div>Resume</div><div>Applied</div><div>Actions</div></div><div id="jobs"></div></div></main><script>
 let rows=[];const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const cls=s=>String(s).toLowerCase().replaceAll(" ","-");const dt=v=>{if(!v)return"—";let d=new Date(v.length===10?v+"T12:00:00":v);return isNaN(d)?v:d.toLocaleDateString()};
-function render(){let q=search.value.toLowerCase(),f=filter.value,x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));jobs.innerHTML=x.map(r=>`<div class="row"><div><div class="company">${esc(r.company)}</div><div class="role">${esc(r.title)}</div><div class="portal">${esc(r.portal)}</div></div><div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div class="resume">${r.resume_url?`<a href="${r.resume_url}" target="_blank">${esc(r.resume)}</a>`:esc(r.resume||"—")}</div><div class="date">${r.stage==="Applied"?dt(r.applied_at):"—"}</div><div class="actions">${r.url?`<a class="btn primary" href="${esc(r.url)}" target="_blank">Job / portal</a>`:""}${r.resume_url?`<a class="btn" href="${r.resume_url}" target="_blank">Resume</a>`:""}</div></div>`).join("")||'<div class="empty">No applications in this view.</div>'}
+function render(){let q=search.value.toLowerCase(),f=filter.value,x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));jobs.innerHTML=x.map(r=>`<div class="row"><div><div class="company">${esc(r.company)}</div><div class="role">${esc(r.title)}</div><div class="portal">${esc(r.portal)}</div></div><div><span class="badge ${cls(r.stage)}">${esc(r.stage)}</span></div><div class="resume">${r.resume_url?"PDF ready":"PDF unavailable"}</div><div class="date">${r.stage==="Applied"?dt(r.applied_at):"—"}</div><div class="actions">${r.resume_url?`<a class="btn" href="${r.resume_url}" target="_blank">View resume</a>`:""}${r.url?`<a class="btn primary" href="${esc(r.url)}" target="_blank">Job portal</a>`:""}</div></div>`).join("")||'<div class="empty">No applications in this view.</div>'}
 async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}search.oninput=render;filter.onchange=render;load();setInterval(load,5000);
 </script></body></html>""")
 
