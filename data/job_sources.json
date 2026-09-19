@@ -490,6 +490,20 @@
       "tenant": "teladoc",
       "site": "teladochealth_is_hiring",
       "locale": "en-US"
+    },
+    {
+      "company": "Salesforce",
+      "host": "salesforce.wd12.myworkdayjobs.com",
+      "tenant": "salesforce",
+      "site": "External_Career_Site",
+      "locale": "en-US"
+    },
+    {
+      "company": "Cisco",
+      "host": "cisco.wd5.myworkdayjobs.com",
+      "tenant": "cisco",
+      "site": "Cisco_Careers",
+      "locale": "en-US"
     }
   ],
   "dice": {
