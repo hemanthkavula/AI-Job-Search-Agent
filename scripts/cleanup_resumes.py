@@ -129,7 +129,8 @@ def main():
     ap.add_argument("--apply",action="store_true",help="Delete only byte-identical unreferenced duplicates; orphan candidates remain untouched.")
     ap.add_argument("--report",default=str(ROOT/"generated"/"resume_cleanup_report.json"))
     args=ap.parse_args()
-    rows,removable,orphans,orphan_folders=inventory()\n    active,missing=active_application_resume_check()
+    rows,removable,orphans,orphan_folders=inventory()
+    active,missing=active_application_resume_check()
     counts={}
     for row in rows:counts[row["status"]]=counts.get(row["status"],0)+1
     result={"files":len(rows),"counts":counts,"duplicate_files":len(removable),
