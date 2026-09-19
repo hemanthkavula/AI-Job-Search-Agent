@@ -348,6 +348,27 @@
       "tenant": "geico",
       "site": "External",
       "locale": "en-US"
+    },
+    {
+      "company": "Prudential",
+      "host": "pru.wd5.myworkdayjobs.com",
+      "tenant": "pru",
+      "site": "Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Expedia Group",
+      "host": "expedia.wd108.myworkdayjobs.com",
+      "tenant": "expedia",
+      "site": "search",
+      "locale": "en-US"
+    },
+    {
+      "company": "USAA",
+      "host": "usaa.wd1.myworkdayjobs.com",
+      "tenant": "usaa",
+      "site": "USAAJOBSWD",
+      "locale": "en-US"
     }
   ],
   "dice": {
