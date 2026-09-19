@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
+import stat
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +15,29 @@ def reset(apply: bool = False) -> list[str]:
     if GENERATED.exists():
         targets.append(str(GENERATED.relative_to(ROOT)))
     if apply and GENERATED.exists():
-        shutil.rmtree(GENERATED)
+        # Windows/OneDrive can leave generated artifacts read-only. Clear those
+        # attributes before deletion, then retry any failing remove operation.
+        for item in GENERATED.rglob("*"):
+            try:
+                os.chmod(item, stat.S_IWRITE)
+            except OSError:
+                pass
+        try:
+            os.chmod(GENERATED, stat.S_IWRITE)
+        except OSError:
+            pass
+
+        def _remove_readonly(func, path, exc_info):
+            try:
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
+            except OSError:
+                raise exc_info[1]
+
+        try:
+            shutil.rmtree(GENERATED, onexc=_remove_readonly)
+        except TypeError:
+            shutil.rmtree(GENERATED, onerror=_remove_readonly)
         GENERATED.mkdir(parents=True, exist_ok=True)
     return targets
 
