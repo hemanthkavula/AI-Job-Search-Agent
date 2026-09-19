@@ -521,6 +521,14 @@
     {
       "company": "Capgemini",
       "base_url": "https://careers.capgemini.com"
+    },
+    {
+      "company": "HCLTech",
+      "base_url": "https://careers.hcltech.com"
+    },
+    {
+      "company": "LTIMindtree",
+      "base_url": "https://careers.ltimindtree.com"
     }
   ],
   "icims": [
