@@ -26,13 +26,25 @@ def _lookup(job,ledger):
 PROCESSED_STATUSES={
     # FINAL_JD_VERIFIED is intentionally NOT terminal: a free discovery/finalization
     # cycle must not prevent a later paid resume-generation cycle from processing it.
-    "READY_TO_APPLY","HOLD_ATS_REVIEW","HOLD_RESUME_ERROR",
+    "READY_TO_APPLY","HOLD_ATS_REVIEW",
     "SUBMITTED","MANUAL_ACTION_REQUIRED","IN_PROGRESS","PERMANENT_SKIP",
 }
+
+RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION"}
 
 def seen_or_submitted(job,ledger):
     key,row=_lookup(job,ledger)
     return bool(row and row.get("application_status") in PROCESSED_STATUSES),key,row
+
+def retryable_jobs(ledger):
+    """Return persisted jobs whose transient resume-generation failure should be retried."""
+    out=[]
+    for key,row in (ledger.get("jobs") or {}).items():
+        if row.get("application_status") not in RETRYABLE_STATUSES:continue
+        payload=row.get("retry_job")
+        if isinstance(payload,dict) and payload.get("external_id"):
+            out.append(payload)
+    return out
 
 def record_seen(job,ledger,status="DISCOVERED",**extra):
     key,existing=_lookup(job,ledger);now=datetime.now(timezone.utc).isoformat()
