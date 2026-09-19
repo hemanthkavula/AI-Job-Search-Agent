@@ -1,12 +1,12 @@
 from __future__ import annotations
-import json,html
+import argparse,json,html\nfrom datetime import datetime
 from pathlib import Path
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI\nfrom fastapi.responses import HTMLResponse\nimport uvicorn
 
 ROOT=Path(__file__).resolve().parents[1]
 LEDGER=ROOT/"generated"/"job_ledger.json"
 CYCLES=ROOT/"generated"/"cycles"
-SOURCE_HEALTH=ROOT/"generated"/"source_health.json"
+SOURCE_HEALTH=ROOT/"generated"/"source_health.json"\nSTATE=ROOT/"generated"/"scheduler_state.json"\napp=FastAPI(title="AI Job Search Agent Dashboard")
 
 def _json(path,default):
     try:return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -35,8 +35,8 @@ def dashboard_html() -> str:
       ("Final JD verified",latest.get("final_jd_verified",0)),
       ("Ready to apply",counts.get("READY_TO_APPLY",0)),
       ("Artifact holds",counts.get("HOLD_ARTIFACT_VALIDATION",0)),
-      ("Submitted",counts.get("SUBMITTED",0)),
-      ("Manual action",counts.get("MANUAL_ACTION_REQUIRED",0)),
+      ("Submitted",counts.get("SUBMITTED",0)+counts.get("SUBMITTED_CONFIRMED",0)),
+      ("Manual action",counts.get("MANUAL_ACTION_REQUIRED",0)+counts.get("SECURITY_BLOCKED",0)+counts.get("SUBMISSION_ATTEMPTED",0)),
       ("Source errors",sum(1 for x in source_health.values() if x.get("status")=="ERROR")),
     ]
     card_html="".join(f"<div class='card'><span>{html.escape(k)}</span><b>{v}</b></div>" for k,v in cards)
@@ -61,7 +61,7 @@ def dashboard_html() -> str:
       for x in sorted(source_health.values(),key=lambda y:(y.get("status")!="ERROR",y.get("source",""),y.get("company") or ""))
     )
     cycles="".join(f"<tr><td>{html.escape(str(x.get('cycle_id','')))}</td><td>{x.get('scan_window_hours','')}</td><td>{x.get('discovered',0)}</td><td>{x.get('eligible',0)}</td><td>{x.get('final_jd_verified',0)}</td><td>{x.get('ready_to_apply',0)}</td></tr>" for x in summaries)
-    return f"""<!doctype html><html><head><title>AI Job Search Agent</title><meta name="viewport" content="width=device-width,initial-scale=1">
+    return f"""<!doctype html><html><head><title>AI Job Search Agent</title><meta http-equiv="refresh" content="10"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{{font-family:Arial,sans-serif;margin:28px;background:#f5f6f8;color:#171717}}h1{{margin-bottom:4px}}.sub{{color:#666;margin-bottom:22px}}.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:26px}}.card{{background:white;border:1px solid #ddd;border-radius:10px;padding:16px}}.card span{{display:block;color:#666;font-size:13px}}.card b{{font-size:28px}}table{{width:100%;border-collapse:collapse;background:white;margin-bottom:28px}}th,td{{padding:10px;border-bottom:1px solid #e5e5e5;text-align:left;font-size:13px}}th{{background:#171717;color:white;position:sticky;top:0}}a{{color:#1456b8}}.resume{{max-width:320px;overflow-wrap:anywhere}}.wrap{{overflow:auto;max-height:560px;background:white}}</style></head><body>
 <h1>AI Job Search Agent</h1><div class="sub">Pipeline operations, applications and resume tracking</div>
 <div class="cards">{card_html}</div>
@@ -69,3 +69,34 @@ def dashboard_html() -> str:
 <h2>Source health</h2><div class="wrap"><table><tr><th>Source</th><th>Company / board</th><th>Status</th><th>Jobs returned</th><th>Checked</th><th>Error</th></tr>{health_rows or "<tr><td colspan='6'>No source health checks recorded yet.</td></tr>"}</table></div>
 <h2>Jobs / applications</h2><div class="wrap"><table><tr><th>Company</th><th>Role</th><th>Sources</th><th>Status</th><th>Job</th><th>Resume used</th><th>Artifact validation</th></tr>{body}</table></div>
 </body></html>"""
+
+
+@app.get("/",response_class=HTMLResponse)
+def dashboard():
+    return HTMLResponse(dashboard_html())
+
+@app.get("/api/dashboard")
+def dashboard_api():
+    ledger=_json(LEDGER,{"jobs":{}})
+    jobs=list((ledger.get("jobs") or {}).values())
+    counts={}
+    for row in jobs:
+        status=row.get("application_status") or "UNKNOWN"
+        counts[status]=counts.get(status,0)+1
+    return {
+        "jobs":jobs,
+        "status_counts":counts,
+        "recent_cycles":_latest_summaries(),
+        "source_health":_json(SOURCE_HEALTH,{}),
+        "scheduler":_json(STATE,{}),
+    }
+
+def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--host",default="127.0.0.1")
+    ap.add_argument("--port",type=int,default=8765)
+    args=ap.parse_args()
+    uvicorn.run("app.dashboard:app",host=args.host,port=args.port,reload=False)
+
+if __name__=="__main__":
+    main()
