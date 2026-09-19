@@ -1,0 +1,23 @@
+{
+  "applications": [
+    {
+      "company": "Adobe",
+      "title": "Senior Data Engineer",
+      "portal": "Workday",
+      "external_id": "workday:adobe:external_experienced:R170680",
+      "resume": "Hemanth_Kavula_Adobe_Senior_Data_Engineer.pdf",
+      "status": "SUBMITTED_CONFIRMED",
+      "submitted_date": "2026-09-18",
+      "confirmation": "Employer portal confirmed successful submission."
+    },
+    {
+      "company": "System One",
+      "title": "Senior AWS IAM & Data Engineer",
+      "portal": "Dice",
+      "resume": "Hemanth_Kavula_System_One_Data_Engineer.pdf",
+      "status": "SUBMITTED_CONFIRMED",
+      "submitted_date": "2026-09-19",
+      "confirmation": "Submission confirmed in Dice portal."
+    }
+  ]
+}
