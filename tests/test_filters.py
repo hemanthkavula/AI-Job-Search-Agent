@@ -1,7 +1,7 @@
 from app.filters import passes_hard_filters
 
 PROFILE={
-  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},
+  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":3,"max_required_years":6},
   "work_authorization":{"requires_sponsorship_future":True},
   "candidate_experience_years":5
 }
@@ -52,3 +52,28 @@ def test_peoplen_tech_regression_rejected_for_both_reasons():
     assert not ok
     assert any("employment type" in x.lower() for x in r)
     assert any("10" in x for x in r)
+
+
+def test_two_year_requirement_rejected_as_too_junior():
+    ok,r=passes_hard_filters({"title":"Data Engineer","description":"2+ years of professional experience required."},PROFILE)
+    assert not ok and any("2" in x for x in r)
+
+
+def test_six_year_requirement_passes():
+    ok,_=passes_hard_filters({"title":"Senior Data Engineer","description":"6+ years of professional experience required."},PROFILE)
+    assert ok
+
+
+def test_seven_year_requirement_rejected_as_too_senior():
+    ok,r=passes_hard_filters({"title":"Senior Data Engineer","description":"7+ years of professional experience required."},PROFILE)
+    assert not ok and any("7" in x for x in r)
+
+
+def test_us_citizenship_requirement_rejected():
+    ok,r=passes_hard_filters({"title":"Data Engineer","description":"Applicants must be a U.S. citizen."},PROFILE)
+    assert not ok and any("citizen" in x.lower() for x in r)
+
+
+def test_security_clearance_requirement_rejected():
+    ok,r=passes_hard_filters({"title":"Data Engineer","description":"Ability to obtain and maintain a security clearance is required."},PROFILE)
+    assert not ok and any("clearance" in x.lower() for x in r)
