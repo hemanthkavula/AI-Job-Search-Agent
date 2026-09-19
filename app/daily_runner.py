@@ -94,14 +94,12 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     }
 
 def _print_diagnostics(d,hours):
-    print(f"
-LAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
+    print(f"\\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
     labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
-    print("
-ELIGIBLE JOBS FOR RESUME STAGE",flush=True)
+    print("\\nELIGIBLE JOBS FOR RESUME STAGE",flush=True)
     if not results:print("None",flush=True);return
     for i,item in enumerate(results,1):
         raw=item["job"];elig=item["eligibility"];company=raw.get("company_key") or raw.get("company") or "Unknown"
