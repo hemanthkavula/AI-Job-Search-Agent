@@ -16,6 +16,28 @@ MAX_RESUME_ATTEMPTS=3
 MAX_ARTIFACT_ATTEMPTS=3
 MIN_COVERAGE_TARGETS=3
 
+def _base_resume_payload(profile):
+    """Build the standard resume strictly from the candidate profile; no JD tailoring or LLM."""
+    return {
+        "summary": " ".join(profile.get("summary_source") or []),
+        "skills": profile.get("skill_categories") or {},
+        "experience": [
+            {"company": row.get("company"), "bullets": list(row.get("evidence") or [])}
+            for row in (profile.get("experience") or [])
+        ],
+    }
+
+def _render_base_resume(profile):
+    base_job=SimpleNamespace(
+        company="Base Resume",
+        title=profile.get("headline") or "Senior Data Engineer",
+        description="",
+        location=None,
+        employment_type=None,
+        url=None,
+    )
+    return render_llm_resume(base_job,profile,_base_resume_payload(profile),output_dir="generated/base_resume")
+
 
 def _audit_failure_summary(audit):
     failed=[k for k,v in audit.get("quality_gates",{}).items() if not v]
@@ -80,13 +102,32 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             min_targets=1 if raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE" else MIN_COVERAGE_TARGETS
-            if coverage_plan["target_count"] < min_targets:
-                raise RuntimeError(f"JD coverage extraction produced only {coverage_plan['target_count']} targets; holding job before paid resume generation because the JD could not be analyzed reliably.")
-            print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
-            generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
-            if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
-            resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
-            audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
+            if coverage_plan["target_count"] == 0:
+                # No reliable JD targets: do not hold the application and do not spend
+                # an LLM call. Use the standard profile-backed base resume unchanged.
+                print("ZERO TARGETS | using standard base resume; skipping JD tailoring.",flush=True)
+                resume=_render_base_resume(profile)
+                audit={
+                    "passed":True,
+                    "generation_source":"base_resume_zero_targets",
+                    "generation_attempts":0,
+                    "internal_ats_score":None,
+                    "keyword_coverage":None,
+                    "experience_depth_coverage":None,
+                    "recruiter_fit_score":None,
+                    "human_quality_score":None,
+                    "quality_gates":{},
+                }
+                audit_history=[{"version":"BASE","resume_path":str(resume),"audit":audit}]
+                attempts=0
+            else:
+                if coverage_plan["target_count"] < min_targets:
+                    raise RuntimeError(f"JD coverage extraction produced only {coverage_plan['target_count']} targets; holding job before paid resume generation because the JD could not be analyzed reliably.")
+                print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
+                generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
+                if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
+                resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+                audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
             if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
