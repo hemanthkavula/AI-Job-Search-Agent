@@ -5,12 +5,13 @@ from urllib.parse import urlparse
 
 ROOT=Path(__file__).resolve().parents[1]
 
-SUPPORTED_ATS={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite"}
+SUPPORTED_ATS={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite","dice"}
 MANUAL_BLOCKERS=("captcha","recaptcha","hcaptcha","mfa","two-factor","2fa","verification code")
 
 def _provider(row):
     explicit=(row.get("ats_provider") or "").lower().strip()
     if explicit:return explicit
+    if (row.get("application_route") or "").upper()=="DICE":return "dice"
     host=urlparse(row.get("original_url") or row.get("url") or "").netloc.lower()
     hints={"greenhouse":"greenhouse","lever":"lever","ashby":"ashby","myworkdayjobs":"workday",
            "smartrecruiters":"smartrecruiters","icims":"icims","jobvite":"jobvite"}
@@ -61,7 +62,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         provider=_provider(r)
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
-          "url":r.get("original_url") or r.get("url"),"ats_provider":provider,
+          "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
