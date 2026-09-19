@@ -466,7 +466,7 @@ def _workday_steps(page,item,identity,resume,result,max_steps=8):
             step["next_error"]=str(exc);break
     return steps
 
-def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
+def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0)->dict:
     """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
     inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
     uploading files, or advancing any application step.
@@ -503,8 +503,26 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
                     result["reason"]=result["navigation"].get("reason") or "Could not reach application form safely."
                     return result
             body=page.locator("body").inner_text(timeout=10000)
-            if BLOCKER_RE.search(body):
-                result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
+            if BLOCKER_RE.search(body) or (result.get("navigation") or {}).get("blocker"):
+                if wait_for_human_seconds>0 and not headless:
+                    result["status"]="WAITING_FOR_HUMAN_VERIFICATION"
+                    result["human_verification_wait_seconds"]=wait_for_human_seconds
+                    elapsed=0
+                    while elapsed<wait_for_human_seconds:
+                        page.wait_for_timeout(1000);elapsed+=1
+                        check=analyze_application(page)
+                        if not check.get("blocker_detected"):
+                            result["human_verification_cleared"]=True
+                            result["blockers"]=[]
+                            result["navigation_after_human"]=check
+                            break
+                    else:
+                        result["blockers"].append("CAPTCHA/MFA/verification challenge detected")
+                        result["status"]="MANUAL_ACTION_REQUIRED"
+                        result["reason"]="Human verification was not completed before timeout."
+                        return result
+                else:
+                    result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
             if (item.get("ats_provider") or "").lower()=="workday":
                 result["workday_steps"]=_workday_steps(page,item,identity,resume,result)
                 result["unresolved_required"]=sorted(set(q for s in result["workday_steps"] for q in s.get("unresolved_required",[])))
@@ -530,14 +548,14 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False)->dict:
             browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless,review_seconds,inspect_only))
+        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");ap.add_argument("--wait-for-human-seconds",type=int,default=0,help="In headed mode, keep the same browser session open for CAPTCHA/MFA completion, then resume automatically.");a=ap.parse_args()
+    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only,a.wait_for_human_seconds);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
