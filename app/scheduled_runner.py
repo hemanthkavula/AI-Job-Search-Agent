@@ -8,6 +8,8 @@ except ImportError:
     ZoneInfo=None
     ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
+from app.application_autofill import run as run_applications
+from app.job_ledger import load_ledger, save_ledger, record_seen
 
 def _eastern_tz():
     """Use IANA Eastern time when available; fall back to Windows local Eastern time.
@@ -52,7 +54,7 @@ def _window_for(now,state):
         return BOOTSTRAP_WINDOW_HOURS,"bootstrap"
     return INCREMENTAL_WINDOW_HOURS,"incremental"
 
-def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
+def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
@@ -61,6 +63,51 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     state=_load_state()
     hours,mode=_window_for(now,state)
     summary=run_cycle(sources=sources,hours=hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit)
+
+    # Application failures are isolated per job: CAPTCHA/MFA, unknown required
+    # answers, and other manual blockers are recorded and the batch continues.
+    # Persist terminal outcomes in the ledger so hourly scans do not retry them.
+    queue_path=summary.get("application_queue")
+    if apply_ready and queue_path and summary.get("queued_for_application",0):
+        output=f"generated/cycles/{summary['cycle_id']}_application_results.json"
+        application_results=run_applications(
+            queue_path=queue_path,
+            output=output,
+            limit=None,
+            headless=True,
+            review_seconds=0,
+            inspect_only=False,
+            wait_for_human_seconds=0,
+            allow_submit=allow_submit,
+        )
+        app_ledger=load_ledger(ledger)
+        for result in application_results:
+            job={
+                "external_id":result.get("external_id"),
+                "source":next((x.get("source") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),"unknown"),
+                "company_key":next((x.get("company") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),""),
+                "title":next((x.get("title") for x in json.loads((ROOT/queue_path).read_text(encoding="utf-8")) if x.get("external_id")==result.get("external_id")),""),
+                "url":result.get("url"),
+            }
+            status=result.get("status") or "MANUAL_ACTION_REQUIRED"
+            # Only confirmed submissions become SUBMITTED. Blockers stay terminal
+            # MANUAL_ACTION_REQUIRED and are skipped by future discovery cycles.
+            ledger_status="SUBMITTED" if status=="SUBMITTED" and result.get("submitted") else "MANUAL_ACTION_REQUIRED"
+            record_seen(job,app_ledger,ledger_status,
+                        application_result=status,
+                        application_reason=result.get("reason"),
+                        application_blockers=result.get("blockers") or [],
+                        application_result_path=output)
+        save_ledger(app_ledger,ledger)
+        summary["application_stage_enabled"]=True
+        summary["application_results"]=output
+        summary["applications_processed"]=len(application_results)
+        summary["applications_submitted"]=sum(x.get("status")=="SUBMITTED" and x.get("submitted") for x in application_results)
+        summary["applications_blocked"]=sum(x.get("status")!="SUBMITTED" or not x.get("submitted") for x in application_results)
+    else:
+        summary["application_stage_enabled"]=bool(apply_ready)
+        summary["applications_processed"]=0
+
     state.update({"last_run_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id")})
     if mode=="bootstrap": state["bootstrap_date"]=now.date().isoformat()
     _save_state(state)
@@ -76,5 +123,7 @@ if __name__=="__main__":
     p.add_argument("--no-resumes",action="store_true",help="Run discovery/finalization only.")
     p.add_argument("--limit",type=int)
     p.add_argument("--force",action="store_true",help="Allow a manual test outside the 07:00-18:59 ET window.")
+    p.add_argument("--apply",action="store_true",help="Run the ATS application stage for READY_TO_APPLY jobs; blockers are recorded and the batch continues.")
+    p.add_argument("--allow-submit",action="store_true",help="Authorize final submission when all required answers are known and ATS confirmation can be verified.")
     a=p.parse_args()
-    print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force),indent=2))
+    print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force,a.apply,a.allow_submit),indent=2))
