@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from app.job_identity import canonical_job_key, identity_keys
 
@@ -31,6 +31,32 @@ PROCESSED_STATUSES={
 }
 
 RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION","RETRY_APPLICATION","READY_TO_APPLY","IN_PROGRESS","APPLICATION_IN_PROGRESS"}
+MAX_RESUME_RETRIES=3
+MAX_APPLICATION_RETRIES=3
+RETRY_BACKOFF_MINUTES=(60,120,240)
+
+def _retry_due(row,kind,now=None):
+    """Return True when a retry is eligible after bounded exponential backoff."""
+    now=now or datetime.now(timezone.utc)
+    count=int(row.get(f"{kind}_retry_count") or 0)
+    if count>= (MAX_RESUME_RETRIES if kind=="resume" else MAX_APPLICATION_RETRIES):return False
+    next_at=row.get(f"{kind}_retry_after")
+    if not next_at:return True
+    try:return now>=datetime.fromisoformat(next_at)
+    except Exception:return True
+
+def retry_metadata(row,kind,now=None):
+    """Increment retry count and calculate the next hourly-scheduler retry time."""
+    now=now or datetime.now(timezone.utc)
+    count=int(row.get(f"{kind}_retry_count") or 0)+1
+    max_retries=MAX_RESUME_RETRIES if kind=="resume" else MAX_APPLICATION_RETRIES
+    exhausted=count>=max_retries
+    delay=RETRY_BACKOFF_MINUTES[min(count-1,len(RETRY_BACKOFF_MINUTES)-1)]
+    return {
+        f"{kind}_retry_count":count,
+        f"{kind}_retry_after":None if exhausted else (now+timedelta(minutes=delay)).isoformat(),
+        f"{kind}_retry_exhausted":exhausted,
+    }
 
 def seen_or_submitted(job,ledger):
     key,row=_lookup(job,ledger)
@@ -41,6 +67,7 @@ def retryable_jobs(ledger):
     out=[]
     for key,row in (ledger.get("jobs") or {}).items():
         if row.get("application_status") not in RETRYABLE_STATUSES:continue
+        if row.get("application_status")=="RETRY_RESUME_GENERATION" and not _retry_due(row,"resume"):continue
         payload=row.get("retry_job")
         if isinstance(payload,dict) and payload.get("external_id"):
             out.append(payload)
