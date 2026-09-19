@@ -10,7 +10,7 @@ def _get(url: str, timeout: int) -> str:
         return resp.read().decode("utf-8","replace")
 
 def _job_links(base_url: str, text: str) -> list[str]:
-    links=re.findall(r'href=["\\\']([^"\\\']*/jobs/\\d+[^"\\\']*)',text,re.I)
+    links=re.findall(r"href=[\"']([^\"']*/jobs/\d+[^\"']*)",text,re.I)
     out=[];seen=set()
     for href in links:
         url=urljoin(base_url,html.unescape(href))
@@ -19,7 +19,8 @@ def _job_links(base_url: str, text: str) -> list[str]:
     return out
 
 def _jsonld_job(text: str) -> dict:
-    for raw in re.findall(r'<script[^>]+type=["\\\']application/ld\\+json["\\\'][^>]*>(.*?)</script>',text,re.I|re.S):
+    pattern=r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>"
+    for raw in re.findall(pattern,text,re.I|re.S):
         try:data=json.loads(html.unescape(raw.strip()))
         except Exception:continue
         rows=data if isinstance(data,list) else [data]
@@ -47,7 +48,7 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int = 
         ident=str(j.get("identifier") or "")
         if isinstance(j.get("identifier"),dict):ident=str(j["identifier"].get("value") or "")
         if not ident:
-            m=re.search(r"/jobs/(\\d+)",url);ident=m.group(1) if m else url
+            m=re.search(r"/jobs/(\d+)",url);ident=m.group(1) if m else url
         loc=j.get("jobLocation") or {}
         if isinstance(loc,list):loc=loc[0] if loc else {}
         addr=loc.get("address") or {} if isinstance(loc,dict) else {}
@@ -57,7 +58,7 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int = 
             "external_id":f"icims:{company}:{ident}","source":"icims","company_key":company,
             "title":j.get("title") or "","location":location or None,"url":url,"original_url":url,
             "ats_provider":"icims","ats_identifier":base_url,"job_id":ident,
-            "description":re.sub(r"\\s+"," ",desc).strip(),"description_complete":bool(desc.strip()),
+            "description":re.sub(r"\s+"," ",desc).strip(),"description_complete":bool(desc.strip()),
             "updated_at":j.get("datePosted") or j.get("validThrough"),
         })
     return out
