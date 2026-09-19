@@ -25,3 +25,30 @@ def test_experience_within_range_passes():
 def test_sponsorship_unknown_is_not_rejected():
     ok,_=passes_hard_filters({"title":"Data Engineer","description":"Python SQL Spark"},PROFILE)
     assert ok
+
+
+def test_contract_third_party_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Senior Azure Data Engineer - Elasticsearch",
+      "employment_type":"Contract, Third Party",
+      "description":"Python Databricks SQL Elasticsearch Kafka Azure"
+    },PROFILE)
+    assert not ok and any("employment type" in x.lower() for x in r)
+
+def test_min_experience_wording_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Senior Azure Data Engineer - Elasticsearch",
+      "employment_type":"Full-Time",
+      "description":"Required Experience / Skills: Experience Min 10+ years of software engineering experience."
+    },PROFILE)
+    assert not ok and any("10" in x for x in r)
+
+def test_peoplen_tech_regression_rejected_for_both_reasons():
+    ok,r=passes_hard_filters({
+      "title":"Senior Azure Data Engineer - Elasticsearch",
+      "employment_type":"Contract, Third Party",
+      "description":"Required Experience / Skills: Experience Min 10+ years of software engineering experience. Python Databricks SQL Elasticsearch Kafka Azure."
+    },PROFILE)
+    assert not ok
+    assert any("employment type" in x.lower() for x in r)
+    assert any("10" in x for x in r)
