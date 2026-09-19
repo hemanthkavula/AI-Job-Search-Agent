@@ -1,4 +1,4 @@
-from app.application_navigator import provider_from_url, APPLY_RE, FINAL_RE
+from app.application_navigator import provider_from_url, APPLY_RE, FINAL_RE, BLOCKER_RE
 
 def test_provider_detection_covers_supported_ats():
     assert provider_from_url("https://careers.example.icims.com/jobs/1/job") == "icims"
