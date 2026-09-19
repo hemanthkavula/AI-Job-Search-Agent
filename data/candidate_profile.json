@@ -145,8 +145,8 @@
       "US"
     ],
     "strict_location_filter": false,
-    "max_required_years": 7,
-    "min_required_years": 4
+    "max_required_years": 6,
+    "min_required_years": 3
   },
   "work_authorization": {
     "status": "F-1 OPT",
