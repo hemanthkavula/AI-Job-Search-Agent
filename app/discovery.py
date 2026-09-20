@@ -43,6 +43,18 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     errors=[]
     tasks=[]
     health={}
+    # Reuse the latest source-health report to avoid repeatedly crawling generic
+    # career pages that are already known to be blocked, unreachable, or JS-only.
+    unhealthy_career_sites=set()
+    try:
+        health_report=json.loads(__import__("pathlib").Path("generated/source_health.json").read_text(encoding="utf-8"))
+        for row in health_report.get("sources",[]):
+            status=row.get("effective_status") or row.get("status")
+            if row.get("provider")=="career_site" and status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"}:
+                if row.get("company"):
+                    unhealthy_career_sites.add(row["company"])
+    except Exception:
+        pass
     # Network-bound ATS/company calls are independent. Run them concurrently so a
     # slow Workday tenant cannot serially block every other source in the hourly cycle.
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -67,7 +79,12 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         for src in config.get("oracle",[]) if only_source in (None,"oracle") else []:
             tasks.append((pool.submit(oracle_jobs,src["company"],src["base_url"]),"oracle",src.get("company")))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
-            tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",src.get("company")))
+            company=src.get("company")
+            if company in unhealthy_career_sites:
+                key=f"career_site:{company}"
+                health[key]={"source":"career_site","company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+                continue
+            tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
             tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
@@ -122,6 +139,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
         errors_for_provider=sum(v.get("status")=="ERROR" for v in relevant)
+        skipped_for_provider=sum(v.get("status")=="SKIPPED_UNHEALTHY" for v in relevant)
         ok_for_provider=sum(v.get("status")=="OK" for v in relevant)
         if not configured_units.get(provider):
             status="DISABLED"
@@ -133,7 +151,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             status="OK"
         print(
             f"SOURCE {provider}: status={status} | configured_units={configured_units.get(provider,0)} | "
-            f"jobs_returned={provider_counts.get(provider,0)} | healthy_units={ok_for_provider} | failed_units={errors_for_provider}",
+            f"jobs_returned={provider_counts.get(provider,0)} | healthy_units={ok_for_provider} | failed_units={errors_for_provider} | skipped_unhealthy={skipped_for_provider}",
             flush=True,
         )
     learned=learn_from_jobs(learnable,registry)
