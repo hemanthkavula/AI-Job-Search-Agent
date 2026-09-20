@@ -1,5 +1,6 @@
 from __future__ import annotations
 import html, json, re
+from http.client import IncompleteRead
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -74,7 +75,15 @@ def validate_source(company: str, search_url: str, job_url_pattern: str, timeout
     try:
         with urlopen(Request(search_url,headers=UA),timeout=timeout) as resp:
             result["http_status"]=getattr(resp,"status",None)
-            body=resp.read(250000).decode("utf-8","replace")
+            try:
+                raw=resp.read(250000)
+            except IncompleteRead as exc:
+                # Some career sites terminate chunked responses early. The
+                # partial HTML is still sufficient for a non-destructive
+                # source-health/link check, so do not crash the whole report.
+                raw=exc.partial
+                result["partial_response"]=True
+            body=raw.decode("utf-8","replace")
         result["status"]="ok" if result["http_status"] in (None,200) else "http_error"
         normalized_pattern=job_url_pattern.replace("\\\\", "\\")
         rx=re.compile(normalized_pattern,re.I)
@@ -84,7 +93,7 @@ def validate_source(company: str, search_url: str, job_url_pattern: str, timeout
         result["http_status"]=exc.code
         result["status"]="broken" if exc.code in (404,410) else "blocked_or_http_error"
         result["error"]=str(exc)
-    except (URLError,TimeoutError,OSError) as exc:
+    except (URLError,TimeoutError,OSError,IncompleteRead) as exc:
         result["status"]="unreachable"
         result["error"]=str(exc)
     except re.error as exc:
