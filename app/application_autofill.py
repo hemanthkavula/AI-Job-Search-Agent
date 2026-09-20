@@ -107,27 +107,55 @@ def _auth_action(scope, result):
     if BLOCKER_RE.search(body):
         return {"handled":False,"blocker":"CAPTCHA/MFA/verification challenge detected"}
 
-    emails=scope.locator('input[type="email"], input[name*="email" i], input[id*="email" i], input[autocomplete="username"]')
-    passwords=scope.locator('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]')
+    # Workday account creation frequently renders Email Address as type=text
+    # with data-automation-id=email, so do not rely on input[type=email].
+    emails=scope.locator(
+        'input[data-automation-id="email"], input[type="email"], '
+        'input[name*="email" i], input[id*="email" i], input[autocomplete="username"]'
+    )
+    passwords=scope.locator(
+        'input[data-automation-id="password"], input[data-automation-id="verifyPassword"], '
+        'input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]'
+    )
     email=next((emails.nth(i) for i in range(min(emails.count(),20)) if emails.nth(i).is_visible()),None)
-    password=next((passwords.nth(i) for i in range(min(passwords.count(),20)) if passwords.nth(i).is_visible()),None)
+    password=next((passwords.nth(i) for i in range(min(passwords.count(),20))
+                   if passwords.nth(i).is_visible() and
+                   _norm(passwords.nth(i).get_attribute("data-automation-id") or "")!="verify password"),None)
     # Email-first login flows (notably Dice) no longer expose an editable email
     # field on the password page. The email was already accepted on the prior step.
     if password is None:
         return {"handled":False,"reason":"No visible login/account password field detected"}
     try:
-        if email is not None:email.fill(creds["email"])
+        if email is not None:
+            email.fill(creds["email"])
+            # Workday/React controlled inputs can reject a fill that did not stick.
+            if (email.input_value() or "").strip()!=creds["email"]:
+                email.click();email.press("Control+A");email.press_sequentially(creds["email"],delay=35)
         password.fill(creds["password"])
         logged=[{"field":"ATS account password","value":"[REDACTED]"}]
         if email is not None:logged.insert(0,{"field":"ATS account email","value":creds["email"]})
         result.setdefault("filled",[]).extend(logged)
-        # Account creation commonly requires password confirmation.
-        confirms=scope.locator('input[type="password"]')
-        if confirms.count()>1:
-            for i in range(1,min(confirms.count(),3)):
-                try:
-                    if confirms.nth(i).is_visible(): confirms.nth(i).fill(creds["password"])
-                except Exception: pass
+        # Account creation commonly requires a distinct Verify New Password field.
+        confirms=scope.locator('input[data-automation-id="verifyPassword"], input[type="password"]')
+        for i in range(min(confirms.count(),6)):
+            try:
+                confirm=confirms.nth(i)
+                if not confirm.is_visible():continue
+                aid=_norm(confirm.get_attribute("data-automation-id") or "")
+                if aid=="verify password" or confirm!=password:
+                    # Avoid overwriting the primary field; fill only empty/verify fields.
+                    if aid=="verify password" or not confirm.input_value():
+                        confirm.fill(creds["password"])
+            except Exception:pass
+        result["auth_field_verification"]={
+            "email_present": email is not None,
+            "email_filled": bool(email is not None and (email.input_value() or "").strip()==creds["email"]),
+            "password_filled": bool(password.input_value()),
+            "verify_password_filled": any(
+                confirms.nth(i).is_visible() and bool(confirms.nth(i).input_value())
+                for i in range(min(confirms.count(),6))
+            ) if confirms.count() else False,
+        }
         actions=scope.locator('button, input[type="submit"], [role="button"]')
         create_mode=any(t in body for t in ("create account","create an account","register","sign up"))
         if create_mode:
