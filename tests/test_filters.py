@@ -80,3 +80,40 @@ def test_foreign_jd_location_rejected_when_location_missing():
       "description":"Position based in Hyderabad, India. Python SQL Spark."
     },PROFILE)
     assert not ok and any("location outside United States" in x for x in r)
+
+
+def test_account_executive_not_promoted_by_de_keywords():
+    ok,r=passes_hard_filters({
+      "title":"Enterprise Account Executive, Dept. of Transportation",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Databricks Spark data pipelines data warehouse lakehouse data integration security governance."
+    },PROFILE)
+    assert not ok and any("job family" in x.lower() for x in r)
+
+def test_solutions_engineer_not_promoted_by_de_keywords():
+    ok,r=passes_hard_filters({
+      "title":"Sr. Solutions Engineer - Digital Native Business",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Python SQL Databricks Spark ETL data pipelines data warehouse Kafka."
+    },PROFILE)
+    assert not ok and any("job family" in x.lower() for x in r)
+
+def test_platform_manager_not_promoted_by_de_keywords():
+    ok,r=passes_hard_filters({
+      "title":"Senior Platform Manager, Data Products, Finance Accounting",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Spark Databricks data pipelines ETL data modeling data integration lakehouse."
+    },PROFILE)
+    assert not ok and any("job family" in x.lower() for x in r)
+
+def test_data_platform_engineer_remains_target():
+    ok,_=passes_hard_filters({
+      "title":"Senior Data Platform Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Build Spark and Databricks data pipelines."
+    },PROFILE)
+    assert ok
