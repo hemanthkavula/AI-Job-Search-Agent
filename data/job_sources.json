@@ -635,7 +635,7 @@
       "company": "M&T Bank",
       "host": "mtb.wd5.myworkdayjobs.com",
       "tenant": "mtb",
-      "site": "External",
+      "site": "MTB",
       "locale": "en-US"
     },
     {
@@ -927,11 +927,6 @@
       "company": "Farmers Insurance",
       "search_url": "https://jobs.farmersinsurance.com/search/?q=data+engineer",
       "job_url_pattern": "jobs\\.farmersinsurance\\.com/.+"
-    },
-    {
-      "company": "Federal Express",
-      "search_url": "https://careers.fedex.com/jobs?keyword=data%20engineer",
-      "job_url_pattern": "careers\\.fedex\\.com/.*/jobs/.*"
     },
     {
       "company": "NTT DATA",
