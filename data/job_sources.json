@@ -641,6 +641,31 @@
       "company": "Tesla",
       "search_url": "https://www.tesla.com/careers/search/?query=data%20engineer",
       "job_url_pattern": "tesla\\.com/careers/search/job/"
+    },
+    {
+      "company": "Ford",
+      "search_url": "https://www.careers.ford.com/search-jobs?keywords=data%20engineer",
+      "job_url_pattern": "careers\\.ford\\.com/job/.+"
+    },
+    {
+      "company": "GM Financial",
+      "search_url": "https://careers.gmfinancial.com/en-us/search-results.html?keywords=data%20engineer",
+      "job_url_pattern": "careers\\.gmfinancial\\.com/.+"
+    },
+    {
+      "company": "Meta",
+      "search_url": "https://www.metacareers.com/jobs?q=data%20engineer",
+      "job_url_pattern": "metacareers\\.com/jobs/[0-9]+/"
+    },
+    {
+      "company": "eBay",
+      "search_url": "https://jobs.ebayinc.com/us/en/search-results?keywords=data%20engineer",
+      "job_url_pattern": "jobs\\.ebayinc\\.com/.+/job/.+"
+    },
+    {
+      "company": "Uber",
+      "search_url": "https://jobs.uber.com/en/jobs/?query=data%20engineer&country=USA",
+      "job_url_pattern": "(?:jobs\\.uber\\.com|uber\\.com)/(?:global/[^/]+/)?careers/list/[0-9]+"
     }
   ]
 }
