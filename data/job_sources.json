@@ -522,6 +522,13 @@
       "tenant": "elevancehealth",
       "site": "ANT",
       "locale": "en-US"
+    },
+    {
+      "company": "Walmart",
+      "host": "walmart.wd504.myworkdayjobs.com",
+      "tenant": "walmart",
+      "site": "WalmartExternal",
+      "locale": "en-US"
     }
   ],
   "dice": {
@@ -614,6 +621,26 @@
       "company": "IBM",
       "search_url": "https://www.ibm.com/careers/search?q=data%20engineer&location=United%20States",
       "job_url_pattern": "ibm\\\\.com/careers/.+"
+    },
+    {
+      "company": "Google",
+      "search_url": "https://careers.google.com/jobs/results/?q=data%20engineer",
+      "job_url_pattern": "careers\\.google\\.com/jobs/results/"
+    },
+    {
+      "company": "Apple",
+      "search_url": "https://jobs.apple.com/en-us/search?search=data%20engineer",
+      "job_url_pattern": "jobs\\.apple\\.com/.+/details/"
+    },
+    {
+      "company": "Netflix",
+      "search_url": "https://jobs.netflix.com/search?q=data%20engineer",
+      "job_url_pattern": "jobs\\.netflix\\.com/jobs/"
+    },
+    {
+      "company": "Tesla",
+      "search_url": "https://www.tesla.com/careers/search/?query=data%20engineer",
+      "job_url_pattern": "tesla\\.com/careers/search/job/"
     }
   ]
 }
