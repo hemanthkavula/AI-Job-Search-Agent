@@ -7,7 +7,7 @@ PROFILE={
 }
 
 def test_data_engineer_passes():
-    ok,_=passes_hard_filters({"title":"Senior Data Engineer","description":"Python AWS"},PROFILE)
+    ok,_=passes_hard_filters({"title":"Senior Data Engineer","location":"Jersey City, NJ, United States","description":"Python AWS"},PROFILE)
     assert ok
 
 def test_no_sponsorship_rejected():
@@ -19,11 +19,11 @@ def test_excess_years_rejected():
     assert not ok and any("10" in x for x in r)
 
 def test_experience_within_range_passes():
-    ok,_=passes_hard_filters({"title":"Senior Data Engineer","description":"5+ years of professional experience required."},PROFILE)
+    ok,_=passes_hard_filters({"title":"Senior Data Engineer","location":"Jersey City, NJ, United States","description":"5+ years of professional experience required."},PROFILE)
     assert ok
 
 def test_sponsorship_unknown_is_not_rejected():
-    ok,_=passes_hard_filters({"title":"Data Engineer","description":"Python SQL Spark"},PROFILE)
+    ok,_=passes_hard_filters({"title":"Data Engineer","location":"Jersey City, NJ, United States","description":"Python SQL Spark"},PROFILE)
     assert ok
 
 
