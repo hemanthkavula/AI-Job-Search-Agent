@@ -11,7 +11,9 @@ ALLOWED_TITLE_PATTERNS=[
 EXCLUDED_TITLE_TERMS={
  "analyst","scientist","frontend","front end","qa engineer","business intelligence","power bi developer","tableau developer",
  "software engineer","machine learning engineer","devops engineer","site reliability","database administrator","data architect","solutions architect",
- "product manager","full-stack","full stack","dot net",".net","java developer","siem","security data engineer","marketing technology developer",
+ "product manager","program manager","platform manager","account executive","solutions engineer","solution engineer","sales engineer",
+ "customer engineer","consulting engineer","solutions consultant","solution consultant","technical account manager","customer success",
+ "full-stack","full stack","dot net",".net","java developer","siem","security data engineer","marketing technology developer",
  "data governance lead","summer internship","internship","career accelerator program","junior data engineer"
 }
 
@@ -62,9 +64,13 @@ def title_is_target(title,description=""):
     # specializations do not disqualify it (e.g. Senior Data Engineer - Airflow,
     # AWS Data Engineer, Data Engineer II, Lead Data Engineer / Snowflake).
     if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
+    # Explicit non-DE role families always lose, even when their JDs contain many
+    # data-platform keywords. This prevents sales/management/solutions roles from
+    # entering the resume/application pipeline merely because they discuss Spark,
+    # Databricks, warehouses, governance, etc.
+    if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
     # Keep a small adjacent DE-family set for titles that do not literally contain
     # "data engineer", such as Data Platform Engineer.
-    if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
     if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
     # Adjacent data roles can qualify from their responsibilities even when the title
     # does not literally say Data Engineer (e.g. Data Analytics Engineer / Data Integration Engineer).
