@@ -14,9 +14,11 @@ SPONSOR_POSITIVE_PATTERNS=(
  "h-1b sponsorship","h1b sponsorship","employment visa sponsorship","visa transfer"
 )
 CITIZENSHIP_PATTERNS=(
- "u.s. citizenship is required","us citizenship is required","must be a u.s. citizen",
- "must be a us citizen","must be a united states citizen","u.s. citizens only",
- "us citizens only","united states citizens only","must be a citizen of the united states"
+ "u.s. citizenship is required","us citizenship is required",
+ "u.s. citizenship required","us citizenship required",
+ "must be a u.s. citizen","must be a us citizen","must be a united states citizen",
+ "u.s. citizens only","us citizens only","united states citizens only",
+ "must be a citizen of the united states"
 )
 
 def _clean(v): return re.sub(r"\s+"," ",(v or "").lower()).strip()
