@@ -305,67 +305,80 @@ def _agent_page_state(page,item,profile,allow_submit):
     return state
 
 def _agent_find_target(page,target,observed_controls=None):
+    """Resolve an agent target against the SAME rendered observation semantically."""
     t=(target or "").strip()
     if not t:return None
+
+    def usable(x):
+        try:return x.count()>0 and x.first.is_visible()
+        except Exception:return False
+
+    def unique_visible(locator):
+        try:
+            visible=[]
+            for i in range(min(locator.count(),20)):
+                x=locator.nth(i)
+                if x.is_visible():visible.append(x)
+            return visible[0] if len(visible)==1 else None
+        except Exception:return None
+
     m=re.fullmatch(r"control:(\\d+)",t,re.I)
     if m:
-        wanted=int(m.group(1))
-        obs=(observed_controls or [])
-        if wanted<len(obs):
-            meta=obs[wanted]
-            # Re-resolve by stable semantics from the exact observation rather than
-            # by DOM position, which can change while banners/forms render.
-            for attr in ("automation_id","name","id"):
-                val=(meta.get(attr) or "").strip()
-                if not val:continue
-                sel={"automation_id":f'[data-automation-id="{val}"]',"name":f'[name="{val}"]',"id":f'#{val}'}[attr]
-                try:
-                    x=page.locator(sel).first
-                    if x.count() and x.is_visible():return x
-                except Exception:pass
-            label=(meta.get("label") or "").split(" | ")[0].strip()
-            text=(meta.get("text") or "").strip()
-            for role in ("button","link","textbox","combobox","checkbox"):
-                for val in (text,label):
-                    if not val:continue
-                    try:
-                        x=page.get_by_role(role,name=val,exact=True).first
-                        if x.count() and x.is_visible():return x
-                    except Exception:pass
-            for val in (text,label):
-                if not val:continue
-                try:
-                    x=page.get_by_text(val,exact=True).first
-                    if x.count() and x.is_visible():return x
-                except Exception:pass
+        wanted=int(m.group(1));obs=(observed_controls or [])
+        if wanted>=len(obs):return None
+        meta=obs[wanted]
+
+        # Strong attributes from the observed element first.
+        for attr in ("automation_id","name","id"):
+            val=(meta.get(attr) or "").strip()
+            if not val:continue
+            if attr=="automation_id":loc=page.locator(f'[data-automation-id="{val}"]')
+            elif attr=="name":loc=page.locator(f'[name="{val}"]')
+            else:loc=page.locator(f'[id="{val}"]')
+            x=unique_visible(loc)
+            if x is not None:return x
+
+        text=(meta.get("text") or "").strip()
+        label=(meta.get("label") or "").split(" | ")[0].strip()
+        tag=(meta.get("tag") or "").lower()
+
+        # Preserve the observed element kind. This matters when a page contains
+        # several identical "Sign In" strings in headers, forms and links.
+        if tag=="button" and text:
+            x=unique_visible(page.get_by_role("button",name=text,exact=True))
+            if x is not None:return x
+        if tag=="a" and text:
+            x=unique_visible(page.get_by_role("link",name=text,exact=True))
+            if x is not None:return x
+        if tag in ("input","textarea") and label:
+            for role in ("textbox","combobox","checkbox"):
+                x=unique_visible(page.get_by_role(role,name=label,exact=True))
+                if x is not None:return x
+
+        # If exact text is duplicated, choose the candidate whose tag matches
+        # the observed control instead of silently clicking the first match.
+        for val in (text,label):
+            if not val:continue
+            try:
+                loc=page.get_by_text(val,exact=True)
+                matches=[]
+                for i in range(min(loc.count(),20)):
+                    x=loc.nth(i)
+                    if not x.is_visible():continue
+                    xtag=x.evaluate("(e)=>e.tagName.toLowerCase()")
+                    if not tag or xtag==tag:matches.append(x)
+                if len(matches)==1:return matches[0]
+            except Exception:pass
         return None
-    # Compatibility: if the model returns a concrete CSS selector visible in the
-    # observation, resolve it directly instead of treating the entire selector as
-    # a data-automation-id value.
-    if any(ch in t for ch in ("[","]","#",".",">",":")):
-        try:
-            x=page.locator(t).first
-            if x.count() and x.is_visible():return x
-        except Exception:pass
-    selectors=[
-        f'[data-automation-id="{t}"]',f'[name="{t}"]',f'#{t}',
-        f'input[aria-label="{t}"]',f'textarea[aria-label="{t}"]'
-    ]
-    for s in selectors:
-        try:
-            x=page.locator(s).first
-            if x.count() and x.is_visible():return x
-        except Exception:pass
+
+    # Exact visible labels are allowed, but ambiguous matches are rejected.
     for role in ("button","link","textbox","combobox","checkbox"):
-        try:
-            x=page.get_by_role(role,name=t,exact=True).first
-            if x.count() and x.is_visible():return x
-        except Exception:pass
-    try:
-        x=page.get_by_text(t,exact=True).first
-        if x.count() and x.is_visible():return x
-    except Exception:pass
-    return None
+        x=unique_visible(page.get_by_role(role,name=t,exact=True))
+        if x is not None:return x
+    for attr in ("data-automation-id","name","id","aria-label"):
+        x=unique_visible(page.locator(f'[{attr}="{t}"]'))
+        if x is not None:return x
+    return unique_visible(page.get_by_text(t,exact=True))
 
 def _agent_execute(page,decision,resume,result,allow_submit,observed_controls=None):
     action=_norm(decision.get("action"));target=decision.get("target") or "";value=decision.get("value")
