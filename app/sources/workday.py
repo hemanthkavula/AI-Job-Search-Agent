@@ -107,6 +107,8 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     origin = f"https://{host.strip('/')}"
     base = f"{origin}/wday/cxs/{tenant}/{site}"
     limit = 20
+    # Safety bound: inspect recent pages instead of traversing the full historical catalog.
+    max_pages_per_term = 8 if hours <= 24 else 12
     listing_count = 0
     candidate_count = 0
     duplicate_candidate_count = 0
@@ -115,7 +117,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
     # One cache file per tenant/site avoids lost updates because Workday tenants are
     # scanned concurrently by discovery.py.
     tenant_cache=_load_cache(tenant,site)
-    incremental=hours<=2
+    incremental=bool(tenant_cache)
     # Site-wide frontier: a job returned for "Senior Data Engineer" is commonly
     # returned again for "Data Engineer", cloud variants, etc. Seed the frontier
     # from older per-term caches so this optimization works immediately after
@@ -129,8 +131,11 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
 
     for search_term in SEARCH_TERMS:
       offset = 0
+      pages_scanned = 0
       total: int | None = None
       while True:
+        if pages_scanned >= max_pages_per_term:
+            break
         payload = _json(f"{base}/jobs", timeout, {
             "appliedFacets": {}, "limit": limit, "offset": offset, "searchText": search_term
         })
@@ -138,6 +143,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
             try: total = int(payload.get("total") or 0)
             except Exception: total = 0
         rows = payload.get("jobPostings") or []
+        pages_scanned += 1
         if incremental:
             term_cache=tenant_cache.setdefault(search_term,{})
             previous=set(term_cache.get("paths") or [])
@@ -211,7 +217,7 @@ def fetch_jobs(company: str, host: str, tenant: str, site: str, locale: str = "e
         # explicitly older than this cycle window, stop traversing historical matches.
         parsed=[_posted_at(row.get("postedOn")) for row in rows]
         known=[datetime.fromisoformat(x) for x in parsed if x]
-        if known and len(known)==len(rows):
+        if known:
             cutoff=datetime.now(timezone.utc)-timedelta(hours=hours)
             if max(known) < cutoff:
                 break
