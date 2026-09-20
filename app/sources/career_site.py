@@ -29,7 +29,11 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
     """Crawl a public employer career search page for Data Engineering jobs."""
     body=_get(search_url,timeout)
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
-    # Older source configs contain regexes double-escaped for JSON (e.g. `amazon\\\\.jobs`).\n    # Normalize one escaping layer so otherwise-valid static job links are discoverable.\n    normalized_pattern=job_url_pattern.replace("\\\\\\\\", "\\\\")\n    rx=re.compile(normalized_pattern,re.I)\n    links=[];seen=set()
+    # Older source configs may contain regexes double-escaped for JSON.
+    # Normalize one escaping layer so valid static job links remain discoverable.
+    normalized_pattern=job_url_pattern.replace("\\\\", "\\")
+    rx=re.compile(normalized_pattern,re.I)
+    links=[];seen=set()
     for href in hrefs:
         url=urljoin(search_url,html.unescape(href))
         if rx.search(url) and url not in seen:
