@@ -1,10 +1,11 @@
 from __future__ import annotations
-import argparse,json,re,os
+import argparse,json,re,os,time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from app.config import load_profile
 from app.application_inspector import BLOCKER_RE
 from app.application_navigator import enter_application, form_scope, analyze as analyze_application
+from app.email_verification import email_verification_required, wait_for_verification
 from dotenv import load_dotenv
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -242,6 +243,7 @@ Authentication credentials are available locally to the executor even though sec
 Return JSON only:
 {"action":"fill|click|select|upload_resume|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
 Use one action at a time. When a matching control is present, ALWAYS target its supplied control:<n> handle. Do not invent CSS selectors. Use an exact visible label only when no control handle exists. For final submission use action=click only when the control clearly means final submit.
+Account creation, sign-in, resume upload, and ordinary application navigation are part of the workflow. If the page says a verification email was sent, do not stop; the local executor handles that state outside the model.
 """
 
 def _agent_api_call(state):
@@ -392,7 +394,7 @@ def _agent_execute(page,decision,resume,result,allow_submit,observed_controls=No
         result.setdefault("agent_errors",[]).append({"decision":decision,"error":str(exc)})
         return False
 
-def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=35):
+def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=80):
     """Observe -> reason -> act -> verify loop. Reuses the persisted resume; never regenerates it."""
     if not (os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")):
         return {"handled":False,"reason":"No application-agent API key configured"}
@@ -403,6 +405,7 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
             result["submitted"]=True;result["submission_confirmation"]=confirmation;result["status"]="SUBMITTED"
             return {"handled":True,"submitted":True,"steps":step}
         state=_agent_page_state(page,item,profile,allow_submit)
+        result.setdefault("agent_states",[]).append({"step":step+1,"state":"OBSERVE","url":page.url})
         # Dismiss generic cookie consent chrome deterministically. It is not an
         # application answer and should not consume/fail an LLM action.
         cookie_done=False
@@ -416,8 +419,43 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
                     break
         if cookie_done:
             continue
+
+        # Email activation is a resumable workflow state, not a manual blocker.
+        # Gmail credentials/tokens and verification codes never go to the LLM.
+        if email_verification_required(state["visible_text"]):
+            result.setdefault("agent_states",[]).append({"step":step+1,"state":"EMAIL_VERIFICATION_REQUIRED","url":page.url})
+            try:
+                creds=_application_credentials()
+                verification=wait_for_verification(
+                    company=item.get("company") or "",
+                    email=creds.get("email") or "",
+                    after_epoch=time.time()-300,
+                    timeout=int(os.getenv("APPLICATION_EMAIL_VERIFY_TIMEOUT","150")),
+                    poll=int(os.getenv("APPLICATION_EMAIL_VERIFY_POLL","5")),
+                )
+                safe_verification={k:v for k,v in verification.items() if k not in ("link","code","message_id")}
+                safe_verification["found"]=bool(verification.get("found"))
+                result.setdefault("email_verification",[]).append(safe_verification)
+                if not verification.get("found"):
+                    return {"handled":False,"reason":verification.get("reason","Verification email not found"),"steps":step+1}
+                if verification.get("link"):
+                    page.goto(verification["link"],wait_until="domcontentloaded",timeout=60000)
+                    page.wait_for_timeout(1200)
+                    result.setdefault("agent_states",[]).append({"step":step+1,"state":"EMAIL_VERIFICATION_LINK_OPENED","url":page.url})
+                    continue
+                if verification.get("code"):
+                    code=verification["code"]
+                    code_input=page.locator('input[autocomplete="one-time-code"], input[name*="code" i], input[id*="code" i], input[aria-label*="code" i]').first
+                    if code_input.count() and code_input.is_visible():
+                        code_input.fill(code)
+                        result.setdefault("agent_actions",[]).append({"action":"fill","target":"email verification code","reason":"Filled code from matching verification email"})
+                        continue
+                    return {"handled":False,"reason":"Verification email contained a code but the page exposed no unambiguous code field","steps":step+1}
+            except Exception as exc:
+                return {"handled":False,"reason":f"Email verification could not continue automatically: {exc}","steps":step+1}
+
         if BLOCKER_RE.search(state["visible_text"]):
-            return {"handled":False,"reason":"CAPTCHA/MFA/verification challenge detected","steps":step}
+            return {"handled":False,"reason":"CAPTCHA/MFA challenge detected","steps":step}
         decision=_agent_api_call(state)
         result.setdefault("agent_decisions",[]).append({"step":step+1,**(decision or {})})
         if not decision:return {"handled":False,"reason":"No agent decision","steps":step}
