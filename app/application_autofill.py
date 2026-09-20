@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json,re,os,time
+import argparse,json,re,os,time,base64
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from app.config import load_profile
@@ -236,16 +236,19 @@ def _auth_action(scope, result):
     except Exception as exc:
         return {"handled":False,"reason":str(exc)}
 
-AGENT_SYSTEM_PROMPT = """You are a browser application agent. Decide the next safe action from the CURRENT page only.
-Goal: advance a job application using the supplied candidate profile and already-generated resume.
-Never invent candidate facts. Never answer demographic/disability/veteran/self-identification questions unless a deterministic answer is explicitly present in profile. Never bypass CAPTCHA/MFA. Never interact with honeypot/robot fields. Never submit unless allow_submit is true.
-Authentication credentials are available locally to the executor even though secret password values are intentionally NOT shown in page state. Therefore, when the current page requires email/password/verify-password, choose fill actions for those controls; use value="LOCAL_CREDENTIAL" for password fields and value="LOCAL_EMAIL" for an account email field. Do NOT stop merely because credential values are absent from the observation.
+AGENT_SYSTEM_PROMPT = """You are an autonomous browser-use agent completing a job application.
+Observe the CURRENT rendered screenshot together with the DOM controls and visible text. Infer what page/state you are on from what you actually see; do not depend on ATS/provider-specific workflow rules.
+Goal: complete the current queued job application using the supplied candidate profile and already-generated resume.
+
+Choose the next action needed to make progress. Existing-account sign-in is normally preferable when the rendered page offers it; if the site establishes that no account exists or presents account creation as the required path, create the account. Account creation, sign-in, required terms/privacy acknowledgments, resume upload, ordinary navigation, application questions, review, and final submission are all within scope.
+If the rendered page says an email verification/activation message was sent or asks you to verify by email, use action=check_email. The local executor will access the authorized inbox and keep secrets out of model context.
+Authentication secrets are local. Use value="LOCAL_EMAIL" for the application email and value="LOCAL_CREDENTIAL" for password/confirm-password fields. Never request or expose the actual password.
+Answer application questions only from supplied candidate facts, current job information, and documented resume/profile evidence. Never invent employers, dates, years, certifications, accomplishments, technologies, demographic facts, or other candidate facts. Explicit candidate voluntary-disclosure values may be used.
+Never interact with honeypot/robot fields. Never bypass CAPTCHA or MFA. If CAPTCHA/MFA genuinely requires the candidate, stop and state that blocker.
+Never claim success merely because Submit was clicked; success requires the rendered site to show positive submission confirmation.
 Return JSON only:
-{"action":"fill|click|select|upload_resume|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
-Use one action at a time. When a matching control is present, ALWAYS target its supplied control:<n> handle. Do not invent CSS selectors. Use an exact visible label only when no control handle exists. For final submission use action=click only when the control clearly means final submit.
-Authentication order is strict: if a login/sign-in form is available, try LOCAL_EMAIL + LOCAL_CREDENTIAL and submit sign-in first. Only use Create Account/Register when the page says the account does not exist, sign-in is rejected for no account, or no sign-in path exists. During account creation fill LOCAL_EMAIL, fill the same LOCAL_CREDENTIAL in password and confirm/retype-password fields, accept required application terms/privacy acknowledgments, and continue. If the site then requires email verification, the local executor handles Gmail verification and the workflow must continue to sign in and complete the application.
-Account creation, sign-in, resume upload, and ordinary application navigation are part of the workflow. If the page says a verification email was sent, do not stop; the local executor handles that state outside the model.
-For application questions, use only facts supported by candidate profile, the current job description, and the already-generated resume. Technical questions may be answered from documented resume/profile evidence and the current JD, but never invent years, certifications, employers, accomplishments, or technologies not supported by candidate evidence. Required voluntary-disclosure answers may use the explicit profile values supplied by the candidate.
+{"action":"fill|click|select|upload_resume|check_email|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short page-grounded reason","terminal":false}
+Use one action at a time. Prefer the supplied control:<n> handle for a visible control. Do not invent CSS selectors.
 """
 
 def _agent_api_call(state):
@@ -255,7 +258,10 @@ def _agent_api_call(state):
     from urllib import request as _urlrequest, error as _urlerror
     endpoint=os.getenv("APPLICATION_AGENT_ENDPOINT","https://api.openai.com/v1/responses")
     model=os.getenv("APPLICATION_AGENT_MODEL",os.getenv("RESUME_LLM_MODEL","gpt-5.6"))
-    body=json.dumps({"model":model,"instructions":AGENT_SYSTEM_PROMPT,"input":json.dumps(state),"max_output_tokens":800}).encode("utf-8")
+    screenshot=state.pop("_screenshot_data_url",None)
+    content=[{"type":"input_text","text":json.dumps(state)}]
+    if screenshot:content.append({"type":"input_image","image_url":screenshot})
+    body=json.dumps({"model":model,"instructions":AGENT_SYSTEM_PROMPT,"input":[{"role":"user","content":content}],"max_output_tokens":800}).encode("utf-8")
     req=_urlrequest.Request(endpoint,data=body,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},method="POST")
     try:
         with _urlrequest.urlopen(req,timeout=90) as resp:payload=json.loads(resp.read().decode("utf-8"))
@@ -290,7 +296,13 @@ def _agent_page_state(page,item,profile,allow_submit):
         except Exception:pass
     body=page.locator("body").inner_text(timeout=8000)
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
-    return {"job":{"company":item.get("company"),"title":item.get("title")},"url":page.url,"visible_text":body[:9000],"controls":controls,"candidate":safe_profile,"allow_submit":bool(allow_submit)}
+    state={"job":{"company":item.get("company"),"title":item.get("title")},"url":page.url,"visible_text":body[:9000],"controls":controls,"candidate":safe_profile,"allow_submit":bool(allow_submit)}
+    try:
+        shot=page.screenshot(type="jpeg",quality=55,full_page=False)
+        state["_screenshot_data_url"]="data:image/jpeg;base64,"+base64.b64encode(shot).decode("ascii")
+    except Exception:
+        pass
+    return state
 
 def _agent_find_target(page,target,observed_controls=None):
     t=(target or "").strip()
@@ -489,90 +501,67 @@ def _deterministic_auth_step(page,state,result):
     return did
 
 def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=80):
-    """Observe -> reason -> act -> verify loop. Reuses the persisted resume; never regenerates it."""
+    """Rendered-page browser agent. Workflow decisions come from screenshot+DOM observation."""
     if not (os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")):
         return {"handled":False,"reason":"No application-agent API key configured"}
     seen=[]
     for step in range(max_steps):
         confirmation=_submission_confirmation(page)
         if confirmation.get("confirmed"):
-            result["submitted"]=True;result["submission_confirmation"]=confirmation;result["status"]="SUBMITTED"
+            result["submitted"]=True
+            result["submission_confirmation"]=confirmation
+            result["status"]="SUBMITTED"
             return {"handled":True,"submitted":True,"steps":step}
+
         state=_agent_page_state(page,item,profile,allow_submit)
-        auth_state=_auth_state(state["visible_text"],state.get("controls",[]))
-        result.setdefault("agent_states",[]).append({"step":step+1,"state":auth_state,"url":page.url})
-        state["workflow_state"]=auth_state
-        state["authentication_policy"]="Try existing-account sign-in first. Create an account only after no-account evidence or when no sign-in path exists. After email verification, return to sign-in/application and continue."
-        if _deterministic_auth_step(page,state,result):
-            continue
-        # Dismiss generic cookie consent chrome deterministically. It is not an
-        # application answer and should not consume/fail an LLM action.
-        cookie_done=False
-        for ctl in state.get("controls",[]):
-            txt=_norm((ctl.get("text") or "")+" "+(ctl.get("label") or ""))
-            if txt in ("decline","reject","reject all","decline all","only necessary","necessary only"):
-                cookie_decision={"action":"click","target":ctl["handle"],"value":"","reason":"Dismiss optional cookie consent","terminal":False}
-                if _agent_execute(page,cookie_decision,resume,result,allow_submit,state.get("controls")):
-                    result.setdefault("agent_decisions",[]).append({"step":step+1,**cookie_decision})
-                    cookie_done=True
-                    break
-        if cookie_done:
+        result.setdefault("agent_states",[]).append({"step":step+1,"state":"RENDERED_PAGE_OBSERVATION","url":page.url})
+
+        # CAPTCHA/MFA remains a hard safety boundary; the agent may not bypass it.
+        if BLOCKER_RE.search(state["visible_text"]):
+            return {"handled":False,"reason":"CAPTCHA/MFA challenge detected","steps":step}
+
+        decision=_agent_api_call(dict(state))
+        result.setdefault("agent_decisions",[]).append({"step":step+1,**(decision or {})})
+        if not decision:return {"handled":False,"reason":"No agent decision","steps":step}
+
+        action=_norm(decision.get("action"))
+        if action=="stop":
+            return {"handled":False,"reason":decision.get("reason","agent stopped"),"steps":step+1}
+        if action=="wait":
+            page.wait_for_timeout(1500)
             continue
 
-        # Email activation is a resumable workflow state, but only after the
-        # rendered page actually indicates that verification was SENT/REQUESTED.
-        # Do not confuse static account copy such as "Email Address" + "Verify
-        # New Password" with an email-verification challenge.
-        verification_signal=bool(re.search(
-            r"(verification|activation|confirmation)\\s+(email|message)\\s+(?:has\\s+been\\s+)?sent|"
-            r"(?:we|we ve|we have)\\s+sent.{0,80}(?:email|verification)|"
-            r"check\\s+(?:your\\s+)?(?:email|inbox)|"
-            r"verify\\s+(?:your\\s+)?email|"
-            r"click.{0,60}(?:link|button).{0,60}(?:email|message)",
-            state["visible_text"],re.I|re.S
-        ))
-        if verification_signal:
-            result.setdefault("agent_states",[]).append({"step":step+1,"state":"EMAIL_VERIFICATION_REQUIRED","url":page.url})
+        if action=="check email":
             try:
                 creds=_application_credentials()
                 verification=wait_for_verification(
                     company=item.get("company") or "",
                     email=creds.get("email") or "",
-                    after_epoch=time.time()-300,
+                    after_epoch=time.time()-600,
                     timeout=int(os.getenv("APPLICATION_EMAIL_VERIFY_TIMEOUT","150")),
                     poll=int(os.getenv("APPLICATION_EMAIL_VERIFY_POLL","5")),
                 )
-                safe_verification={k:v for k,v in verification.items() if k not in ("link","code","message_id")}
-                safe_verification["found"]=bool(verification.get("found"))
-                result.setdefault("email_verification",[]).append(safe_verification)
+                result.setdefault("email_verification",[]).append({"found":bool(verification.get("found")),"reason":verification.get("reason","")})
                 if not verification.get("found"):
                     return {"handled":False,"reason":verification.get("reason","Verification email not found"),"steps":step+1}
                 if verification.get("link"):
                     page.goto(verification["link"],wait_until="domcontentloaded",timeout=60000)
                     page.wait_for_timeout(1200)
-                    result.setdefault("agent_states",[]).append({"step":step+1,"state":"EMAIL_VERIFICATION_LINK_OPENED","url":page.url})
                     continue
                 if verification.get("code"):
-                    code=verification["code"]
+                    # Do not expose the code to the model. Fill only an unambiguous rendered OTP field.
                     code_input=page.locator('input[autocomplete="one-time-code"], input[name*="code" i], input[id*="code" i], input[aria-label*="code" i]').first
                     if code_input.count() and code_input.is_visible():
-                        code_input.fill(code)
-                        result.setdefault("agent_actions",[]).append({"action":"fill","target":"email verification code","reason":"Filled code from matching verification email"})
+                        code_input.fill(verification["code"])
+                        result.setdefault("agent_actions",[]).append({"action":"fill","target":"email verification code","reason":"Local inbox verification"})
                         continue
-                    return {"handled":False,"reason":"Verification email contained a code but the page exposed no unambiguous code field","steps":step+1}
+                    return {"handled":False,"reason":"Verification email contained a code but no unambiguous code field is rendered","steps":step+1}
             except Exception as exc:
                 return {"handled":False,"reason":f"Email verification could not continue automatically: {exc}","steps":step+1}
 
-        if BLOCKER_RE.search(state["visible_text"]):
-            return {"handled":False,"reason":"CAPTCHA/MFA challenge detected","steps":step}
-        decision=_agent_api_call(state)
-        result.setdefault("agent_decisions",[]).append({"step":step+1,**(decision or {})})
-        if not decision:return {"handled":False,"reason":"No agent decision","steps":step}
-        if _norm(decision.get("action"))=="stop":
-            return {"handled":False,"reason":decision.get("reason","agent stopped"),"steps":step+1}
         signature=json.dumps([page.url,decision.get("action"),decision.get("target"),decision.get("value")],sort_keys=True)
         if signature in seen[-3:]:
-            return {"handled":False,"reason":"Agent repeated the same action without progress","steps":step+1}
+            return {"handled":False,"reason":"Agent repeated the same action without page progress","steps":step+1}
         seen.append(signature)
         if not _agent_execute(page,decision,resume,result,allow_submit,state.get("controls")):
             return {"handled":False,"reason":"Agent action could not be executed safely","decision":decision,"steps":step+1}
