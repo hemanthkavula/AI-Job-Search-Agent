@@ -64,7 +64,7 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--sources",default="data/job_sources.json")
     p.add_argument("--timeout",type=int,default=12)
-    p.add_argument("--output",default="generated/source_health.json")
+    p.add_argument("--output",default="state/source_health.json")
     a=p.parse_args()
     report=run(a.sources,a.timeout)
     out=ROOT/a.output; out.parent.mkdir(parents=True,exist_ok=True)
