@@ -238,6 +238,7 @@ def _auth_action(scope, result):
 AGENT_SYSTEM_PROMPT = """You are a browser application agent. Decide the next safe action from the CURRENT page only.
 Goal: advance a job application using the supplied candidate profile and already-generated resume.
 Never invent candidate facts. Never answer demographic/disability/veteran/self-identification questions unless a deterministic answer is explicitly present in profile. Never bypass CAPTCHA/MFA. Never interact with honeypot/robot fields. Never submit unless allow_submit is true.
+Authentication credentials are available locally to the executor even though secret password values are intentionally NOT shown in page state. Therefore, when the current page requires email/password/verify-password, choose fill actions for those controls; use value="LOCAL_CREDENTIAL" for password fields and value="LOCAL_EMAIL" for an account email field. Do NOT stop merely because credential values are absent from the observation.
 Return JSON only:
 {"action":"fill|click|select|upload_resume|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
 Use one action at a time. When a matching control is present, ALWAYS target its supplied control:<n> handle. Do not invent CSS selectors. Use an exact visible label only when no control handle exists. For final submission use action=click only when the control clearly means final submit.
@@ -281,7 +282,7 @@ def _agent_page_state(page,item,profile,allow_submit):
             label=_label(el)
             txt=(el.inner_text() if tag in ("button","a") else "") or ""
             if _norm(aid)=="beecatcher" or _norm(name)=="website" or "robots only" in _norm(label):continue
-            controls.append({"handle":f"control:{i}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160]})
+            controls.append({"handle":f"control:{i}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160],"filled":bool(el.input_value()) if tag in ("input","textarea") and typ not in ("checkbox","radio","file","submit","button") else (el.is_checked() if typ in ("checkbox","radio") else None)})
         except Exception:pass
     body=page.locator("body").inner_text(timeout=8000)
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
@@ -338,11 +339,11 @@ def _agent_execute(page,decision,resume,result,allow_submit):
             el.set_input_files(str(resume.resolve()))
         elif action=="fill":
             typ=(el.get_attribute("type") or "").lower()
-            # Credentials stay local; the LLM never needs the password itself.
-            if typ=="password":
+            # Credentials stay local; the LLM only requests symbolic local values.
+            if typ=="password" or str(value or "").upper()=="LOCAL_CREDENTIAL":
                 creds=_application_credentials()
                 value=creds["password"]
-            elif aid=="email" and not value:
+            elif aid=="email" and (not value or str(value).upper()=="LOCAL_EMAIL"):
                 value=_application_credentials()["email"]
             if value in (None,""):return False
             el.fill(str(value))
