@@ -90,9 +90,20 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     eligible,duplicates=_dedup_eligible(eligible)
     for item in eligible:record_seen(item["job"],ledger,"ELIGIBLE_FOR_RESUME")
     save_ledger(ledger,ledger_path)
-    configured_sources={name for name in ("greenhouse","lever","ashby","smartrecruiters","workday","dice","ziprecruiter") if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
+    provider_names=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dice","ziprecruiter")
+    configured_sources={name for name in provider_names if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
     failed_sources={e.get("source") for e in errors if e.get("source")}
-    source_status={name:("ERROR" if name in failed_sources else "OK") for name in configured_sources}
+    source_status={}
+    for name in configured_sources:
+        provider_errors=[e for e in errors if e.get("source")==name]
+        if not provider_errors:
+            source_status[name]="OK"
+        elif name=="workday":
+            failed_units={e.get("company") for e in provider_errors if e.get("company")}
+            configured_units={x.get("company") or x.get("tenant") for x in config.get("workday",[]) or []}
+            source_status[name]="PARTIAL" if configured_units-failed_units else "ERROR"
+        else:
+            source_status[name]="ERROR"
     # Preserve provider-level failure details in the machine-readable report so
     # scheduler failures can be diagnosed without rerunning discovery manually.
     # Keep the original adapter error objects intact; they should already avoid
