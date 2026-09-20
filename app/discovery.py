@@ -18,7 +18,7 @@ from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="generated/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
     source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
     def _hours(source): return source_hours.get(source,hours)
@@ -47,12 +47,24 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     # career pages that are already known to be blocked, unreachable, or JS-only.
     unhealthy_career_sites=set()
     try:
-        health_report=json.loads(__import__("pathlib").Path("generated/source_health.json").read_text(encoding="utf-8"))
-        for row in health_report.get("sources",[]):
-            status=row.get("effective_status") or row.get("status")
-            if row.get("provider")=="career_site" and status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"}:
-                if row.get("company"):
-                    unhealthy_career_sites.add(row["company"])
+        from pathlib import Path
+        import time
+        health_file=Path(health_path)
+        # Backward-compatible migration: use the old generated report once if
+        # state/source_health.json has not been created yet.
+        if not health_file.exists() and Path("generated/source_health.json").exists():
+            health_file=Path("generated/source_health.json")
+        # Health is advisory and expires after 24h. A blocked/JS-only site is
+        # skipped during normal hourly scans, then automatically retried after
+        # the TTL so temporary outages never become permanent exclusions.
+        health_fresh=health_file.exists() and (time.time()-health_file.stat().st_mtime)<=86400
+        if health_fresh:
+            health_report=json.loads(health_file.read_text(encoding="utf-8"))
+            for row in health_report.get("sources",[]):
+                status=row.get("effective_status") or row.get("status")
+                if row.get("provider")=="career_site" and status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"}:
+                    if row.get("company"):
+                        unhealthy_career_sites.add(row["company"])
     except Exception:
         pass
     # Network-bound ATS/company calls are independent. Run them concurrently so a
