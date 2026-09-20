@@ -49,7 +49,12 @@ def learn_from_jobs(jobs,registry):
   if not provider or not identifier:continue
   rows=registry.setdefault(provider,[])
   if any((x.get("identifier") or x.get("board_token") or x.get("site") or x.get("board_name") or x.get("company_identifier"))==identifier for x in rows):continue
-  company=job.get("company_key") or job.get("company") or "Unknown"\n  # Preserve the employer name from the discovered job. Some broad-source adapters\n  # expose only an ATS slug in company_key; prefer a human-readable company field\n  # when company_key is empty or identical to the learned identifier.\n  alt_company=job.get("company")\n  if alt_company and (not company or str(company).lower()==str(identifier).lower()):\n   company=alt_company\n  row={"company":company,"identifier":identifier,"learned_from":job.get("source")}
+  company=job.get("company_key") or job.get("company") or "Unknown"
+  # Preserve the employer name when broad discovery also provides a display name.
+  alt_company=job.get("company")
+  if alt_company and str(company).lower()==str(identifier).lower():
+   company=alt_company
+  row={"company":company,"identifier":identifier,"learned_from":job.get("source")}
   if provider=="workday":
    parsed=urlparse(job.get("original_url") or job.get("url") or "")
    row["host"]=parsed.netloc
