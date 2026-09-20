@@ -414,7 +414,7 @@ def _auth_state(text,controls):
     return "APPLICATION"
 
 def _deterministic_auth_step(page,state,result):
-    """Handle ordinary login/create-account fields locally before asking the LLM."""
+    """Handle ordinary login/create-account transitions locally before the LLM."""
     controls=state.get("controls",[])
     auth_state=state.get("workflow_state") or _auth_state(state.get("visible_text",""),controls)
     if auth_state not in ("SIGN_IN","CREATE_ACCOUNT","ACCOUNT_NOT_FOUND"):return False
@@ -434,7 +434,7 @@ def _deterministic_auth_step(page,state,result):
             if el is not None:
                 try:el.fill(value);did=True
                 except Exception:pass
-    # Account creation may require a mandatory privacy/terms acknowledgement.
+
     if auth_state in ("CREATE_ACCOUNT","ACCOUNT_NOT_FOUND"):
         prefs=(load_profile().get("application_preferences") or {}).get("application_terms") or {}
         if prefs.get("accept_required_terms_and_privacy_acknowledgments"):
@@ -446,6 +446,43 @@ def _deterministic_auth_step(page,state,result):
                     try:
                         if el is not None and not el.is_checked():el.check(force=True);did=True
                     except Exception:pass
+
+    # Authentication is a deterministic state machine. Once all account fields
+    # are filled, advance the rendered form locally instead of asking the LLM to
+    # choose between the Create Account button and an "Already have an account?"
+    # link on the same page.
+    refreshed=_agent_page_state(page,{},load_profile(),False)
+    rcontrols=refreshed.get("controls",[])
+    if auth_state in ("CREATE_ACCOUNT","ACCOUNT_NOT_FOUND"):
+        required_ready=True
+        for ctl in rcontrols:
+            typ=(ctl.get("type") or "").lower()
+            label=_norm((ctl.get("label") or "")+" "+(ctl.get("automation_id") or ""))
+            if typ=="password" or (typ in ("email","text") and "email" in label):
+                if not ctl.get("filled"):required_ready=False
+        if required_ready:
+            for ctl in rcontrols:
+                txt=_norm((ctl.get("text") or "")+" "+(ctl.get("label") or ""))
+                aid=_norm(ctl.get("automation_id") or "")
+                if txt=="create account" or "create account submit button" in aid:
+                    el=_agent_find_target(page,ctl.get("handle"),rcontrols)
+                    try:
+                        if el is not None and el.is_enabled():
+                            el.click(timeout=5000);page.wait_for_timeout(1200);did=True
+                            result.setdefault("agent_actions",[]).append({"action":"click","target":"Create Account","reason":"Advance completed account-creation form"})
+                            return True
+                    except Exception:pass
+    elif auth_state=="SIGN_IN":
+        for ctl in rcontrols:
+            txt=_norm((ctl.get("text") or "")+" "+(ctl.get("label") or ""))
+            if txt in ("sign in","log in","login","continue"):
+                el=_agent_find_target(page,ctl.get("handle"),rcontrols)
+                try:
+                    if el is not None and el.is_enabled():
+                        el.click(timeout=5000);page.wait_for_timeout(1200);did=True
+                        result.setdefault("agent_actions",[]).append({"action":"click","target":"Sign In","reason":"Advance completed existing-account login form"})
+                        return True
+                except Exception:pass
     if did:
         result.setdefault("agent_actions",[]).append({"action":"deterministic_auth_fill","state":auth_state,"reason":"Filled local authentication/account fields without exposing credentials"})
         page.wait_for_timeout(400)
