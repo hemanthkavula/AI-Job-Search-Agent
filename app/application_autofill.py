@@ -1371,7 +1371,7 @@ def _generic_steps(page,item,identity,resume,result,profile=None,max_steps=12):
             break
     return steps
 
-def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None)->dict:
+def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None,agentic=False)->dict:
     """Inspect/fill deterministic fields and upload the validated PDF. Never submit.
     inspect_only opens and analyzes the landing page without clicking Apply, filling fields,
     uploading files, or advancing any application step.
