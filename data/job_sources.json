@@ -533,6 +533,13 @@
       "tenant": "walmart",
       "site": "WalmartExternal",
       "locale": "en-US"
+    },
+    {
+      "company": "Synechron",
+      "host": "synechron.wd1.myworkdayjobs.com",
+      "tenant": "synechron",
+      "site": "SynechronCareers",
+      "locale": "en-US"
     }
   ],
   "dice": {
@@ -754,6 +761,11 @@
       "company": "Artech",
       "search_url": "https://www.artech.com/careers/",
       "job_url_pattern": "artech\\.com/.+(?:job|career).+"
+    },
+    {
+      "company": "EPAM Systems",
+      "search_url": "https://careers.epam.com/en/vacancies?query=data%20engineer&country=United%20States",
+      "job_url_pattern": "careers\\.epam\\.com/en/vacancy/.+"
     }
   ],
   "eightfold": [
