@@ -666,6 +666,21 @@
       "company": "Uber",
       "search_url": "https://jobs.uber.com/en/jobs/?query=data%20engineer&country=USA",
       "job_url_pattern": "(?:jobs\\.uber\\.com|uber\\.com)/(?:global/[^/]+/)?careers/list/[0-9]+"
+    },
+    {
+      "company": "FedEx",
+      "search_url": "https://careers.fedex.com/jobs?keyword=data%20engineer",
+      "job_url_pattern": "careers\\.fedex\\.com/.*/jobs/.*"
+    },
+    {
+      "company": "UnitedHealth Group",
+      "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
+      "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
+    },
+    {
+      "company": "Optum",
+      "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
+      "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
     }
   ]
 }
