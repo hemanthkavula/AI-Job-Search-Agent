@@ -52,3 +52,31 @@ def test_peoplen_tech_regression_rejected_for_both_reasons():
     assert not ok
     assert any("employment type" in x.lower() for x in r)
     assert any("10" in x for x in r)
+
+
+def test_india_location_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Senior Data Engineer",
+      "location":"Bengaluru, Karnataka, India",
+      "employment_type":"Full-Time",
+      "description":"Python SQL Spark Databricks"
+    },PROFILE)
+    assert not ok and any("location outside United States" in x for x in r)
+
+def test_us_location_passes():
+    ok,r=passes_hard_filters({
+      "title":"Senior Data Engineer",
+      "location":"Jersey City, NJ, United States",
+      "employment_type":"Full-Time",
+      "description":"Python SQL Spark Databricks"
+    },PROFILE)
+    assert ok
+
+def test_foreign_jd_location_rejected_when_location_missing():
+    ok,r=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"",
+      "employment_type":"Full-Time",
+      "description":"Position based in Hyderabad, India. Python SQL Spark."
+    },PROFILE)
+    assert not ok and any("location outside United States" in x for x in r)
