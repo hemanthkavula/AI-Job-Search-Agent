@@ -117,13 +117,15 @@ def passes_hard_filters(job:dict,profile:dict):
     3) Future sponsorship must not be explicitly unavailable
     4) Experience requirement must fit the configured target window
 
-    Location, citizenship and clearance remain metadata for later application
-    handling; employment type is a hard gate because the configured search targets
-    Full-Time/W-2 roles.
+    Location is a hard gate: only U.S. roles are eligible. Citizenship and
+    clearance are also enforced when explicitly required. Employment type is a
+    hard gate because the configured search targets Full-Time/W-2 roles.
     """
     reasons=[]
     if not title_is_target(job.get("title"),job.get("description")):
         reasons.append("title/JD outside data-engineering job family")
+    if not location_is_us(job.get("location"),job.get("source"),job.get("description")):
+        reasons.append("location outside United States target")
     if not employment_is_target(job.get("employment_type"),job.get("description")):
         reasons.append("employment type outside Full-Time/W-2 target")
     eligibility=two_category_filter(job,profile)
