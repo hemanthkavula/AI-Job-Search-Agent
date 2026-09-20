@@ -288,24 +288,40 @@ def _agent_page_state(page,item,profile,allow_submit):
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
     return {"job":{"company":item.get("company"),"title":item.get("title")},"url":page.url,"visible_text":body[:9000],"controls":controls,"candidate":safe_profile,"allow_submit":bool(allow_submit)}
 
-def _agent_find_target(page,target):
+def _agent_find_target(page,target,observed_controls=None):
     t=(target or "").strip()
     if not t:return None
     m=re.fullmatch(r"control:(\\d+)",t,re.I)
     if m:
-        wanted=int(m.group(1));visible=[]
-        loc=page.locator("input, textarea, select, button, [role=button], a")
-        for i in range(min(loc.count(),120)):
-            try:
-                el=loc.nth(i)
-                if not el.is_visible():continue
-                aid=_norm(el.get_attribute("data-automation-id") or "")
-                name=_norm(el.get_attribute("name") or "")
-                label=_norm(_label(el))
-                if aid=="beecatcher" or name=="website" or "robots only" in label:continue
-                visible.append(el)
-            except Exception:pass
-        if wanted<len(visible):return visible[wanted]
+        wanted=int(m.group(1))
+        obs=(observed_controls or [])
+        if wanted<len(obs):
+            meta=obs[wanted]
+            # Re-resolve by stable semantics from the exact observation rather than
+            # by DOM position, which can change while banners/forms render.
+            for attr in ("automation_id","name","id"):
+                val=(meta.get(attr) or "").strip()
+                if not val:continue
+                sel={"automation_id":f'[data-automation-id="{val}"]',"name":f'[name="{val}"]',"id":f'#{val}'}[attr]
+                try:
+                    x=page.locator(sel).first
+                    if x.count() and x.is_visible():return x
+                except Exception:pass
+            label=(meta.get("label") or "").split(" | ")[0].strip()
+            text=(meta.get("text") or "").strip()
+            for role in ("button","link","textbox","combobox","checkbox"):
+                for val in (text,label):
+                    if not val:continue
+                    try:
+                        x=page.get_by_role(role,name=val,exact=True).first
+                        if x.count() and x.is_visible():return x
+                    except Exception:pass
+            for val in (text,label):
+                if not val:continue
+                try:
+                    x=page.get_by_text(val,exact=True).first
+                    if x.count() and x.is_visible():return x
+                except Exception:pass
         return None
     # Compatibility: if the model returns a concrete CSS selector visible in the
     # observation, resolve it directly instead of treating the entire selector as
@@ -335,10 +351,10 @@ def _agent_find_target(page,target):
     except Exception:pass
     return None
 
-def _agent_execute(page,decision,resume,result,allow_submit):
+def _agent_execute(page,decision,resume,result,allow_submit,observed_controls=None):
     action=_norm(decision.get("action"));target=decision.get("target") or "";value=decision.get("value")
     if action in ("stop","wait"):return False
-    el=_agent_find_target(page,target)
+    el=_agent_find_target(page,target,observed_controls)
     if el is None:return False
     try:
         aid=_norm(el.get_attribute("data-automation-id") or "");name=_norm(el.get_attribute("name") or "");label=_norm(_label(el))
@@ -387,6 +403,19 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
             result["submitted"]=True;result["submission_confirmation"]=confirmation;result["status"]="SUBMITTED"
             return {"handled":True,"submitted":True,"steps":step}
         state=_agent_page_state(page,item,profile,allow_submit)
+        # Dismiss generic cookie consent chrome deterministically. It is not an
+        # application answer and should not consume/fail an LLM action.
+        cookie_done=False
+        for ctl in state.get("controls",[]):
+            txt=_norm((ctl.get("text") or "")+" "+(ctl.get("label") or ""))
+            if txt in ("decline","reject","reject all","decline all","only necessary","necessary only"):
+                cookie_decision={"action":"click","target":ctl["handle"],"value":"","reason":"Dismiss optional cookie consent","terminal":False}
+                if _agent_execute(page,cookie_decision,resume,result,allow_submit,state.get("controls")):
+                    result.setdefault("agent_decisions",[]).append({"step":step+1,**cookie_decision})
+                    cookie_done=True
+                    break
+        if cookie_done:
+            continue
         if BLOCKER_RE.search(state["visible_text"]):
             return {"handled":False,"reason":"CAPTCHA/MFA/verification challenge detected","steps":step}
         decision=_agent_api_call(state)
@@ -398,7 +427,7 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
         if signature in seen[-3:]:
             return {"handled":False,"reason":"Agent repeated the same action without progress","steps":step+1}
         seen.append(signature)
-        if not _agent_execute(page,decision,resume,result,allow_submit):
+        if not _agent_execute(page,decision,resume,result,allow_submit,state.get("controls")):
             return {"handled":False,"reason":"Agent action could not be executed safely","decision":decision,"steps":step+1}
     return {"handled":False,"reason":"Agent step limit reached","steps":max_steps}
 
