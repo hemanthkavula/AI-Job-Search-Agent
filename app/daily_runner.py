@@ -98,9 +98,16 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         provider_errors=[e for e in errors if e.get("source")==name]
         if not provider_errors:
             source_status[name]="OK"
-        elif name=="workday":
+        elif isinstance(config.get(name),list):
+            # Multi-unit providers are PARTIAL when at least one configured unit
+            # remains healthy. Keep provider reporting consistent with discovery's
+            # live summary (e.g. Eightfold Microsoft OK + Netflix failed).
             failed_units={e.get("company") for e in provider_errors if e.get("company")}
-            configured_units={x.get("company") or x.get("tenant") for x in config.get("workday",[]) or []}
+            configured_units={
+                x.get("company") or x.get("tenant") or x.get("site") or x.get("board_token") or x.get("board_name")
+                for x in config.get(name,[]) or []
+            }
+            configured_units.discard(None)
             source_status[name]="PARTIAL" if configured_units-failed_units else "ERROR"
         else:
             source_status[name]="ERROR"
