@@ -91,6 +91,23 @@ def _workday_open_email_auth(page):
         return {"handled":False,"reason":str(exc)}
     return {"handled":False}
 
+def _wait_for_workday_account_transition(scope, timeout_ms=7000):
+    """Return True only when Workday actually leaves the Create Account form."""
+    page=scope.page if hasattr(scope,"page") else scope
+    try:
+        page.wait_for_timeout(400)
+        elapsed=400
+        while elapsed<timeout_ms:
+            body=_norm(page.locator("body").inner_text())
+            email_visible=page.locator('[data-automation-id="email"]').count()>0
+            create_visible=page.locator('[data-automation-id="createAccountSubmitButton"]').count()>0
+            if ("current step 2" in body or "autofill with resume" in body) and not (email_visible and create_visible):
+                return True
+            page.wait_for_timeout(400);elapsed+=400
+    except Exception:
+        pass
+    return False
+
 def _auth_action(scope, result):
     """Sign in or create an ATS account using local env credentials. Never handles CAPTCHA/MFA."""
     try:
@@ -120,7 +137,7 @@ def _auth_action(scope, result):
     email=next((emails.nth(i) for i in range(min(emails.count(),20)) if emails.nth(i).is_visible()),None)
     password=next((passwords.nth(i) for i in range(min(passwords.count(),20))
                    if passwords.nth(i).is_visible() and
-                   _norm(passwords.nth(i).get_attribute("data-automation-id") or "")!="verify password"),None)
+                   _norm(passwords.nth(i).get_attribute("data-automation-id") or "") not in ("verifypassword","verify password")),None)
     # Email-first login flows (notably Dice) no longer expose an editable email
     # field on the password page. The email was already accepted on the prior step.
     if password is None:
@@ -142,9 +159,9 @@ def _auth_action(scope, result):
                 confirm=confirms.nth(i)
                 if not confirm.is_visible():continue
                 aid=_norm(confirm.get_attribute("data-automation-id") or "")
-                if aid=="verify password" or confirm!=password:
+                if aid in ("verifypassword","verify password") or confirm!=password:
                     # Avoid overwriting the primary field; fill only empty/verify fields.
-                    if aid=="verify password" or not confirm.input_value():
+                    if aid in ("verifypassword","verify password") or not confirm.input_value():
                         confirm.fill(creds["password"])
             except Exception:pass
         result["auth_field_verification"]={
@@ -187,8 +204,10 @@ def _auth_action(scope, result):
                         return {"handled":False,"reason":"Create Account button is disabled after filling account fields"}
                     wd_create.click(timeout=5000)
                     result["auth_action"]="CREATE_ACCOUNT"
-                    try:scope.page.wait_for_timeout(1800) if hasattr(scope,"page") else None
-                    except Exception:pass
+                    transitioned=_wait_for_workday_account_transition(scope)
+                    result["auth_transitioned"]=transitioned
+                    if not transitioned:
+                        return {"handled":False,"action":"CREATE_ACCOUNT","reason":"Create Account was clicked but Workday remained on the account-creation form"}
                     return {"handled":True,"action":"CREATE_ACCOUNT"}
             except Exception as exc:
                 result["auth_action_error"]=str(exc)
@@ -201,8 +220,14 @@ def _auth_action(scope, result):
                         not any(x in txt for x in ("submit application","send application","complete application"))):
                         a.click(timeout=5000)
                         result["auth_action"]="CREATE_ACCOUNT" if create_mode else "SIGN_IN"
-                        try:scope.page.wait_for_timeout(1800) if hasattr(scope,"page") else None
-                        except Exception:pass
+                        if create_mode:
+                            transitioned=_wait_for_workday_account_transition(scope)
+                            result["auth_transitioned"]=transitioned
+                            if not transitioned:
+                                return {"handled":False,"action":"CREATE_ACCOUNT","reason":"Create Account was clicked but Workday remained on the account-creation form"}
+                        else:
+                            try:scope.page.wait_for_timeout(1200) if hasattr(scope,"page") else None
+                            except Exception:pass
                         return {"handled":True,"action":result["auth_action"]}
                 except Exception as exc:
                     result["auth_action_error"]=str(exc)
@@ -776,7 +801,7 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
         x=_norm(label)
         if "phone extension" in x or x.endswith(" extension"):
             continue
-        if typ=="password" and aid in ("password","verify password"):
+        if typ=="password" and aid in ("password","verifypassword","verify password"):
             # Account credentials are handled exclusively by _auth_action.
             continue
         key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item,profile)
@@ -846,8 +871,18 @@ def _verify_deterministic_fields(scope,identity,result,correct=True):
         try:
             if not el.is_visible():continue
             typ=(el.get_attribute("type") or "").lower()
+            aid=_norm(el.get_attribute("data-automation-id") or "")
+            name=_norm(el.get_attribute("name") or "")
+            label=_label(el)
+            # Never verify/correct Workday's anti-bot honeypot or account-auth fields.
+            # Their surrounding text can contain "Email Address" and must not be
+            # classified as candidate identity fields.
+            if aid=="beecatcher" or name=="website" or "robots only" in _norm(label):
+                continue
+            if aid in ("email","password","verify password") and "current step 1" in _norm(scope.locator("body").inner_text()):
+                continue
             if typ in ("hidden","file","checkbox","radio","submit","button","password"):continue
-            label=_label(el);key=_field_key(label)
+            key=_field_key(label)
             expected=identity.get(key) if key else None
             if expected in (None,""):continue
             try:actual=el.input_value()
