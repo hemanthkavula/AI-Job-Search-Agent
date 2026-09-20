@@ -711,11 +711,6 @@
       "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
     },
     {
-      "company": "Microsoft",
-      "search_url": "https://careers.microsoft.com/v2/global/en/search.html?q=data%20engineer",
-      "job_url_pattern": "apply\\\\.careers\\\\.microsoft\\\\.com/.+"
-    },
-    {
       "company": "Cognizant",
       "search_url": "https://careers.cognizant.com/us-en/jobs/?keywords=data%20engineer",
       "job_url_pattern": "careers\\\\.cognizant\\\\.com/.+/jobs/.+"
@@ -756,11 +751,6 @@
       "job_url_pattern": "jobs\\.apple\\.com/.+/details/"
     },
     {
-      "company": "Netflix",
-      "search_url": "https://jobs.netflix.com/",
-      "job_url_pattern": "jobs\\.netflix\\.com/.+"
-    },
-    {
       "company": "Tesla",
       "search_url": "https://www.tesla.com/careers/search/?query=data%20engineer",
       "job_url_pattern": "tesla\\.com/careers/search/job/"
@@ -774,11 +764,6 @@
       "company": "GM Financial",
       "search_url": "https://careers.gmfinancial.com/en-us/careers-home.html",
       "job_url_pattern": "careers\\.gmfinancial\\.com/.+"
-    },
-    {
-      "company": "Meta",
-      "search_url": "https://www.metacareers.com/jobs?q=data%20engineer",
-      "job_url_pattern": "metacareers\\.com/jobs/[0-9]+/"
     },
     {
       "company": "eBay",
@@ -928,7 +913,7 @@
     {
       "company": "PwC",
       "search_url": "https://jobs-us.pwc.com/us/en",
-      "job_url_pattern": "jobs\\.us\\.pwc\\.com/.+"
+      "job_url_pattern": "jobs-us\\.pwc\\.com/.+"
     },
     {
       "company": "CGI",
@@ -942,7 +927,7 @@
     },
     {
       "company": "Caremark",
-      "search_url": "https://jobs.cvshealth.com/us/en",
+      "search_url": "https://jobs.cvshealth.com/",
       "job_url_pattern": "jobs\\.cvshealth\\.com/.+"
     },
     {
@@ -1138,7 +1123,7 @@
     {
       "company": "Plaid",
       "search_url": "https://plaid.com/careers/",
-      "job_url_pattern": "plaid\\.com/careers/openings/.+"
+      "job_url_pattern": "plaid\\.com/careers/.+"
     }
   ],
   "eightfold": [
