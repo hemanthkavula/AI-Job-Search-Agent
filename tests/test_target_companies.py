@@ -2,9 +2,9 @@ from app.target_companies import load_targets,match_target,annotate_jobs
 
 def test_complete_user_target_universe_is_loaded():
     payload=load_targets()
-    assert payload["counts"]=={"unique_companies":145,"h1b_targets":99,"vendor_consulting_staffing":60}
+    assert payload["counts"]=={"unique_companies":233,"h1b_targets":187,"vendor_consulting_staffing":60}
     names={x["company"] for x in payload["companies"]}
-    for name in ("Amazon","Capital One","Databricks","Tata Consultancy Services (TCS)","TEKsystems","Mitchell Martin"):
+    for name in ("Amazon","Capital One","Databricks","Tata Consultancy Services (TCS)","TEKsystems","Mitchell Martin","Wells Fargo","Coinbase","Citadel Securities","Experian"):
         assert name in names
     assert "Fidelity Investments" not in names
     assert "Cigna Healthcare" not in names
