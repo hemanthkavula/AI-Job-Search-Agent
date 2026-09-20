@@ -731,11 +731,6 @@
       "job_url_pattern": "tcs\\\\.com/.+careers.+"
     },
     {
-      "company": "Qualcomm",
-      "search_url": "https://careers.qualcomm.com/careers?query=data%20engineer&location=United%20States",
-      "job_url_pattern": "careers\\\\.qualcomm\\\\.com/careers/job/"
-    },
-    {
       "company": "IBM",
       "search_url": "https://www.ibm.com/careers/search?q=data%20engineer&location=United%20States",
       "job_url_pattern": "ibm\\\\.com/careers/.+"
@@ -911,11 +906,6 @@
       "job_url_pattern": "apply\\.deloitte\\.com/.+"
     },
     {
-      "company": "PwC",
-      "search_url": "https://jobs-us.pwc.com/us/en",
-      "job_url_pattern": "jobs-us\\.pwc\\.com/.+"
-    },
-    {
       "company": "CGI",
       "search_url": "https://cgi.njoyn.com/corp/xweb/xweb.asp?CLID=21001&page=joblisting",
       "job_url_pattern": "cgi\\.njoyn\\.com/.+"
@@ -924,11 +914,6 @@
       "company": "Kforce",
       "search_url": "https://www.kforce.com/find-work/search-jobs/",
       "job_url_pattern": "kforce\\.com/.+(?:job|jobs).+"
-    },
-    {
-      "company": "Caremark",
-      "search_url": "https://jobs.cvshealth.com/",
-      "job_url_pattern": "jobs\\.cvshealth\\.com/.+"
     },
     {
       "company": "Dish Network",
@@ -1116,14 +1101,24 @@
       "job_url_pattern": "schwabjobs\\.com/job/.+"
     },
     {
-      "company": "Chime",
-      "search_url": "https://careers.chime.com/jobs/",
-      "job_url_pattern": "careers\\.chime\\.com/jobs/.+"
-    },
-    {
       "company": "Plaid",
       "search_url": "https://plaid.com/careers/",
       "job_url_pattern": "plaid\\.com/careers/.+"
+    },
+    {
+      "company": "PwC",
+      "search_url": "https://jobs-us.pwc.com/us/en/search-results",
+      "job_url_pattern": "jobs-us\\.pwc\\.com/.+/job/.+"
+    },
+    {
+      "company": "Chime",
+      "search_url": "https://careers.chime.com/jobs/?page=1",
+      "job_url_pattern": "careers\\.chime\\.com/jobs/.+"
+    },
+    {
+      "company": "Qualcomm",
+      "search_url": "https://www.qualcomm.com/company/careers",
+      "job_url_pattern": "careers\\.qualcomm\\.com/careers/job/.+"
     }
   ],
   "eightfold": [
