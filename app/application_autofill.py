@@ -243,7 +243,9 @@ Authentication credentials are available locally to the executor even though sec
 Return JSON only:
 {"action":"fill|click|select|upload_resume|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
 Use one action at a time. When a matching control is present, ALWAYS target its supplied control:<n> handle. Do not invent CSS selectors. Use an exact visible label only when no control handle exists. For final submission use action=click only when the control clearly means final submit.
+Authentication order is strict: if a login/sign-in form is available, try LOCAL_EMAIL + LOCAL_CREDENTIAL and submit sign-in first. Only use Create Account/Register when the page says the account does not exist, sign-in is rejected for no account, or no sign-in path exists. During account creation fill LOCAL_EMAIL, fill the same LOCAL_CREDENTIAL in password and confirm/retype-password fields, accept required application terms/privacy acknowledgments, and continue. If the site then requires email verification, the local executor handles Gmail verification and the workflow must continue to sign in and complete the application.
 Account creation, sign-in, resume upload, and ordinary application navigation are part of the workflow. If the page says a verification email was sent, do not stop; the local executor handles that state outside the model.
+For application questions, use only facts supported by candidate profile, the current job description, and the already-generated resume. Technical questions may be answered from documented resume/profile evidence and the current JD, but never invent years, certifications, employers, accomplishments, or technologies not supported by candidate evidence. Required voluntary-disclosure answers may use the explicit profile values supplied by the candidate.
 """
 
 def _agent_api_call(state):
@@ -394,6 +396,20 @@ def _agent_execute(page,decision,resume,result,allow_submit,observed_controls=No
         result.setdefault("agent_errors",[]).append({"decision":decision,"error":str(exc)})
         return False
 
+def _auth_state(text,controls):
+    """Classify ordinary auth/account states from the rendered page."""
+    x=_norm(text)
+    password_fields=[c for c in controls if c.get("type")=="password"]
+    has_create=any(any(t in _norm((c.get("text") or "")+" "+(c.get("label") or "")) for t in ("create account","register","sign up")) for c in controls)
+    has_signin=any(any(t in _norm((c.get("text") or "")+" "+(c.get("label") or "")) for t in ("sign in","log in","login")) for c in controls)
+    no_account=any(t in x for t in ("account does not exist","account doesn t exist","no account found","couldn t find your account","cannot find your account","email address is not registered","not registered"))
+    if no_account:return "ACCOUNT_NOT_FOUND"
+    if len(password_fields)>=2 and has_create:return "CREATE_ACCOUNT"
+    if password_fields and has_signin:return "SIGN_IN"
+    if has_signin:return "SIGN_IN_AVAILABLE"
+    if has_create:return "CREATE_ACCOUNT_AVAILABLE"
+    return "APPLICATION"
+
 def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=80):
     """Observe -> reason -> act -> verify loop. Reuses the persisted resume; never regenerates it."""
     if not (os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")):
@@ -405,7 +421,10 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
             result["submitted"]=True;result["submission_confirmation"]=confirmation;result["status"]="SUBMITTED"
             return {"handled":True,"submitted":True,"steps":step}
         state=_agent_page_state(page,item,profile,allow_submit)
-        result.setdefault("agent_states",[]).append({"step":step+1,"state":"OBSERVE","url":page.url})
+        auth_state=_auth_state(state["visible_text"],state.get("controls",[]))
+        result.setdefault("agent_states",[]).append({"step":step+1,"state":auth_state,"url":page.url})
+        state["workflow_state"]=auth_state
+        state["authentication_policy"]="Try existing-account sign-in first. Create an account only after no-account evidence or when no sign-in path exists. After email verification, return to sign-in/application and continue."
         # Dismiss generic cookie consent chrome deterministically. It is not an
         # application answer and should not consume/fail an LLM action.
         cookie_done=False
