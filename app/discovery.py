@@ -12,6 +12,7 @@ from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
 from app.sources.career_site import fetch_jobs as career_site_jobs
+from app.sources.eightfold import fetch_jobs as eightfold_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
@@ -24,7 +25,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold"):
         existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
@@ -67,6 +68,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(oracle_jobs,src["company"],src["base_url"]),"oracle",src.get("company")))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",src.get("company")))
+        for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
+            tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
             tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
@@ -107,13 +110,14 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "icims": len(config.get("icims",[])),
         "oracle": len(config.get("oracle",[])),
         "career_site": len(config.get("career_site",[])),
+        "eightfold": len(config.get("eightfold",[])),
         "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
         "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
     }
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","dice","ziprecruiter"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dice","ziprecruiter"):
         if only_source not in (None,provider):
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
