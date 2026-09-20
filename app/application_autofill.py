@@ -73,6 +73,24 @@ def _dice_email_continue(page,result):
         return {"handled":False,"reason":"Dice Continue with email action not found"}
     except Exception as exc:return {"handled":False,"reason":str(exc)}
 
+def _workday_open_email_auth(page):
+    """Open Workday's email authentication form when the tenant first shows provider choices."""
+    try:
+        actions=page.locator('button, [role="button"], a')
+        for i in range(min(actions.count(),80)):
+            a=actions.nth(i)
+            try:
+                if not a.is_visible() or not a.is_enabled():continue
+                txt=_norm(a.inner_text() or a.get_attribute("aria-label") or "")
+                if txt in ("sign in with email","continue with email","use email","email"):
+                    a.click(timeout=5000)
+                    page.wait_for_timeout(1000)
+                    return {"handled":True,"action":txt}
+            except Exception:pass
+    except Exception as exc:
+        return {"handled":False,"reason":str(exc)}
+    return {"handled":False}
+
 def _auth_action(scope, result):
     """Sign in or create an ATS account using local env credentials. Never handles CAPTCHA/MFA."""
     try:
@@ -112,6 +130,24 @@ def _auth_action(scope, result):
                 except Exception: pass
         actions=scope.locator('button, input[type="submit"], [role="button"]')
         create_mode=any(t in body for t in ("create account","create an account","register","sign up"))
+        if create_mode:
+            # Workday commonly disables Create Account until its explicit privacy/
+            # account-processing acknowledgement is checked.
+            checks=scope.locator('input[type="checkbox"]')
+            for i in range(min(checks.count(),20)):
+                cb=checks.nth(i)
+                try:
+                    if not cb.is_visible():continue
+                    ctx=_norm(_label(cb))
+                    aid=_norm(cb.get_attribute("data-automation-id") or "")
+                    if ("consent" in ctx or "privacy" in ctx or "acknowledge" in ctx or
+                        "create account checkbox" in aid):
+                        if not cb.is_checked():cb.check(force=True)
+                        if cb.is_checked():
+                            result.setdefault("filled",[]).append({"field":"ATS account privacy acknowledgement","value":"accepted"})
+                except Exception:pass
+            try:scope.page.wait_for_timeout(400) if hasattr(scope,"page") else None
+            except Exception:pass
         patterns=("create account","register","sign up","continue") if create_mode else ("sign in","log in","login","continue")
         for wanted in patterns:
             for i in range(min(actions.count(),80)):
@@ -829,7 +865,13 @@ def _workday_steps(page,item,identity,resume,result,profile=None,max_steps=8):
             page.wait_for_timeout(500)
         preflight=_application_preflight(page)
         pre_body=_norm(preflight.get("body_excerpt") or "")
-        if ("autofill with resume" in pre_body or "upload either doc" in pre_body) and "current step 1" in pre_body:
+        file_inputs=page.locator('input[type="file"]').count()
+        actual_resume_step=(
+            file_inputs>0 or
+            ("upload either doc" in pre_body) or
+            ("autofill with resume" in pre_body and "current step 2" in pre_body)
+        )
+        if actual_resume_step:
             ok,err=_workday_resume_step(page,resume,result)
             steps.append({"step":n,"url":page.url,"resume_step":True,"resume_uploaded":ok,"resume_error":err,
                           "preflight_required_fields":preflight["required_fields"],
@@ -1141,6 +1183,10 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
             # application itself and the run incorrectly searches for final Submit.
             dice_gate=_dice_email_continue(page,result)
             result["dice_email_gate"]=dice_gate
+            # Workday tenants such as CVS first show Google/LinkedIn/email choices.
+            # Open the deterministic email path before attempting credentials.
+            if provider=="workday":
+                result["workday_email_auth_entry"]=_workday_open_email_auth(page)
             # Handle ordinary ATS login/account creation automatically using local env credentials.
             auth=_auth_action(page,result)
             result["authentication"]=auth
