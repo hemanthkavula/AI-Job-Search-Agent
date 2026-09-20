@@ -59,13 +59,29 @@ def _discard_resume_artifact(resume_path):
         # makes later runs and the dashboard ambiguous.
         print(f"WARNING: failed to remove rejected resume artifact {p}: {exc}",flush=True)
 
-def _render_base_resume(job,profile):
-    """Render the unchanged master/profile resume under the current company/job name.
+DRAFT_RESUME_DIR="generated/.resume_drafts"
+FINAL_RESUME_DIR="generated/resumes"
 
-    The content stays master-resume content; only the artifact folder/filename and
-    displayed target role use the current job metadata.
-    """
-    return render_llm_resume(job,profile,_base_resume_payload(profile),output_dir="generated/resumes")
+def _render_draft(job,profile,payload):
+    """Render an audit-only DOCX outside the user-visible final resumes tree."""
+    return render_llm_resume(job,profile,payload,output_dir=DRAFT_RESUME_DIR)
+
+def _promote_approved_resume(draft_path):
+    """Move only the audit-approved DOCX into generated/resumes."""
+    draft=Path(draft_path)
+    final_root=Path(__file__).resolve().parents[1]/FINAL_RESUME_DIR
+    final_dir=final_root/draft.parent.name
+    final_dir.mkdir(parents=True,exist_ok=False)
+    final_path=final_dir/draft.name
+    shutil.move(str(draft),str(final_path))
+    # Remove the now-empty temporary attempt folder.
+    try:draft.parent.rmdir()
+    except OSError:pass
+    return str(final_path)
+
+def _render_base_resume(job,profile):
+    """Render the unchanged master/profile resume as an audit-only draft."""
+    return _render_draft(job,profile,_base_resume_payload(profile))
 
 
 def _audit_failure_summary(audit):
@@ -163,7 +179,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
                 generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
-                resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+                resume=_render_draft(job,profile,generated);audit=ats_audit(job,profile,resume)
                 audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
             if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
@@ -172,7 +188,11 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
                 generated=generate_with_llm(job,profile,_audit_feedback(audit),coverage_plan=coverage_plan)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
-                resume=render_llm_resume(job,profile,generated);audit=ats_audit(job,profile,resume)
+                # The prior failed version is no longer needed once its audit feedback
+                # has been captured. Remove it before rendering the next temporary draft.
+                _discard_resume_artifact(resume)
+                if audit_history:audit_history[-1]["resume_path"]=None
+                resume=_render_draft(job,profile,generated);audit=ats_audit(job,profile,resume)
                 audit_history.append({"version":attempts,"resume_path":str(resume),"audit":audit})
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
@@ -180,6 +200,10 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             pdf_path=None
             artifact_validation={"passed":False,"reason":"Resume audit did not pass","attempts":0}
             if audit["passed"]:
+                # Nothing enters generated/resumes until content auditing is complete.
+                # Promote exactly the approved DOCX, then create its PDF beside it.
+                resume=_promote_approved_resume(resume)
+                if audit_history:audit_history[-1]["resume_path"]=str(resume)
                 # Artifact failure is a rendering problem, not a content problem.
                 # Keep the approved DOCX unchanged and retry converting that SAME
                 # Word file. Never spend another LLM call or rebuild a different PDF.
