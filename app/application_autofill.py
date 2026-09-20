@@ -177,17 +177,36 @@ def _auth_action(scope, result):
             try:scope.page.wait_for_timeout(400) if hasattr(scope,"page") else None
             except Exception:pass
         patterns=("create account","register","sign up","continue") if create_mode else ("sign in","log in","login","continue")
+        # Prefer Workday's actual create-account control. Text scans can hit a
+        # duplicate/disabled control and previously swallowed that click failure.
+        if create_mode:
+            wd_create=scope.locator('[data-automation-id="createAccountSubmitButton"], button[data-automation-id*="createAccount" i]').first
+            try:
+                if wd_create.count() and wd_create.is_visible():
+                    if not wd_create.is_enabled():
+                        return {"handled":False,"reason":"Create Account button is disabled after filling account fields"}
+                    wd_create.click(timeout=5000)
+                    result["auth_action"]="CREATE_ACCOUNT"
+                    try:scope.page.wait_for_timeout(1800) if hasattr(scope,"page") else None
+                    except Exception:pass
+                    return {"handled":True,"action":"CREATE_ACCOUNT"}
+            except Exception as exc:
+                result["auth_action_error"]=str(exc)
         for wanted in patterns:
             for i in range(min(actions.count(),80)):
                 a=actions.nth(i)
                 try:
                     txt=_norm((a.inner_text() if a.evaluate("(e)=>e.tagName.toLowerCase()")!="input" else a.get_attribute("value")) or "")
-                    if a.is_visible() and wanted in txt and not any(x in txt for x in ("submit application","send application","complete application")):
+                    if (a.is_visible() and a.is_enabled() and wanted in txt and
+                        not any(x in txt for x in ("submit application","send application","complete application"))):
                         a.click(timeout=5000)
                         result["auth_action"]="CREATE_ACCOUNT" if create_mode else "SIGN_IN"
+                        try:scope.page.wait_for_timeout(1800) if hasattr(scope,"page") else None
+                        except Exception:pass
                         return {"handled":True,"action":result["auth_action"]}
-                except Exception: pass
-        return {"handled":False,"reason":"Credentials filled but no safe authentication action found"}
+                except Exception as exc:
+                    result["auth_action_error"]=str(exc)
+        return {"handled":False,"reason":"Credentials filled but no enabled safe authentication action found"}
     except Exception as exc:
         return {"handled":False,"reason":str(exc)}
 
@@ -690,6 +709,12 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
                 if not el.is_visible():continue
             except Exception:continue
         label=_label(el);required=_required(el)
+        aid=_norm(el.get_attribute("data-automation-id") or "")
+        name=_norm(el.get_attribute("name") or "")
+        # Workday anti-bot honeypot. It is intentionally visible to automation but
+        # explicitly says humans must leave it empty.
+        if aid=="beecatcher" or name=="website" or "robots only" in _norm(label):
+            continue
         if typ in ("hidden","submit","button"):continue
         # Required consent checkboxes are safe to accept when they explicitly
         # reference the ATS privacy policy / terms needed to submit the application.
@@ -750,6 +775,9 @@ def _fill_current_page(page,item,identity,resume,result,profile=None):
             continue
         x=_norm(label)
         if "phone extension" in x or x.endswith(" extension"):
+            continue
+        if typ=="password" and aid in ("password","verify password"):
+            # Account credentials are handled exclusively by _auth_action.
             continue
         key=_field_key(label);value=identity.get(key) if key else _question_answer(label,item,profile)
         if value not in (None,""):
