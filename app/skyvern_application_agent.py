@@ -101,14 +101,16 @@ async def _run_one(client, item: dict, profile: dict, allow_submit: bool) -> dic
 
 async def _run_async(queue_path: str, output: str, limit: int | None, allow_submit: bool):
     from skyvern import Skyvern
-    key=os.getenv("SKYVERN_API_KEY")
-    if not key:
-        raise RuntimeError("SKYVERN_API_KEY is required. Keep it in your local environment; never commit it.")
+    # Default to the user's self-hosted Skyvern API. This keeps application
+    # execution on the local machine and avoids Skyvern Cloud usage charges.
+    base_url=os.getenv("SKYVERN_BASE_URL","http://localhost:8000")
+    key=os.getenv("SKYVERN_API_KEY","local")
+
     rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
     rows=[x for x in rows if x.get("status")=="READY_FOR_ATS_ADAPTER"]
     if limit is not None: rows=rows[:limit]
     profile=load_profile()
-    client=Skyvern(api_key=key)
+    client=Skyvern(api_key=key, base_url=base_url)
     results=[]
     for item in rows:
         try: results.append(await _run_one(client,item,profile,allow_submit))
