@@ -239,8 +239,8 @@ AGENT_SYSTEM_PROMPT = """You are a browser application agent. Decide the next sa
 Goal: advance a job application using the supplied candidate profile and already-generated resume.
 Never invent candidate facts. Never answer demographic/disability/veteran/self-identification questions unless a deterministic answer is explicitly present in profile. Never bypass CAPTCHA/MFA. Never interact with honeypot/robot fields. Never submit unless allow_submit is true.
 Return JSON only:
-{"action":"fill|click|select|upload_resume|wait|stop","target":"stable selector hint or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
-Use one action at a time. Prefer data-automation-id/name/id/label/text visible in controls. For final submission use action=click only when the control clearly means final submit.
+{"action":"fill|click|select|upload_resume|wait|stop","target":"control:<n> or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
+Use one action at a time. When a matching control is present, ALWAYS target its supplied control:<n> handle. Do not invent CSS selectors. Use an exact visible label only when no control handle exists. For final submission use action=click only when the control clearly means final submit.
 """
 
 def _agent_api_call(state):
@@ -281,7 +281,7 @@ def _agent_page_state(page,item,profile,allow_submit):
             label=_label(el)
             txt=(el.inner_text() if tag in ("button","a") else "") or ""
             if _norm(aid)=="beecatcher" or _norm(name)=="website" or "robots only" in _norm(label):continue
-            controls.append({"i":i,"tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160]})
+            controls.append({"handle":f"control:{i}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160]})
         except Exception:pass
     body=page.locator("body").inner_text(timeout=8000)
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
@@ -290,6 +290,22 @@ def _agent_page_state(page,item,profile,allow_submit):
 def _agent_find_target(page,target):
     t=(target or "").strip()
     if not t:return None
+    m=re.fullmatch(r"control:(\\d+)",t,re.I)
+    if m:
+        loc=page.locator("input, textarea, select, button, [role=button], a")
+        i=int(m.group(1))
+        try:
+            if i<loc.count() and loc.nth(i).is_visible():return loc.nth(i)
+        except Exception:pass
+        return None
+    # Compatibility: if the model returns a concrete CSS selector visible in the
+    # observation, resolve it directly instead of treating the entire selector as
+    # a data-automation-id value.
+    if any(ch in t for ch in ("[","]","#",".",">",":")):
+        try:
+            x=page.locator(t).first
+            if x.count() and x.is_visible():return x
+        except Exception:pass
     selectors=[
         f'[data-automation-id="{t}"]',f'[name="{t}"]',f'#{t}',
         f'input[aria-label="{t}"]',f'textarea[aria-label="{t}"]'
@@ -1407,6 +1423,15 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                     result["status"]="MANUAL_ACTION_REQUIRED"
                     result["reason"]=result["navigation"].get("reason") or "Could not reach application form safely."
                     return result
+            # In agentic mode, stop using provider-specific auth/fill rules here.
+            # The live page observation becomes the source of truth from this point on.
+            if agentic:
+                result["agentic_execution"]=_agentic_application_loop(page,item,profile,resume,result,allow_submit)
+                if result.get("submitted"):
+                    return result
+                result["status"]="MANUAL_ACTION_REQUIRED"
+                result["reason"]=result["agentic_execution"].get("reason","Agent stopped without confirmed submission")
+                return result
             # Dice presents an email-only first gate. Advance it before looking for
             # the password/account form; otherwise the email field is mistaken for the
             # application itself and the run incorrectly searches for final Submit.
@@ -1445,13 +1470,6 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                         return result
                 else:
                     result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
-            if agentic:
-                result["agentic_execution"]=_agentic_application_loop(page,item,profile,resume,result,allow_submit)
-                if result.get("submitted"):
-                    return result
-                result["status"]="MANUAL_ACTION_REQUIRED"
-                result["reason"]=result["agentic_execution"].get("reason","Agent stopped without confirmed submission")
-                return result
             if provider=="dice":
                 result["dice_resume_upload"]=_dice_resume_upload(page,resume,result)
                 if result["dice_resume_upload"].get("handled") and not result["dice_resume_upload"].get("verified"):
