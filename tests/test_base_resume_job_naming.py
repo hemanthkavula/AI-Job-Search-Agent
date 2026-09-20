@@ -32,7 +32,7 @@ def test_base_resume_fallback_uses_current_job_metadata(monkeypatch):
     path=batch_prepare._render_base_resume(job,profile)
 
     assert captured["job"] is job
-    assert captured["output_dir"]=="generated/resumes"
+    assert captured["output_dir"]=="generated/.resume_drafts"
     assert captured["payload"]==batch_prepare._base_resume_payload(profile)
     assert "Lennar_Corp" in path
     assert "Lead_Data_Engineer" in path
