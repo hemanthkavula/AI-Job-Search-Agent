@@ -544,6 +544,62 @@
       "tenant": "synechron",
       "site": "SynechronCareers",
       "locale": "en-US"
+    },
+    {
+      "company": "Vanguard",
+      "host": "vanguard.wd5.myworkdayjobs.com",
+      "tenant": "vanguard",
+      "site": "vanguard_external",
+      "locale": "en-US"
+    },
+    {
+      "company": "BlackRock",
+      "host": "blackrock.wd1.myworkdayjobs.com",
+      "tenant": "blackrock",
+      "site": "BlackRock_Professional",
+      "locale": "en-US"
+    },
+    {
+      "company": "Northern Trust",
+      "host": "ntrs.wd1.myworkdayjobs.com",
+      "tenant": "ntrs",
+      "site": "northerntrust",
+      "locale": "en-US"
+    },
+    {
+      "company": "PNC Financial Services",
+      "host": "pnc.wd5.myworkdayjobs.com",
+      "tenant": "pnc",
+      "site": "External",
+      "locale": "en-US"
+    },
+    {
+      "company": "Truist Financial",
+      "host": "truist.wd1.myworkdayjobs.com",
+      "tenant": "truist",
+      "site": "Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Synchrony Financial",
+      "host": "synchronyfinancial.wd5.myworkdayjobs.com",
+      "tenant": "synchronyfinancial",
+      "site": "careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "S&P Global",
+      "host": "spgi.wd5.myworkdayjobs.com",
+      "tenant": "spgi",
+      "site": "SPGI_Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Blackstone",
+      "host": "blackstone.wd1.myworkdayjobs.com",
+      "tenant": "blackstone",
+      "site": "Blackstone_Careers",
+      "locale": "en-US"
     }
   ],
   "dice": {
