@@ -766,6 +766,261 @@
       "company": "EPAM Systems",
       "search_url": "https://careers.epam.com/en/vacancies?query=data%20engineer&country=United%20States",
       "job_url_pattern": "careers\\.epam\\.com/en/vacancy/.+"
+    },
+    {
+      "company": "Morgan Stanley",
+      "search_url": "https://www.morganstanley.com/careers/career-opportunities-search",
+      "job_url_pattern": "morganstanley\\.com/.+(?:job|career).+"
+    },
+    {
+      "company": "Citi",
+      "search_url": "https://jobs.citi.com/search-jobs/data%20engineer/287/1",
+      "job_url_pattern": "jobs\\.citi\\.com/job/.+"
+    },
+    {
+      "company": "Bloomberg",
+      "search_url": "https://www.bloomberg.com/company/careers/job-search/?q=data%20engineer",
+      "job_url_pattern": "bloomberg\\.com/.+careers/.+"
+    },
+    {
+      "company": "Oracle",
+      "search_url": "https://careers.oracle.com/jobs/#en/sites/jobsearch/requisitions?keyword=data%20engineer",
+      "job_url_pattern": "careers\\.oracle\\.com/.+"
+    },
+    {
+      "company": "LinkedIn",
+      "search_url": "https://www.linkedin.com/jobs/search/?keywords=data%20engineer",
+      "job_url_pattern": "linkedin\\.com/jobs/view/.+"
+    },
+    {
+      "company": "TikTok",
+      "search_url": "https://lifeattiktok.com/search?keyword=data%20engineer",
+      "job_url_pattern": "lifeattiktok\\.com/.+(?:job|search).+"
+    },
+    {
+      "company": "ByteDance",
+      "search_url": "https://jobs.bytedance.com/en/position?keywords=data%20engineer",
+      "job_url_pattern": "jobs\\.bytedance\\.com/.+"
+    },
+    {
+      "company": "FedEx Dataworks",
+      "search_url": "https://careers.fedex.com/dataworks",
+      "job_url_pattern": "careers\\.fedex\\.com/.*/jobs/.*"
+    },
+    {
+      "company": "McKinsey & Company",
+      "search_url": "https://www.mckinsey.com/careers/search-jobs",
+      "job_url_pattern": "mckinsey\\.com/.+careers/.+"
+    },
+    {
+      "company": "Deloitte",
+      "search_url": "https://apply.deloitte.com/careers/SearchJobs/data%20engineer",
+      "job_url_pattern": "apply\\.deloitte\\.com/.+"
+    },
+    {
+      "company": "PwC",
+      "search_url": "https://jobs.us.pwc.com/search-jobs/data%20engineer",
+      "job_url_pattern": "jobs\\.us\\.pwc\\.com/.+"
+    },
+    {
+      "company": "CGI",
+      "search_url": "https://cgi.njoyn.com/corp/xweb/xweb.asp?CLID=21001&page=joblisting",
+      "job_url_pattern": "cgi\\.njoyn\\.com/.+"
+    },
+    {
+      "company": "Kforce",
+      "search_url": "https://www.kforce.com/find-work/search-jobs/",
+      "job_url_pattern": "kforce\\.com/.+(?:job|jobs).+"
+    },
+    {
+      "company": "Caremark",
+      "search_url": "https://jobs.cvshealth.com/us/en/search-results?keywords=data%20engineer",
+      "job_url_pattern": "jobs\\.cvshealth\\.com/.+"
+    },
+    {
+      "company": "Dish Network",
+      "search_url": "https://jobs.dish.com/jobs/?search=data%20engineer",
+      "job_url_pattern": "jobs\\.dish\\.com/.+"
+    },
+    {
+      "company": "Farmers Insurance",
+      "search_url": "https://jobs.farmersinsurance.com/search/?q=data+engineer",
+      "job_url_pattern": "jobs\\.farmersinsurance\\.com/.+"
+    },
+    {
+      "company": "Federal Express",
+      "search_url": "https://careers.fedex.com/jobs?keyword=data%20engineer",
+      "job_url_pattern": "careers\\.fedex\\.com/.*/jobs/.*"
+    },
+    {
+      "company": "VMware/Broadcom",
+      "search_url": "https://broadcom.wd1.myworkdayjobs.com/External_Career",
+      "job_url_pattern": "broadcom\\.wd1\\.myworkdayjobs\\.com/.+"
+    },
+    {
+      "company": "NTT DATA",
+      "search_url": "https://careers-inc.nttdata.com/search/?q=data+engineer",
+      "job_url_pattern": "careers-inc\\.nttdata\\.com/.+"
+    },
+    {
+      "company": "Mphasis",
+      "search_url": "https://careers.mphasis.com/home.html",
+      "job_url_pattern": "careers\\.mphasis\\.com/.+"
+    },
+    {
+      "company": "Persistent Systems",
+      "search_url": "https://careers.persistent.com/search/?q=data+engineer",
+      "job_url_pattern": "careers\\.persistent\\.com/.+"
+    },
+    {
+      "company": "Virtusa",
+      "search_url": "https://www.virtusa.com/careers",
+      "job_url_pattern": "virtusa\\.com/.+careers.+"
+    },
+    {
+      "company": "UST",
+      "search_url": "https://www.ust.com/en/careers",
+      "job_url_pattern": "ust\\.com/.+careers.+"
+    },
+    {
+      "company": "Hexaware",
+      "search_url": "https://hexaware.com/careers/",
+      "job_url_pattern": "hexaware\\.com/.+careers.+"
+    },
+    {
+      "company": "Birlasoft",
+      "search_url": "https://www.birlasoft.com/careers",
+      "job_url_pattern": "birlasoft\\.com/.+careers.+"
+    },
+    {
+      "company": "Zensar Technologies",
+      "search_url": "https://www.zensar.com/careers",
+      "job_url_pattern": "zensar\\.com/.+careers.+"
+    },
+    {
+      "company": "Experis",
+      "search_url": "https://www.experis.com/en/search-jobs",
+      "job_url_pattern": "experis\\.com/.+(?:job|jobs).+"
+    },
+    {
+      "company": "Akkodis",
+      "search_url": "https://www.akkodis.com/en-us/careers/jobs",
+      "job_url_pattern": "akkodis\\.com/.+(?:job|jobs).+"
+    },
+    {
+      "company": "Collabera",
+      "search_url": "https://collabera.com/jobs/",
+      "job_url_pattern": "collabera\\.com/.+jobs.+"
+    },
+    {
+      "company": "eTeam",
+      "search_url": "https://www.eteaminc.com/careers/",
+      "job_url_pattern": "eteaminc\\.com/.+careers.+"
+    },
+    {
+      "company": "US Tech Solutions",
+      "search_url": "https://www.ustechsolutions.com/careers/",
+      "job_url_pattern": "ustechsolutions\\.com/.+careers.+"
+    },
+    {
+      "company": "NLB Services",
+      "search_url": "https://www.nlbservices.com/careers/",
+      "job_url_pattern": "nlbservices\\.com/.+careers.+"
+    },
+    {
+      "company": "Diverse Lynx",
+      "search_url": "https://www.diverselynx.com/careers/",
+      "job_url_pattern": "diverselynx\\.com/.+careers.+"
+    },
+    {
+      "company": "Tanisha Systems",
+      "search_url": "https://tanishasystems.com/careers/",
+      "job_url_pattern": "tanishasystems\\.com/.+careers.+"
+    },
+    {
+      "company": "Lorven Technologies",
+      "search_url": "https://www.lorventech.com/careers/",
+      "job_url_pattern": "lorventech\\.com/.+careers.+"
+    },
+    {
+      "company": "ApTask",
+      "search_url": "https://www.aptask.com/careers/",
+      "job_url_pattern": "aptask\\.com/.+careers.+"
+    },
+    {
+      "company": "Tekfortune",
+      "search_url": "https://tekfortune.com/careers/",
+      "job_url_pattern": "tekfortune\\.com/.+careers.+"
+    },
+    {
+      "company": "Intone Networks",
+      "search_url": "https://intonenetworks.com/careers/",
+      "job_url_pattern": "intonenetworks\\.com/.+careers.+"
+    },
+    {
+      "company": "Saxon Global",
+      "search_url": "https://www.saxonglobal.com/careers/",
+      "job_url_pattern": "saxonglobal\\.com/.+careers.+"
+    },
+    {
+      "company": "Strategic Staffing Solutions",
+      "search_url": "https://www.strategicstaff.com/job-seekers/",
+      "job_url_pattern": "strategicstaff\\.com/.+"
+    },
+    {
+      "company": "Genesis10",
+      "search_url": "https://www.genesis10.com/jobs",
+      "job_url_pattern": "genesis10\\.com/.+jobs.+"
+    },
+    {
+      "company": "Brooksource",
+      "search_url": "https://www.brooksource.com/jobs/",
+      "job_url_pattern": "brooksource\\.com/.+jobs.+"
+    },
+    {
+      "company": "Eliassen Group",
+      "search_url": "https://www.eliassen.com/jobs",
+      "job_url_pattern": "eliassen\\.com/.+jobs.+"
+    },
+    {
+      "company": "Yoh",
+      "search_url": "https://www.yoh.com/jobs",
+      "job_url_pattern": "yoh\\.com/.+jobs.+"
+    },
+    {
+      "company": "Beacon Hill",
+      "search_url": "https://beaconhillstaffing.com/job-search/",
+      "job_url_pattern": "beaconhillstaffing\\.com/.+(?:job|jobs).+"
+    },
+    {
+      "company": "The Judge Group",
+      "search_url": "https://www.judge.com/jobs/",
+      "job_url_pattern": "judge\\.com/.+jobs.+"
+    },
+    {
+      "company": "INSPYR Solutions",
+      "search_url": "https://www.inspyrsolutions.com/jobs/",
+      "job_url_pattern": "inspyrsolutions\\.com/.+jobs.+"
+    },
+    {
+      "company": "Vaco",
+      "search_url": "https://www.vaco.com/jobs/",
+      "job_url_pattern": "vaco\\.com/.+jobs.+"
+    },
+    {
+      "company": "Horizontal Talent",
+      "search_url": "https://www.horizontaltalent.com/jobs/",
+      "job_url_pattern": "horizontaltalent\\.com/.+jobs.+"
+    },
+    {
+      "company": "Matlen Silver",
+      "search_url": "https://www.matlensilver.com/jobs/",
+      "job_url_pattern": "matlensilver\\.com/.+jobs.+"
+    },
+    {
+      "company": "Mitchell Martin",
+      "search_url": "https://www.mitchellmartin.com/jobs/",
+      "job_url_pattern": "mitchellmartin\\.com/.+jobs.+"
     }
   ],
   "eightfold": [
