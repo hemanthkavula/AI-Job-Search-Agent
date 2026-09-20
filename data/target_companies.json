@@ -5,8 +5,8 @@
     "notes": "Company universe supplied by the user. Resume employers Fidelity Investments, Cigna Healthcare, and Target are excluded from this search list. Existing discovery, Data Engineering-family, experience, sponsorship, and application rules remain unchanged."
   },
   "counts": {
-    "unique_companies": 145,
-    "h1b_targets": 99,
+    "unique_companies": 233,
+    "h1b_targets": 187,
     "vendor_consulting_staffing": 60
   },
   "companies": [
@@ -610,7 +610,11 @@
       "categories": [
         "h1b_target"
       ],
-      "aliases": []
+      "aliases": [
+        "Rocket Mortgage",
+        "Quicken Loans",
+        "Rocket Companies"
+      ]
     },
     {
       "company": "Sony Interactive Entertainment",
@@ -1080,6 +1084,652 @@
         "vendor_consulting_staffing"
       ],
       "aliases": []
+    },
+    {
+      "company": "Wells Fargo",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "BNY",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Bank of New York Mellon",
+        "BNY Mellon"
+      ]
+    },
+    {
+      "company": "State Street",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Charles Schwab",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "BlackRock",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Vanguard",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "PNC Financial Services",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Truist Financial",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Citizens Financial Group",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Fifth Third Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Northern Trust",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "M&T Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "KeyBank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Regions Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Ally Financial",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Synchrony Financial",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "SoFi",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Block / Square",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Block",
+        "Square"
+      ]
+    },
+    {
+      "company": "Affirm",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Klarna",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Coinbase",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Chime",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Plaid",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Brex",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Ramp",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Marqeta",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Adyen",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Toast",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Fiserv",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Global Payments",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Western Union",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Remitly",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Wise",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Upgrade",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Avant",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Credit One Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Moody's",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "S&P Global",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Nasdaq",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Intercontinental Exchange (ICE)",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "ICE"
+      ]
+    },
+    {
+      "company": "CME Group",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Cboe Global Markets",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "London Stock Exchange Group (LSEG)",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "LSEG",
+        "London Stock Exchange Group"
+      ]
+    },
+    {
+      "company": "FactSet",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "MSCI",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Morningstar",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Blackstone",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Apollo Global Management",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "KKR",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Ares Management",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Carlyle",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Jefferies",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Lazard",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Evercore",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "PJT Partners",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Houlihan Lokey",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Macquarie",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Barclays",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Deutsche Bank",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "UBS",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "HSBC",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "BNP Paribas",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "RBC",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Royal Bank of Canada"
+      ]
+    },
+    {
+      "company": "BMO",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Bank of Montreal"
+      ]
+    },
+    {
+      "company": "CIBC",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Canadian Imperial Bank of Commerce"
+      ]
+    },
+    {
+      "company": "SMBC",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Sumitomo Mitsui Banking Corporation"
+      ]
+    },
+    {
+      "company": "MUFG",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "Mitsubishi UFJ Financial Group"
+      ]
+    },
+    {
+      "company": "Nomura",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Mizuho",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Santander",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Standard Chartered",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Citadel",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Citadel Securities",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Two Sigma",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "D. E. Shaw",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "DE Shaw",
+        "D.E. Shaw"
+      ]
+    },
+    {
+      "company": "Jane Street",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Millennium Management",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "AQR Capital Management",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Squarepoint Capital",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "DRW",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Akuna Capital",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Hudson River Trading",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "IMC Trading",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Jump Trading",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Susquehanna International Group (SIG)",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": [
+        "SIG",
+        "Susquehanna International Group"
+      ]
+    },
+    {
+      "company": "Virtu Financial",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Optiver",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
+    },
+    {
+      "company": "Experian",
+      "categories": [
+        "h1b_target"
+      ],
+      "aliases": []
     }
-  ]
+  ],
+  "metadata": {
+    "notes": " Financial/FinTech companies supplied on 2026-09-19 are merged into the same h1b_target universe and use the same filtering/application rules; aliases are normalized to avoid duplicate targets."
+  }
 }
