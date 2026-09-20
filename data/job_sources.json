@@ -757,8 +757,8 @@
     },
     {
       "company": "Netflix",
-      "search_url": "https://jobs.netflix.com/search?q=data%20engineer",
-      "job_url_pattern": "jobs\\.netflix\\.com/jobs/"
+      "search_url": "https://jobs.netflix.com/",
+      "job_url_pattern": "jobs\\.netflix\\.com/.+"
     },
     {
       "company": "Tesla",
@@ -772,7 +772,7 @@
     },
     {
       "company": "GM Financial",
-      "search_url": "https://careers.gmfinancial.com/en-us/search-results.html?keywords=data%20engineer",
+      "search_url": "https://careers.gmfinancial.com/en-us/careers-home.html",
       "job_url_pattern": "careers\\.gmfinancial\\.com/.+"
     },
     {
@@ -1017,8 +1017,8 @@
     },
     {
       "company": "Collabera",
-      "search_url": "https://collabera.com/jobs/",
-      "job_url_pattern": "collabera\\.com/.+jobs.+"
+      "search_url": "https://collabera.com/globaltalentcenter/careers/",
+      "job_url_pattern": "collabera\\.com/.+"
     },
     {
       "company": "eTeam",
@@ -1027,7 +1027,7 @@
     },
     {
       "company": "US Tech Solutions",
-      "search_url": "https://www.ustechsolutions.com/careers/",
+      "search_url": "https://www.ustechsolutions.com/",
       "job_url_pattern": "ustechsolutions\\.com/.+careers.+"
     },
     {
@@ -1042,7 +1042,7 @@
     },
     {
       "company": "Tanisha Systems",
-      "search_url": "https://tanishasystems.com/careers/",
+      "search_url": "https://tanishasystems.com/",
       "job_url_pattern": "tanishasystems\\.com/.+careers.+"
     },
     {
@@ -1067,18 +1067,18 @@
     },
     {
       "company": "Saxon Global",
-      "search_url": "https://www.saxonglobal.com/careers/",
-      "job_url_pattern": "saxonglobal\\.com/.+careers.+"
+      "search_url": "https://saxonglobal.com/jobs/",
+      "job_url_pattern": "saxonglobal\\.com/.+"
     },
     {
       "company": "Strategic Staffing Solutions",
-      "search_url": "https://www.strategicstaff.com/job-seekers/",
-      "job_url_pattern": "strategicstaff\\.com/.+"
+      "search_url": "https://careers.strategicstaff.com/",
+      "job_url_pattern": "careers\\.strategicstaff\\.com/.+"
     },
     {
       "company": "Genesis10",
-      "search_url": "https://www.genesis10.com/jobs",
-      "job_url_pattern": "genesis10\\.com/.+jobs.+"
+      "search_url": "https://www.genesis10.com/find-a-job",
+      "job_url_pattern": "genesis10\\.com/.+"
     },
     {
       "company": "Brooksource",
@@ -1087,17 +1087,17 @@
     },
     {
       "company": "Eliassen Group",
-      "search_url": "https://www.eliassen.com/jobs",
-      "job_url_pattern": "eliassen\\.com/.+jobs.+"
+      "search_url": "https://www.eliassen.com/careers",
+      "job_url_pattern": "eliassen\\.com/.+"
     },
     {
       "company": "Yoh",
-      "search_url": "https://www.yoh.com/jobs",
-      "job_url_pattern": "yoh\\.com/.+jobs.+"
+      "search_url": "https://jobs.yoh.com/",
+      "job_url_pattern": "jobs\\.yoh\\.com/.+"
     },
     {
       "company": "Beacon Hill",
-      "search_url": "https://beaconhillstaffing.com/job-search/",
+      "search_url": "https://beaconhillstaffing.com/",
       "job_url_pattern": "beaconhillstaffing\\.com/.+(?:job|jobs).+"
     },
     {
@@ -1112,13 +1112,13 @@
     },
     {
       "company": "Vaco",
-      "search_url": "https://www.vaco.com/jobs/",
+      "search_url": "https://www.vaco.com/",
       "job_url_pattern": "vaco\\.com/.+jobs.+"
     },
     {
       "company": "Horizontal Talent",
-      "search_url": "https://www.horizontaltalent.com/jobs/",
-      "job_url_pattern": "horizontaltalent\\.com/.+jobs.+"
+      "search_url": "https://www.horizontaltalent.com/job-board",
+      "job_url_pattern": "horizontaltalent\\.com/.+"
     },
     {
       "company": "Matlen Silver",
@@ -1127,7 +1127,7 @@
     },
     {
       "company": "Mitchell Martin",
-      "search_url": "https://www.mitchellmartin.com/jobs/",
+      "search_url": "https://www.mitchellmartin.com/",
       "job_url_pattern": "mitchellmartin\\.com/.+jobs.+"
     },
     {
