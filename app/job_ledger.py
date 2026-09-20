@@ -1,4 +1,5 @@
 from __future__ import annotations
+import argparse
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -143,3 +144,14 @@ def mark_applied_from_queue(queue_path, companies, ledger_path=DEFAULT_LEDGER):
     qpath.write_text(json.dumps(rows,indent=2),encoding="utf-8")
     save_ledger(ledger,ledger_path)
     return {"marked":marked,"missing":missing,"queue":str(qpath),"ledger":str(ledger_path)}
+
+
+if __name__=="__main__":
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--mark-applied",nargs="+",metavar="COMPANY",help="Mark matching companies in a queue as already submitted by the user.")
+    ap.add_argument("--queue",help="Application queue JSON used with --mark-applied.")
+    ap.add_argument("--ledger",default=str(DEFAULT_LEDGER))
+    args=ap.parse_args()
+    if args.mark_applied:
+        if not args.queue:ap.error("--queue is required with --mark-applied")
+        print(json.dumps(mark_applied_from_queue(args.queue,args.mark_applied,args.ledger),indent=2))
