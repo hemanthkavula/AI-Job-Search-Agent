@@ -233,6 +233,10 @@
     {
       "company": "Intuit",
       "company_identifier": "Intuit2"
+    },
+    {
+      "company": "Pyramid Consulting",
+      "company_identifier": "PyramidConsulting1"
     }
   ],
   "workday": [
@@ -554,6 +558,10 @@
     {
       "company": "LTIMindtree",
       "base_url": "https://careers.ltimindtree.com"
+    },
+    {
+      "company": "Ernst & Young (EY)",
+      "base_url": "https://careers.ey.com"
     }
   ],
   "icims": [
@@ -681,6 +689,16 @@
       "company": "Optum",
       "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
       "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
+    },
+    {
+      "company": "Dexian",
+      "search_url": "https://dexian.com/jobs/",
+      "job_url_pattern": "dexian\\.com/jobs/.+"
+    },
+    {
+      "company": "Motion Recruitment",
+      "search_url": "https://motionrecruitment.com/tech-jobs/data-engineering",
+      "job_url_pattern": "motionrecruitment\\.com/tech-jobs/.+"
     }
   ],
   "eightfold": [
