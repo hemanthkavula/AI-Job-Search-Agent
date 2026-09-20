@@ -116,3 +116,30 @@ def record_seen(job,ledger,status="DISCOVERED",**extra):
     sources=set(row.get("sources") or []);sources.add(job.get("source") or "unknown");row["sources"]=sorted(sources)
     external_ids=set(row.get("external_ids") or []);external_ids.add(job.get("external_id") or "");row["external_ids"]=sorted(x for x in external_ids if x)
     row.update(extra);return key
+
+
+def mark_applied_from_queue(queue_path, companies, ledger_path=DEFAULT_LEDGER):
+    """Mark matching queued companies as already applied and remove them from submission eligibility."""
+    qpath=Path(queue_path)
+    rows=json.loads(qpath.read_text(encoding="utf-8"))
+    wanted={str(x).strip().lower() for x in companies if str(x).strip()}
+    ledger=load_ledger(ledger_path)
+    now=datetime.now(timezone.utc).isoformat()
+    marked=[]
+    for item in rows:
+        company=str(item.get("company") or "").strip()
+        if company.lower() not in wanted:continue
+        item["status"]="SUBMITTED_CONFIRMED"
+        item["submitted_at"]=item.get("submitted_at") or now
+        item["application_result"]="ALREADY_APPLIED_BY_USER"
+        item["application_reason"]="User confirmed this application was already submitted outside the current automation run."
+        job={"external_id":item.get("external_id"),"source":item.get("source"),"company_key":company,
+             "title":item.get("title"),"url":item.get("url")}
+        record_seen(job,ledger,"SUBMITTED_CONFIRMED",submitted_at=item["submitted_at"],
+                    application_result="ALREADY_APPLIED_BY_USER",
+                    application_reason=item["application_reason"],queue_item=None)
+        marked.append({"company":company,"title":item.get("title"),"external_id":item.get("external_id")})
+    missing=sorted(x for x in wanted if not any(str(m.get("company") or "").lower()==x for m in marked))
+    qpath.write_text(json.dumps(rows,indent=2),encoding="utf-8")
+    save_ledger(ledger,ledger_path)
+    return {"marked":marked,"missing":missing,"queue":str(qpath),"ledger":str(ledger_path)}
