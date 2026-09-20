@@ -217,6 +217,16 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         if not summary["queued_for_application"]:
             summary["application_stage_enabled"]=True
             summary["applications_processed"]=0
+        if not summary["queued_for_application"]:
+            _save_state(state)
+            summary["scan_cutoff_local"]=cutoff.isoformat()
+            summary["scan_window_hours"]=hours
+            summary["source_watermarks"]=watermarks
+            summary["source_unit_watermarks"]=unit_watermarks
+            summary["scheduler_mode"]=mode
+            summary["scheduler_local_time"]=now.isoformat()
+            summary["daily_final_cycle"]=now.hour==FINAL_HOUR
+            return summary
         app_ledger=load_ledger(ledger)
         for queue_item in queue_rows:
             if queue_item.get("status")!="READY_FOR_ATS_ADAPTER":continue
