@@ -57,10 +57,6 @@
       "board_token": "zoominfo"
     },
     {
-      "company": "Marqeta",
-      "board_token": "marqeta"
-    },
-    {
       "company": "Jane Street",
       "board_token": "janestreet"
     },
@@ -648,6 +644,13 @@
       "tenant": "fiserv",
       "site": "EXT",
       "locale": "en-US"
+    },
+    {
+      "company": "VMware/Broadcom",
+      "host": "broadcom.wd1.myworkdayjobs.com",
+      "tenant": "broadcom",
+      "site": "External_Career",
+      "locale": "en-US"
     }
   ],
   "dice": {
@@ -931,11 +934,6 @@
       "job_url_pattern": "careers\\.fedex\\.com/.*/jobs/.*"
     },
     {
-      "company": "VMware/Broadcom",
-      "search_url": "https://broadcom.wd1.myworkdayjobs.com/External_Career",
-      "job_url_pattern": "broadcom\\.wd1\\.myworkdayjobs\\.com/.+"
-    },
-    {
       "company": "NTT DATA",
       "search_url": "https://careers-inc.nttdata.com/search/?q=data+engineer",
       "job_url_pattern": "careers-inc\\.nttdata\\.com/.+"
@@ -1119,6 +1117,11 @@
       "company": "Qualcomm",
       "search_url": "https://www.qualcomm.com/company/careers",
       "job_url_pattern": "careers\\.qualcomm\\.com/careers/job/.+"
+    },
+    {
+      "company": "Marqeta",
+      "search_url": "https://www.marqeta.com/company/careers",
+      "job_url_pattern": "marqeta\\.com/careers/[0-9a-f-]+"
     }
   ],
   "eightfold": [
