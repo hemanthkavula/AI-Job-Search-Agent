@@ -55,6 +55,18 @@
     {
       "company": "ZoomInfo",
       "board_token": "zoominfo"
+    },
+    {
+      "company": "Marqeta",
+      "board_token": "marqeta"
+    },
+    {
+      "company": "Jane Street",
+      "board_token": "janestreet"
+    },
+    {
+      "company": "Optiver",
+      "board_token": "optiverus"
     }
   ],
   "lever": [
@@ -599,6 +611,34 @@
       "host": "blackstone.wd1.myworkdayjobs.com",
       "tenant": "blackstone",
       "site": "Blackstone_Careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Fifth Third Bank",
+      "host": "fifththird.wd5.myworkdayjobs.com",
+      "tenant": "fifththird",
+      "site": "53careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "KeyBank",
+      "host": "keybank.wd5.myworkdayjobs.com",
+      "tenant": "keybank",
+      "site": "External_Career_Site",
+      "locale": "en-US"
+    },
+    {
+      "company": "M&T Bank",
+      "host": "mtb.wd5.myworkdayjobs.com",
+      "tenant": "mtb",
+      "site": "External",
+      "locale": "en-US"
+    },
+    {
+      "company": "Fiserv",
+      "host": "fiserv.wd5.myworkdayjobs.com",
+      "tenant": "fiserv",
+      "site": "EXT",
       "locale": "en-US"
     }
   ],
