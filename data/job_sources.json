@@ -215,6 +215,10 @@
     {
       "company": "Ramp",
       "board_name": "ramp"
+    },
+    {
+      "company": "Plaid",
+      "board_name": "plaid"
     }
   ],
   "smartrecruiters": [
@@ -738,8 +742,8 @@
     },
     {
       "company": "Apple",
-      "search_url": "https://jobs.apple.com/en-us/search?search=data%20engineer",
-      "job_url_pattern": "jobs\\.apple\\.com/.+/details/"
+      "search_url": "https://jobs.apple.com/en-us/search?search=data%20engineer&location=united-states-USA",
+      "job_url_pattern": "jobs\\.apple\\.com/en-us/details/"
     },
     {
       "company": "Tesla",
@@ -1085,11 +1089,6 @@
       "company": "Charles Schwab",
       "search_url": "https://www.schwabjobs.com/search-jobs",
       "job_url_pattern": "schwabjobs\\.com/job/.+"
-    },
-    {
-      "company": "Plaid",
-      "search_url": "https://plaid.com/careers/",
-      "job_url_pattern": "plaid\\.com/careers/.+"
     },
     {
       "company": "PwC",
