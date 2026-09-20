@@ -67,6 +67,14 @@
     {
       "company": "Optiver",
       "board_token": "optiverus"
+    },
+    {
+      "company": "SoFi",
+      "board_token": "sofi"
+    },
+    {
+      "company": "Coinbase",
+      "board_token": "coinbase"
     }
   ],
   "lever": [
@@ -1121,6 +1129,26 @@
       "company": "Mitchell Martin",
       "search_url": "https://www.mitchellmartin.com/jobs/",
       "job_url_pattern": "mitchellmartin\\.com/.+jobs.+"
+    },
+    {
+      "company": "Wells Fargo",
+      "search_url": "https://www.wellsfargojobs.com/en/jobs/",
+      "job_url_pattern": "wellsfargojobs\\\\.com/en/jobs/.+"
+    },
+    {
+      "company": "Charles Schwab",
+      "search_url": "https://www.schwabjobs.com/search-jobs",
+      "job_url_pattern": "schwabjobs\\\\.com/job/.+"
+    },
+    {
+      "company": "Chime",
+      "search_url": "https://careers.chime.com/jobs/",
+      "job_url_pattern": "careers\\\\.chime\\\\.com/jobs/.+"
+    },
+    {
+      "company": "Plaid",
+      "search_url": "https://plaid.com/careers/",
+      "job_url_pattern": "plaid\\\\.com/careers/openings/.+"
     }
   ],
   "eightfold": [
