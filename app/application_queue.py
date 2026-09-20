@@ -2,6 +2,8 @@ from __future__ import annotations
 import argparse,json,re
 from pathlib import Path
 from urllib.parse import urlparse
+from app.config import load_profile
+from app.filters import passes_hard_filters
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -42,9 +44,17 @@ def _artifact_path(value,manifest_path):
     # exactly which artifact was expected even if it was later moved/deleted.
     return str((ROOT/p).resolve())
 
+def _application_gate(row,profile):
+    """Re-run governing eligibility immediately before a job can enter the ATS queue."""
+    job={
+      "external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
+      "location":row.get("location"),"employment_type":row.get("employment_type"),"description":row.get("description") or ""
+    }
+    return passes_hard_filters(job,profile)
+
 def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
-    """Queue only fully validated artifacts; never guess unknown application answers."""
-    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[]
+    """Queue only fully validated, still-eligible artifacts; never trust an earlier gate alone."""
+    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile()
     for r in rows:
         if r.get("next_action")!="READY_TO_APPLY":continue
         validation=r.get("artifact_validation") or {}
@@ -60,11 +70,16 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         if not pdf or not resolved_pdf:continue
         if explicit_validation and not validation.get("passed"):continue
         provider=_provider(r)
+        gate_ok,gate_reasons=_application_gate(r,profile)
+        if not gate_ok:
+            continue
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
+          "location":r.get("location"),"employment_type":r.get("employment_type"),"description":r.get("description"),
+          "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
           "status":"READY_FOR_ATS_ADAPTER" if provider in SUPPORTED_ATS else "MANUAL_ACTION_REQUIRED",
