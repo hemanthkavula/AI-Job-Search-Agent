@@ -410,6 +410,44 @@ def _auth_state(text,controls):
     if has_create:return "CREATE_ACCOUNT_AVAILABLE"
     return "APPLICATION"
 
+def _deterministic_auth_step(page,state,result):
+    """Handle ordinary login/create-account fields locally before asking the LLM."""
+    controls=state.get("controls",[])
+    auth_state=state.get("workflow_state") or _auth_state(state.get("visible_text",""),controls)
+    if auth_state not in ("SIGN_IN","CREATE_ACCOUNT","ACCOUNT_NOT_FOUND"):return False
+    creds=_application_credentials()
+    if not creds.get("email") or not creds.get("password"):return False
+    did=False
+    # Fill email/password/confirmation without exposing credentials to the model.
+    for ctl in controls:
+        typ=(ctl.get("type") or "").lower();aid=_norm(ctl.get("automation_id") or "")
+        label=_norm((ctl.get("label") or "")+" "+(ctl.get("name") or "")+" "+aid)
+        if ctl.get("filled"):continue
+        value=None
+        if typ=="password":value=creds["password"]
+        elif typ in ("email","text") and "email" in label:value=creds["email"]
+        if value:
+            el=_agent_find_target(page,ctl.get("handle"),controls)
+            if el is not None:
+                try:el.fill(value);did=True
+                except Exception:pass
+    # Account creation may require a mandatory privacy/terms acknowledgement.
+    if auth_state in ("CREATE_ACCOUNT","ACCOUNT_NOT_FOUND"):
+        prefs=(load_profile().get("application_preferences") or {}).get("application_terms") or {}
+        if prefs.get("accept_required_terms_and_privacy_acknowledgments"):
+            for ctl in controls:
+                if (ctl.get("type") or "").lower()!="checkbox":continue
+                label=_norm((ctl.get("label") or "")+" "+(ctl.get("text") or "")+" "+(ctl.get("automation_id") or ""))
+                if any(t in label for t in ("term","privacy","acknowledge","consent","create account checkbox")):
+                    el=_agent_find_target(page,ctl.get("handle"),controls)
+                    try:
+                        if el is not None and not el.is_checked():el.check(force=True);did=True
+                    except Exception:pass
+    if did:
+        result.setdefault("agent_actions",[]).append({"action":"deterministic_auth_fill","state":auth_state,"reason":"Filled local authentication/account fields without exposing credentials"})
+        page.wait_for_timeout(400)
+    return did
+
 def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=80):
     """Observe -> reason -> act -> verify loop. Reuses the persisted resume; never regenerates it."""
     if not (os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")):
@@ -425,6 +463,8 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
         result.setdefault("agent_states",[]).append({"step":step+1,"state":auth_state,"url":page.url})
         state["workflow_state"]=auth_state
         state["authentication_policy"]="Try existing-account sign-in first. Create an account only after no-account evidence or when no sign-in path exists. After email verification, return to sign-in/application and continue."
+        if _deterministic_auth_step(page,state,result):
+            continue
         # Dismiss generic cookie consent chrome deterministically. It is not an
         # application answer and should not consume/fail an LLM action.
         cookie_done=False
