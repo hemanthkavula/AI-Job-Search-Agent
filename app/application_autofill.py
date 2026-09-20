@@ -292,8 +292,11 @@ def _agent_page_state(page,item,profile,allow_submit):
             label=_label(el)
             txt=(el.inner_text() if tag in ("button","a") else "") or ""
             if _norm(aid)=="beecatcher" or _norm(name)=="website" or "robots only" in _norm(label):continue
+            obs_id=f"agent-{len(controls)}"
+            try:el.evaluate("(e,v)=>e.setAttribute('data-agent-observation-id',v)",obs_id)
+            except Exception:pass
             xpath=el.evaluate("""(e)=>{let p='';for(let n=e;n&&n.nodeType===1;n=n.parentElement){let i=1;for(let s=n.previousElementSibling;s;s=s.previousElementSibling){if(s.tagName===n.tagName)i++}p='/' + n.tagName.toLowerCase()+'['+i+']'+p;if(n===document.body)break;}return '/html[1]'+p;}""")
-            controls.append({"handle":f"control:{len(controls)}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","xpath":xpath,"label":label[:240],"text":txt[:160],"filled":bool(el.input_value()) if tag in ("input","textarea") and typ not in ("checkbox","radio","file","submit","button") else (el.is_checked() if typ in ("checkbox","radio") else None)})
+            controls.append({"handle":f"control:{len(controls)}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","observation_id":obs_id,"xpath":xpath,"label":label[:240],"text":txt[:160],"filled":bool(el.input_value()) if tag in ("input","textarea") and typ not in ("checkbox","radio","file","submit","button") else (el.is_checked() if typ in ("checkbox","radio") else None)})
         except Exception:pass
     body=page.locator("body").inner_text(timeout=8000)
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
@@ -328,6 +331,16 @@ def _agent_find_target(page,target,observed_controls=None):
         wanted=int(m.group(1));obs=(observed_controls or [])
         if wanted>=len(obs):return None
         meta=obs[wanted]
+
+        # The browser tags each visible control during observation. Resolve that
+        # exact live node first; this is generated per render and contains no
+        # ATS/provider-specific knowledge.
+        obs_id=(meta.get("observation_id") or "").strip()
+        if obs_id:
+            try:
+                x=page.locator(f'[data-agent-observation-id="{obs_id}"]')
+                if x.count()==1 and x.is_visible():return x
+            except Exception:pass
 
         # First try the exact element path captured from this rendered observation.
         # This is ephemeral observation data, not a provider-specific selector.
@@ -583,11 +596,12 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
                 return {"handled":False,"reason":f"Email verification could not continue automatically: {exc}","steps":step+1}
 
         signature=json.dumps([page.url,decision.get("action"),decision.get("target"),decision.get("value")],sort_keys=True)
-        if signature in seen[-3:]:
-            return {"handled":False,"reason":"Agent repeated the same action without page progress","steps":step+1}
         seen.append(signature)
         if not _agent_execute(page,decision,resume,result,allow_submit,state.get("controls")):
-            result.setdefault("agent_actions",[]).append({"action":"REOBSERVE","reason":"Observed control changed or could not be resolved; render the page again rather than terminating"})
+            failures=sum(1 for a in result.get("agent_actions",[]) if a.get("action")=="REOBSERVE")
+            result.setdefault("agent_actions",[]).append({"action":"REOBSERVE","reason":"Observed control could not be executed; capture a fresh rendered page and reason again"})
+            if failures>=2:
+                return {"handled":False,"reason":"Three consecutive rendered-page actions could not be executed","steps":step+1}
             page.wait_for_timeout(500)
             continue
     return {"handled":False,"reason":"Agent step limit reached","steps":max_steps}
