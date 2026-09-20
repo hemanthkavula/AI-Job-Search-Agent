@@ -10,7 +10,12 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     rows=[validate_source(x["company"],x["search_url"],x["job_url_pattern"],timeout)
           for x in cfg.get("career_site",[])]
     counts={}
-    for row in rows: counts[row["status"]]=counts.get(row["status"],0)+1
+    for row in rows:
+        effective=row["status"]
+        if effective=="ok" and row.get("matching_job_links",0)==0:
+            effective="no_crawlable_links"
+        row["effective_status"]=effective
+        counts[effective]=counts.get(effective,0)+1
     return {"counts":counts,"sources":rows}
 
 if __name__=="__main__":
@@ -24,6 +29,6 @@ if __name__=="__main__":
     out.write_text(json.dumps(report,indent=2),encoding="utf-8")
     print(json.dumps(report["counts"],indent=2))
     for r in report["sources"]:
-        if r["status"]!="ok" or r.get("matching_job_links",0)==0:
-            print(f'{r["status"]:22} {r["company"]}: {r["search_url"]} links={r.get("matching_job_links","?")} http={r.get("http_status")}')
+        if r["effective_status"]!="ok":
+            print(f'{r["effective_status"]:22} {r["company"]}: {r["search_url"]} links={r.get("matching_job_links","?")} http={r.get("http_status")}')
     print(f"Saved report to {out}")
