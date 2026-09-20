@@ -64,7 +64,9 @@ def validate_source(company: str, search_url: str, job_url_pattern: str, timeout
             result["http_status"]=getattr(resp,"status",None)
             body=resp.read(250000).decode("utf-8","replace")
         result["status"]="ok" if result["http_status"] in (None,200) else "http_error"
-        normalized_pattern=job_url_pattern.replace("\\\\\\\\", "\\\\")\n        rx=re.compile(normalized_pattern,re.I)\n        hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
+        normalized_pattern=job_url_pattern.replace("\\\\", "\\")
+        rx=re.compile(normalized_pattern,re.I)
+        hrefs=re.findall(r"href=[\'\\\"]([^\'\\\"]+)[\'\\\"]",body,re.I)
         result["matching_job_links"]=sum(1 for h in hrefs if rx.search(urljoin(search_url,html.unescape(h))))
     except HTTPError as exc:
         result["http_status"]=exc.code
