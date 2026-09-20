@@ -699,6 +699,26 @@
       "company": "Motion Recruitment",
       "search_url": "https://motionrecruitment.com/tech-jobs/data-engineering",
       "job_url_pattern": "motionrecruitment\\.com/tech-jobs/.+"
+    },
+    {
+      "company": "Randstad Digital",
+      "search_url": "https://www.randstadusa.com/jobs/q-data-engineer/",
+      "job_url_pattern": "randstadusa\\.com/jobs/[0-9]+/[0-9]+/[^/]+/"
+    },
+    {
+      "company": "Compunnel",
+      "search_url": "https://www.compunnel.com/job-search/",
+      "job_url_pattern": "(?:compunnel\\.com|jobsbackup\\.compunnel\\.com)/.+(?:job|Job).+"
+    },
+    {
+      "company": "Insight Global",
+      "search_url": "https://jobs.insightglobal.com/jobs/find_a_job/?srch=data%20engineer",
+      "job_url_pattern": "jobs\\.insightglobal\\.com/jobs/.+"
+    },
+    {
+      "company": "Apex Systems",
+      "search_url": "https://www.apexsystems.com/search?search=data%20engineer",
+      "job_url_pattern": "apexsystems\\.com/job/.+"
     }
   ],
   "eightfold": [
