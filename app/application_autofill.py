@@ -404,7 +404,10 @@ def _auth_state(text,controls):
     has_signin=any(any(t in _norm((c.get("text") or "")+" "+(c.get("label") or "")) for t in ("sign in","log in","login")) for c in controls)
     no_account=any(t in x for t in ("account does not exist","account doesn t exist","no account found","couldn t find your account","cannot find your account","email address is not registered","not registered"))
     if no_account:return "ACCOUNT_NOT_FOUND"
-    if len(password_fields)>=2 and has_create:return "CREATE_ACCOUNT"
+    # A visible create-account form often also contains an "Already have an
+    # account? Sign In" link. Two password fields (password + confirmation)
+    # identify account creation and must take precedence over that link.
+    if len(password_fields)>=2:return "CREATE_ACCOUNT"
     if password_fields and has_signin:return "SIGN_IN"
     if has_signin:return "SIGN_IN_AVAILABLE"
     if has_create:return "CREATE_ACCOUNT_AVAILABLE"
@@ -479,9 +482,19 @@ def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_s
         if cookie_done:
             continue
 
-        # Email activation is a resumable workflow state, not a manual blocker.
-        # Gmail credentials/tokens and verification codes never go to the LLM.
-        if email_verification_required(state["visible_text"]):
+        # Email activation is a resumable workflow state, but only after the
+        # rendered page actually indicates that verification was SENT/REQUESTED.
+        # Do not confuse static account copy such as "Email Address" + "Verify
+        # New Password" with an email-verification challenge.
+        verification_signal=bool(re.search(
+            r"(verification|activation|confirmation)\\s+(email|message)\\s+(?:has\\s+been\\s+)?sent|"
+            r"(?:we|we ve|we have)\\s+sent.{0,80}(?:email|verification)|"
+            r"check\\s+(?:your\\s+)?(?:email|inbox)|"
+            r"verify\\s+(?:your\\s+)?email|"
+            r"click.{0,60}(?:link|button).{0,60}(?:email|message)",
+            state["visible_text"],re.I|re.S
+        ))
+        if verification_signal:
             result.setdefault("agent_states",[]).append({"step":step+1,"state":"EMAIL_VERIFICATION_REQUIRED","url":page.url})
             try:
                 creds=_application_credentials()
