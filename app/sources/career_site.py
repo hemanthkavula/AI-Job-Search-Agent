@@ -2,6 +2,7 @@ from __future__ import annotations
 import html, json, re
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 UA={"User-Agent":"AI-Job-Search-Agent/0.7","Accept":"text/html,application/xhtml+xml"}
 
@@ -54,3 +55,27 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
           "updated_at":j.get("datePosted") or j.get("validThrough")})
     print(f"CareerSite / {company}: {len(out)} DE jobs",flush=True)
     return out
+
+
+def validate_source(company: str, search_url: str, job_url_pattern: str, timeout: int = 12) -> dict:
+    """Validate a configured career source without treating anti-bot blocks as 404s."""
+    result={"company":company,"search_url":search_url,"status":"unknown","http_status":None,"error":None}
+    try:
+        with urlopen(Request(search_url,headers=UA),timeout=timeout) as resp:
+            result["http_status"]=getattr(resp,"status",None)
+            body=resp.read(250000).decode("utf-8","replace")
+        result["status"]="ok" if result["http_status"] in (None,200) else "http_error"
+        rx=re.compile(job_url_pattern,re.I)
+        hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
+        result["matching_job_links"]=sum(1 for h in hrefs if rx.search(urljoin(search_url,html.unescape(h))))
+    except HTTPError as exc:
+        result["http_status"]=exc.code
+        result["status"]="broken" if exc.code in (404,410) else "blocked_or_http_error"
+        result["error"]=str(exc)
+    except (URLError,TimeoutError,OSError) as exc:
+        result["status"]="unreachable"
+        result["error"]=str(exc)
+    except re.error as exc:
+        result["status"]="invalid_pattern"
+        result["error"]=str(exc)
+    return result
