@@ -8,7 +8,7 @@ except ImportError:
     ZoneInfo=None
     ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
-from app.application_autofill import run as run_applications
+from app.skyvern_application_agent import run as run_applications
 from app.application_queue import _application_gate
 from app.config import load_profile
 from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due, _lookup
@@ -187,7 +187,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         summary["application_retries_queued"]=retry_added
         summary["queued_for_application"]=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in merged_queue)
     if apply_ready and queue_path and summary.get("queued_for_application",0):
-        output=f"generated/cycles/{summary['cycle_id']}_application_results.json"
+        output=f"generated/cycles/{summary['cycle_id']}_skyvern_application_results.json"
         # Persist work before opening the browser. A restart can safely recover
         # pre-submit interruptions from this exact queue payload.
         queue_rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
