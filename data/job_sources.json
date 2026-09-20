@@ -719,6 +719,41 @@
       "company": "Apex Systems",
       "search_url": "https://www.apexsystems.com/search?search=data%20engineer",
       "job_url_pattern": "apexsystems\\.com/job/.+"
+    },
+    {
+      "company": "TEKsystems",
+      "search_url": "https://careers.teksystems.com/us/en/search-results?keywords=data%20engineer",
+      "job_url_pattern": "careers\\.teksystems\\.com/.+/job/.+"
+    },
+    {
+      "company": "Net2Source",
+      "search_url": "https://net2source.jobs.net/jobs?keywords=data%20engineer",
+      "job_url_pattern": "net2source\\.jobs\\.net/job/.+"
+    },
+    {
+      "company": "LanceSoft",
+      "search_url": "https://careers.lancesoft.com/search/?keyword=data%20engineer",
+      "job_url_pattern": "careers\\.lancesoft\\.com/.+/job/.+"
+    },
+    {
+      "company": "SPECTRAFORCE",
+      "search_url": "https://spectraforce.com/careers/find-a-job",
+      "job_url_pattern": "spectraforce\\.com/careers/jobs/.+"
+    },
+    {
+      "company": "V-Soft Consulting",
+      "search_url": "https://www.vsoftconsulting.com/career-portal/",
+      "job_url_pattern": "vsoftconsulting\\.com/.+(?:job|career).+"
+    },
+    {
+      "company": "Mindlance",
+      "search_url": "https://mindlance.com/careers/",
+      "job_url_pattern": "mindlance\\.com/.+(?:job|career).+"
+    },
+    {
+      "company": "Artech",
+      "search_url": "https://www.artech.com/careers/",
+      "job_url_pattern": "artech\\.com/.+(?:job|career).+"
     }
   ],
   "eightfold": [
