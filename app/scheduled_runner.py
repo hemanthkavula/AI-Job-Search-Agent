@@ -9,6 +9,8 @@ except ImportError:
     ZoneInfoNotFoundError=Exception
 from app.production_cycle import run_cycle
 from app.application_autofill import run as run_applications
+from app.application_queue import _application_gate
+from app.config import load_profile
 from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due, _lookup
 
 def _eastern_tz():
@@ -189,6 +191,32 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         # Persist work before opening the browser. A restart can safely recover
         # pre-submit interruptions from this exact queue payload.
         queue_rows=json.loads((ROOT/queue_path).read_text(encoding="utf-8"))
+        # Defense in depth: stale/manually edited/retry queues must pass the same
+        # U.S.-only, Full-Time/W-2, experience, sponsorship, citizenship and
+        # clearance gate again immediately before browser automation.
+        profile=load_profile()
+        blocked_pre_submit=[]
+        safe_queue=[]
+        for queue_item in queue_rows:
+            if queue_item.get("status")!="READY_FOR_ATS_ADAPTER":
+                safe_queue.append(queue_item);continue
+            gate_ok,gate_reasons=_application_gate(queue_item,profile)
+            if gate_ok:
+                safe_queue.append(queue_item)
+            else:
+                blocked=dict(queue_item)
+                blocked["status"]="MANUAL_ACTION_REQUIRED"
+                blocked["status_reason"]="Pre-submit eligibility gate blocked application: "+"; ".join(gate_reasons)
+                safe_queue.append(blocked)
+                blocked_pre_submit.append({"external_id":queue_item.get("external_id"),"reasons":gate_reasons})
+        queue_rows=safe_queue
+        (ROOT/queue_path).write_text(json.dumps(queue_rows,indent=2),encoding="utf-8")
+        summary["pre_submit_gate_blocked"]=len(blocked_pre_submit)
+        summary["pre_submit_gate_rejections"]=blocked_pre_submit
+        summary["queued_for_application"]=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue_rows)
+        if not summary["queued_for_application"]:
+            summary["application_stage_enabled"]=True
+            summary["applications_processed"]=0
         app_ledger=load_ledger(ledger)
         for queue_item in queue_rows:
             if queue_item.get("status")!="READY_FOR_ATS_ADAPTER":continue
