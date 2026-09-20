@@ -682,5 +682,15 @@
       "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
       "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
     }
+  ],
+  "eightfold": [
+    {
+      "company": "Netflix",
+      "careers_url": "https://explore.jobs.netflix.net/careers"
+    },
+    {
+      "company": "Microsoft",
+      "careers_url": "https://apply.careers.microsoft.com/careers?domain=microsoft.com"
+    }
   ]
 }
