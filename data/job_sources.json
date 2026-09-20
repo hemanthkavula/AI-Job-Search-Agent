@@ -671,10 +671,6 @@
       "base_url": "https://careers.hcltech.com"
     },
     {
-      "company": "LTIMindtree",
-      "base_url": "https://careers.ltimindtree.com"
-    },
-    {
       "company": "Ernst & Young (EY)",
       "base_url": "https://careers.ey.com"
     }
@@ -1114,6 +1110,11 @@
       "company": "Comcast",
       "search_url": "https://jobs.comcast.com/search-jobs?k=data%20engineer",
       "job_url_pattern": "jobs\\.comcast\\.com/job/"
+    },
+    {
+      "company": "LTIMindtree",
+      "search_url": "https://www.ltm.com/us-careers",
+      "job_url_pattern": "(?:ltm\\.com|careers\\.ltimindtree\\.com)/.+"
     }
   ],
   "eightfold": [
