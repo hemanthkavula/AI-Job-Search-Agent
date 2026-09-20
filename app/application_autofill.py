@@ -235,6 +235,144 @@ def _auth_action(scope, result):
     except Exception as exc:
         return {"handled":False,"reason":str(exc)}
 
+AGENT_SYSTEM_PROMPT = """You are a browser application agent. Decide the next safe action from the CURRENT page only.
+Goal: advance a job application using the supplied candidate profile and already-generated resume.
+Never invent candidate facts. Never answer demographic/disability/veteran/self-identification questions unless a deterministic answer is explicitly present in profile. Never bypass CAPTCHA/MFA. Never interact with honeypot/robot fields. Never submit unless allow_submit is true.
+Return JSON only:
+{"action":"fill|click|select|upload_resume|wait|stop","target":"stable selector hint or exact visible label","value":"value when needed","reason":"short reason","terminal":false}
+Use one action at a time. Prefer data-automation-id/name/id/label/text visible in controls. For final submission use action=click only when the control clearly means final submit.
+"""
+
+def _agent_api_call(state):
+    """Ask the configured LLM for exactly one page-grounded browser action."""
+    key=os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
+    if not key:return None
+    from urllib import request as _urlrequest, error as _urlerror
+    endpoint=os.getenv("APPLICATION_AGENT_ENDPOINT","https://api.openai.com/v1/responses")
+    model=os.getenv("APPLICATION_AGENT_MODEL",os.getenv("RESUME_LLM_MODEL","gpt-5.6"))
+    body=json.dumps({"model":model,"instructions":AGENT_SYSTEM_PROMPT,"input":json.dumps(state),"max_output_tokens":800}).encode("utf-8")
+    req=_urlrequest.Request(endpoint,data=body,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},method="POST")
+    try:
+        with _urlrequest.urlopen(req,timeout=90) as resp:payload=json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"action":"stop","reason":f"agent API error: {exc}","terminal":False}
+    txt=payload.get("output_text") or ""
+    if not txt:
+        chunks=[]
+        for item in payload.get("output",[]):
+            for part in item.get("content",[]):
+                if part.get("type")=="output_text" and part.get("text"):chunks.append(part["text"])
+        txt="".join(chunks)
+    try:return json.loads(txt)
+    except Exception:return {"action":"stop","reason":"agent returned invalid JSON","terminal":False}
+
+def _agent_page_state(page,item,profile,allow_submit):
+    """Compact live observation. Password values are never exposed to the model."""
+    controls=[]
+    loc=page.locator("input, textarea, select, button, [role=button], a")
+    for i in range(min(loc.count(),120)):
+        el=loc.nth(i)
+        try:
+            if not el.is_visible():continue
+            tag=el.evaluate("(e)=>e.tagName.toLowerCase()")
+            typ=(el.get_attribute("type") or "").lower()
+            aid=el.get_attribute("data-automation-id") or ""
+            name=el.get_attribute("name") or ""
+            label=_label(el)
+            txt=(el.inner_text() if tag in ("button","a") else "") or ""
+            if _norm(aid)=="beecatcher" or _norm(name)=="website" or "robots only" in _norm(label):continue
+            controls.append({"i":i,"tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160]})
+        except Exception:pass
+    body=page.locator("body").inner_text(timeout=8000)
+    safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
+    return {"job":{"company":item.get("company"),"title":item.get("title")},"url":page.url,"visible_text":body[:9000],"controls":controls,"candidate":safe_profile,"allow_submit":bool(allow_submit)}
+
+def _agent_find_target(page,target):
+    t=(target or "").strip()
+    if not t:return None
+    selectors=[
+        f'[data-automation-id="{t}"]',f'[name="{t}"]',f'#{t}',
+        f'input[aria-label="{t}"]',f'textarea[aria-label="{t}"]'
+    ]
+    for s in selectors:
+        try:
+            x=page.locator(s).first
+            if x.count() and x.is_visible():return x
+        except Exception:pass
+    for role in ("button","link","textbox","combobox","checkbox"):
+        try:
+            x=page.get_by_role(role,name=t,exact=True).first
+            if x.count() and x.is_visible():return x
+        except Exception:pass
+    try:
+        x=page.get_by_text(t,exact=True).first
+        if x.count() and x.is_visible():return x
+    except Exception:pass
+    return None
+
+def _agent_execute(page,decision,resume,result,allow_submit):
+    action=_norm(decision.get("action"));target=decision.get("target") or "";value=decision.get("value")
+    if action in ("stop","wait"):return False
+    el=_agent_find_target(page,target)
+    if el is None:return False
+    try:
+        aid=_norm(el.get_attribute("data-automation-id") or "");name=_norm(el.get_attribute("name") or "");label=_norm(_label(el))
+        if aid=="beecatcher" or name=="website" or "robots only" in label:return False
+        if action=="upload resume" or action=="upload_resume":
+            el.set_input_files(str(resume.resolve()))
+        elif action=="fill":
+            typ=(el.get_attribute("type") or "").lower()
+            # Credentials stay local; the LLM never needs the password itself.
+            if typ=="password":
+                creds=_application_credentials()
+                value=creds["password"]
+            elif aid=="email" and not value:
+                value=_application_credentials()["email"]
+            if value in (None,""):return False
+            el.fill(str(value))
+        elif action=="select":
+            if value in (None,""):return False
+            try:el.select_option(label=str(value))
+            except Exception:el.select_option(value=str(value))
+        elif action=="click":
+            txt=_norm((el.inner_text() or "")+" "+_label(el))
+            final=any(x in txt for x in ("submit application","send application","complete application"))
+            if final and not allow_submit:return False
+            el.click(timeout=5000)
+        else:return False
+        result.setdefault("agent_actions",[]).append({"action":action,"target":target,"reason":decision.get("reason","")})
+        page.wait_for_timeout(900)
+        return True
+    except Exception as exc:
+        result.setdefault("agent_errors",[]).append({"decision":decision,"error":str(exc)})
+        return False
+
+def _agentic_application_loop(page,item,profile,resume,result,allow_submit,max_steps=35):
+    """Observe -> reason -> act -> verify loop. Reuses the persisted resume; never regenerates it."""
+    if not (os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")):
+        return {"handled":False,"reason":"No application-agent API key configured"}
+    seen=[]
+    for step in range(max_steps):
+        confirmation=_submission_confirmation(page)
+        if confirmation.get("confirmed"):
+            result["submitted"]=True;result["submission_confirmation"]=confirmation;result["status"]="SUBMITTED"
+            return {"handled":True,"submitted":True,"steps":step}
+        state=_agent_page_state(page,item,profile,allow_submit)
+        if BLOCKER_RE.search(state["visible_text"]):
+            return {"handled":False,"reason":"CAPTCHA/MFA/verification challenge detected","steps":step}
+        decision=_agent_api_call(state)
+        result.setdefault("agent_decisions",[]).append({"step":step+1,**(decision or {})})
+        if not decision:return {"handled":False,"reason":"No agent decision","steps":step}
+        if _norm(decision.get("action"))=="stop":
+            return {"handled":False,"reason":decision.get("reason","agent stopped"),"steps":step+1}
+        signature=json.dumps([page.url,decision.get("action"),decision.get("target"),decision.get("value")],sort_keys=True)
+        if signature in seen[-3:]:
+            return {"handled":False,"reason":"Agent repeated the same action without progress","steps":step+1}
+        seen.append(signature)
+        if not _agent_execute(page,decision,resume,result,allow_submit):
+            return {"handled":False,"reason":"Agent action could not be executed safely","decision":decision,"steps":step+1}
+    return {"handled":False,"reason":"Agent step limit reached","steps":max_steps}
+
 def _identity(profile):
     parts=(profile.get("name") or "").split()
     contact=profile.get("contact") or {}
@@ -1307,6 +1445,13 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
                         return result
                 else:
                     result["blockers"].append("CAPTCHA/MFA/verification challenge detected");result["status"]="MANUAL_ACTION_REQUIRED";return result
+            if agentic:
+                result["agentic_execution"]=_agentic_application_loop(page,item,profile,resume,result,allow_submit)
+                if result.get("submitted"):
+                    return result
+                result["status"]="MANUAL_ACTION_REQUIRED"
+                result["reason"]=result["agentic_execution"].get("reason","Agent stopped without confirmed submission")
+                return result
             if provider=="dice":
                 result["dice_resume_upload"]=_dice_resume_upload(page,resume,result)
                 if result["dice_resume_upload"].get("handled") and not result["dice_resume_upload"].get("verified"):
@@ -1379,14 +1524,14 @@ def autofill(item:dict,headless=True,review_seconds=0,inspect_only=False,wait_fo
             browser.close()
     return result
 
-def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None):
+def run(queue_path="generated/application_queue.json",output="generated/application_autofill.json",limit=None,headless=True,review_seconds=0,inspect_only=False,wait_for_human_seconds=0,allow_submit=False,before_submit=None,agentic=False):
     rows=json.loads(Path(queue_path).read_text(encoding="utf-8"));results=[]
     for item in rows:
         if item.get("status")!="READY_FOR_ATS_ADAPTER":continue
         if limit is not None and len(results)>=limit:break
-        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds,allow_submit,before_submit))
+        results.append(autofill(item,headless,review_seconds,inspect_only,wait_for_human_seconds,allow_submit,before_submit,agentic))
     p=Path(output);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(results,indent=2),encoding="utf-8");return results
 
 if __name__=="__main__":
-    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");ap.add_argument("--wait-for-human-seconds",type=int,default=0,help="In headed mode, keep the same browser session open for CAPTCHA/MFA completion, then resume automatically.");ap.add_argument("--allow-submit",action="store_true",help="Explicitly authorize clicking an unambiguous final application submit control. Success is recorded only after confirmation evidence.");a=ap.parse_args()
-    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only,a.wait_for_human_seconds,a.allow_submit);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
+    ap=argparse.ArgumentParser();ap.add_argument("--queue",default="generated/application_queue.json");ap.add_argument("--output",default="generated/application_autofill.json");ap.add_argument("--limit",type=int);ap.add_argument("--headed",action="store_true");ap.add_argument("--review-seconds",type=int,default=0);ap.add_argument("--inspect-only",action="store_true",help="Open and analyze the landing page without filling, uploading, clicking Apply, advancing, or submitting.");ap.add_argument("--wait-for-human-seconds",type=int,default=0,help="In headed mode, keep the same browser session open for CAPTCHA/MFA completion, then resume automatically.");ap.add_argument("--allow-submit",action="store_true",help="Explicitly authorize clicking an unambiguous final application submit control. Success is recorded only after confirmation evidence.");ap.add_argument("--agentic",action="store_true",help="Use the page-grounded observe/reason/act application agent instead of provider-specific form rules.");a=ap.parse_args()
+    rows=run(a.queue,a.output,a.limit,not a.headed,a.review_seconds,a.inspect_only,a.wait_for_human_seconds,a.allow_submit,None,a.agentic);print(json.dumps({"processed":len(rows),"autofilled_review_required":sum(x["status"]=="AUTOFILLED_REVIEW_REQUIRED" for x in rows),"manual_action":sum(x["status"]=="MANUAL_ACTION_REQUIRED" for x in rows),"output":a.output},indent=2))
