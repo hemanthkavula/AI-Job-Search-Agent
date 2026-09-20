@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
-UA={"User-Agent":"AI-Job-Search-Agent/0.7","Accept":"text/html,application/xhtml+xml"}
+UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8","Accept-Language":"en-US,en;q=0.9"}
 
 def _get(url: str, timeout: int = 20) -> str:
     with urlopen(Request(url,headers=UA),timeout=timeout) as resp:
