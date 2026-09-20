@@ -436,13 +436,6 @@
       "locale": "en-US"
     },
     {
-      "company": "Comcast",
-      "host": "comcast.wd5.myworkdayjobs.com",
-      "tenant": "comcast",
-      "site": "Comcast_Careers",
-      "locale": "en-US"
-    },
-    {
       "company": "Egencia",
       "host": "travelhrportal.wd1.myworkdayjobs.com",
       "tenant": "travelhrportal",
@@ -1117,6 +1110,11 @@
       "company": "Marqeta",
       "search_url": "https://www.marqeta.com/company/careers",
       "job_url_pattern": "marqeta\\.com/careers/[0-9a-f-]+"
+    },
+    {
+      "company": "Comcast",
+      "search_url": "https://jobs.comcast.com/search-jobs?k=data%20engineer",
+      "job_url_pattern": "jobs\\.comcast\\.com/job/"
     }
   ],
   "eightfold": [
