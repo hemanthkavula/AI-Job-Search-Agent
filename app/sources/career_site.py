@@ -17,12 +17,20 @@ def _plain(value: str) -> str:
     return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
 
 def _jsonld(body: str) -> dict:
-    pat=r"<script[^>]+type=['\\\"]application/ld\\+json['\\\"][^>]*>(.*?)</script>"
-    for raw in re.findall(pat,body,re.I|re.S):
-        try:data=json.loads(html.unescape(raw.strip()))
-        except Exception:continue
-        for row in (data if isinstance(data,list) else [data]):
-            if isinstance(row,dict) and row.get("@type")=="JobPosting":return row
+    pat = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+    for raw in re.findall(pat, body, re.I | re.S):
+        try:
+            data = json.loads(html.unescape(raw.strip()))
+        except Exception:
+            continue
+        rows = data if isinstance(data, list) else [data]
+        for row in rows:
+            if isinstance(row, dict) and row.get("@type") == "JobPosting":
+                return row
+            if isinstance(row, dict) and isinstance(row.get("@graph"), list):
+                for node in row["@graph"]:
+                    if isinstance(node, dict) and node.get("@type") == "JobPosting":
+                        return node
     return {}
 
 def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int = 20) -> list[dict]:
