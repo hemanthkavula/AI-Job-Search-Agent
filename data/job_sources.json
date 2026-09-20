@@ -837,7 +837,7 @@
     },
     {
       "company": "TEKsystems",
-      "search_url": "https://careers.teksystems.com/us/en/search-results?keywords=data%20engineer",
+      "search_url": "https://careers.teksystems.com/us/en/search-results",
       "job_url_pattern": "careers\\.teksystems\\.com/.+/job/.+"
     },
     {
@@ -927,7 +927,7 @@
     },
     {
       "company": "PwC",
-      "search_url": "https://jobs.us.pwc.com/search-jobs/data%20engineer",
+      "search_url": "https://jobs-us.pwc.com/us/en",
       "job_url_pattern": "jobs\\.us\\.pwc\\.com/.+"
     },
     {
@@ -942,7 +942,7 @@
     },
     {
       "company": "Caremark",
-      "search_url": "https://jobs.cvshealth.com/us/en/search-results?keywords=data%20engineer",
+      "search_url": "https://jobs.cvshealth.com/us/en",
       "job_url_pattern": "jobs\\.cvshealth\\.com/.+"
     },
     {
@@ -1004,16 +1004,6 @@
       "company": "Zensar Technologies",
       "search_url": "https://www.zensar.com/careers",
       "job_url_pattern": "zensar\\.com/.+careers.+"
-    },
-    {
-      "company": "Experis",
-      "search_url": "https://www.experis.com/en/search-jobs",
-      "job_url_pattern": "experis\\.com/.+(?:job|jobs).+"
-    },
-    {
-      "company": "Akkodis",
-      "search_url": "https://www.akkodis.com/en-us/careers/jobs",
-      "job_url_pattern": "akkodis\\.com/.+(?:job|jobs).+"
     },
     {
       "company": "Collabera",
