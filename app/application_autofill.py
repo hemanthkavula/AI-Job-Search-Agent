@@ -282,7 +282,7 @@ def _agent_page_state(page,item,profile,allow_submit):
             label=_label(el)
             txt=(el.inner_text() if tag in ("button","a") else "") or ""
             if _norm(aid)=="beecatcher" or _norm(name)=="website" or "robots only" in _norm(label):continue
-            controls.append({"handle":f"control:{i}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160],"filled":bool(el.input_value()) if tag in ("input","textarea") and typ not in ("checkbox","radio","file","submit","button") else (el.is_checked() if typ in ("checkbox","radio") else None)})
+            controls.append({"handle":f"control:{len(controls)}","tag":tag,"type":typ,"automation_id":aid,"name":name,"id":el.get_attribute("id") or "","label":label[:240],"text":txt[:160],"filled":bool(el.input_value()) if tag in ("input","textarea") and typ not in ("checkbox","radio","file","submit","button") else (el.is_checked() if typ in ("checkbox","radio") else None)})
         except Exception:pass
     body=page.locator("body").inner_text(timeout=8000)
     safe_profile={"name":profile.get("name"),"contact":profile.get("contact"),"work_authorization":profile.get("work_authorization"),"application_answers":profile.get("application_answers")}
@@ -293,11 +293,19 @@ def _agent_find_target(page,target):
     if not t:return None
     m=re.fullmatch(r"control:(\\d+)",t,re.I)
     if m:
+        wanted=int(m.group(1));visible=[]
         loc=page.locator("input, textarea, select, button, [role=button], a")
-        i=int(m.group(1))
-        try:
-            if i<loc.count() and loc.nth(i).is_visible():return loc.nth(i)
-        except Exception:pass
+        for i in range(min(loc.count(),120)):
+            try:
+                el=loc.nth(i)
+                if not el.is_visible():continue
+                aid=_norm(el.get_attribute("data-automation-id") or "")
+                name=_norm(el.get_attribute("name") or "")
+                label=_norm(_label(el))
+                if aid=="beecatcher" or name=="website" or "robots only" in label:continue
+                visible.append(el)
+            except Exception:pass
+        if wanted<len(visible):return visible[wanted]
         return None
     # Compatibility: if the model returns a concrete CSS selector visible in the
     # observation, resolve it directly instead of treating the entire selector as
@@ -355,7 +363,11 @@ def _agent_execute(page,decision,resume,result,allow_submit):
             txt=_norm((el.inner_text() or "")+" "+_label(el))
             final=any(x in txt for x in ("submit application","send application","complete application"))
             if final and not allow_submit:return False
-            el.click(timeout=5000)
+            typ=(el.get_attribute("type") or "").lower()
+            if typ=="checkbox":
+                if not el.is_checked():el.check(force=True)
+            else:
+                el.click(timeout=5000)
         else:return False
         result.setdefault("agent_actions",[]).append({"action":action,"target":target,"reason":decision.get("reason","")})
         page.wait_for_timeout(900)
