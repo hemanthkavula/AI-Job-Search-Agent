@@ -1,0 +1,63 @@
+name: Production Job Search
+
+on:
+  schedule:
+    # GitHub cron is UTC. Run 11:00-23:00 UTC so the existing
+    # America/New_York gate remains authoritative across DST changes.
+    - cron: "0 11-23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-job-search
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      RESUME_LLM_MODEL: gpt-5.6
+
+    steps:
+      - name: Check out frozen pipeline
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore persistent runtime state
+        uses: actions/cache/restore@v4
+        with:
+          path: generated
+          key: production-state-${{ github.run_id }}
+          restore-keys: |
+            production-state-
+
+      - name: Run scheduled pipeline
+        run: python -m app.scheduled_runner --limit 5
+
+      - name: Preserve persistent runtime state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: generated
+          key: production-state-${{ github.run_id }}
+
+      - name: Upload generated output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-output-${{ github.run_id }}
+          path: generated/
+          if-no-files-found: warn
+          retention-days: 30
