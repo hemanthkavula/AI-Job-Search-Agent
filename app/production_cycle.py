@@ -49,7 +49,7 @@ def _sync_manifest(rows,ledger_path):
      "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
      "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
      "resume_path":pdf_path,"artifact_validation":row.get("artifact_validation"),
-     "status":"READY_FOR_ATS_ADAPTER",
+     "status":"READY_TO_APPLY_MANUALLY",
     }
     if queue_payload.get("external_id"):extra["queue_item"]=queue_payload
    else:
@@ -111,7 +111,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "eligible_report":eligible_rel,"finalized_report":finalized_rel,
           "manifest":manifest_rel if generate_resumes else None,
           "application_queue":queue_rel if manifest else None,
-          "queued_for_application":sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue),
+          "queued_for_application":sum(x.get("status")=="READY_TO_APPLY_MANUALLY" for x in queue),
           "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
           "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
