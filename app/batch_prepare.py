@@ -35,6 +35,11 @@ def _discard_resume_artifact(resume_path):
         try:os.chmod(path,stat.S_IWRITE)
         except OSError:pass
 
+    def _onexc(func,path,exc):
+        _writable(path)
+        try:func(path)
+        except OSError:raise exc
+
     def _onerror(func,path,exc_info):
         _writable(path)
         try:func(path)
@@ -46,7 +51,7 @@ def _discard_resume_artifact(resume_path):
             _writable(parent)
             for attempt in range(3):
                 try:
-                    try:shutil.rmtree(parent,onexc=_onerror)
+                    try:shutil.rmtree(parent,onexc=_onexc)
                     except TypeError:shutil.rmtree(parent,onerror=_onerror)
                     break
                 except PermissionError:
