@@ -154,9 +154,11 @@ def _pdf_text(pdf_path: str) -> tuple[str, int]:
 
 
 def _tokens(text: str) -> list[str]:
-    # Token parity tolerates harmless PDF extraction differences in bullets,
-    # punctuation, Unicode dashes, and line wrapping without weakening content checks.
-    return re.findall(r"[a-z0-9+#./%-]+", text.lower())
+    # PDF extraction can split a source hyphenated word at a rendered line break
+    # (e.g. "e-commerce" -> "e- commerce"). Normalize only that extraction artifact
+    # before token comparison; real words/content are still required for parity.
+    normalized = re.sub(r"(?<=[a-z0-9])-\\s+(?=[a-z0-9])", "-", text.lower())
+    return re.findall(r"[a-z0-9+#./%-]+", normalized)
 
 
 def _paragraph_covered(paragraph: str, pdf_tokens: list[str]) -> bool:
