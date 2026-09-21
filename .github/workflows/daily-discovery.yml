@@ -23,6 +23,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - name: Install LibreOffice for resume PDF validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer
+          soffice --version
       - run: python -m pytest -q
       - name: Restore scheduler, ledger, discovery and source-health state
         uses: actions/cache@v4
