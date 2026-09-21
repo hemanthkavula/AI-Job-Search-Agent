@@ -51,8 +51,18 @@ def _profile_terms(profile):
 def _classify(term,description):
     lines=[x.strip() for x in re.split(r"[\n\r]+|(?<=[.!?])\s+",description or "") if _mentioned(x,term)]
     if not lines:return "mentioned"
-    # Evaluate each mention independently. A technology can appear in both a preferred\n    # sentence and a required/material responsibility; the stronger evidence must win.\n    # This prevents one incidental "preferred" mention from downgrading a core platform.\n    if any(any(c in x.lower() for c in REQUIRED_CUES) for x in lines):return "required"\n    if any(not any(c in x.lower() for c in PREFERRED_CUES + ALTERNATIVE_CUES) for x in lines):return "material"\n    if any(any(c in x.lower() for c in PREFERRED_CUES) for x in lines):return "preferred"
-    if any(any(c in x.lower() for c in ALTERNATIVE_CUES) for x in lines):return "alternative"
+    # Strongest evidence wins across all mentions. A preferred mention cannot
+    # downgrade the same technology when it also appears in a required or
+    # ordinary material responsibility elsewhere in the JD.
+    if any(any(cue in x.lower() for cue in REQUIRED_CUES) for x in lines):return "required"
+    material_lines=[
+        x for x in lines
+        if not any(cue in x.lower() for cue in PREFERRED_CUES)
+        and not any(cue in x.lower() for cue in ALTERNATIVE_CUES)
+    ]
+    if material_lines:return "material"
+    if any(any(cue in x.lower() for cue in PREFERRED_CUES) for x in lines):return "preferred"
+    if any(any(cue in x.lower() for cue in ALTERNATIVE_CUES) for x in lines):return "alternative"
     return "material"
 
 def build_coverage_plan(job,profile):
