@@ -49,6 +49,7 @@ def jd_skill_terms(jd):
     catalog={
       "Python":("python",),"SQL":("sql",),"Scala":("scala",),"Java":("java",),"Go":("golang",),"Rust":("rust",),
       "PySpark":("pyspark",),"Apache Spark":("apache spark","spark"),"Apache Kafka":("apache kafka","kafka"),
+      "Ab Initio":("ab initio","ab-initio"),"Informatica":("informatica","powercenter","informatica powercenter"),
       "Apache Flink":("apache flink","flink"),"Databricks":("databricks",),"Snowflake":("snowflake",),"dbt":("dbt",),
       "Dagster":("dagster",),"Airflow":("airflow",),"Fivetran":("fivetran",),"Airbyte":("airbyte",),
       "Kubernetes":("kubernetes","k8s"),"Docker":("docker",),"Terraform":("terraform",),
