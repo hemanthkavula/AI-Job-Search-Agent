@@ -1,6 +1,12 @@
 name: Hourly Production Job Cycle
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Run the production cycle immediately for a controlled cloud test"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # GitHub cron is UTC. Trigger on the hour across the full ET/EDT envelope;
     # app.scheduled_runner is authoritative for Mon-Fri 07:00-18:59 America/New_York.
@@ -30,7 +36,12 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RESUME_LLM_MODEL: gpt-5.6
-        run: python -m app.scheduled_runner --sources data/job_sources.json --limit 5
+        run: |
+          FORCE_ARG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            FORCE_ARG="--force"
+          fi
+          python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
       - name: Sync application queue to hosted dashboard
         env:
           DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
