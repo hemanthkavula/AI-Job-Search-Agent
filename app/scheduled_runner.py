@@ -166,7 +166,10 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # Workday network windows use the more precise per-tenant values above.
     workday_values=[_parse_state_time(v) for k,v in next_unit_watermarks.items() if k.startswith("workday:")]
     workday_values=[v for v in workday_values if v is not None]
-    if workday_values:
+    # If the whole Workday provider failed, keep its prior provider-level watermark.
+    # Tenant watermarks may still exist from earlier successful runs, but they must
+    # not make a failed provider appear to have advanced.
+    if source_status.get("workday")!="ERROR" and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
     state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks})
     summary["scan_cutoff_local"]=cutoff.isoformat()
