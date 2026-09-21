@@ -6,9 +6,15 @@ function emit(value) {
 }
 
 function modelConfig() {
-  const modelName = process.env.STAGEHAND_MODEL || "qwen3:8b";
+  const rawModel = process.env.STAGEHAND_MODEL || "qwen3:8b";
+  const modelName = rawModel.includes("/") ? rawModel : "openai/" + rawModel;
   const baseURL = process.env.OLLAMA_OPENAI_BASE_URL || "http://127.0.0.1:11434/v1";
-  return { modelName, apiKey: process.env.STAGEHAND_MODEL_API_KEY || "ollama-local", baseURL };
+  return {
+    modelName,
+    apiKey: process.env.STAGEHAND_MODEL_API_KEY || "ollama-local",
+    baseURL,
+    openaiEndpointFormat: "chat",
+  };
 }
 
 async function uploadResume(page, resumePath) {
