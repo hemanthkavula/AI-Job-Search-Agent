@@ -4,7 +4,6 @@ pydantic>=2.12,<3
 python-dotenv==1.1.1
 pytest==8.4.2
 python-docx==1.2.0
-playwright==1.55.0
 reportlab==4.4.4
 mcp>=2,<3
 
@@ -12,7 +11,3 @@ pypdf>=5,<7
 
 # IANA timezone database for reliable Eastern-time scheduling/date fields on Windows and cloud
 tzdata>=2025.2
-
-# Gmail OAuth for unattended ATS account-verification emails
-google-api-python-client>=2.180,<3
-google-auth-oauthlib>=1.2,<2
