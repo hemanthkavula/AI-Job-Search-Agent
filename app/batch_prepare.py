@@ -30,40 +30,16 @@ def _discard_resume_artifact(resume_path):
     if not resume_path:return
     p=Path(resume_path)
     parent=p.parent
-
-    def _writable(path):
-        try:os.chmod(path,stat.S_IWRITE)
-        except OSError:pass
-
-    def _onexc(func,path,exc):
-        _writable(path)
-        try:func(path)
-        except OSError:raise exc
-
-    def _onerror(func,path,exc_info):
-        _writable(path)
-        try:func(path)
-        except OSError:raise exc_info[1]
-
     try:
+        # Generated resume folders are created by this process, so normal
+        # recursive deletion is sufficient on Linux and Windows. Avoid rmtree
+        # callbacks: callback signatures differ across supported Python versions
+        # and can accidentally invoke os.open with the wrong arguments.
         if parent.exists() and parent.is_dir():
-            for item in parent.rglob("*"):_writable(item)
-            _writable(parent)
-            for attempt in range(3):
-                try:
-                    # Python 3.12's rmtree has no onexc parameter.  Use the
-                    # portable onerror callback so cleanup works in GitHub Actions
-                    # as well as on newer local Python versions.
-                    shutil.rmtree(parent,onerror=_onerror)
-                    break
-                except PermissionError:
-                    if attempt==2:raise
-                    time.sleep(0.25)
+            shutil.rmtree(parent)
         elif p.exists():
-            _writable(p);p.unlink()
+            p.unlink()
     except Exception as exc:
-        # Cleanup failure must be visible; silently leaving stale resume folders
-        # makes later runs and the dashboard ambiguous.
         print(f"WARNING: failed to remove rejected resume artifact {p}: {exc}",flush=True)
 
 DRAFT_RESUME_DIR="generated/.resume_drafts"
