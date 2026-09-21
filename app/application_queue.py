@@ -7,7 +7,7 @@ from app.filters import passes_hard_filters
 
 ROOT=Path(__file__).resolve().parents[1]
 
-SUPPORTED_ATS=None  # Skyvern is provider-agnostic; any eligible HTTPS application URL may be attempted.
+SUPPORTED_ATS=None  # Queue is provider-agnostic; eligible HTTPS application URLs are surfaced for manual application.
 MANUAL_BLOCKERS=("captcha","recaptcha","hcaptcha","mfa","two-factor","2fa","verification code")
 
 def _provider(row):
@@ -82,7 +82,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
           "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
-          "status":"READY_FOR_ATS_ADAPTER" if str(r.get("original_url") or r.get("url") or "").lower().startswith("https://") else "MANUAL_ACTION_REQUIRED",
+          "status":"READY_TO_APPLY_MANUALLY" if str(r.get("original_url") or r.get("url") or "").lower().startswith("https://") else "MANUAL_ACTION_REQUIRED",
           "status_reason":None if str(r.get("original_url") or r.get("url") or "").lower().startswith("https://") else "Application URL is not a valid HTTPS destination."
         })
     out=Path(output);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(queue,indent=2),encoding="utf-8");return queue
