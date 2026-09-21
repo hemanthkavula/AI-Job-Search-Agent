@@ -6,4 +6,3 @@ __pycache__/
 generated/
 
 secrets/
-generated/.gmail_token.json
