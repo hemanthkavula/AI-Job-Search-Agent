@@ -34,8 +34,9 @@ ET=_eastern_tz()
 ROOT=Path(__file__).resolve().parent.parent
 STATE_PATH=ROOT/"generated"/"scheduler_state.json"
 BOOTSTRAP_HOUR=7
-FINAL_HOUR=18
-INCREMENTAL_WINDOW_HOURS=1
+FINAL_HOUR=19
+RUN_HOURS={7,9,11,13,15,17,19}
+INCREMENTAL_WINDOW_HOURS=2
 RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
 def _load_state():
@@ -63,7 +64,7 @@ def _scheduled_cutoff(now,state):
     last=_parse_state_time(state.get("last_successful_scan_at"))
     today=now.date()
     # Construct the prior scheduled close as a local wall-clock time instead of
-    # subtracting elapsed hours. This preserves 18:00 Eastern across DST changes.
+    # subtracting elapsed hours. This preserves 19:00 Eastern across DST changes.
     days_back=3 if now.weekday()==0 else 1
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
@@ -82,9 +83,9 @@ def _window_for(now,state):
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
-        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
-    if not force and not (BOOTSTRAP_HOUR <= now.hour <= FINAL_HOUR):
-        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
+    if not force and (now.hour not in RUN_HOURS or now.minute >= 30):
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
     state=_load_state()
     hours,mode,cutoff=_window_for(now,state)
     # Each provider resumes from its own last successful discovery. Existing
@@ -188,6 +189,6 @@ if __name__=="__main__":
     p.add_argument("--ledger",default="generated/job_ledger.json")
     p.add_argument("--no-resumes",action="store_true",help="Run discovery/finalization only.")
     p.add_argument("--limit",type=int)
-    p.add_argument("--force",action="store_true",help="Allow a manual test outside the 07:00-18:59 ET window.")
+    p.add_argument("--force",action="store_true",help="Allow a manual test outside the scheduled 07:00-19:00 ET run hours.")
     a=p.parse_args()
     print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force),indent=2))
