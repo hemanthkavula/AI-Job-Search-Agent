@@ -157,7 +157,7 @@ def _tokens(text: str) -> list[str]:
     # PDF extraction can split a source hyphenated word at a rendered line break
     # (e.g. "e-commerce" -> "e- commerce"). Normalize only that extraction artifact
     # before token comparison; real words/content are still required for parity.
-    normalized = re.sub(r"(?<=[a-z0-9])-\\s+(?=[a-z0-9])", "-", text.lower())
+    normalized = re.sub(r"(?<=[a-z0-9])-\s+(?=[a-z0-9])", "-", text.lower())
     return re.findall(r"[a-z0-9+#./%-]+", normalized)
 
 
