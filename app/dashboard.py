@@ -1,9 +1,9 @@
 from __future__ import annotations
-import argparse, json, os
+import argparse, json, os, io, shutil, tarfile, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
 
@@ -31,7 +31,10 @@ def _resume_path(row):
     for value in candidates:
         if value:
             p=Path(value)
-            if not p.is_absolute():p=ROOT/p
+            if not p.is_absolute():
+                local=ROOT/p
+                persisted=STATE_DIR.parent/p
+                p=persisted if persisted.exists() else local
             if p.suffix.lower()==".pdf" and p.exists() and p.is_file():return p
     return None
 
@@ -96,6 +99,42 @@ def _jobs():
 @app.get("/health")
 def health():
     return {"ok":True,"ledger_exists":LEDGER.exists(),"confirmed_exists":CONFIRMED.exists()}
+
+@app.post("/api/sync")
+async def sync_state(request:Request):
+    expected=os.getenv("DASHBOARD_SYNC_TOKEN","")
+    supplied=request.headers.get("x-dashboard-token","")
+    if not expected or supplied != expected:
+        raise HTTPException(401,"Unauthorized")
+    body=await request.body()
+    if not body:
+        raise HTTPException(400,"Empty sync payload")
+    with tempfile.TemporaryDirectory() as td:
+        tmp=Path(td)
+        try:
+            with tarfile.open(fileobj=io.BytesIO(body),mode="r:gz") as tf:
+                for member in tf.getmembers():
+                    target=(tmp/member.name).resolve()
+                    if tmp.resolve() not in target.parents and target != tmp.resolve():
+                        raise HTTPException(400,"Unsafe archive path")
+                tf.extractall(tmp)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(400,f"Invalid sync archive: {exc}")
+        source=tmp/"generated"
+        if not source.exists():
+            raise HTTPException(400,"Archive must contain generated/")
+        STATE_DIR.mkdir(parents=True,exist_ok=True)
+        for item in source.iterdir():
+            if item.name=="confirmed_applications.json":
+                continue
+            dest=STATE_DIR/item.name
+            if item.is_dir():
+                shutil.copytree(item,dest,dirs_exist_ok=True)
+            else:
+                shutil.copy2(item,dest)
+    return {"ok":True,"ledger_exists":LEDGER.exists()}
 
 @app.get("/api/applications")
 def applications():
