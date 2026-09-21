@@ -35,6 +35,20 @@ def _resume_path(row):
                 local=ROOT/p
                 persisted=STATE_DIR.parent/p
                 p=persisted if persisted.exists() else local
+            elif not p.exists():
+                # Queue entries created on ephemeral GitHub runners can contain
+                # absolute /home/runner/.../generated/... paths. After syncing to
+                # Railway, remap that generated-relative suffix onto STATE_DIR.
+                parts=p.parts
+                try:
+                    generated_idx=parts.index("generated")
+                except ValueError:
+                    generated_idx=-1
+                if generated_idx >= 0:
+                    relative=Path(*parts[generated_idx+1:])
+                    persisted=STATE_DIR/relative
+                    if persisted.exists():
+                        p=persisted
             if p.suffix.lower()==".pdf" and p.exists() and p.is_file():return p
     return None
 
