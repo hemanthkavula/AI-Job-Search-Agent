@@ -4,7 +4,7 @@ on:
   schedule:
     # GitHub cron is UTC. Trigger on the hour across the full ET/EDT envelope;
     # app.scheduled_runner is authoritative for Mon-Fri 07:00-18:59 America/New_York.
-    # 11:00-22:00 UTC covers 07:00-18:00 during EDT; the extra UTC hour covers EST.
+    # EDT needs 11:00-22:00 UTC and EST needs 12:00-23:00 UTC, so use their union.
     - cron: "0 11-23 * * 1-5"
 permissions:
   contents: read
