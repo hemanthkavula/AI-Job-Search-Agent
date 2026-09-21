@@ -8,10 +8,10 @@ on:
         default: false
         type: boolean
   schedule:
-    # GitHub cron is UTC. Trigger on the hour across the full ET/EDT envelope;
-    # app.scheduled_runner is authoritative for Mon-Fri 07:00-18:59 America/New_York.
-    # EDT needs 11:00-22:00 UTC and EST needs 12:00-23:00 UTC, so use their union.
-    - cron: "0 11-23 * * 1-5"
+    # Run every two hours from 07:00 through 19:00 in New York time, Monday-Friday.
+    # GitHub applies America/New_York DST rules automatically.
+    - cron: "0 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
 permissions:
   contents: read
 jobs:
