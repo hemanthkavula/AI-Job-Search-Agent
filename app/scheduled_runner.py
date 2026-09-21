@@ -78,7 +78,7 @@ def _window_for(now,state):
     seconds=max(1,(now-cutoff).total_seconds())
     return seconds/3600.0,mode,cutoff
 
-def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,apply_ready=False,allow_submit=False):
+def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00-18:59 America/New_York"}
@@ -164,4 +164,4 @@ if __name__=="__main__":
     p.add_argument("--limit",type=int)
     p.add_argument("--force",action="store_true",help="Allow a manual test outside the 07:00-18:59 ET window.")
     a=p.parse_args()
-    print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force,False,False),indent=2))
+    print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force),indent=2))
