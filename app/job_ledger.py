@@ -1,5 +1,4 @@
 from __future__ import annotations
-import argparse
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -117,69 +116,3 @@ def record_seen(job,ledger,status="DISCOVERED",**extra):
     sources=set(row.get("sources") or []);sources.add(job.get("source") or "unknown");row["sources"]=sorted(sources)
     external_ids=set(row.get("external_ids") or []);external_ids.add(job.get("external_id") or "");row["external_ids"]=sorted(x for x in external_ids if x)
     row.update(extra);return key
-
-
-def mark_skipped_from_queue(queue_path, companies, ledger_path=DEFAULT_LEDGER, reason="Outside current target job family"):
-    """Permanently skip matching queued companies and remove them from submission eligibility."""
-    qpath=Path(queue_path)
-    rows=json.loads(qpath.read_text(encoding="utf-8"))
-    wanted={str(x).strip().lower() for x in companies if str(x).strip()}
-    ledger=load_ledger(ledger_path)
-    marked=[]
-    for item in rows:
-        company=str(item.get("company") or "").strip()
-        if company.lower() not in wanted:continue
-        item["status"]="PERMANENT_SKIP"
-        item["application_result"]="PERMANENT_SKIP"
-        item["application_reason"]=reason
-        job={"external_id":item.get("external_id"),"source":item.get("source"),"company_key":company,
-             "title":item.get("title"),"url":item.get("url")}
-        record_seen(job,ledger,"PERMANENT_SKIP",application_result="PERMANENT_SKIP",
-                    application_reason=reason,queue_item=None)
-        marked.append({"company":company,"title":item.get("title"),"external_id":item.get("external_id")})
-    missing=sorted(x for x in wanted if not any(str(m.get("company") or "").lower()==x for m in marked))
-    qpath.write_text(json.dumps(rows,indent=2),encoding="utf-8")
-    save_ledger(ledger,ledger_path)
-    return {"skipped":marked,"missing":missing,"queue":str(qpath),"ledger":str(ledger_path)}
-
-def mark_applied_from_queue(queue_path, companies, ledger_path=DEFAULT_LEDGER):
-    """Mark matching queued companies as already applied and remove them from submission eligibility."""
-    qpath=Path(queue_path)
-    rows=json.loads(qpath.read_text(encoding="utf-8"))
-    wanted={str(x).strip().lower() for x in companies if str(x).strip()}
-    ledger=load_ledger(ledger_path)
-    now=datetime.now(timezone.utc).isoformat()
-    marked=[]
-    for item in rows:
-        company=str(item.get("company") or "").strip()
-        if company.lower() not in wanted:continue
-        item["status"]="SUBMITTED_CONFIRMED"
-        item["submitted_at"]=item.get("submitted_at") or now
-        item["application_result"]="ALREADY_APPLIED_BY_USER"
-        item["application_reason"]="User confirmed this application was already submitted outside the current automation run."
-        job={"external_id":item.get("external_id"),"source":item.get("source"),"company_key":company,
-             "title":item.get("title"),"url":item.get("url")}
-        record_seen(job,ledger,"SUBMITTED_CONFIRMED",submitted_at=item["submitted_at"],
-                    application_result="ALREADY_APPLIED_BY_USER",
-                    application_reason=item["application_reason"],queue_item=None)
-        marked.append({"company":company,"title":item.get("title"),"external_id":item.get("external_id")})
-    missing=sorted(x for x in wanted if not any(str(m.get("company") or "").lower()==x for m in marked))
-    qpath.write_text(json.dumps(rows,indent=2),encoding="utf-8")
-    save_ledger(ledger,ledger_path)
-    return {"marked":marked,"missing":missing,"queue":str(qpath),"ledger":str(ledger_path)}
-
-
-if __name__=="__main__":
-    ap=argparse.ArgumentParser()
-    ap.add_argument("--mark-applied",nargs="+",metavar="COMPANY",help="Mark matching companies in a queue as already submitted by the user.")
-    ap.add_argument("--mark-skip",nargs="+",metavar="COMPANY",help="Permanently skip matching companies in a queue.")
-    ap.add_argument("--reason",default="Outside current target job family",help="Reason used with --mark-skip.")
-    ap.add_argument("--queue",help="Application queue JSON used with --mark-applied/--mark-skip.")
-    ap.add_argument("--ledger",default=str(DEFAULT_LEDGER))
-    args=ap.parse_args()
-    if args.mark_applied:
-        if not args.queue:ap.error("--queue is required with --mark-applied")
-        print(json.dumps(mark_applied_from_queue(args.queue,args.mark_applied,args.ledger),indent=2))
-    elif args.mark_skip:
-        if not args.queue:ap.error("--queue is required with --mark-skip")
-        print(json.dumps(mark_skipped_from_queue(args.queue,args.mark_skip,args.ledger,args.reason),indent=2))
