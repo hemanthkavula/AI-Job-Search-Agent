@@ -38,7 +38,6 @@ def test_failed_provider_keeps_legacy_global_cutoff_on_migration(monkeypatch, tm
         ledger=str(ledger_path),
         generate_resumes=False,
         force=True,
-        apply_ready=False,
     )
 
     assert summary["source_watermarks"]["workday"] == "2026-09-19T09:00:00-04:00"
