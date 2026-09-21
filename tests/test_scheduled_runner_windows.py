@@ -23,34 +23,34 @@ def test_tuesday_morning_starts_at_monday_close():
     assert hours==12
 
 
-def test_hourly_run_uses_last_successful_scan():
-    now=_dt(2026,9,22,8)
+def test_two_hour_run_uses_last_successful_scan():
+    now=_dt(2026,9,22,9)
     hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,22,7).isoformat()})
     assert mode=="incremental"
     assert cutoff==_dt(2026,9,22,7)
-    assert hours==1
-
-
-def test_missed_hour_is_caught_up():
-    now=_dt(2026,9,22,10)
-    hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,22,8).isoformat()})
-    assert mode=="incremental"
-    assert cutoff==_dt(2026,9,22,8)
     assert hours==2
+
+
+def test_missed_two_hour_run_is_caught_up():
+    now=_dt(2026,9,22,11)
+    hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,22,7).isoformat()})
+    assert mode=="incremental"
+    assert cutoff==_dt(2026,9,22,7)
+    assert hours==4
 
 
 def test_first_run_without_state_uses_previous_close():
     monday=_dt(2026,9,21,7)
     hours,mode,cutoff=_window_for(monday,{})
     assert mode=="bootstrap"
-    assert cutoff==_dt(2026,9,18,18)
-    assert hours==61
+    assert cutoff==_dt(2026,9,18,19)
+    assert hours==60
 
     wednesday=_dt(2026,9,23,7)
     hours,mode,cutoff=_window_for(wednesday,{})
     assert mode=="bootstrap"
-    assert cutoff==_dt(2026,9,22,18)
-    assert hours==13
+    assert cutoff==_dt(2026,9,22,19)
+    assert hours==12
 
 
 def test_missed_previous_close_resumes_from_last_success():
