@@ -72,9 +72,14 @@ def title_is_target(title,description=""):
     # Keep a small adjacent DE-family set for titles that do not literally contain
     # "data engineer", such as Data Platform Engineer.
     if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
-    # Adjacent data roles can qualify from their responsibilities even when the title
-    # does not literally say Data Engineer (e.g. Data Analytics Engineer / Data Integration Engineer).
-    return jd_is_data_engineering(description)
+    # Only adjacent *engineering* titles may qualify from JD evidence. A generic
+    # consultant, sales, GTM, manager, or other non-engineering title must never
+    # enter the DE pipeline merely because its JD mentions Databricks/SQL/etc.
+    adjacent_engineering_title = (
+        "engineer" in t
+        and any(marker in t for marker in ("data", "analytics", "etl", "warehouse", "pipeline", "integration"))
+    )
+    return adjacent_engineering_title and jd_is_data_engineering(description)
 
 def _description_has_non_us_location(description):
     text=_clean(description)
