@@ -97,8 +97,15 @@ def _audit_failure_summary(audit):
     return " | ".join(reasons) or "unspecified audit failure"
 
 def _audit_feedback(audit, prior_audits=None):
+    prior_audits=prior_audits or []
+    preserved=[]
+    for prior in prior_audits:
+        prior_audit=prior.get("audit",{}) if isinstance(prior,dict) else {}
+        for term in prior_audit.get("experience_covered_terms",[]):
+            if term not in preserved:preserved.append(term)
     return {
         "missing_jd_keywords":audit.get("missing_jd_keywords",[]),
+        "previously_demonstrated_experience_terms_to_preserve":preserved,
         "keyword_coverage":audit.get("keyword_coverage"),
         "internal_ats_score":audit.get("internal_ats_score"),
         "human_quality_score":audit.get("human_quality_score"),
