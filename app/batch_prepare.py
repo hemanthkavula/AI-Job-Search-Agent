@@ -51,8 +51,10 @@ def _discard_resume_artifact(resume_path):
             _writable(parent)
             for attempt in range(3):
                 try:
-                    try:shutil.rmtree(parent,onexc=_onexc)
-                    except TypeError:shutil.rmtree(parent,onerror=_onerror)
+                    # Python 3.12's rmtree has no onexc parameter.  Use the
+                    # portable onerror callback so cleanup works in GitHub Actions
+                    # as well as on newer local Python versions.
+                    shutil.rmtree(parent,onerror=_onerror)
                     break
                 except PermissionError:
                     if attempt==2:raise
