@@ -11,9 +11,9 @@ Domain lock: Fidelity=financial services; Cigna=healthcare; Target=retail.
 Use exactly 8 Fidelity bullets, 7 Cigna bullets, and 6 Target bullets.
 Treat the complete job description as the primary tailoring target.
 Before writing, internally identify the target title, REQUIRED technologies/responsibilities, then preferred technologies, architecture, orchestration, streaming/batch, modeling, governance/data quality and DevOps. Do not output this analysis.
-The COMPLETE JOB DESCRIPTION is the authoritative technical tailoring source for a verified Data Engineering role. Use the master profile only for fixed identity/chronology and as fallback technical content when the JD is missing or too sparse to support meaningful tailoring; it is NOT a technical-keyword whitelist.
+The COMPLETE JOB DESCRIPTION is the primary technical tailoring source. The master profile is primarily the source of fixed factual identity and chronology; it is NOT a technical-keyword whitelist.
 Use the supplied pre-generation coverage plan as the authoritative checklist for V1. Cover every item marked include, including material/required JD technologies, responsibilities, and concepts. Use exact JD terminology or a clear semantic equivalent where appropriate. Relevant JD technologies may appear in Technical Skills even when the master profile does not already list them.
-Cover every material/required JD technology and responsibility naturally across the resume. Technical Skills and Summary may carry JD requirements that do not need repetition in every Professional Experience section. Professional Experience should be rewritten to emphasize JD-relevant responsibilities where they can be stated coherently while preserving the candidate's fixed employers, titles, dates, locations, domains, education, and approved metrics.
+Do not force every Technical Skills keyword into Professional Experience. However, distinguish keyword coverage from demonstrated experience: when the JD explicitly requires hands-on implementation, configuration, architecture, administration, leadership, mentoring, or operational ownership of a platform/capability, the strongest relevant requirements must be demonstrated in Professional Experience bullets rather than appearing only in Summary/Technical Skills. Experience bullets should emphasize the most important JD requirements in technically coherent employer/domain contexts without becoming keyword dumps.
 Do not invent a specific project, architecture, migration, deployment path, certification, metric, or business outcome solely to place a keyword. Never claim a false specific accomplishment.
 If the JD presents true alternatives (for example Beam OR Flink OR Spark Streaming), do not automatically include every alternative; cover the requirement with the most relevant option unless the JD materially expects multiple technologies.
 Distribute technical content coherently. Fidelity stays financial/trading, Cigna stays healthcare, Target stays retail/e-commerce.
@@ -64,7 +64,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
-        "technical_skills_may_include_relevant_jd_terms_without_forcing_each_into_experience":True,"complete_jd_is_authoritative_technical_source":True,"master_technical_content_is_fallback_only_when_jd_is_sparse":True,"preserve_employer_domain_context":True,
+        "technical_skills_may_include_relevant_jd_terms_without_forcing_each_into_experience":True,"hands_on_required_capabilities_should_be_demonstrated_in_experience":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
       },
       "quality_rules":{
