@@ -11,6 +11,7 @@ from app.production_cycle import run_cycle
 from app.application_queue import _application_gate
 from app.config import load_profile
 from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due, _lookup
+from app.source_registry import load_registry, as_discovery_config
 
 def _eastern_tz():
     """Use IANA Eastern time when available; fall back to Windows local Eastern time.
@@ -103,9 +104,23 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         source_config=json.loads((ROOT/sources).read_text(encoding="utf-8"))
     except Exception:
         source_config={}
+    # Discovery merges learned Workday tenants from the source registry with the
+    # static config. Build the scheduler's tenant list the same way; otherwise
+    # learned tenants are scanned but never receive their own watermark and keep
+    # replaying the provider-level historical catch-up window forever.
+    configured_workday=list(source_config.get("workday",[]) or [])
+    try:
+        learned_workday=list(as_discovery_config(load_registry("generated/discovered_sources.json")).get("workday",[]) or [])
+    except Exception:
+        learned_workday=[]
+    seen_workday={(x.get("host"),x.get("tenant"),x.get("site")) for x in configured_workday}
+    for src in learned_workday:
+        identity=(src.get("host"),src.get("tenant"),src.get("site"))
+        if identity not in seen_workday:
+            configured_workday.append(src);seen_workday.add(identity)
     unit_watermarks=state.get("source_unit_watermarks") or {}
     source_unit_hours={}
-    for src in source_config.get("workday",[]) or []:
+    for src in configured_workday:
         unit=src.get("company") or src.get("tenant")
         if not unit:continue
         key=f"workday:{unit}"
@@ -133,6 +148,14 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         if status=="OK":next_watermarks[provider]=now.isoformat()
     next_unit_watermarks=dict(unit_watermarks)
     unit_status=summary.get("source_unit_status") or {}
+    # Every Workday tenant supplied to discovery completed unless it appears in
+    # source_errors. Seed status for learned tenants too, because older reports
+    # only enumerated the static config subset.
+    failed_workday={e.get("company") for e in (summary.get("source_errors") or {}).get("workday",[]) if e.get("company")}
+    for src in configured_workday:
+        unit=src.get("company") or src.get("tenant")
+        if unit:
+            unit_status.setdefault(f"workday:{unit}","ERROR" if unit in failed_workday else "OK")
     for key,status in unit_status.items():
         if key not in next_unit_watermarks:
             next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
