@@ -59,15 +59,22 @@ def jd_is_data_engineering(description):
 
 def title_is_target(title,description=""):
     t=_title_for_match(title)
-    # Role-family eligibility is title-driven. A JD controls resume tailoring only
-    # after the job has qualified; DE keywords in an unrelated JD cannot promote it.
-    # Explicit exclusions that must override a literal "Data Engineer" phrase go first.
-    if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    # Core Data Engineering titles qualify with seniority/cloud/tool suffixes intact.
+    # User's governing title rule: if the title contains the phrase "data engineer"
+    # anywhere as words, it belongs to the target family. Prefixes/suffixes and
+    # specializations do not disqualify it (e.g. Senior Data Engineer - Airflow,
+    # AWS Data Engineer, Data Engineer II, Lead Data Engineer / Snowflake).
     if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
-    # Explicit adjacent DE-family titles qualify without relying on JD keyword counts.
+    # Explicit non-DE role families always lose, even when their JDs contain many
+    # data-platform keywords. This prevents sales/management/solutions roles from
+    # entering the resume/application pipeline merely because they discuss Spark,
+    # Databricks, warehouses, governance, etc.
+    if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
+    # Keep a small adjacent DE-family set for titles that do not literally contain
+    # "data engineer", such as Data Platform Engineer.
     if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
-    return False
+    # Adjacent data roles can qualify from their responsibilities even when the title
+    # does not literally say Data Engineer (e.g. Data Analytics Engineer / Data Integration Engineer).
+    return jd_is_data_engineering(description)
 
 def _description_has_non_us_location(description):
     text=_clean(description)
