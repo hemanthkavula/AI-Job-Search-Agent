@@ -64,7 +64,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
-        "technical_skills_may_include_relevant_jd_terms_without_forcing_each_into_experience":True,"hands_on_required_capabilities_should_be_demonstrated_in_experience":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,
+        "technical_skills_should_include_jd_required_technologies_and_tools":True,"material_jd_technologies_should_be_demonstrated_in_experience":True,"jd_may_drive_new_experience_content_beyond_master_resume":True,"master_resume_is_identity_and_chronology_anchor_not_content_ceiling":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
       },
       "quality_rules":{
