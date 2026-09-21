@@ -31,6 +31,22 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RESUME_LLM_MODEL: gpt-5.6
         run: python -m app.scheduled_runner --sources data/job_sources.json --limit 5
+      - name: Sync application queue to hosted dashboard
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+          DASHBOARD_SYNC_URL: https://job-dashboard-production-7436.up.railway.app/api/sync
+        run: |
+          if [ -z "$DASHBOARD_SYNC_TOKEN" ]; then
+            echo "DASHBOARD_SYNC_TOKEN is not configured; skipping dashboard sync."
+          else
+            tar -czf dashboard-sync.tgz generated/
+            curl --fail --show-error --silent \
+              -X POST \
+              -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
+              -H "Content-Type: application/gzip" \
+              --data-binary @dashboard-sync.tgz \
+              "$DASHBOARD_SYNC_URL"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: job-cycle-${{ github.run_number }}
