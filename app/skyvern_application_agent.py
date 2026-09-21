@@ -66,7 +66,7 @@ async def _run_one(client, item: dict, profile: dict, allow_submit: bool) -> dic
     if not resume.is_absolute(): resume=ROOT/resume
     resume_uri=None
     if resume.exists():
-        uploaded=await client.upload_file(resume)
+        uploaded=await client.upload_file(file=resume)
         resume_uri=getattr(uploaded, "presigned_url", None) or getattr(uploaded, "s3uri", None)
     result=await client.run_task(
         url=item.get("url"),
