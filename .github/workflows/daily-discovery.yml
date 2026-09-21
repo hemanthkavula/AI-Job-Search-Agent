@@ -17,22 +17,24 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
-      - name: Restore scheduler and job-ledger state
+      - name: Restore scheduler, ledger, discovery and source-health state
         uses: actions/cache@v4
         with:
           path: |
-            generated/scheduler_state.json
-            generated/job_ledger.json
-            generated/seen_jobs.json
+            generated/
+            state/
           key: job-agent-state-${{ github.run_id }}
           restore-keys: job-agent-state-
       - name: Run scheduled production cycle
-        run: python -m app.scheduled_runner --sources data/job_sources.json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESUME_LLM_MODEL: gpt-5.6
+        run: python -m app.scheduled_runner --sources data/job_sources.json --limit 5
       - uses: actions/upload-artifact@v4
         with:
           name: job-cycle-${{ github.run_number }}
           path: |
-            generated/cycles/
-            generated/scheduler_state.json
-            generated/job_ledger.json
-            generated/seen_jobs.json
+            generated/
+            state/
+          if-no-files-found: warn
+          retention-days: 30
