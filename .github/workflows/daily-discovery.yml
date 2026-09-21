@@ -1,4 +1,4 @@
-name: Hourly Production Job Cycle
+name: Two-Hour Production Job Cycle
 on:
   workflow_dispatch:
     inputs:
