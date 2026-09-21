@@ -59,6 +59,10 @@ def jd_is_data_engineering(description):
 
 def title_is_target(title,description=""):
     t=_title_for_match(title)
+    # Role-family exclusions take precedence over technology/specialty wording.
+    # Titles such as "Solutions Architect - Data Engineering" and "Engineering
+    # Manager - Pipelines" are not individual-contributor Data Engineer roles.
+    if re.search(r"\b(manager|director|architect|consultant)\b",t,re.I):return False
     # User's governing title rule: if the title contains the phrase "data engineer"
     # anywhere as words, it belongs to the target family. Prefixes/suffixes and
     # specializations do not disqualify it (e.g. Senior Data Engineer - Airflow,
