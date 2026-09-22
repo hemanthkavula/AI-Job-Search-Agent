@@ -9,6 +9,7 @@ from app.freshness import fresh_jobs
 from app.filters import passes_hard_filters
 from app.eligibility import two_category_filter
 from app.job_ledger import load_ledger, save_ledger, seen_or_submitted, record_seen
+from app.target_companies import match_target
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -33,9 +34,12 @@ def _norm_title(value):
     text=re.sub(r"[^a-z0-9]+"," ",text)
     return re.sub(r"\s+"," ",text).strip()
 
+SOURCE_PRIORITY={"greenhouse":0,"lever":0,"ashby":0,"smartrecruiters":0,"workday":0,"successfactors":0,"icims":0,"oracle":0,"eightfold":0,"career_site":1,"dice":2,"ziprecruiter":2}
+
 def _dedup_eligible(items):
-    """Remove obvious cross-query/provider duplicates before any paid resume generation."""
+    """Prefer official ATS/company sources over aggregators for semantic duplicates."""
     kept=[];duplicates=[];seen={}
+    items=sorted(items,key=lambda x: SOURCE_PRIORITY.get((x.get("job") or {}).get("source"),1))
     for item in items:
         raw=item["job"]
         company=_norm_company(raw.get("company_key") or raw.get("company"))
@@ -77,6 +81,13 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
+        # The production queue is intentionally scoped to the user's authoritative
+        # employer universe. Aggregators remain useful for discovery, but cannot
+        # inject unrelated employers or crowd out direct ATS/company postings.
+        if not match_target(raw.get("company_key") or raw.get("company") or ""):
+            skipped.append({"job":raw,"reasons":["company outside target employer universe"],"action":"SKIP"})
+            reason_counts["outside_target_company"]+=1
+            continue
         processed,key,prior=seen_or_submitted(raw,ledger)
         if processed:
             skipped.append({"job":raw,"reasons":["already processed in persistent ledger"],"action":"SKIP_ALREADY_PROCESSED"});reason_counts["already_processed_ledger"]+=1;continue
@@ -135,7 +146,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
-        "duplicates_removed":len(duplicates),
+        "duplicates_removed":len(duplicates),"outside_target_company":reason_counts["outside_target_company"],
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
     return {
