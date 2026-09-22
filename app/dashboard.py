@@ -11,6 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 STATE_DIR=Path(os.getenv("JOB_AGENT_STATE_DIR", ROOT/"generated"))
 LEDGER=STATE_DIR/"job_ledger.json"
 CONFIRMED=STATE_DIR/"confirmed_applications.json"
+HIDDEN=STATE_DIR/"hidden_applications.json"
 app=FastAPI(title="AI Job Search Agent")
 
 def _json(path,default):
@@ -20,6 +21,16 @@ def _json(path,default):
 def _save_confirmed(data):
     CONFIRMED.parent.mkdir(parents=True,exist_ok=True)
     CONFIRMED.write_text(json.dumps(data,indent=2),encoding="utf-8")
+
+def _hidden_keys():
+    data=_json(HIDDEN,{"job_keys":[]})
+    return set(data.get("job_keys") or [])
+
+def _hide_job(job_key):
+    keys=_hidden_keys()
+    keys.add(job_key)
+    HIDDEN.parent.mkdir(parents=True,exist_ok=True)
+    HIDDEN.write_text(json.dumps({"job_keys":sorted(keys)},indent=2),encoding="utf-8")
 
 def _resume_path(row):
     candidates=[
@@ -108,8 +119,10 @@ def _jobs():
     by_key={x.get("job_key"):x for x in confirmed if x.get("job_key")}
     by_name={(str(x.get("company") or "").lower(),str(x.get("title") or "").lower()):x for x in confirmed}
     out=[]
+    hidden=_hidden_keys()
     active={"READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION","RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
     for key,row in (ledger.get("jobs") or {}).items():
+        if key in hidden:continue
         hist=by_key.get(key) or by_name.get((str(row.get("company") or "").lower(),str(row.get("title") or "").lower()))
         status=(hist or {}).get("status") or row.get("application_status") or "DISCOVERED"
         if status not in active:continue
@@ -163,7 +176,7 @@ async def sync_state(request:Request):
             raise HTTPException(400,"Archive must contain generated/")
         STATE_DIR.mkdir(parents=True,exist_ok=True)
         for item in source.iterdir():
-            if item.name=="confirmed_applications.json":
+            if item.name in {"confirmed_applications.json","hidden_applications.json"}:
                 continue
             dest=STATE_DIR/item.name
             if item.is_dir():
@@ -181,6 +194,14 @@ def applications():
         "applied":sum(x["stage"]=="Applied" for x in rows),
         "attention":sum(x["stage"] in {"Needs attention","Verify submission"} for x in rows),
     }}
+
+@app.delete("/api/applications/{job_key:path}")
+def hide_application(job_key:str):
+    ledger=_json(LEDGER,{"jobs":{}})
+    if job_key not in (ledger.get("jobs") or {}):
+        raise HTTPException(404,"Job not found")
+    _hide_job(job_key)
+    return {"ok":True,"hidden":True}
 
 @app.post("/api/applications/{job_key:path}/confirm-submitted")
 def confirm_submitted(job_key:str):
@@ -227,7 +248,7 @@ def dashboard():
 *{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f7f8fb;color:#101828}header{padding:24px 5%;background:#fff;border-bottom:1px solid #e4e7ec;display:flex;justify-content:space-between;align-items:center}h1{font-size:23px;margin:0}.sub{font-size:13px;color:#667085;margin-top:5px}.live{font-size:12px;color:#027a48;background:#ecfdf3;padding:7px 10px;border-radius:20px;font-weight:700}
 main{padding:22px 5%}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:16px}.stat span{font-size:11px;color:#667085;text-transform:uppercase;font-weight:800}.stat b{font-size:26px;display:block;margin-top:5px}
 .toolbar{display:flex;gap:10px;margin-bottom:14px}.toolbar input,.toolbar select{border:1px solid #d0d5dd;background:#fff;border-radius:9px;padding:10px 12px;font-size:14px}.toolbar input{flex:1}
-.table{background:#fff;border:1px solid #e4e7ec;border-radius:12px;overflow:hidden}.row{display:grid;grid-template-columns:minmax(220px,1.5fr) 130px minmax(160px,1fr) 110px 260px;gap:14px;align-items:center;padding:15px 18px;border-bottom:1px solid #eef0f3}.row:last-child{border-bottom:0}.head{background:#f9fafb;color:#667085;font-size:11px;text-transform:uppercase;font-weight:800;padding-top:11px;padding-bottom:11px}.company{font-weight:800}.role{font-size:13px;color:#475467;margin-top:3px}.portal{font-size:12px;color:#667085;margin-top:4px}.badge{display:inline-block;padding:6px 9px;border-radius:20px;font-size:11px;font-weight:800;background:#f2f4f7}.applied{background:#ecfdf3;color:#027a48}.ready-to-apply,.applying{background:#eff8ff;color:#175cd3}.needs-attention,.verify-submission{background:#fffaeb;color:#b54708}.retrying{background:#f4f3ff;color:#5925dc}.resume{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.date{font-size:12px;color:#475467}.actions{display:flex;gap:7px;flex-wrap:wrap}.btn{border:1px solid #d0d5dd;background:#fff;color:#344054;text-decoration:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.btn.primary{background:#101828;color:#fff;border-color:#101828}.btn.appliedBtn{background:#067647;color:white;border-color:#067647}.empty{padding:35px;text-align:center;color:#667085}
+.table{background:#fff;border:1px solid #e4e7ec;border-radius:12px;overflow:hidden}.row{display:grid;grid-template-columns:minmax(220px,1.5fr) 130px minmax(160px,1fr) 110px 260px;gap:14px;align-items:center;padding:15px 18px;border-bottom:1px solid #eef0f3}.row:last-child{border-bottom:0}.head{background:#f9fafb;color:#667085;font-size:11px;text-transform:uppercase;font-weight:800;padding-top:11px;padding-bottom:11px}.company{font-weight:800}.role{font-size:13px;color:#475467;margin-top:3px}.portal{font-size:12px;color:#667085;margin-top:4px}.badge{display:inline-block;padding:6px 9px;border-radius:20px;font-size:11px;font-weight:800;background:#f2f4f7}.applied{background:#ecfdf3;color:#027a48}.ready-to-apply,.applying{background:#eff8ff;color:#175cd3}.needs-attention,.verify-submission{background:#fffaeb;color:#b54708}.retrying{background:#f4f3ff;color:#5925dc}.resume{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.date{font-size:12px;color:#475467}.actions{display:flex;gap:7px;flex-wrap:wrap}.btn{border:1px solid #d0d5dd;background:#fff;color:#344054;text-decoration:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.btn.primary{background:#101828;color:#fff;border-color:#101828}.btn.appliedBtn{background:#067647;color:white;border-color:#067647}.btn.deleteBtn{color:#b42318;border-color:#fda29b;background:#fff}.empty{padding:35px;text-align:center;color:#667085}
 @media(max-width:900px){header{padding:18px 4%}main{padding:16px 4%}.stats{grid-template-columns:1fr 1fr}.head{display:none}.row{grid-template-columns:1fr}.table{background:transparent;border:0}.row{background:#fff;border:1px solid #e4e7ec;border-radius:12px;margin-bottom:10px}.resume{white-space:normal}}
 </style></head><body><header><div><h1>Application Tracker</h1><div class="sub">Ready-to-apply queue and applied history</div></div><div class="live">● Live</div></header><main>
 <div class="stats"><div class="stat"><span>Application pipeline</span><b id="all">0</b></div><div class="stat"><span>Ready / applying</span><b id="queue">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Needs attention</span><b id="attention">0</b></div></div>
@@ -235,8 +256,9 @@ main{padding:22px 5%}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap
 <div class="table"><div class="row head"><div>Company / role</div><div>Status</div><div>Resume</div><div>Applied</div><div>Actions</div></div><div id="jobs"></div></div></main><script>
 let rows=[];const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const cls=s=>String(s).toLowerCase().replaceAll(" ","-");const dt=v=>{if(!v)return"—";let d=new Date(v);return isNaN(d)?v:d.toLocaleDateString()};
 async function markApplied(key,btn){if(!confirm("Mark this application as Applied?"))return;if(btn){btn.disabled=true;btn.textContent="Saving..."}try{let r=await fetch("/api/applications/"+encodeURIComponent(key)+"/confirm-submitted",{method:"POST"});if(!r.ok)throw new Error(await r.text());await load()}catch(e){alert("Could not update status.");if(btn){btn.disabled=false;btn.textContent="Mark Applied"}}}
-function render(){let q=search.value.toLowerCase(),f=filter.value,x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));jobs.innerHTML=x.map(r=>'<div class="row"><div><div class="company">'+esc(r.company)+'</div><div class="role">'+esc(r.title)+'</div><div class="portal">'+esc(r.portal)+'</div></div><div><span class="badge '+cls(r.stage)+'">'+esc(r.stage)+'</span></div><div class="resume">'+(r.resume_url?'<a class="btn" href="'+r.resume_url+'" target="_blank">View resume</a>':'PDF unavailable')+'</div><div class="date">'+(r.stage==="Applied"?'<span class="badge applied">✓ Applied</span><div style="margin-top:5px">'+dt(r.applied_at)+'</div>':"—")+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open job / Apply</a>':'')+(r.stage!=="Applied"?'<button class="btn appliedBtn" data-job-key="'+esc(r.key)+'">Mark Applied</button>':'<span class="badge applied">✓ Already applied</span>')+'</div></div>').join("")||'<div class="empty">No applications in this view.</div>'}
-async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}jobs.addEventListener("click",e=>{let b=e.target.closest("button[data-job-key]");if(b)markApplied(b.dataset.jobKey,b)});search.oninput=render;filter.onchange=render;load();setInterval(load,10000);
+async function deleteRow(key,btn){if(!confirm("Delete this application from the dashboard? It will be hidden from display."))return;if(btn){btn.disabled=true;btn.textContent="Deleting..."}try{let r=await fetch("/api/applications/"+encodeURIComponent(key),{method:"DELETE"});if(!r.ok)throw new Error(await r.text());await load()}catch(e){alert("Could not delete this application.");if(btn){btn.disabled=false;btn.textContent="Delete"}}}
+function render(){let q=search.value.toLowerCase(),f=filter.value,x=rows.filter(r=>(!q||(r.company+" "+r.title).toLowerCase().includes(q))&&(!f||r.stage===f));jobs.innerHTML=x.map(r=>'<div class="row"><div><div class="company">'+esc(r.company)+'</div><div class="role">'+esc(r.title)+'</div><div class="portal">'+esc(r.portal)+'</div></div><div><span class="badge '+cls(r.stage)+'">'+esc(r.stage)+'</span></div><div class="resume">'+(r.resume_url?'<a class="btn" href="'+r.resume_url+'" target="_blank">View resume</a>':'PDF unavailable')+'</div><div class="date">'+(r.stage==="Applied"?'<span class="badge applied">✓ Applied</span><div style="margin-top:5px">'+dt(r.applied_at)+'</div>':"—")+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open job / Apply</a>':'')+(r.stage!=="Applied"?'<button class="btn appliedBtn" data-job-key="'+esc(r.key)+'">Mark Applied</button>':'<span class="badge applied">✓ Already applied</span>')+'<button class="btn deleteBtn" data-delete-key="'+esc(r.key)+'">Delete</button></div></div>').join("")||'<div class="empty">No applications in this view.</div>'}
+async function load(){let d=await fetch("/api/applications",{cache:"no-store"}).then(r=>r.json());rows=d.applications;Object.entries(d.counts).forEach(([k,v])=>document.getElementById(k).textContent=v);render()}jobs.addEventListener("click",e=>{let b=e.target.closest("button[data-job-key]");if(b){markApplied(b.dataset.jobKey,b);return}let d=e.target.closest("button[data-delete-key]");if(d)deleteRow(d.dataset.deleteKey,d)});search.oninput=render;filter.onchange=render;load();setInterval(load,10000);
 </script></body></html>""")
 
 def main():
