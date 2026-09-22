@@ -1160,6 +1160,301 @@
       "company": "Hudson River Trading",
       "search_url": "https://www.hudsonrivertrading.com/careers/",
       "job_url_pattern": "hudsonrivertrading\\.com/.+(?:job|careers).+"
+    },
+    {
+      "company": "Citizens Financial Group",
+      "search_url": "https://jobs.citizensbank.com/",
+      "job_url_pattern": "jobs\\.citizensbank\\.com/.+"
+    },
+    {
+      "company": "Regions Bank",
+      "search_url": "https://careers.regions.com/",
+      "job_url_pattern": "careers\\.regions\\.com/.+"
+    },
+    {
+      "company": "Ally Financial",
+      "search_url": "https://www.ally.com/about/careers/",
+      "job_url_pattern": "ally\\.com/.+careers.+"
+    },
+    {
+      "company": "Block / Square",
+      "search_url": "https://block.xyz/careers/jobs",
+      "job_url_pattern": "block\\.xyz/careers/jobs/.+"
+    },
+    {
+      "company": "Klarna",
+      "search_url": "https://www.klarna.com/careers/",
+      "job_url_pattern": "klarna\\.com/.+careers/.+"
+    },
+    {
+      "company": "Brex",
+      "search_url": "https://www.brex.com/careers",
+      "job_url_pattern": "brex\\.com/careers/.+"
+    },
+    {
+      "company": "Adyen",
+      "search_url": "https://careers.adyen.com/",
+      "job_url_pattern": "careers\\.adyen\\.com/.+"
+    },
+    {
+      "company": "Toast",
+      "search_url": "https://careers.toasttab.com/",
+      "job_url_pattern": "careers\\.toasttab\\.com/.+"
+    },
+    {
+      "company": "Global Payments",
+      "search_url": "https://jobs.globalpayments.com/",
+      "job_url_pattern": "jobs\\.globalpayments\\.com/.+"
+    },
+    {
+      "company": "Western Union",
+      "search_url": "https://careers.westernunion.com/",
+      "job_url_pattern": "careers\\.westernunion\\.com/.+"
+    },
+    {
+      "company": "Remitly",
+      "search_url": "https://careers.remitly.com/",
+      "job_url_pattern": "careers\\.remitly\\.com/.+"
+    },
+    {
+      "company": "Wise",
+      "search_url": "https://wise.jobs/",
+      "job_url_pattern": "wise\\.jobs/.+"
+    },
+    {
+      "company": "Upgrade",
+      "search_url": "https://www.upgrade.com/careers/",
+      "job_url_pattern": "upgrade\\.com/careers/.+"
+    },
+    {
+      "company": "Avant",
+      "search_url": "https://www.avant.com/careers",
+      "job_url_pattern": "avant\\.com/careers/.+"
+    },
+    {
+      "company": "Credit One Bank",
+      "search_url": "https://www.creditonebank.com/corporate/careers",
+      "job_url_pattern": "creditonebank\\.com/.+careers.+"
+    },
+    {
+      "company": "Moody's",
+      "search_url": "https://careers.moodys.com/",
+      "job_url_pattern": "careers\\.moodys\\.com/.+"
+    },
+    {
+      "company": "Nasdaq",
+      "search_url": "https://www.nasdaq.com/about/careers",
+      "job_url_pattern": "nasdaq\\.com/.+careers.+"
+    },
+    {
+      "company": "Intercontinental Exchange (ICE)",
+      "search_url": "https://careers.ice.com/",
+      "job_url_pattern": "careers\\.ice\\.com/.+"
+    },
+    {
+      "company": "CME Group",
+      "search_url": "https://www.cmegroup.com/careers.html",
+      "job_url_pattern": "cmegroup\\.com/.+careers.+"
+    },
+    {
+      "company": "Cboe Global Markets",
+      "search_url": "https://www.cboe.com/about/careers/",
+      "job_url_pattern": "cboe\\.com/.+careers.+"
+    },
+    {
+      "company": "London Stock Exchange Group (LSEG)",
+      "search_url": "https://www.lseg.com/en/careers",
+      "job_url_pattern": "lseg\\.com/.+careers.+"
+    },
+    {
+      "company": "FactSet",
+      "search_url": "https://www.factset.com/careers",
+      "job_url_pattern": "factset\\.com/.+careers.+"
+    },
+    {
+      "company": "MSCI",
+      "search_url": "https://careers.msci.com/",
+      "job_url_pattern": "careers\\.msci\\.com/.+"
+    },
+    {
+      "company": "Morningstar",
+      "search_url": "https://www.morningstar.com/company/careers",
+      "job_url_pattern": "morningstar\\.com/.+careers.+"
+    },
+    {
+      "company": "Apollo Global Management",
+      "search_url": "https://www.apollo.com/careers",
+      "job_url_pattern": "apollo\\.com/.+careers.+"
+    },
+    {
+      "company": "KKR",
+      "search_url": "https://www.kkr.com/careers",
+      "job_url_pattern": "kkr\\.com/.+careers.+"
+    },
+    {
+      "company": "Ares Management",
+      "search_url": "https://www.aresmgmt.com/careers",
+      "job_url_pattern": "aresmgmt\\.com/.+careers.+"
+    },
+    {
+      "company": "Carlyle",
+      "search_url": "https://www.carlyle.com/careers",
+      "job_url_pattern": "carlyle\\.com/.+careers.+"
+    },
+    {
+      "company": "Jefferies",
+      "search_url": "https://www.jefferies.com/careers/",
+      "job_url_pattern": "jefferies\\.com/.+careers.+"
+    },
+    {
+      "company": "Lazard",
+      "search_url": "https://www.lazard.com/careers/",
+      "job_url_pattern": "lazard\\.com/.+careers.+"
+    },
+    {
+      "company": "Evercore",
+      "search_url": "https://www.evercore.com/careers/",
+      "job_url_pattern": "evercore\\.com/.+careers.+"
+    },
+    {
+      "company": "PJT Partners",
+      "search_url": "https://www.pjtpartners.com/careers",
+      "job_url_pattern": "pjtpartners\\.com/.+careers.+"
+    },
+    {
+      "company": "Houlihan Lokey",
+      "search_url": "https://hl.com/careers/",
+      "job_url_pattern": "hl\\.com/careers/.+"
+    },
+    {
+      "company": "Macquarie",
+      "search_url": "https://www.macquarie.com/us/en/careers.html",
+      "job_url_pattern": "macquarie\\.com/.+careers.+"
+    },
+    {
+      "company": "Barclays",
+      "search_url": "https://search.jobs.barclays/",
+      "job_url_pattern": "search\\.jobs\\.barclays/.+"
+    },
+    {
+      "company": "Deutsche Bank",
+      "search_url": "https://careers.db.com/",
+      "job_url_pattern": "careers\\.db\\.com/.+"
+    },
+    {
+      "company": "UBS",
+      "search_url": "https://www.ubs.com/global/en/careers.html",
+      "job_url_pattern": "ubs\\.com/.+careers.+"
+    },
+    {
+      "company": "HSBC",
+      "search_url": "https://www.hsbc.com/careers",
+      "job_url_pattern": "hsbc\\.com/.+careers.+"
+    },
+    {
+      "company": "BNP Paribas",
+      "search_url": "https://group.bnpparibas/en/careers",
+      "job_url_pattern": "bnpparibas/.+careers.+"
+    },
+    {
+      "company": "RBC",
+      "search_url": "https://jobs.rbc.com/",
+      "job_url_pattern": "jobs\\.rbc\\.com/.+"
+    },
+    {
+      "company": "BMO",
+      "search_url": "https://jobs.bmo.com/",
+      "job_url_pattern": "jobs\\.bmo\\.com/.+"
+    },
+    {
+      "company": "CIBC",
+      "search_url": "https://www.cibc.com/en/about-cibc/careers.html",
+      "job_url_pattern": "cibc\\.com/.+careers.+"
+    },
+    {
+      "company": "SMBC",
+      "search_url": "https://www.smbcgroup.com/careers/",
+      "job_url_pattern": "smbcgroup\\.com/.+careers.+"
+    },
+    {
+      "company": "MUFG",
+      "search_url": "https://careers.mufgamericas.com/",
+      "job_url_pattern": "careers\\.mufgamericas\\.com/.+"
+    },
+    {
+      "company": "Nomura",
+      "search_url": "https://www.nomura.com/careers/",
+      "job_url_pattern": "nomura\\.com/.+careers.+"
+    },
+    {
+      "company": "Mizuho",
+      "search_url": "https://www.mizuhogroup.com/careers",
+      "job_url_pattern": "mizuhogroup\\.com/.+careers.+"
+    },
+    {
+      "company": "Santander",
+      "search_url": "https://www.santandercareers.com/",
+      "job_url_pattern": "santandercareers\\.com/.+"
+    },
+    {
+      "company": "Standard Chartered",
+      "search_url": "https://www.sc.com/en/global-careers/",
+      "job_url_pattern": "sc\\.com/.+careers.+"
+    },
+    {
+      "company": "D. E. Shaw",
+      "search_url": "https://www.deshaw.com/careers",
+      "job_url_pattern": "deshaw\\.com/.+careers.+"
+    },
+    {
+      "company": "Millennium Management",
+      "search_url": "https://www.mlp.com/careers/",
+      "job_url_pattern": "mlp\\.com/careers/.+"
+    },
+    {
+      "company": "AQR Capital Management",
+      "search_url": "https://www.aqr.com/About-Us/Careers",
+      "job_url_pattern": "aqr\\.com/.+Careers.+"
+    },
+    {
+      "company": "Squarepoint Capital",
+      "search_url": "https://www.squarepoint-capital.com/careers",
+      "job_url_pattern": "squarepoint-capital\\.com/.+careers.+"
+    },
+    {
+      "company": "DRW",
+      "search_url": "https://www.drw.com/work-at-drw",
+      "job_url_pattern": "drw\\.com/.+(?:job|work-at-drw).+"
+    },
+    {
+      "company": "Akuna Capital",
+      "search_url": "https://akunacapital.com/careers",
+      "job_url_pattern": "akunacapital\\.com/.+careers.+"
+    },
+    {
+      "company": "IMC Trading",
+      "search_url": "https://www.imc.com/us/search-careers",
+      "job_url_pattern": "imc\\.com/us/.+careers.+"
+    },
+    {
+      "company": "Jump Trading",
+      "search_url": "https://www.jumptrading.com/careers",
+      "job_url_pattern": "jumptrading\\.com/.+careers.+"
+    },
+    {
+      "company": "Susquehanna International Group (SIG)",
+      "search_url": "https://careers.sig.com/",
+      "job_url_pattern": "careers\\.sig\\.com/.+"
+    },
+    {
+      "company": "Virtu Financial",
+      "search_url": "https://www.virtu.com/careers/",
+      "job_url_pattern": "virtu\\.com/.+careers.+"
+    },
+    {
+      "company": "Experian",
+      "search_url": "https://jobs.experian.com/",
+      "job_url_pattern": "jobs\\.experian\\.com/.+"
     }
   ],
   "eightfold": [
