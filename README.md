@@ -33,9 +33,7 @@ Production runs Monday-Friday in **America/New_York** at seven two-hour slots:
 
 **7 AM, 9 AM, 11 AM, 1 PM, 3 PM, 5 PM, and 7 PM Eastern.**
 
-The primary GitHub Actions trigger runs at **:17** during each scheduled hour to avoid the higher-load top-of-hour scheduling period.
-
-Each slot also has a **:37 watchdog trigger**. The watchdog checks whether the primary scheduled run for that slot exists and is healthy. If the primary run is healthy, the watchdog is a no-op. If the primary trigger was missed or the run failed, the watchdog executes the recovery cycle.
+Each intended slot now has **six independent GitHub Actions trigger opportunities at :07, :17, :27, :37, :47, and :57**. The :07 event is the primary trigger. Every later event is a watchdog: it checks whether another run in that slot is already queued, running, or successful and exits as a no-op when the slot is healthy. If the earlier trigger was dropped or the run failed, the next watchdog executes recovery. This substantially reduces dependence on any single scheduled event.
 
 Persistent scheduler and per-source watermarks provide another recovery layer. A missed or failed discovery interval is resumed from the last successful watermark instead of silently advancing past it. Workday tenants maintain independent watermarks so one failing tenant does not prevent healthy tenants from advancing.
 
