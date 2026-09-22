@@ -87,6 +87,9 @@ jobs:
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
             FORCE_ARG="--force"
+          elif [ "${{ github.event.schedule }}" = "37 7,9,11,13,15,17,19 * * 1-5" ]; then
+            # The watchdog intentionally runs after the normal <30-minute gate.
+            FORCE_ARG="--force"
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
       - name: Sync application queue to hosted dashboard
