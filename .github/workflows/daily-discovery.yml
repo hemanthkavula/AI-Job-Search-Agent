@@ -11,7 +11,7 @@ on:
     # Reliability model: wake up frequently and let scheduled_runner.py decide
     # whether the current Eastern production slot is actually due. This avoids
     # depending on one exact GitHub cron event for each 2-hour cycle.
-    - cron: "*/15 * * * 1-5"
+    - cron: "3-58/5 * * * 1-5"
 
 concurrency:
   group: production-job-cycle
@@ -64,8 +64,8 @@ jobs:
               state = {}
 
           due_hours = {7, 9, 11, 13, 15, 17, 19}
-          # A slot stays recoverable for 55 minutes. The 15-minute heartbeat
-          # therefore provides several independent chances if GitHub delays/drops one.
+          # A slot stays recoverable for 55 minutes. The 5-minute off-peak heartbeat
+          # therefore provides many independent chances if GitHub delays/drops one.
           slot = f"{now.date().isoformat()}T{now.hour:02d}:00"
           due = (
               force
