@@ -8,10 +8,10 @@ on:
         default: false
         type: boolean
   schedule:
-    # Reliability model: wake up frequently and let scheduled_runner.py decide
-    # whether the current Eastern production slot is actually due. This avoids
-    # depending on one exact GitHub cron event for each 2-hour cycle.
-    - cron: "3-58/5 * * * 1-5"
+    # Primary + recovery heartbeats, deliberately away from :00 congestion.
+    # scheduled_runner.py uses America/New_York and last_completed_slot, so
+    # only the intended weekday 07/09/11/13/15/17/19 ET slot runs once.
+    - cron: "7,22,42 * * * 1-5"
 
 concurrency:
   group: production-job-cycle
