@@ -87,6 +87,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     if not force and (now.hour not in RUN_HOURS or now.minute >= 30):
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
     state=_load_state()
+    # A second cron opportunity runs 20 minutes after each requested slot.
+    # If the primary already completed this local slot, recovery is a no-op.
+    slot=f"{now.date().isoformat()}T{now.hour:02d}:00"
+    if not force and state.get("last_completed_slot")==slot:
+        return {"status":"SLOT_ALREADY_COMPLETED","local_time":now.isoformat(),"slot":slot}
     hours,mode,cutoff=_window_for(now,state)
     # Each provider resumes from its own last successful discovery. Existing
     # scheduler state migrates safely by falling back to the global cutoff.
@@ -172,7 +177,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # not make a failed provider appear to have advanced.
     if source_status.get("workday")!="ERROR" and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
-    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks})
+    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks})
     summary["scan_cutoff_local"]=cutoff.isoformat()
     summary["scan_window_hours"]=hours
     _save_state(state)
