@@ -84,7 +84,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     now=datetime.now(ET)
     if not force and now.weekday() not in RUN_WEEKDAYS:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
-    if not force and (now.hour not in RUN_HOURS or now.minute >= 30):
+    if not force and (now.hour not in RUN_HOURS or now.minute >= 55):
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
     state=_load_state()
     # A second cron opportunity runs 20 minutes after each requested slot.
