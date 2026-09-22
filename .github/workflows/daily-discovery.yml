@@ -8,44 +8,31 @@ on:
         default: false
         type: boolean
   schedule:
-    # Run away from the top of the hour because GitHub documents that scheduled
-    # events can be delayed or dropped during high load at :00. America/New_York
-    # automatically follows EST/EDT daylight-saving transitions.
-    - cron: "17 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    # Independent recovery opportunity 10 minutes later. The scheduler state makes
-    # this a no-op when the :17 primary already completed successfully.
-    - cron: "27 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
+    # Reliability model: wake up frequently and let scheduled_runner.py decide
+    # whether the current Eastern production slot is actually due. This avoids
+    # depending on one exact GitHub cron event for each 2-hour cycle.
+    - cron: "*/15 * * * 1-5"
+
+concurrency:
+  group: production-job-cycle
+  cancel-in-progress: false
+
 permissions:
   contents: read
   actions: read
+
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
-      - name: Decide whether this invocation needs production
-        id: guard
-        run: echo "should_run=true" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
-        if: steps.guard.outputs.should_run == 'true'
+
       - uses: actions/setup-python@v5
-        if: steps.guard.outputs.should_run == 'true'
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt
-        if: steps.guard.outputs.should_run == 'true'
-      - name: Install LibreOffice for resume PDF validation
-        if: steps.guard.outputs.should_run == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-writer
-          soffice --version
-      - run: python -m pytest -q
-        if: steps.guard.outputs.should_run == 'true'
+
       - name: Restore scheduler, ledger, discovery and source-health state
-        if: steps.guard.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -53,6 +40,69 @@ jobs:
             state/
           key: job-agent-state-${{ github.run_id }}
           restore-keys: job-agent-state-
+
+      - name: Decide whether a production slot is due
+        id: guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import json
+          from pathlib import Path
+
+          force = "${{ github.event_name }}" == "workflow_dispatch" and "${{ inputs.force }}" == "true"
+          if force:
+              print("Manual force run requested.")
+              with open(Path("${{ github.output }}") if False else "/dev/null", "w") as _:
+                  pass
+          now = datetime.now(ZoneInfo("America/New_York"))
+          state_path = Path("generated/scheduler_state.json")
+          try:
+              state = json.loads(state_path.read_text()) if state_path.exists() else {}
+          except Exception:
+              state = {}
+
+          due_hours = {7, 9, 11, 13, 15, 17, 19}
+          # A slot stays recoverable for 55 minutes. The 15-minute heartbeat
+          # therefore provides several independent chances if GitHub delays/drops one.
+          slot = f"{now.date().isoformat()}T{now.hour:02d}:00"
+          due = (
+              force
+              or (
+                  now.weekday() < 5
+                  and now.hour in due_hours
+                  and now.minute < 55
+                  and state.get("last_completed_slot") != slot
+              )
+          )
+          output = Path(__import__("os").environ["GITHUB_OUTPUT"])
+          with output.open("a") as f:
+              f.write(f"should_run={'true' if due else 'false'}\n")
+              f.write(f"slot={slot}\n")
+          print(f"Eastern time: {now.isoformat()}")
+          print(f"Slot: {slot}; last completed: {state.get('last_completed_slot')}; should_run={due}")
+          PY
+
+      - name: Stop heartbeat when no slot is due
+        if: steps.guard.outputs.should_run != 'true'
+        run: echo "No production slot is due; heartbeat exits successfully."
+
+      - name: Install dependencies
+        if: steps.guard.outputs.should_run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Install LibreOffice for resume PDF validation
+        if: steps.guard.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer
+          soffice --version
+
+      - name: Run tests
+        if: steps.guard.outputs.should_run == 'true'
+        run: python -m pytest -q
+
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
         env:
@@ -64,6 +114,7 @@ jobs:
             FORCE_ARG="--force"
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
+
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'
         env:
@@ -74,13 +125,14 @@ jobs:
             echo "DASHBOARD_SYNC_TOKEN is not configured; skipping dashboard sync."
           else
             tar -czf dashboard-sync.tgz generated/
-            curl --fail --show-error --silent \
+            curl --fail --show-error --silent --retry 3 --retry-delay 5 \
               -X POST \
               -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
               -H "Content-Type: application/gzip" \
               --data-binary @dashboard-sync.tgz \
               "$DASHBOARD_SYNC_URL"
           fi
+
       - uses: actions/upload-artifact@v4
         if: steps.guard.outputs.should_run == 'true'
         with:
