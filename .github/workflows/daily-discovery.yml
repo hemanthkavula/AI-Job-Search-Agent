@@ -1,5 +1,11 @@
 name: Two-Hour Production Job Cycle
 on:
+  # A workflow-file push also starts one recovery run, which makes schedule
+  # changes self-testing instead of waiting for the next cron event.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/daily-discovery.yml"
   workflow_dispatch:
     inputs:
       force:
@@ -8,21 +14,15 @@ on:
         default: false
         type: boolean
   schedule:
-    # Six independent trigger opportunities per intended two-hour slot.
-    # :07 is primary; later triggers are watchdog retries and become no-ops
-    # when another run in the same slot is already queued/running/successful.
-    - cron: "7 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    - cron: "17 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    - cron: "27 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    - cron: "37 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    - cron: "47 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
-    - cron: "57 7,9,11,13,15,17,19 * * 1-5"
-      timezone: "America/New_York"
+    # UTC fallback triggers intentionally cover both EDT and EST. The Python
+    # scheduler is the authority for New York weekday/hour eligibility, so
+    # off-slot UTC triggers exit without advancing production state.
+    # :17 primary opportunities.
+    - cron: "17 11,12,13,14,15,16,17,18,19,20,21,22,23 * * 1-5"
+    - cron: "17 0 * * 2-6"
+    # :37 watchdog opportunities.
+    - cron: "37 11,12,13,14,15,16,17,18,19,20,21,22,23 * * 1-5"
+    - cron: "37 0 * * 2-6"
 permissions:
   contents: read
   actions: read
@@ -30,35 +30,9 @@ jobs:
   production-cycle:
     runs-on: ubuntu-latest
     steps:
-      - name: Decide whether this slot needs production
+      - name: Decide whether this invocation needs production
         id: guard
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          SHOULD_RUN=true
-          if [ "$EVENT_SCHEDULE" != "7 7,9,11,13,15,17,19 * * 1-5" ] && [ -n "$EVENT_SCHEDULE" ]; then
-            CUTOFF="$(date -u -d '60 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')"
-            RUNS="$(curl --fail --silent --show-error \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$REPOSITORY/actions/runs?event=schedule&per_page=20")"
-            PRIMARY_FOUND="$(echo "$RUNS" | jq --arg cutoff "$CUTOFF" --arg run_id "$RUN_ID" '
-              [.workflow_runs[]
-               | select((.id|tostring) != $run_id)
-               | select(.created_at >= $cutoff)
-               | select(.status == "queued" or .status == "in_progress" or .conclusion == "success")]
-              | length')"
-            if [ "$PRIMARY_FOUND" -gt 0 ]; then
-              SHOULD_RUN=false
-              echo "Primary run for this slot already exists and is healthy; watchdog is a no-op."
-            else
-              echo "Primary run is missing or failed; watchdog will execute the production cycle."
-            fi
-          fi
-          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+        run: echo "should_run=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         if: steps.guard.outputs.should_run == 'true'
@@ -94,8 +68,11 @@ jobs:
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
             FORCE_ARG="--force"
-          elif [ -n "${{ github.event.schedule }}" ] && [ "${{ github.event.schedule }}" != "7 7,9,11,13,15,17,19 * * 1-5" ]; then
-            # Watchdog retries can occur after the scheduler's normal minute gate.
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # A scheduler workflow repair should recover the missed interval now.
+            FORCE_ARG="--force"
+          elif [[ "${{ github.event.schedule }}" == 37* ]]; then
+            # :37 is the watchdog opportunity for the corresponding ET slot.
             FORCE_ARG="--force"
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
