@@ -13,24 +13,64 @@ on:
     # The Python scheduler accepts triggers during the first 30 minutes of each run hour.
     - cron: "17 7,9,11,13,15,17,19 * * 1-5"
       timezone: "America/New_York"
+    # Watchdog: if the primary trigger was dropped or failed, retry the same slot.
+    - cron: "37 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
 permissions:
   contents: read
+  actions: read
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
     steps:
+      - name: Decide whether this slot needs production
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          SHOULD_RUN=true
+          if [ "$EVENT_SCHEDULE" = "37 7,9,11,13,15,17,19 * * 1-5" ]; then
+            CUTOFF="$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')"
+            RUNS="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/actions/runs?event=schedule&per_page=20")"
+            PRIMARY_FOUND="$(echo "$RUNS" | jq --arg cutoff "$CUTOFF" --arg run_id "$RUN_ID" '
+              [.workflow_runs[]
+               | select((.id|tostring) != $run_id)
+               | select(.created_at >= $cutoff)
+               | select(.status == "queued" or .status == "in_progress" or .conclusion == "success")]
+              | length')"
+            if [ "$PRIMARY_FOUND" -gt 0 ]; then
+              SHOULD_RUN=false
+              echo "Primary run for this slot already exists and is healthy; watchdog is a no-op."
+            else
+              echo "Primary run is missing or failed; watchdog will execute the production cycle."
+            fi
+          fi
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.should_run == 'true'
       - uses: actions/setup-python@v5
+        if: steps.guard.outputs.should_run == 'true'
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+        if: steps.guard.outputs.should_run == 'true'
       - name: Install LibreOffice for resume PDF validation
+        if: steps.guard.outputs.should_run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-writer
           soffice --version
       - run: python -m pytest -q
+        if: steps.guard.outputs.should_run == 'true'
       - name: Restore scheduler, ledger, discovery and source-health state
+        if: steps.guard.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -39,6 +79,7 @@ jobs:
           key: job-agent-state-${{ github.run_id }}
           restore-keys: job-agent-state-
       - name: Run scheduled production cycle
+        if: steps.guard.outputs.should_run == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RESUME_LLM_MODEL: gpt-5.6
@@ -49,6 +90,7 @@ jobs:
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
       - name: Sync application queue to hosted dashboard
+        if: steps.guard.outputs.should_run == 'true'
         env:
           DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
           DASHBOARD_SYNC_URL: https://job-dashboard-production-7436.up.railway.app/api/sync
@@ -65,6 +107,7 @@ jobs:
               "$DASHBOARD_SYNC_URL"
           fi
       - uses: actions/upload-artifact@v4
+        if: steps.guard.outputs.should_run == 'true'
         with:
           name: job-cycle-${{ github.run_number }}
           path: |
