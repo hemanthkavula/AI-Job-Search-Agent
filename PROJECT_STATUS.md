@@ -82,17 +82,17 @@ Production has seven intended weekday slots:
 - 5 PM ET
 - 7 PM ET
 
-The primary GitHub Actions trigger runs at **:17** during each scheduled hour.
+Each intended production slot now has **six independent GitHub Actions trigger opportunities: :07, :17, :27, :37, :47, and :57**.
 
-A second **:37 watchdog trigger** checks whether the primary scheduled run for the slot exists and is healthy. If the primary is queued, running, or successful, the watchdog performs no production work. If the primary trigger is missing or failed, the watchdog runs the production cycle in recovery mode.
+The **:07 trigger is primary**. The later triggers are watchdog retries. Before doing production work, each watchdog checks recent scheduled runs for the same slot. If another run is queued, running, or successful, it exits without duplicating production. If earlier triggers were dropped or the run failed, the next watchdog executes the production cycle in recovery mode. Later watchdogs provide additional retry opportunities if a recovery attempt itself fails.
 
-Persistent scheduler/provider watermarks provide the third reliability layer. Missed intervals resume from the last successful watermark instead of silently advancing. Failed providers retain their previous watermark. Workday tenants maintain independent watermarks so one failing tenant does not force healthy tenants to replay the same interval.
+Persistent scheduler/provider watermarks provide the final recovery layer. Missed intervals resume from the last successful watermark instead of silently advancing. Failed providers retain their previous watermark. Workday tenants maintain independent watermarks so one failing tenant does not force healthy tenants to replay the same interval.
 
 A five-minute overlap is added around discovery windows to reduce boundary misses.
 
 ```text
-Primary :17
-→ Watchdog :37
+Primary :07
+→ Watchdogs :17 / :27 / :37 / :47 / :57
 → Watermark catch-up
 ```
 
@@ -356,7 +356,7 @@ The new :17 primary / :37 watchdog reliability behavior is the current productio
 | Persistent provider watermarks | Implemented |
 | Workday tenant watermarks | Implemented |
 | Two-hour weekday scheduler | Implemented |
-| Primary + watchdog schedule | Implemented; ongoing production observation |
+| Redundant primary + watchdog schedule | Implemented; ongoing production observation |
 | Persistent application ledger | Implemented |
 | Hosted application dashboard | Implemented |
 | Dashboard queue synchronization | Implemented |
