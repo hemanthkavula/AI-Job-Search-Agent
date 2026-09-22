@@ -2,82 +2,27 @@
 
 **Owner:** Hemanth Kavula  
 **Target:** U.S. Data Engineering roles  
-**Daily operating window:** 7:00 AM–6:00 PM local time, hourly, with an end-of-day report after the final cycle.
+**Current mode:** Cloud production pipeline with manual employer submission  
+**Schedule:** Monday-Friday, 7 AM–7 PM Eastern, every two hours
 
 ## 1. Product objective
 
-Build a source-agnostic job-search agent that continuously discovers newly posted U.S. Data Engineering roles, verifies eligibility, retrieves the complete employer job description, creates a truthful JD-tailored resume, validates it with internal ATS/evidence/quality gates, and ultimately submits supported applications and reports the day's activity.
+Build and operate a source-agnostic job-search agent that discovers newly posted U.S. Data Engineering roles, verifies eligibility, retrieves the complete employer job description, creates a JD-specific tailored resume, validates it with internal ATS/evidence/recruiter/human-quality gates, and publishes qualified applications to a persistent hosted dashboard.
 
-The agent must not be tied to Quest Diagnostics, a fixed company list, or a single job board. Company-specific debug flags are test controls only.
+The automated production boundary ends at a prepared application. Employer application submission remains manual.
 
-## 2. Daily production behavior
-
-Production cadence:
-
-- 07:00 — discovery/application cycle
-- 08:00 — discovery/application cycle
-- 09:00 — discovery/application cycle
-- 10:00 — discovery/application cycle
-- 11:00 — discovery/application cycle
-- 12:00 — discovery/application cycle
-- 13:00 — discovery/application cycle
-- 14:00 — discovery/application cycle
-- 15:00 — discovery/application cycle
-- 16:00 — discovery/application cycle
-- 17:00 — discovery/application cycle
-- 18:00 — final discovery/application cycle, then daily report
-
-Every cycle must deduplicate against jobs already seen/processed so the same opening is not repeatedly tailored or submitted.
-
-## 3. Target job family
-
-Accept the Data Engineering family, including:
-
-- Data Engineer
-- Senior / Sr Data Engineer
-- Lead Data Engineer
-- Staff Data Engineer
-- Principal Data Engineer
-- AWS Data Engineer
-- Azure Data Engineer
-- Cloud Data Engineer
-- Big Data Engineer
-- Data Infrastructure Engineer
-- Data Pipeline Engineer
-- ETL Data Engineer
-- Analytics Data Engineer
-- Data Platform Engineer when the responsibilities are genuinely data-engineering aligned
-
-Reject unrelated analyst, data scientist, frontend, QA, software-only, ML engineer, DevOps/SRE, DBA, architect, BI-developer, internship, and junior roles.
-
-## 4. Candidate eligibility policy
-
-Candidate experience target: approximately 5 years. Job requirement window: normally 4–8 years, with ranges evaluated by their minimum requirement.
-
-Employment:
-- U.S. roles only
-- Full-Time or W-2
-- reject explicit C2C/1099, part-time, internship, temporary, seasonal, and incompatible contract roles
-
-Work authorization:
-- currently authorized in the U.S. under F-1 OPT
-- sponsorship needed now: NO
-- future H-1B sponsorship: YES
-- explicit no current/future sponsorship: reject
-- sponsorship available: continue
-- sponsorship not mentioned/unknown: continue
-- explicit U.S.-citizenship or incompatible clearance requirement: reject
-
-## 5. Correct end-to-end architecture
+## 2. Current production architecture
 
 ```text
-Broad source discovery
+Primary scheduled trigger
     ↓
-Source-side Data Engineering + freshness filtering where supported
+Watchdog recovery if primary is missing/failed
     ↓
-Normalize postings into one common job schema
+Persistent watermark catch-up
     ↓
-Freshness verification: posted within last 24 hours
+Multi-source job discovery
+    ↓
+Freshness + canonical deduplication
     ↓
 U.S. location
     ↓
@@ -89,262 +34,376 @@ Experience screening
     ↓
 Sponsorship / citizenship / clearance screening
     ↓
-Cross-source + historical deduplication
-    ↓
 PRELIMINARY_ELIGIBLE
     ↓
-Resolve to original employer ATS/career posting when possible
+Resolve original employer ATS/career posting
     ↓
-Retrieve COMPLETE JD
+Retrieve and verify COMPLETE JD
     ↓
 Re-run final eligibility using complete JD
     ↓
 FINAL_JD_VERIFIED
     ↓
-Build deterministic JD requirement/evidence coverage plan
+Build JD requirement/coverage plan
     ↓
-Generate strongest truthful tailored resume V1
+Generate strongest tailored resume V1
     ↓
-Internal ATS + evidence + human-quality audit
+ATS + evidence + recruiter + human-quality audit
     ↓
-PASS → DOCX + PDF → READY_TO_APPLY
-FAIL → exact audit feedback → regenerate (maximum 3 total attempts)
+PASS → DOCX/PDF artifact validation
+FAIL → targeted audit feedback → regenerate, maximum 3 attempts
     ↓
-Persistent failure → HOLD_ATS_REVIEW
+READY_TO_APPLY
     ↓
-Application adapter
+Persistent application queue
     ↓
-SUBMITTED / MANUAL_ACTION_REQUIRED / APPLICATION_ERROR
+Hosted dashboard sync
     ↓
-Persistent application ledger
+User manually opens employer application and submits
     ↓
-18:00 daily report
+User marks application Applied
+    ↓
+Persistent applied history + preserved resume reference
 ```
 
-There is deliberately **no JD-match-score discovery gate**. An otherwise eligible job is not discarded merely because the base resume has a low keyword match. Tailoring happens after full-JD verification.
+There is deliberately no JD-match-score discovery gate. An otherwise eligible job is tailored rather than rejected because the base resume has a low keyword match.
 
-## 6. Discovery strategy: broad, not fixed-company only
+There is also no artificial production resume-count cap. All jobs that qualify for resume preparation can proceed, subject to normal API/runtime and validation constraints.
 
-### Current implementation
+## 3. Production schedule and reliability
 
-The repository currently has adapters for:
+Production has seven intended weekday slots:
+
+- 7 AM ET
+- 9 AM ET
+- 11 AM ET
+- 1 PM ET
+- 3 PM ET
+- 5 PM ET
+- 7 PM ET
+
+The primary GitHub Actions trigger runs at **:17** during each scheduled hour.
+
+A second **:37 watchdog trigger** checks whether the primary scheduled run for the slot exists and is healthy. If the primary is queued, running, or successful, the watchdog performs no production work. If the primary trigger is missing or failed, the watchdog runs the production cycle in recovery mode.
+
+Persistent scheduler/provider watermarks provide the third reliability layer. Missed intervals resume from the last successful watermark instead of silently advancing. Failed providers retain their previous watermark. Workday tenants maintain independent watermarks so one failing tenant does not force healthy tenants to replay the same interval.
+
+A five-minute overlap is added around discovery windows to reduce boundary misses.
+
+```text
+Primary :17
+→ Watchdog :37
+→ Watermark catch-up
+```
+
+The pipeline runs in the cloud; the user's laptop does not need to remain on.
+
+## 4. Target job family
+
+Accept appropriate individual-contributor Data Engineering roles, including:
+
+- Data Engineer
+- Senior / Sr Data Engineer
+- Staff Data Engineer
+- Principal Data Engineer
+- AWS Data Engineer
+- Azure Data Engineer
+- Cloud Data Engineer
+- Big Data Engineer
+- Data Infrastructure Engineer
+- Data Pipeline Engineer
+- ETL Data Engineer
+- Analytics Data Engineer
+- genuinely Data-Engineering-aligned Data Platform Engineer roles
+
+The current hard title guard rejects Manager, Director, Architect, and Consultant role families even when Data Engineering terminology also appears in the title.
+
+Unrelated analyst, data scientist, frontend, QA, software-only, ML engineer, DevOps/SRE, DBA, BI-only, internship, and junior roles are outside the target family.
+
+## 5. Candidate eligibility policy
+
+Candidate experience target: approximately 5+ years.
+
+Employment policy:
+
+- United States roles only.
+- U.S. onsite, hybrid, and U.S.-scoped remote roles are allowed.
+- Generic “Remote” must establish U.S. scope before qualifying.
+- Full-Time / W-2 focus.
+- Reject explicit C2C/1099, part-time, internship, temporary, seasonal, and incompatible employment arrangements.
+
+Work authorization policy:
+
+- currently authorized to work in the United States under F-1 OPT
+- sponsorship required now: no
+- future H-1B sponsorship required: yes
+- explicit no current/future sponsorship: reject
+- sponsorship available: continue
+- sponsorship not mentioned/unknown: continue
+- explicit U.S.-citizenship requirement: reject
+- required security clearance: reject
+
+## 6. Discovery
+
+Current production discovery includes configured and learned sources across:
+
 - Greenhouse
 - Lever
 - Ashby
 - SmartRecruiters
 - Workday
+- SuccessFactors
+- iCIMS
+- Oracle
+- direct/company career sites
+- Eightfold
 - Dice
 - ZipRecruiter
 
-The ATS configuration currently contains a finite set of known companies/boards. Therefore the current discovery layer is **not yet broad enough to claim coverage of every Data Engineering opening**.
+Newly learned Workday tenants are incorporated into scheduler tracking. Workday tenants have independent failure domains and watermarks.
 
-### Required production design
+Cross-source and historical deduplication prevent the same opening from being repeatedly prepared.
 
-Discovery must use multiple complementary channels:
-
-1. **Provider-wide/job-board search** — query broad job indexes for the Data Engineering family, U.S., and recent postings.
-2. **ATS discovery/resolution** — when a board result is found, resolve it to the employer's original Greenhouse/Lever/Ashby/Workday/SmartRecruiters/iCIMS/direct-career posting whenever possible.
-3. **Known ATS registry** — retain direct company ATS connectors because they are useful and authoritative, but treat them as one channel rather than the universe of companies.
-4. **Expandable source registry** — newly discovered employer ATS endpoints should be reusable on later hourly cycles.
-5. **Canonical deduplication** — merge the same employer opening found through multiple sources.
-6. **Source health telemetry** — report source failures instead of silently reducing coverage.
-
-No implementation can truthfully guarantee literally every job on the internet: some sites block automation, have no stable interface, require authentication, or prohibit automated submission. The production objective is the broadest reliable, permitted coverage across supported sources, with original-employer postings preferred.
+No implementation can guarantee every job on the public internet; the production objective is broad reliable coverage across supported sources, with original-employer postings preferred whenever they can be resolved.
 
 ## 7. Full-JD rule
 
-A lightweight search result is not enough for resume generation.
+A lightweight search result or job-board excerpt is not sufficient for resume generation.
 
-Current safeguard:
-- only `FINAL_JD_VERIFIED` jobs enter `batch_prepare`
-- complete JD must be marked `description_complete`
-- minimum complete-JD length safeguard is 1,200 characters
-- final eligibility is rerun after retrieving the complete JD
+Only jobs that successfully reach **FINAL_JD_VERIFIED** can enter resume preparation. Complete-JD safeguards and final eligibility checks are applied before paid resume generation.
 
-This was added after a Quest test used a truncated Dice excerpt and produced misleading ATS results.
+This prevents a truncated posting excerpt from driving an inaccurate resume.
 
 ## 8. Resume tailoring contract
 
-Fixed identity/chronology must never change.
+The master candidate profile is the fixed identity and chronology anchor, not the technical-content ceiling.
+
+Fixed facts include:
 
 ### Fidelity Investments — Senior Data Engineer — Jan 2025–Present
-- financial-services domain only
+- Jersey City, NJ
+- financial-services/trading/risk/compliance domain
 - exactly 8 bullets
 - maximum 2 metric-bearing bullets
 
 ### Cigna Healthcare — Data Engineer — Jan 2022–Dec 2023
-- healthcare domain only
+- Bangalore, India
+- healthcare/claims/eligibility domain
 - exactly 7 bullets
 - maximum 2 metric-bearing bullets
 
 ### Target Corporation — Data Engineer — Jan 2020–Dec 2021
-- retail/e-commerce domain only
+- Bangalore, India
+- retail/e-commerce/POS/inventory domain
 - exactly 6 bullets
-- no fabricated metrics
+- no fabricated numerical metrics
 
 Education:
-- MS Computer Science, Rowan University, Jan 2024–Dec 2025
+- MS Computer Science, Rowan University, Glassboro, NJ
+- Jan 2024–Dec 2025
 
-Output:
+Output naming:
 - `Hemanth_Kavula_{Company}_{JobTitle}.docx`
-- PDF only after all release gates pass
+- corresponding PDF after release/artifact gates pass
 
-## 9. Candidate technology evidence
+### Current JD-driven tailoring behavior
 
-The candidate profile currently records broad hands-on skills including Python, SQL, PySpark/Spark, AWS Glue/EMR/S3/Redshift/Lambda/Kinesis, Azure Data Factory, Azure Synapse Analytics, ADLS Gen2, Event Hub, Databricks, Snowflake, Kafka, Airflow, dbt, Terraform, Docker, Great Expectations, Azure Purview, BigQuery, Dagster, Apache Beam, Apache Flink, Kubernetes, ArgoCD, Helm, and Istio.
+The complete verified JD is the primary technical-content source for Summary, Technical Skills, and Experience.
 
-A skill being in the master inventory is permission to use it when relevant; it is **not** an instruction to stuff every skill into every resume. The next coverage-planner revision must map every material JD requirement to candidate evidence before V1 and deliberately include supported, relevant requirements.
+Material technologies, tools, platforms, concepts, and responsibilities required by the JD are prioritized in Skills and demonstrated naturally across one or more relevant experience sections while preserving the employer's domain context.
 
-## 10. ATS/resume quality pipeline
+The master resume's existing technical bullets and technical list are **not a whitelist** that restricts tailoring.
 
-Current release targets:
-- internal ATS score >= 95
-- technology evidence >= 95
-- human quality >= 90
-- structure gate = pass
-- metric gate = pass
-- repetition gate = pass
-- technology-evidence gate = pass
+The writer must not invent employers, titles, dates, locations, education, certifications, unsupported numerical metrics, named projects, or business outcomes.
+
+## 9. Resume quality pipeline
+
+Current release targets include:
+
+- internal ATS target >= 95
+- JD/material-requirement coverage
+- technology/evidence depth
+- recruiter-quality checks
+- human-quality target >= 90
+- structure gate
+- metric gate
+- repetition gate
+- artifact validation
 
 Maximum resume attempts: 3.
 
-The internal ATS score is a project heuristic, not a guaranteed score from an employer's proprietary ATS.
+Passed JD coverage is carried forward during retries so correcting one failed gate does not unnecessarily lose requirements that already passed.
 
-### Latest Quest validation
+Material JD platforms and technologies are deliberately represented in relevant experience where coherent, not merely keyword-stuffed into Skills.
 
-Latest test:
-- V1: ATS 92, Evidence 88, Human 100
-- V2: ATS 100, Evidence 91, Human 100
-- V3: ATS 97, Evidence 100, Human 100
+The internal ATS result is a project heuristic and not an employer's proprietary ATS score.
 
-V3 still held because:
-- keyword coverage = 93%
-- missing target = Azure Synapse Analytics
-- metrics gate failed because the generated bullet contained unsupported `sub-minute` latency wording
+## 10. Artifact validation
 
-The writer has since been instructed not to invent bounded/near-numeric latency or scale claims.
+A resume does not enter the application queue merely because text generation succeeded.
 
-The remaining design issue is not Quest-specific: the coverage planner must classify JD requirements and map them to the master candidate evidence inventory **before** the paid V1 generation. This prevents a supported JD skill such as Azure Synapse Analytics from being accidentally omitted.
+The release process validates DOCX/PDF artifacts, including PDF generation/parity checks. Cloud GitHub Actions installs LibreOffice Writer so production artifact validation can run without the user's computer.
+
+A job reaches **READY_TO_APPLY** only after the required resume and artifact gates pass.
 
 ## 11. Application stage
 
-### Intended automatic answers
-- Authorized to work in the United States? **Yes**
-- Require sponsorship now? **No**
-- Require sponsorship now or in the future? **Yes**
-- Future sponsorship required? **Yes**
+Application submission is intentionally manual.
 
-Standard explanation:
-“I am currently authorized to work in the United States under F-1 OPT and do not require sponsorship at this time. I will require H-1B sponsorship in the future to continue working in the United States.”
+The automated system:
 
-### Current status
+```text
+discovers
+→ qualifies
+→ verifies JD
+→ generates/validates resume
+→ queues
+→ syncs dashboard
+```
 
-Automatic ATS/browser submission is **not yet production-complete**. The current pipeline prepares and audits applications; it does not yet provide a universal submission adapter for every employer ATS.
+The user then opens the employer application, completes the form, submits it, and marks the job **Applied** in the hosted dashboard.
 
-Production application adapters must safely handle:
-- account/login requirements
-- resume upload
-- contact information
-- standard work-authorization questions
-- job-specific screening questions
-- required attestations
-- CAPTCHA/MFA/manual-intervention states
-- submission confirmation
-- duplicate-application prevention
+Browser/autofill agents are not part of the current production submission flow.
 
-The agent must never invent answers to employer screening questions.
+## 12. Hosted dashboard
 
-## 12. Daily report specification
+The Railway-hosted Application Tracker is the persistent user-facing application queue.
 
-After the final 18:00 cycle, produce one report containing:
+It shows:
 
-- sources queried and source failures
-- jobs discovered
-- fresh jobs verified <=24h
-- duplicates removed
-- jobs rejected by reason
-- preliminary eligible jobs
-- full JDs successfully resolved
-- final eligible jobs
-- resumes generated
-- V1 pass count
-- retries used
-- ATS holds
-- applications submitted
-- applications requiring manual action
-- application errors
-- company/title/application URL
-- resume file used
-- final internal ATS/evidence/human scores
-- sponsorship classification
-- timestamp/status for each application
-
-## 13. Persistent state requirements
-
-Hourly operation requires persistent state, not independent stateless searches. Store:
-- canonical job ID / employer requisition ID
-- source IDs and original ATS URL
-- first seen / posting time / last seen
-- eligibility decision and reasons
-- JD hash/version
-- resume path/version
-- audit result
+- company and role
 - application status
-- submission confirmation
-- retry/error history
+- source/portal
+- validated resume PDF when available
+- employer application link
+- applied status/date
 
-This prevents duplicate resumes and duplicate applications across hourly and daily runs.
+**Mark Applied** stores a persistent confirmation separately from normal production ledger synchronization.
 
-## 14. Current project stage
+Applied records now preserve their associated resume reference. Older applied records can recover an existing validated PDF from a matching company/title ledger record when the current source record no longer carries its PDF path.
+
+The dashboard state is stored on its attached persistent volume and synchronized from successful GitHub production cycles.
+
+## 13. Persistent state
+
+Production maintains state for:
+
+- canonical job identity / requisition
+- source IDs and URLs
+- first/last seen timestamps
+- eligibility decisions and rejection reasons
+- complete-JD state
+- resume paths and versions
+- audit results
+- queue/application state
+- applied confirmations
+- provider watermarks
+- Workday tenant watermarks
+- source failures/retry state
+
+This prevents duplicate processing and preserves missed discovery windows across independent cloud executions.
+
+## 14. Latest validated production results
+
+Recent cloud production validation established:
+
+- GitHub Actions test suite passing after scheduler/cleanup compatibility fixes.
+- LibreOffice available in the cloud workflow for resume PDF validation.
+- A successful manual production run produced **21 READY_TO_APPLY applications from 21 prepared jobs**, with zero resume retries in that run.
+- The hosted dashboard successfully received the production queue.
+- Resume PDF path remapping between ephemeral GitHub runner paths and persistent Railway state was fixed and validated.
+- **Mark Applied** persistence was fixed and user-verified.
+- Applied-resume PDF preservation/recovery was subsequently added and user-verified for the previously unavailable ICF and Visa PDFs.
+- The scheduler uses persisted provider and Workday-tenant watermarks for catch-up.
+
+The new :17 primary / :37 watchdog reliability behavior is the current production schedule design and should continue to be observed across scheduled cloud runs.
+
+## 15. Current component status
 
 | Component | Status |
 |---|---|
-| Candidate profile | Implemented |
-| Strict DE-family filtering | Implemented |
-| U.S./employment filtering | Implemented |
+| Candidate identity/chronology profile | Implemented |
+| Strict Data Engineering family filtering | Implemented |
+| Manager/Director/Architect/Consultant hard guard | Implemented |
+| U.S. location filtering | Implemented |
+| Employment filtering | Implemented |
 | Experience screening | Implemented |
 | Sponsorship policy | Implemented |
 | Citizenship/clearance rejection | Implemented |
-| <=24h freshness framework | Implemented |
-| Cross-query discovery dedup | Implemented |
-| Greenhouse adapter | Implemented |
-| Lever adapter | Implemented |
-| Ashby adapter | Implemented |
-| SmartRecruiters adapter | Implemented |
-| Workday adapter | Implemented |
-| Dice discovery | Working in tests |
-| ZipRecruiter | Adapter exists; provider reliability still needs validation |
-| Full-JD finalizer | Implemented |
+| Freshness framework | Implemented |
+| Cross-source/historical deduplication | Implemented |
+| Greenhouse | Implemented |
+| Lever | Implemented |
+| Ashby | Implemented |
+| SmartRecruiters | Implemented |
+| Workday + learned tenants | Implemented |
+| SuccessFactors | Integrated |
+| iCIMS | Integrated |
+| Oracle | Integrated |
+| Career-site discovery | Integrated |
+| Eightfold | Integrated |
+| Dice | Integrated |
+| ZipRecruiter | Integrated; provider reliability can vary |
+| Complete-JD finalizer | Implemented |
 | Final eligibility after full JD | Implemented |
-| JD coverage plan | Implemented, needs evidence/classification upgrade |
+| JD-driven resume coverage | Implemented |
 | LLM resume generation | Implemented |
-| Exact 8/7/6 resume structure | Implemented |
-| DOCX formatting | Implemented |
-| ATS/evidence/human audit | Implemented, still being calibrated semantically |
+| Exact 8/7/6 experience structure | Implemented |
+| ATS/evidence/recruiter/human audit | Implemented |
 | Quality-driven max-3 retry | Implemented |
-| PDF after pass only | Implemented |
-| Broad dynamic source discovery | **Not complete** |
-| Persistent cross-hour application ledger | **Needs production hardening** |
-| Universal ATS auto-application | **Not complete** |
-| 07:00–18:00 hourly scheduler | **Not complete** |
-| 18:00 daily report automation | **Not complete** |
-| End-to-end unattended production run | **Not ready yet** |
+| DOCX/PDF validation | Implemented |
+| Process all eligible production jobs | Implemented |
+| Persistent provider watermarks | Implemented |
+| Workday tenant watermarks | Implemented |
+| Two-hour weekday scheduler | Implemented |
+| Primary + watchdog schedule | Implemented; ongoing production observation |
+| Persistent application ledger | Implemented |
+| Hosted application dashboard | Implemented |
+| Dashboard queue synchronization | Implemented |
+| Manual Mark Applied tracking | Implemented and user-verified |
+| Applied resume PDF preservation/recovery | Implemented and user-verified |
+| Autonomous ATS/browser submission | Intentionally disabled / not production scope |
+| Laptop required for production | No |
 
-**Overall stage:** core discovery/filter/final-JD/resume/audit pipeline is functional and under validation. The project is currently between **resume-quality validation** and **production orchestration/application automation**.
+## 16. Current operational boundary
 
-## 15. Next implementation order
+The system is now designed for unattended cloud operation through **READY_TO_APPLY** and dashboard publication.
 
-1. Fix the deterministic coverage planner so every material JD requirement is classified as required/preferred/alternative and mapped to candidate evidence before V1.
-2. Revalidate V1 on several different JDs (AWS-heavy, Azure-heavy, platform-heavy), not just Quest.
-3. Replace fixed-company dependence with broad provider/job-board discovery plus original-ATS resolution and an expandable ATS registry.
-4. Add persistent job/application ledger and cross-hour deduplication.
-5. Build application adapters and explicit manual-action states for unsupported/CAPTCHA/MFA flows.
-6. Add one production cycle command that runs discovery → finalization → tailoring → audit → application → ledger.
-7. Add scheduler for hourly cycles from 07:00 through 18:00.
-8. Add end-of-day report after the 18:00 cycle.
-9. Run in dry-run mode across multiple days.
-10. Enable unattended submissions only after application adapters and safeguards pass validation.
+The user does not need to keep the laptop running for:
 
-## 16. Definition of done
+- scheduled discovery
+- filtering and final-JD retrieval
+- resume generation/retries
+- DOCX/PDF validation
+- application queue creation
+- dashboard synchronization
+- watchdog recovery
 
-The agent is production-ready when a single scheduled workflow can run hourly from 07:00–18:00, discover broad current Data Engineering openings without relying on a fixed company list, verify complete JDs and eligibility, generate truthful job-specific resumes, pass release gates, submit through supported ATS flows, persist confirmations, avoid duplicates, surface manual-only cases, and produce a complete daily report after the final cycle.
+Manual work remains only where intended: reviewing/opening a queued application, completing the employer's application process, and marking it Applied.
+
+## 17. Remaining production work
+
+The immediate work is operational validation rather than redesign of already validated components:
+
+1. Observe the new primary/watchdog schedule over real production slots and confirm expected skip/recovery behavior.
+2. Continue monitoring provider reliability and source-specific failures without advancing failed-provider watermarks.
+3. Harden dashboard access/privacy before treating resume/application data as securely private on a public URL.
+4. Add exact OpenAI token/cost accounting if per-cycle dollar-cost reporting is required.
+5. Add/refresh end-of-day reporting if a separate daily summary remains desired.
+6. Avoid changing validated discovery, filtering, resume, and queue logic without new production evidence.
+
+## 18. Definition of current production success
+
+A healthy scheduled slot should:
+
+1. receive the primary trigger or automatically recover through the watchdog;
+2. resume discovery from persisted source-specific watermarks;
+3. discover and deduplicate supported U.S. Data Engineering jobs;
+4. reject ineligible roles;
+5. verify complete JDs;
+6. generate and validate all eligible tailored resumes;
+7. publish passing applications to the hosted dashboard;
+8. preserve prior applied history and resume PDFs;
+9. leave employer submission for the user.
+
+If an external scheduled trigger or source fails, the system should preserve the unprocessed interval and retry it rather than silently losing that interval.
