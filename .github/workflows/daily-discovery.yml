@@ -98,6 +98,11 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: python -m pytest -q
 
+      - name: Audit configured source health
+        if: steps.guard.outputs.should_run == 'true'
+        run: |
+          python -m app.source_health --sources data/job_sources.json --output state/source_health.json
+
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
         env:
