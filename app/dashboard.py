@@ -80,6 +80,28 @@ def _confirmed_map():
     apps=data.get("applications") or []
     return data,apps
 
+def _resume_path_from_confirmed(hist):
+    if not hist:return None
+    value=hist.get("resume_path")
+    if value:
+        p=Path(value)
+        if not p.is_absolute():
+            p=STATE_DIR/p
+        if p.suffix.lower()==".pdf" and p.exists() and p.is_file():
+            return p
+    # Older applied records did not persist the resume path. Recover the
+    # validated artifact from another ledger record for the same company/title.
+    company=str(hist.get("company") or "").strip().lower()
+    title=str(hist.get("title") or "").strip().lower()
+    if not company or not title:return None
+    ledger=_json(LEDGER,{"jobs":{}})
+    for row in (ledger.get("jobs") or {}).values():
+        if str(row.get("company") or "").strip().lower()!=company:continue
+        if str(row.get("title") or "").strip().lower()!=title:continue
+        p=_resume_path(row)
+        if p:return p
+    return None
+
 def _jobs():
     ledger=_json(LEDGER,{"jobs":{}})
     _,confirmed=_confirmed_map()
@@ -91,7 +113,7 @@ def _jobs():
         hist=by_key.get(key) or by_name.get((str(row.get("company") or "").lower(),str(row.get("title") or "").lower()))
         status=(hist or {}).get("status") or row.get("application_status") or "DISCOVERED"
         if status not in active:continue
-        rp=_resume_path(row)
+        rp=_resume_path(row) or _resume_path_from_confirmed(hist)
         out.append({
             "key":key,
             "company":row.get("company") or (hist or {}).get("company") or "Unknown company",
@@ -168,11 +190,13 @@ def confirm_submitted(job_key:str):
     now=datetime.now(timezone.utc).isoformat()
     data,apps=_confirmed_map()
     existing=next((x for x in apps if x.get("job_key")==job_key),None)
+    rp=_resume_path(row)
     payload={
         "job_key":job_key,
         "company":row.get("company"),
         "title":row.get("title"),
         "url":row.get("url") or (row.get("queue_item") or {}).get("url") or "",
+        "resume_path":str(rp.relative_to(STATE_DIR)) if rp and STATE_DIR in rp.parents else (str(rp) if rp else None),
         "status":"SUBMITTED_CONFIRMED",
         "submitted_at":now,
         "reason":"Marked applied from hosted dashboard.",
@@ -188,7 +212,11 @@ def resume(job_key:str):
     ledger=_json(LEDGER,{"jobs":{}})
     row=(ledger.get("jobs") or {}).get(job_key)
     if not row:raise HTTPException(404,"Job not found")
-    p=_resume_path(row)
+    _,confirmed=_confirmed_map()
+    hist=next((x for x in confirmed if x.get("job_key")==job_key),None)
+    if not hist:
+        hist=next((x for x in confirmed if str(x.get("company") or "").lower()==str(row.get("company") or "").lower() and str(x.get("title") or "").lower()==str(row.get("title") or "").lower()),None)
+    p=_resume_path(row) or _resume_path_from_confirmed(hist)
     if not p:raise HTTPException(404,"Resume not available")
     return FileResponse(p,media_type="application/pdf",headers={"Content-Disposition":f'inline; filename="{p.name}"'})
 
