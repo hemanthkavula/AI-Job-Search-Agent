@@ -697,6 +697,11 @@
   ],
   "career_site": [
     {
+      "company": "Fidelity Investments",
+      "search_url": "https://jobs.fidelity.com/en/jobs/",
+      "job_url_pattern": "jobs\\.fidelity\\.com/.+/job/.+"
+    },
+    {
       "company": "Amazon",
       "search_url": "https://www.amazon.jobs/en/search?base_query=data+engineer&loc_query=United+States",
       "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
