@@ -1120,6 +1120,46 @@
       "company": "LTIMindtree",
       "search_url": "https://www.ltm.com/us-careers",
       "job_url_pattern": "(?:ltm\\.com|careers\\.ltimindtree\\.com)/.+"
+    },
+    {
+      "company": "Experis",
+      "search_url": "https://www.experis.com/en/search-jobs",
+      "job_url_pattern": "experis\\.com/.+(?:job|jobs).+"
+    },
+    {
+      "company": "Akkodis",
+      "search_url": "https://www.akkodis.com/en-us/careers",
+      "job_url_pattern": "akkodis\\.com/.+(?:job|careers).+"
+    },
+    {
+      "company": "BNY",
+      "search_url": "https://www.bny.com/corporate/global/en/careers.html",
+      "job_url_pattern": "bny\\.com/.+careers.+"
+    },
+    {
+      "company": "State Street",
+      "search_url": "https://careers.statestreet.com/global/en/search-results",
+      "job_url_pattern": "careers\\.statestreet\\.com/.+/job/.+"
+    },
+    {
+      "company": "Citadel",
+      "search_url": "https://www.citadel.com/careers/open-opportunities/",
+      "job_url_pattern": "citadel\\.com/careers/details/.+"
+    },
+    {
+      "company": "Citadel Securities",
+      "search_url": "https://www.citadelsecurities.com/careers/open-opportunities/",
+      "job_url_pattern": "citadelsecurities\\.com/careers/details/.+"
+    },
+    {
+      "company": "Two Sigma",
+      "search_url": "https://www.twosigma.com/careers/",
+      "job_url_pattern": "twosigma\\.com/careers/.+"
+    },
+    {
+      "company": "Hudson River Trading",
+      "search_url": "https://www.hudsonrivertrading.com/careers/",
+      "job_url_pattern": "hudsonrivertrading\\.com/.+(?:job|careers).+"
     }
   ],
   "eightfold": [
