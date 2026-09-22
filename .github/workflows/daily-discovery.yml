@@ -8,13 +8,20 @@ on:
         default: false
         type: boolean
   schedule:
-    # Run every two hours from 07:00 through 19:00 in New York time, Monday-Friday.
-    # Use :17 instead of the top of the hour to reduce GitHub Actions schedule congestion.
-    # The Python scheduler accepts triggers during the first 30 minutes of each run hour.
+    # Six independent trigger opportunities per intended two-hour slot.
+    # :07 is primary; later triggers are watchdog retries and become no-ops
+    # when another run in the same slot is already queued/running/successful.
+    - cron: "7 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
     - cron: "17 7,9,11,13,15,17,19 * * 1-5"
       timezone: "America/New_York"
-    # Watchdog: if the primary trigger was dropped or failed, retry the same slot.
+    - cron: "27 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
     - cron: "37 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "47 7,9,11,13,15,17,19 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "57 7,9,11,13,15,17,19 * * 1-5"
       timezone: "America/New_York"
 permissions:
   contents: read
@@ -32,8 +39,8 @@ jobs:
           EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           SHOULD_RUN=true
-          if [ "$EVENT_SCHEDULE" = "37 7,9,11,13,15,17,19 * * 1-5" ]; then
-            CUTOFF="$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$EVENT_SCHEDULE" != "7 7,9,11,13,15,17,19 * * 1-5" ] && [ -n "$EVENT_SCHEDULE" ]; then
+            CUTOFF="$(date -u -d '60 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')"
             RUNS="$(curl --fail --silent --show-error \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "Accept: application/vnd.github+json" \
@@ -87,8 +94,8 @@ jobs:
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
             FORCE_ARG="--force"
-          elif [ "${{ github.event.schedule }}" = "37 7,9,11,13,15,17,19 * * 1-5" ]; then
-            # The watchdog intentionally runs after the normal <30-minute gate.
+          elif [ -n "${{ github.event.schedule }}" ] && [ "${{ github.event.schedule }}" != "7 7,9,11,13,15,17,19 * * 1-5" ]; then
+            # Watchdog retries can occur after the scheduler's normal minute gate.
             FORCE_ARG="--force"
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
