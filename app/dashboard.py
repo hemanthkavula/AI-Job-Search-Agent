@@ -161,6 +161,11 @@ def _pipeline_jobs(cycle_id):
     for row in snapshot:
         key=str(row.get("job_key") or row.get("key") or row.get("external_id") or row.get("job_id") or "")
         live=by_key.get(key)
+        if not live:
+            company=str(row.get("company") or row.get("company_name") or "").strip().lower()
+            title=str(row.get("title") or row.get("job_title") or "").strip().lower()
+            if company and title:
+                live=next((x for x in current if str(x.get("company") or "").strip().lower()==company and str(x.get("title") or "").strip().lower()==title),None)
         if live:
             item=dict(live)
         else:
