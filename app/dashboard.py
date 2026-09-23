@@ -152,6 +152,35 @@ def _cycle_snapshot(cycle_id):
     rows=queue if isinstance(queue,list) else (queue.get("applications") or queue.get("jobs") or queue.get("queue") or [])
     return [x for x in rows if isinstance(x,dict)]
 
+
+def _pipeline_jobs(cycle_id):
+    snapshot=_cycle_snapshot(cycle_id)
+    current=_jobs()
+    by_key={str(x.get("key") or ""):x for x in current if x.get("key")}
+    out=[]
+    for row in snapshot:
+        key=str(row.get("job_key") or row.get("key") or row.get("external_id") or row.get("job_id") or "")
+        live=by_key.get(key)
+        if live:
+            item=dict(live)
+        else:
+            item={
+                "key":key or f"{cycle_id}:{len(out)}",
+                "company":row.get("company") or row.get("company_name") or "",
+                "title":row.get("title") or row.get("job_title") or "",
+                "location":row.get("location") or "",
+                "portal":row.get("portal") or row.get("source") or "",
+                "url":row.get("url") or row.get("job_url") or row.get("apply_url") or "",
+                "created":row.get("created") or row.get("first_seen") or row.get("created_at") or "",
+                "stage":"Ready to apply",
+                "status":"READY_TO_APPLY",
+                "resume_available":bool(row.get("resume") or row.get("resume_path") or row.get("resume_file")),
+            }
+        item["pipeline"]=cycle_id
+        out.append(item)
+    return out
+
+
 def _jobs():
     ledger=_json(LEDGER,{"jobs":{}})
     _,confirmed=_confirmed_map()
@@ -233,8 +262,8 @@ def pipelines():
     return {"pipelines":[{k:v for k,v in r.items() if k!="ts"} for r in reversed(_pipeline_runs())]}
 
 @app.get("/api/applications")
-def applications():
-    rows=_jobs()
+def applications(pipeline: str | None = None):
+    rows=_pipeline_jobs(pipeline) if pipeline else _jobs()
     return {"applications":rows,"counts":{
         "all":len(rows),
         "queue":sum(x["stage"] in {"Ready to apply","Applying"} for x in rows),
