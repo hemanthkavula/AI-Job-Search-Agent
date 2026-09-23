@@ -42,7 +42,11 @@ def fresh_jobs(jobs,hours=24,since=None,now=None):
         if isinstance(state,str):state={"status":state}
         if state.get("status") in terminal:
             already.append(job);continue
-        ts=_parse(job.get("updated_at"))
+        # Accept authoritative provider posting fields without using first-seen time.
+        ts=None
+        for field in ("updated_at","posted_at","posted_on","date_posted","datePosted","published_at","publication_date"):
+            ts=_parse(job.get(field))
+            if ts is not None:break
         if ts is None:
             item=dict(job);item["freshness_rejection_reason"]="missing trustworthy posting timestamp"
             stale.append(item);continue
