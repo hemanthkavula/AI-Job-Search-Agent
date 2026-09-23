@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parent.parent
 def _write(path,payload):
  p=ROOT/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(payload,indent=2),encoding="utf-8");return str(p)
 
-def _sync_finalized(rows,ledger_path):
+def _sync_finalized(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
   raw=row.get("job") or row.get("raw") or row
@@ -25,7 +25,8 @@ def _sync_finalized(rows,ledger_path):
               ats_identifier=raw.get("ats_identifier"),
               requisition_id=raw.get("requisition_id") or raw.get("job_id"),
               jd_hash=raw.get("jd_hash"),
-              description_complete=raw.get("description_complete"))
+              description_complete=raw.get("description_complete"),
+              cycle_id=cycle_id)
  save_ledger(ledger,ledger_path)
 
 def _retry_items_from_ledger(ledger_path):
@@ -84,7 +85,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours)
  _write(eligible_rel,discovery)
  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel))
- _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger)
+ _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
  retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
  finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
  retry_ids={x["job"].get("external_id") for x in retry_items}
