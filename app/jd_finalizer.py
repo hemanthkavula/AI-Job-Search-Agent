@@ -1,7 +1,7 @@
 from __future__ import annotations
 import html,json,re
 from pathlib import Path
-from urllib import request
+from urllib import request,parse
 from app.config import load_profile
 from app.eligibility import two_category_filter
 from app.filters import passes_hard_filters
@@ -81,6 +81,35 @@ def _extract_dice(page):
     if end:plain=plain[:end.start()]
     return plain
 
+def _resolve_employer_career_page(job):
+    """Fallback for aggregator excerpts: locate the same role on the employer's public careers site."""
+    company=(job.get("company_key") or job.get("company") or "").strip()
+    title=(job.get("title") or "").strip()
+    if not company or not title:return ("","")
+    # Search-engine fallback is intentionally limited to public employer career pages.
+    # It is used only after the aggregator page itself fails to expose an ATS link.
+    q=parse.quote(f'{company} {title} careers')
+    page=_fetch_public_page("https://www.google.com/search?q="+q)
+    urls=re.findall(r'https?://[^&"<> ]+',page or "")
+    company_tokens=[x for x in re.findall(r"[a-z0-9]+",company.lower()) if len(x)>=4]
+    title_tokens=set(x for x in re.findall(r"[a-z0-9]+",title.lower()) if len(x)>=3)
+    ranked=[]
+    for u in urls:
+        u=html.unescape(u)
+        if any(x in u.lower() for x in ("dice.com","indeed.com","linkedin.com","ziprecruiter.com","google.com")):continue
+        host=re.sub(r"[^a-z0-9]","",parse.urlsplit(u).netloc.lower())
+        company_score=sum(t in host for t in company_tokens)
+        if not company_score:continue
+        p=_fetch_public_page(u)
+        desc=_best_resolved_description(p,"")
+        words=set(re.findall(r"[a-z0-9]+",desc.lower()))
+        overlap=len(title_tokens & words)
+        if _looks_like_usable_jd(desc,"") and overlap>=max(2,min(4,len(title_tokens))):
+            ranked.append((company_score,overlap,_jd_signal_score(desc),len(desc),u,desc))
+    if not ranked:return ("","")
+    _,_,_,_,u,desc=max(ranked)
+    return u,desc
+
 def resolve_full_jd(job):
     """Resolve full JD only after lightweight eligibility. Never calls an LLM."""
     job=resolve_original_ats(job)
@@ -91,13 +120,23 @@ def resolve_full_jd(job):
     page=_fetch_public_page(fetch_url)
     resolved=_best_resolved_description(page,source)
     out=dict(job)
+    employer_url=""
+    # Aggregators can expose only a teaser and omit the employer ATS link. In
+    # that case, resolve the same company/title on the employer's public career
+    # site rather than weakening JD quality requirements.
+    if not _looks_like_usable_jd(resolved or current,source):
+        employer_url,employer_desc=_resolve_employer_career_page(out)
+        if len(employer_desc)>len(resolved):resolved=employer_desc
+        if employer_url:
+            out["original_url"]=employer_url
+            out["ats_resolution"]="employer_career_page_fallback"
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
     out["description_complete"]=_looks_like_complete_jd(final,source)
     out["description_usable"]=_looks_like_usable_jd(final,source)
     out["jd_signal_score"]=_jd_signal_score(final)
-    out["jd_resolution_source"]="jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
+    out["jd_resolution_source"]="employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload")
     return out
 
 def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
