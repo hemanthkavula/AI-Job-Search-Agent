@@ -138,14 +138,19 @@ def _pipeline_for(value,runs):
     return r["cycle_id"] if (t-r["ts"]).total_seconds()<=4*3600 else None
 
 def _cycle_snapshot(cycle_id):
-    """Return the immutable jobs produced by one pipeline run."""
+    """Return the immutable application-ready rows produced by one pipeline run."""
     if not cycle_id or not CYCLES.exists(): return []
-    for suffix in ("_manifest.json","_application_queue.json","_finalized.json"):
-        d=_json(CYCLES/f"{cycle_id}{suffix}",[])
-        rows=d if isinstance(d,list) else (d.get("results") or d.get("jobs") or d.get("applications") or [])
-        if rows:
-            return rows
-    return []
+    # The summary's ready_to_apply count is calculated from the manifest, so
+    # View Jobs must use that same manifest as its source of truth.
+    manifest=_json(CYCLES/f"{cycle_id}_manifest.json",[])
+    rows=manifest if isinstance(manifest,list) else (manifest.get("results") or manifest.get("jobs") or manifest.get("applications") or [])
+    if rows:
+        ready=[x for x in rows if isinstance(x,dict) and x.get("next_action")=="READY_TO_APPLY"]
+        return ready
+    # Older cycles may only have an application queue.
+    queue=_json(CYCLES/f"{cycle_id}_application_queue.json",[])
+    rows=queue if isinstance(queue,list) else (queue.get("applications") or queue.get("jobs") or queue.get("queue") or [])
+    return [x for x in rows if isinstance(x,dict)]
 
 def _jobs():
     ledger=_json(LEDGER,{"jobs":{}})
