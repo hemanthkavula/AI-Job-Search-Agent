@@ -4,9 +4,8 @@ def test_complete_user_target_universe_is_loaded():
     payload=load_targets()
     assert payload["counts"]=={"unique_companies":234,"h1b_targets":188,"vendor_consulting_staffing":60}
     names={x["company"] for x in payload["companies"]}
-    for name in ("Amazon","Capital One","Databricks","Tata Consultancy Services (TCS)","TEKsystems","Mitchell Martin","Wells Fargo","Coinbase","Citadel Securities","Experian"):
+    for name in ("Amazon","Capital One","Databricks","Tata Consultancy Services (TCS)","TEKsystems","Mitchell Martin","Wells Fargo","Coinbase","Citadel Securities","Experian","Fidelity Investments"):
         assert name in names
-    assert "Fidelity Investments" not in names
     assert "Cigna Healthcare" not in names
     assert "Target" not in names
 
