@@ -47,7 +47,7 @@ def _fetch_public_page(url):
 
 def _extract_jsonld_job_description(page):
     """Extract a full JobPosting description embedded as schema.org JSON-LD."""
-    for block in re.findall(r'(?is)<script[^>]+type=["\\']application/ld\\+json["\\'][^>]*>(.*?)</script>',page or ""):
+    for block in re.findall(r"(?is)<script[^>]+type=['\"]application/ld\\+json['\"][^>]*>(.*?)</script>",page or ""):
         try:
             payload=json.loads(html.unescape(block).strip())
         except Exception:
