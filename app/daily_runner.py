@@ -81,13 +81,10 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
-        # The production queue is intentionally scoped to the user's authoritative
-        # employer universe. Aggregators remain useful for discovery, but cannot
-        # inject unrelated employers or crowd out direct ATS/company postings.
-        if not match_target(raw.get("company_key") or raw.get("company") or ""):
-            skipped.append({"job":raw,"reasons":["company outside target employer universe"],"action":"SKIP"})
-            reason_counts["outside_target_company"]+=1
-            continue
+        # Target companies are a preferred/example employer universe, not an
+        # eligibility allowlist. Jobs from any employer continue through the same
+        # freshness, DE-family, US-location, Full-Time/W-2, experience,
+        # sponsorship, citizenship/clearance, ledger, JD and dedup checks.
         processed,key,prior=seen_or_submitted(raw,ledger)
         if processed:
             skipped.append({"job":raw,"reasons":["already processed in persistent ledger"],"action":"SKIP_ALREADY_PROCESSED"});reason_counts["already_processed_ledger"]+=1;continue
