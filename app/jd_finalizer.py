@@ -45,6 +45,34 @@ def _fetch_public_page(url):
         with request.urlopen(req,timeout=30) as resp:return resp.read().decode("utf-8",errors="replace")
     except Exception:return ""
 
+def _extract_jsonld_job_description(page):
+    """Extract a full JobPosting description embedded as schema.org JSON-LD."""
+    for block in re.findall(r'(?is)<script[^>]+type=["\\']application/ld\\+json["\\'][^>]*>(.*?)</script>',page or ""):
+        try:
+            payload=json.loads(html.unescape(block).strip())
+        except Exception:
+            continue
+        stack=payload if isinstance(payload,list) else [payload]
+        for item in stack:
+            if not isinstance(item,dict):continue
+            candidates=item.get("@graph") if isinstance(item.get("@graph"),list) else [item]
+            for node in candidates:
+                if not isinstance(node,dict):continue
+                kind=node.get("@type")
+                kinds=kind if isinstance(kind,list) else [kind]
+                if "JobPosting" in kinds and node.get("description"):
+                    return _clean_html(str(node["description"]))
+    return ""
+
+def _best_resolved_description(page,source=""):
+    jsonld=_extract_jsonld_job_description(page)
+    extracted=_extract_dice(page) if (source or "").lower()=="dice" else _clean_html(page)
+    candidates=[x.strip() for x in (jsonld,extracted) if x and x.strip()]
+    if not candidates:return ""
+    # Prefer meaningful JD structure first, then length. This avoids replacing a
+    # clean JSON-LD JobPosting with a much longer navigation-heavy HTML dump.
+    return max(candidates,key=lambda x:(_jd_signal_score(x),len(x)))
+
 def _extract_dice(page):
     plain=_clean_html(page)
     start=re.search(r"(?i)\bJob Description\b",plain)
@@ -61,7 +89,7 @@ def resolve_full_jd(job):
     if job.get("description_complete") and _looks_like_complete_jd(current,source):return job
     fetch_url=job.get("original_url") or job.get("url")
     page=_fetch_public_page(fetch_url)
-    resolved=_extract_dice(page) if source=="dice" and "dice.com" in (fetch_url or "").lower() else _clean_html(page)
+    resolved=_best_resolved_description(page,source)
     out=dict(job)
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
@@ -69,7 +97,7 @@ def resolve_full_jd(job):
     out["description_complete"]=_looks_like_complete_jd(final,source)
     out["description_usable"]=_looks_like_usable_jd(final,source)
     out["jd_signal_score"]=_jd_signal_score(final)
-    out["jd_resolution_source"]="original_ats_or_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
+    out["jd_resolution_source"]="jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"
     return out
 
 def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
