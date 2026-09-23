@@ -37,11 +37,11 @@ def _retry_items_from_ledger(ledger_path):
   items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
  return items
 
-def _sync_manifest(rows,ledger_path):
+def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
-  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation")}
+  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id}
   if row.get("next_action")=="READY_TO_APPLY":
    pdf_path=row.get("pdf_path")
    if pdf_path and Path(pdf_path).suffix.lower()==".pdf":
@@ -99,7 +99,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
-  _sync_manifest(manifest,ledger)
+  _sync_manifest(manifest,ledger,stamp)
  queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel)) if manifest else []
  summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
