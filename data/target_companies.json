@@ -5,8 +5,8 @@
     "notes": "Company universe supplied by the user. Existing Data Engineering-family, experience, sponsorship, freshness, and application rules remain unchanged."
   },
   "counts": {
-    "unique_companies": 234,
-    "h1b_targets": 188,
+    "unique_companies": 233,
+    "h1b_targets": 187,
     "vendor_consulting_staffing": 60
   },
   "companies": [
@@ -86,15 +86,6 @@
         "h1b_target"
       ],
       "aliases": []
-    },
-    {
-      "company": "Fidelity Investments",
-      "categories": [
-        "h1b_target"
-      ],
-      "aliases": [
-        "Fidelity"
-      ]
     },
     {
       "company": "Goldman Sachs",
