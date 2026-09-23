@@ -137,6 +137,19 @@ def _pipeline_for(value,runs):
     r=prior[-1]
     return r["cycle_id"] if (t-r["ts"]).total_seconds()<=4*3600 else None
 
+def _cycle_job_ids(cycle_id):
+    """Recover exact historical cycle membership from persisted cycle artifacts."""
+    ids=set()
+    if not cycle_id or not CYCLES.exists(): return ids
+    for suffix in ("_manifest.json","_finalized.json","_application_queue.json"):
+        d=_json(CYCLES/f"{cycle_id}{suffix}",[] if suffix!="_finalized.json" else {})
+        rows=d if isinstance(d,list) else (d.get("results") or d.get("jobs") or d.get("applications") or [])
+        for item in rows:
+            raw=(item.get("job") or item.get("raw") or item) if isinstance(item,dict) else {}
+            eid=raw.get("external_id") or raw.get("job_key")
+            if eid: ids.add(str(eid))
+    return ids
+
 def _jobs():
     ledger=_json(LEDGER,{"jobs":{}})
     _,confirmed=_confirmed_map()
@@ -166,7 +179,7 @@ def _jobs():
             "updated":row.get("last_seen") or row.get("first_seen"),
             "created":row.get("first_seen") or row.get("last_seen"),
             "location":row.get("location") or "",
-            "pipeline":row.get("cycle_id") or _pipeline_for(row.get("first_seen") or row.get("last_seen"),runs),
+            "pipeline":row.get("cycle_id") or next((cid for cid,ids in historical_membership.items() if str(row.get("external_id") or key) in ids),None) or _pipeline_for(row.get("first_seen") or row.get("last_seen"),runs),
             "applied_at":(hist or {}).get("submitted_at") or row.get("submitted_at"),
             "reason":(hist or {}).get("reason") or row.get("application_reason") or "",
         })
