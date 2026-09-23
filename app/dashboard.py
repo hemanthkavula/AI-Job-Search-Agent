@@ -166,7 +166,7 @@ def _jobs():
             "updated":row.get("last_seen") or row.get("first_seen"),
             "created":row.get("first_seen") or row.get("last_seen"),
             "location":row.get("location") or "",
-            "pipeline":_pipeline_for(row.get("first_seen") or row.get("last_seen"),runs),
+            "pipeline":row.get("cycle_id") or _pipeline_for(row.get("first_seen") or row.get("last_seen"),runs),
             "applied_at":(hist or {}).get("submitted_at") or row.get("submitted_at"),
             "reason":(hist or {}).get("reason") or row.get("application_reason") or "",
         })
