@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 
@@ -44,9 +45,17 @@ async def _call(url: str, tool: str, arguments: dict) -> Any:
         raise RuntimeError(f"MCP call failed for {url} tool={tool}: {_exception_text(exc)}") from exc
 
 
-def call_tool(url: str, tool: str, arguments: dict) -> Any:
-    """Synchronous bridge used by the existing discovery engine."""
-    return asyncio.run(_call(url, tool, arguments))
+def call_tool(url: str, tool: str, arguments: dict, retries: int = 3) -> Any:
+    """Synchronous bridge with bounded retries for transient MCP/provider failures."""
+    last_error = None
+    for attempt in range(max(1, retries)):
+        try:
+            return asyncio.run(_call(url, tool, arguments))
+        except RuntimeError as exc:
+            last_error = exc
+            if attempt + 1 < max(1, retries):
+                time.sleep(1.5 * (2 ** attempt))
+    raise last_error or RuntimeError(f"MCP call failed for {url} tool={tool}")
 
 
 def rows_from_payload(payload: Any) -> list[dict]:
