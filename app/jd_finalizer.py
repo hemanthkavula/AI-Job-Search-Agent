@@ -6,6 +6,7 @@ from app.config import load_profile
 from app.eligibility import two_category_filter
 from app.filters import passes_hard_filters
 from app.ats_resolver import resolve_original_ats
+from app.sources.workday import job_detail_is_live
 
 MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
@@ -145,6 +146,18 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
     for item in report.get("results",[]):
         if item.get("action")!="ELIGIBLE_FOR_RESUME":continue
         raw=resolve_full_jd(item["job"])
+        # Workday search results can contain a requisition that closes between
+        # discovery and resume generation. Re-check the CXS detail endpoint here.
+        if (raw.get("source") or "").lower()=="workday":
+            url=raw.get("url") or raw.get("original_url") or ""
+            m=re.search(r"https?://([^/]+)/(?:(?:[a-z]{2}-[A-Z]{2})/)?([^/]+)(/job/.+)",url)
+            if m:
+                host,site,external_path=m.groups()
+                tenant=host.split(".",1)[0]
+                live,_=job_detail_is_live(host,tenant,site,external_path)
+                if not live:
+                    held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Workday requisition no longer exists at the live detail endpoint.","diagnostics":{"url":url}})
+                    continue
         if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
             held.append({"job":raw,"action":"HOLD_UNUSABLE_JD","reason":"Job description is too limited to identify meaningful tailoring targets safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
         raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
