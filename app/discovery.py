@@ -25,7 +25,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now"):
         existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
@@ -99,6 +99,14 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
             tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
+        # Newly learned ATS families initially use the hardened generic crawler.
+        # This gives production coverage immediately while preserving provider identity;
+        # provider-specific API collectors can replace this path as endpoints are validated.
+        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now"):
+            for src in config.get(provider,[]) if only_source in (None,provider) else []:
+                url=src.get("search_url")
+                if not url:continue
+                tasks.append((pool.submit(career_site_jobs,src.get("company") or provider,url,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
             tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
@@ -140,13 +148,17 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "oracle": len(config.get("oracle",[])),
         "career_site": len(config.get("career_site",[])),
         "eightfold": len(config.get("eightfold",[])),
+        "dayforce": len(config.get("dayforce",[])),
+        "ultipro": len(config.get("ultipro",[])),
+        "recruiting_com": len(config.get("recruiting_com",[])),
+        "adp_workforce_now": len(config.get("adp_workforce_now",[])),
         "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
         "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
     }
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dice","ziprecruiter"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","dice","ziprecruiter"):
         if only_source not in (None,provider):
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
