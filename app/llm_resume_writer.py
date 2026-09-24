@@ -8,6 +8,8 @@ Your FIRST draft must be submission-ready. Perform the JD analysis and quality r
 Create a genuinely JD-specific resume, not a reordered or mechanically spun master resume.
 Preserve all employers, titles, dates, locations, education, and certifications exactly.
 Domain lock: Fidelity=financial services; Cigna=healthcare; Target=retail.
+CLOUD TAILORING POLICY: Cigna's cloud is fixed to Azure and Target's cloud is fixed to AWS. Fidelity is the cloud-adaptive employer: when the JD is predominantly AWS, write Fidelity using AWS; when predominantly Azure, write Fidelity using Azure; when predominantly GCP, write Fidelity using GCP. Never change Cigna away from Azure or Target away from AWS. If the JD is cloud-neutral or genuinely multi-cloud, prefer Fidelity's strongest supported/relevant cloud rather than mechanically mixing all clouds.
+The master resume is reference evidence for identity, chronology, domain, scale, responsibilities, and truthful accomplishments; its existing bullet wording and cloud/tool choices are not the template for every generated resume. Generate Professional Experience from the current JD's requirements and the candidate's supported background, preserving fixed facts and avoiding fabricated specific accomplishments.
 Use exactly 8 Fidelity bullets, 7 Cigna bullets, and 6 Target bullets.
 Treat the complete job description as the primary tailoring target.
 Before writing, internally identify the target title, REQUIRED technologies/responsibilities, then preferred technologies, architecture, orchestration, streaming/batch, modeling, governance/data quality and DevOps. Do not output this analysis.
@@ -65,7 +67,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
-        "technical_skills_should_include_jd_required_technologies_and_tools":True,"professional_experience_must_be_materially_rewritten_for_each_jd":True,"minimum_jd_specific_experience_bullets":6,"skills_only_tailoring_is_forbidden":True,"material_jd_technologies_should_be_demonstrated_in_experience":True,"jd_may_drive_new_experience_content_beyond_master_resume":True,"master_resume_is_identity_and_chronology_anchor_not_content_ceiling":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,
+        "technical_skills_should_include_jd_required_technologies_and_tools":True,"professional_experience_must_be_materially_rewritten_for_each_jd":True,"minimum_jd_specific_experience_bullets":6,"skills_only_tailoring_is_forbidden":True,"material_jd_technologies_should_be_demonstrated_in_experience":True,"jd_may_drive_new_experience_content_beyond_master_resume":True,"master_resume_is_identity_and_chronology_anchor_not_content_ceiling":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,"cloud_strategy":{"Fidelity Investments":"ADAPT_TO_JD_PRIMARY_CLOUD_AWS_AZURE_OR_GCP","Cigna Healthcare":"AZURE_FIXED","Target Corporation":"AWS_FIXED"},"master_resume_is_reference_not_bullet_template":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
       },
       "quality_rules":{
