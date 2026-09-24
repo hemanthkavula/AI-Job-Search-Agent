@@ -11,7 +11,12 @@ NO_SPONSOR_PATTERNS=(
  "does not provide employer support or sponsorship","do not provide employer support or sponsorship",
  "without the need for employer support or sponsorship now or in the future",
  "without the need for employer support or sponsorship","immigration support or sponsorship now or in the future",
- "immigration related employment benefit"
+ "immigration related employment benefit",
+ "not eligible for f1 opt","not eligible for f-1 opt",
+ "not eligible for f1 stem opt","not eligible for f-1 stem opt",
+ "f1 opt or stem opt not eligible","f-1 opt or stem opt not eligible",
+ "no immigration support","does not provide immigration support","do not provide immigration support",
+ "must not require employer support","cannot require employer support"
 )
 SPONSOR_POSITIVE_PATTERNS=(
  "visa sponsorship is available","sponsorship is available","we sponsor","will sponsor",
@@ -82,7 +87,7 @@ def sponsorship_check(job: dict, profile: dict) -> dict:
         return {"category":"NO_SPONSORSHIP","eligible":False,"evidence":"Posting states sponsorship is unavailable."}
     if any(x in text for x in SPONSOR_POSITIVE_PATTERNS):
         return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
-    return {"category":"SPONSORSHIP_UNKNOWN","eligible":None,"evidence":"Sponsorship policy is not explicit in the posting; continue under candidate policy."}
+    return {"category":"SPONSORSHIP_NOT_STATED","eligible":True,"evidence":"No explicit sponsorship restriction is stated in the posting; proceed to the next eligibility stage."}
 
 CLEARANCE_PATTERNS=(
  "ts/sci","top secret","secret clearance","active clearance",
