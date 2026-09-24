@@ -79,11 +79,15 @@ def learn_from_jobs(jobs,registry):
  return added
 
 def as_discovery_config(registry):
- out={"greenhouse":[],"lever":[],"ashby":[],"smartrecruiters":[],"workday":[]}
+ out={"greenhouse":[],"lever":[],"ashby":[],"smartrecruiters":[],"workday":[],"dayforce":[],"ultipro":[],"recruiting_com":[],"adp_workforce_now":[]}
  for x in registry.get("greenhouse",[]):out["greenhouse"].append({"company":x.get("company"),"board_token":x.get("identifier") or x.get("board_token")})
  for x in registry.get("lever",[]):out["lever"].append({"company":x.get("company"),"site":x.get("identifier") or x.get("site")})
  for x in registry.get("ashby",[]):out["ashby"].append({"company":x.get("company"),"board_name":x.get("identifier") or x.get("board_name")})
  for x in registry.get("smartrecruiters",[]):out["smartrecruiters"].append({"company":x.get("company"),"company_identifier":x.get("identifier") or x.get("company_identifier")})
+ for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now"):
+  for x in registry.get(provider,[]):
+   url=x.get("original_url") or x.get("url")
+   if url:out[provider].append({"company":x.get("company"),"search_url":url,"job_url_pattern":r".+"})
  for x in registry.get("workday",[]):
   identifier=x.get("identifier") or ""
   parts=identifier.split("|",1)
