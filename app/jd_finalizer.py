@@ -7,6 +7,7 @@ from app.eligibility import two_category_filter
 from app.filters import passes_hard_filters
 from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
+from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
@@ -38,6 +39,29 @@ def _clean_html(text):
     text=re.sub(r"(?s)<[^>]+>"," ",text)
     text=html.unescape(text).replace("\xa0"," ")
     return re.sub(r"[ \t]+"," ",re.sub(r"\n\s*\n+","\n",text)).strip()
+
+DEAD_PAGE_MARKERS=("job is no longer available","job no longer available","position is no longer available","position has been filled","job has been filled","job has expired","posting has expired","requisition has been closed","this job is closed","page not found","job not found","no longer accepting applications")
+
+def _live_public_job_page(url):
+    """Provider-agnostic final existence check before paid resume generation."""
+    if not url:return False,"missing_url"
+    req=request.Request(url,headers={"User-Agent":"Mozilla/5.0 (compatible; AI-Job-Search-Agent/1.0)","Accept":"text/html,application/json,*/*"})
+    try:
+        with request.urlopen(req,timeout=30) as resp:
+            status=getattr(resp,"status",200)
+            if status in (404,410):return False,f"http_{status}"
+            if status>=400:return False,f"http_{status}"
+            body=resp.read(500000).decode("utf-8",errors="replace")
+    except HTTPError as exc:
+        return False,f"http_{exc.code}" if exc.code in (404,410) else False
+    except (URLError,TimeoutError,OSError):
+        # Network/anti-bot failures are not proof that a job is dead; hold it
+        # rather than falsely treating it as a valid application.
+        return None,"unverifiable"
+    plain=_clean_html(body).lower()
+    if any(marker in plain for marker in DEAD_PAGE_MARKERS):
+        return False,"closed_marker"
+    return True,"reachable"
 
 def _fetch_public_page(url):
     if not url:return ""
@@ -158,6 +182,16 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
                 if not live:
                     held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Workday requisition no longer exists at the live detail endpoint.","diagnostics":{"url":url}})
                     continue
+        # Every provider gets a final live-page check. Never spend resume
+        # generation on a URL known to be dead, and never assume an unverifiable
+        # application is live.
+        live_status,live_reason=_live_public_job_page(raw.get("original_url") or raw.get("url"))
+        if live_status is False:
+            held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Application page no longer exists or is explicitly closed.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
+            continue
+        if live_status is None:
+            held.append({"job":raw,"action":"HOLD_LIVE_STATUS_UNVERIFIED","reason":"Application page could not be verified as live before resume generation.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
+            continue
         if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
             held.append({"job":raw,"action":"HOLD_UNUSABLE_JD","reason":"Job description is too limited to identify meaningful tailoring targets safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
         raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
