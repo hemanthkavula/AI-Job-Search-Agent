@@ -74,6 +74,23 @@ def _json(url: str, timeout: int = 20, body: dict | None = None, retries: int = 
     raise last_error or RuntimeError("Workday request failed")
 
 
+def job_detail_is_live(host: str, tenant: str, site: str, external_path: str, timeout: int = 20) -> tuple[bool, dict | None]:
+    """Confirm a Workday requisition still exists immediately before downstream use."""
+    if not external_path:
+        return False, None
+    origin=f"https://{host.strip('/')}"
+    base=f"{origin}/wday/cxs/{tenant}/{site}"
+    try:
+        payload=_json(f"{base}{external_path}",timeout,retries=2)
+    except Exception:
+        return False, None
+    detail=payload.get("jobPostingInfo") or payload
+    description=_plain(detail.get("jobDescription")) if isinstance(detail,dict) else ""
+    title=(detail.get("title") or "") if isinstance(detail,dict) else ""
+    # Closed/stale Workday paths can disappear between the search response and
+    # resume generation. Only a real detail payload with title + JD is live.
+    return bool(title.strip() and description.strip()), detail if isinstance(detail,dict) else None
+
 def _plain(value: str | None) -> str:
     text = unescape(value or "")
     text = re.sub(r"<[^>]+>", " ", text)
