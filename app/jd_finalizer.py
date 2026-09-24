@@ -53,7 +53,11 @@ def _live_public_job_page(url):
             if status>=400:return False,f"http_{status}"
             body=resp.read(500000).decode("utf-8",errors="replace")
     except HTTPError as exc:
-        return False,f"http_{exc.code}" if exc.code in (404,410) else False
+        if exc.code in (404,410):
+            return False,f"http_{exc.code}"
+        # Access blocks, rate limits, and transient server errors do not prove
+        # that the requisition is dead. Hold until it can be verified.
+        return None,f"http_{exc.code}"
     except (URLError,TimeoutError,OSError):
         # Network/anti-bot failures are not proof that a job is dead; hold it
         # rather than falsely treating it as a valid application.
