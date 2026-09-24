@@ -20,6 +20,22 @@ PATTERNS={
    r"https?://jobs\.jobvite\.com/([^/?#]+)",
    r"https?://([^.]+)\.jobvite\.com/",
  ],
+ "dayforce":[
+   r"https?://jobs\.dayforcehcm\.com/[^/?#]+/([^/?#]+)",
+   r"https?://([^.]+)\.dayforcehcm\.com/",
+ ],
+ "ultipro":[
+   r"https?://recruiting(?:\d+)?\.ultipro\.com/([^/?#]+)",
+   r"https?://([^.]+)\.ultipro\.com/",
+ ],
+ "recruiting_com":[
+   r"https?://jobs\.recruiting\.com/([^/?#]+)",
+   r"https?://([^.]+)\.recruiting\.com/",
+ ],
+ "adp_workforce_now":[
+   r"https?://workforcenow\.adp\.com/mascsr/default/mdf/recruitment/recruitment\.html\?cid=([^&#]+)",
+   r"https?://jobs\.adp\.com/([^/?#]+)",
+ ],
 }
 
 def load_registry(path=DEFAULT_PATH):
