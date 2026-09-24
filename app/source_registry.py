@@ -70,7 +70,7 @@ def learn_from_jobs(jobs,registry):
   alt_company=job.get("company")
   if alt_company and str(company).lower()==str(identifier).lower():
    company=alt_company
-  row={"company":company,"identifier":identifier,"learned_from":job.get("source")}
+  row={"company":company,"identifier":identifier,"learned_from":job.get("source"),"original_url":job.get("original_url") or job.get("url")}
   if provider=="workday":
    parsed=urlparse(job.get("original_url") or job.get("url") or "")
    row["host"]=parsed.netloc
