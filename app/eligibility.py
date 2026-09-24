@@ -99,7 +99,16 @@ CLEARANCE_PATTERNS=(
  "eligibility to obtain and maintain an active clearance",
  "eligible to obtain and maintain an active u.s. secret",
  "eligibility to obtain and maintain a u.s. security clearance",
- "public trust clearance required","active public trust"
+ "public trust clearance required","active public trust",
+ "top secret/sci","top secret/ sci","ts/sci/polygraph","top secret/sci/polygraph",
+ "top secret sci polygraph","polygraph clearance"
+)
+
+CLEARANCE_REGEX_PATTERNS=(
+ r"requires?[^.]{0,100}(?:candidate|applicant|employee|hired candidate)?[^.]{0,80}(?:to )?(?:have|hold|possess|obtain|maintain)[^.]{0,100}(?:security )?clearance",
+ r"(?:have|hold|possess|obtain|maintain)[^.]{0,80}(?:top secret(?:/sci)?|ts/sci|secret|sci)[^.]{0,60}(?:clearance)?",
+ r"(?:minimum|following|required)[^.]{0,100}clearance(?:\(s\))?[^.]{0,120}(?:top secret|ts/sci|secret|sci|polygraph)",
+ r"(?:top secret(?:/sci)?|ts/sci|secret|sci)[^.;]{0,80}(?:polygraph|security clearance|clearance required)",
 )
 
 def citizenship_check(job: dict, profile: dict) -> dict:
@@ -111,7 +120,7 @@ def citizenship_check(job: dict, profile: dict) -> dict:
 
 def clearance_check(job: dict, profile: dict) -> dict:
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
-    if any(x in text for x in CLEARANCE_PATTERNS):
+    if any(x in text for x in CLEARANCE_PATTERNS) or any(re.search(p,text,re.I) for p in CLEARANCE_REGEX_PATTERNS):
         return {"category":"CLEARANCE_REQUIRED","eligible":False,
                 "evidence":"Posting explicitly requires a security/public-trust clearance."}
     return {"category":"CLEARANCE_NOT_REQUIRED","eligible":True,"evidence":None}
