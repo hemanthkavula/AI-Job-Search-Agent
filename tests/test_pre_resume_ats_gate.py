@@ -38,3 +38,28 @@ def test_short_usable_dice_jd_uses_conservative_tailoring(tmp_path, monkeypatch)
     job=result["results"][0]["job"]
     assert job["tailoring_mode"]=="BASE_RESUME_CONSERVATIVE"
     assert job["application_route"]=="DICE"
+
+
+def test_mckesson_explicit_no_future_immigration_support_is_rejected(tmp_path, monkeypatch):
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","description":"placeholder"}}]}
+    inp=tmp_path/"mckesson.json"; out=tmp_path/"mckesson_out.json"; inp.write_text(json.dumps(report),encoding="utf-8")
+    description=("Requirements: Python SQL data pipelines. Applicants must be currently authorized to work in the United States on a fulltime basis without the need for employer support or sponsorship now or in the future. This includes F1 OPT, F1 STEM OPT and H1B. McKesson does not provide employer support or sponsorship for any immigration related employment benefit. "+"x"*1200)
+    resolved={"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"workday","original_url":"https://example.com/job"}
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    result=finalize_report(str(inp),str(out))
+    assert result["finalized"]==0
+    assert result["rejections"][0]["eligibility"]["sponsorship"]["category"]=="NO_SPONSORSHIP"
+
+
+def test_caci_degree_plus_15_years_is_rejected(tmp_path, monkeypatch):
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"caci:test","source":"career_site","company_key":"CACI International","title":"Data Engineer","description":"placeholder"}}]}
+    inp=tmp_path/"caci.json"; out=tmp_path/"caci_out.json"; inp.write_text(json.dumps(report),encoding="utf-8")
+    description=("Qualifications: Bachelor's degree + 15 years of experience in data engineering, data architecture, software engineering, or related field; equivalencies considered (Master's + 12 years; 21 years with no degree; AA + 17 years). Responsibilities include Python SQL and data pipelines. "+"x"*1200)
+    resolved={"external_id":"caci:test","source":"career_site","company_key":"CACI International","title":"Data Engineer","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"icims","original_url":"https://example.com/job"}
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    result=finalize_report(str(inp),str(out))
+    assert result["finalized"]==0
+    assert result["rejections"][0]["eligibility"]["experience"]["category"]=="EXPERIENCE_TOO_SENIOR"
+    assert result["rejections"][0]["eligibility"]["experience"]["required_years"]>=12
