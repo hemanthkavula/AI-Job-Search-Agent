@@ -186,7 +186,21 @@ def _rank(lines,jd,keys):
         return overlap+exact+themes
     return sorted(lines,key=score,reverse=True)
 def _h(doc,t):
-    p=doc.add_paragraph();p.paragraph_format.space_before=Pt(5);p.paragraph_format.space_after=Pt(1);r=p.add_run(t);r.bold=True;r.font.size=Pt(10.5)
+    p=doc.add_paragraph();p.paragraph_format.space_before=Pt(5);p.paragraph_format.space_after=Pt(1);p.paragraph_format.keep_with_next=True;r=p.add_run(t);r.bold=True;r.font.size=Pt(10.5)
+
+def _keep_employer_block_together(company_p,title_p,first_bullet_p=None,environment_p=None):
+    """Prevent an employer header/title from being orphaned at a page bottom."""
+    company_p.paragraph_format.keep_with_next=True
+    title_p.paragraph_format.keep_with_next=True
+    if environment_p is not None:
+        environment_p.paragraph_format.keep_with_next=True
+    if first_bullet_p is not None:
+        first_bullet_p.paragraph_format.keep_together=True
+
+def _format_experience_bullet(p):
+    p.paragraph_format.left_indent=Inches(.16)
+    p.paragraph_format.first_line_indent=Inches(-.10)
+    p.paragraph_format.keep_together=True
 def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     keys=jd_keywords(job.description,profile); inferred=inferable_terms(job.description); doc=Document();s=doc.sections[0]
     s.top_margin=Inches(.45);s.bottom_margin=Inches(.45);s.left_margin=Inches(.55);s.right_margin=Inches(.55)
@@ -225,13 +239,16 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
             used.update(vals);p=doc.add_paragraph();r=p.add_run(label+": ");r.bold=True;p.add_run(", ".join(vals))
     _h(doc,"PROFESSIONAL EXPERIENCE")
     for exp in profile["experience"]:
-        p=doc.add_paragraph();r=p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=p.add_run(f"    {exp['dates']}");r.bold=True
-        p=doc.add_paragraph();r=p.add_run(exp["title"]);r.bold=True
-        p=doc.add_paragraph();r=p.add_run("Environment: ");r.bold=True;p.add_run(exp.get("environment",""))
+        company_p=doc.add_paragraph();r=company_p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=company_p.add_run(f"    {exp['dates']}");r.bold=True
+        title_p=doc.add_paragraph();r=title_p.add_run(exp["title"]);r.bold=True
+        environment_p=doc.add_paragraph();r=environment_p.add_run("Environment: ");r.bold=True;environment_p.add_run(exp.get("environment",""))
         limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
         ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
+        first_bullet=None
         for line in ranked:
-            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(line.strip())
+            p=doc.add_paragraph(style="List Bullet");_format_experience_bullet(p);p.add_run(line.strip())
+            if first_bullet is None:first_bullet=p
+        _keep_employer_block_together(company_p,title_p,first_bullet,environment_p)
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
@@ -261,11 +278,14 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     for item in generated.get("experience",[]):
         base=expected.get(item.get("company"))
         if not base: continue
-        p=doc.add_paragraph();r=p.add_run(f"{base['company']} | {base.get('location','')}");r.bold=True;r=p.add_run(f"    {base['dates']}");r.bold=True
-        p=doc.add_paragraph();r=p.add_run(base["title"]);r.bold=True
+        company_p=doc.add_paragraph();r=company_p.add_run(f"{base['company']} | {base.get('location','')}");r.bold=True;r=company_p.add_run(f"    {base['dates']}");r.bold=True
+        title_p=doc.add_paragraph();r=title_p.add_run(base["title"]);r.bold=True
         bullets=item.get("bullets",[])[:limits.get(base["company"],7)]
+        first_bullet=None
         for line in bullets:
-            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.16);p.paragraph_format.first_line_indent=Inches(-.10);p.add_run(str(line).strip())
+            p=doc.add_paragraph(style="List Bullet");_format_experience_bullet(p);p.add_run(str(line).strip())
+            if first_bullet is None:first_bullet=p
+        _keep_employer_block_together(company_p,title_p,first_bullet)
     _h(doc,"EDUCATION")
     for e in profile["education"]:
         p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
