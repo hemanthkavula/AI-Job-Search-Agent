@@ -153,19 +153,24 @@ def resolve_full_jd(job):
     # Aggregators can expose only a teaser and omit the employer ATS link. In
     # that case, resolve the same company/title on the employer's public career
     # site rather than weakening JD quality requirements.
-    if not _looks_like_usable_jd(resolved or current,source):
+    # Aggregator URLs are discovery leads, not preferred application targets.
+    # Always try to canonicalize Dice to the employer's own careers/ATS page,
+    # even when Dice already supplied a usable/full JD.
+    should_resolve_employer=(source=="dice")
+    if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
         if len(employer_desc)>len(resolved):resolved=employer_desc
         if employer_url:
+            out["aggregator_url"]=out.get("original_url") or out.get("url")
             out["original_url"]=employer_url
-            out["ats_resolution"]="employer_career_page_fallback"
+            out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
     out["description_complete"]=_looks_like_complete_jd(final,source)
     out["description_usable"]=_looks_like_usable_jd(final,source)
     out["jd_signal_score"]=_jd_signal_score(final)
-    out["jd_resolution_source"]="employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload")
+    out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
 
 def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
