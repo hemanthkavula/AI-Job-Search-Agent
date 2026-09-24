@@ -24,12 +24,24 @@ Do not fabricate certifications, team sizes, project names, numerical outcomes, 
 STRICT METRIC RULE: Fidelity may have at most 2 metric-bearing bullets, Cigna at most 2, and Target must contain ZERO numeric scale, percentage, volume, latency, count, or performance metrics.
 Never stack boilerplate clauses, create keyword-dump bullets, or repeat the same phrases. Each bullet should communicate one coherent engineering accomplishment or responsibility.
 EXPERIENCE BULLET QUALITY STANDARD: Write bullets that would withstand an interviewer asking "what exactly did you build, how did it work, and why did it matter?" Every bullet should read as credible hands-on ownership, not a generic responsibility statement. Prefer a concrete structure such as action/ownership + relevant system or data + technically coherent implementation + purpose/impact, using only supported facts. Connect JD-required tools to believable engineering work inside the employer's domain instead of listing technologies. Avoid vague filler such as "worked on", "responsible for", "leveraged various technologies", "helped with", or generic collaboration unless the bullet explains the substantive engineering contribution. Do not create fake metrics, projects, architectures, or outcomes to make a bullet sound stronger. The goal is interview-defensible specificity AND ATS alignment: a recruiter should understand what the candidate actually did, the candidate should be able to explain each bullet in an interview, and the resume should naturally contain the JD's important ATS terminology. ATS optimization must come from semantically correct placement of required terminology inside meaningful engineering statements, never from keyword stuffing. Each bullet must make sense for the target role, the employer's business domain, the chosen cloud strategy, and the surrounding experience narrative. Prefer exact JD terminology when it truthfully describes the work, but reject awkward sentences written merely to increase keyword count.
+EVIDENCE FIREWALL: A technology appearing in the JD or confirmed_extended_technology_inventory is NOT by itself evidence that the candidate used it at Fidelity, Cigna, or Target. Do not name a specific technology in Professional Experience unless it is present in the candidate's supplied background/evidence or explicitly approved as hands-on experience. Unsupported JD-specific tools may appear in Technical Skills only when allowed by the extended technology policy; for Professional Experience, describe the closest supported underlying engineering capability instead. Never transform a JD keyword into a claimed employer tool, migration, architecture, or ownership story.
 Optimize for complete-JD alignment, title relevance, recruiter readability and concise impact while preserving fixed factual history and avoiding fabricated specific accomplishments. For specialized roles (for example MDM, CRM/Power Platform, governance, platform engineering, IAM, AI/ML), make the experience section read like credible experience for that specialty, not a generic cloud data-engineering resume with specialty keywords added only to Summary/Skills. If the JD requires leadership or mentoring, demonstrate that responsibility naturally in at least one relevant experience bullet when it can be stated without inventing a team size or outcome.
 If audit feedback is supplied, correct the exact failed gates. Missing material JD terminology should be incorporated naturally, but never by inventing a false specific accomplishment, metric, certification, employer, date, education fact, or project.
 Before returning JSON, silently self-check: exact 8/7/6 bullet counts; all material/required JD concepts covered; exact relevant JD terminology used naturally; no keyword dumping; no invented specific accomplishments or tool-chain stories; metric limits satisfied; employer domains and chronology preserved.
 Return valid JSON only with keys summary, skills, experience, and education."""
 
+# Specific technologies outside the base/master evidence may be listed in Skills when
+# the JD requests them, but must not be claimed as employer hands-on experience unless
+# explicitly approved here. Keep this list deliberately narrow.
 CONFIRMED_EXTENDED_TECHNOLOGIES=["BigQuery","Dagster","Apache Beam","Apache Flink","Kubernetes","ArgoCD","Helm","Istio"]
+BASE_EXPERIENCE_TECHNOLOGIES=[
+ "Python","SQL","PySpark","Apache Spark","Databricks","Hadoop","Hive","Kafka","Apache Kafka",
+ "Kinesis","AWS Glue","Amazon S3","S3","EMR","Redshift","Lambda","Step Functions","Athena",
+ "CloudWatch","Azure Data Factory","ADF","Azure Synapse","Azure Synapse Analytics","ADLS Gen2",
+ "Azure Databricks","Azure DevOps","Event Hub","Azure Event Hubs","Snowflake","Airflow",
+ "Apache Airflow","dbt","Control-M","Terraform","Docker","Jenkins","GitHub Actions",
+ "Great Expectations","Delta Lake","Apache Iceberg","Power BI","Tableau","QuickSight"
+]
 EXTENDED_ALIASES={
  "BigQuery":("bigquery","google bigquery"),
  "Dagster":("dagster",),
@@ -63,13 +75,21 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
         "all_other_extended_technologies_must_be_omitted":True,
         "inventory_is_permission_not_checklist":True,
         "prefer_base_evidence_when_it_satisfies_jd":True,
-        "do_not_create_projects_or_tool_chains_to_place_keywords":True
+        "do_not_create_projects_or_tool_chains_to_place_keywords":True,
+        "skills_permission_does_not_equal_experience_permission":True,
+        "extended_technology_may_be_claimed_in_experience_only_if_explicitly_supported_by_candidate_evidence":True
       },
       "tailoring_policy":{
         "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
         "technical_skills_should_include_jd_required_technologies_and_tools":True,"professional_experience_must_be_materially_rewritten_for_each_jd":True,"minimum_jd_specific_experience_bullets":6,"skills_only_tailoring_is_forbidden":True,"material_jd_technologies_should_be_demonstrated_in_experience":True,"jd_may_drive_new_experience_content_beyond_master_resume":True,"master_resume_is_identity_and_chronology_anchor_not_content_ceiling":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,"cloud_strategy":{"Fidelity Investments":"ADAPT_TO_JD_PRIMARY_CLOUD_AWS_AZURE_OR_GCP","Cigna Healthcare":"AZURE_FIXED","Target Corporation":"AWS_FIXED"},"master_resume_is_reference_not_bullet_template":True,
-        "do_not_invent_metrics_certifications_business_results_or_architectures":True
+        "do_not_invent_metrics_certifications_business_results_or_architectures":True,
+        "experience_technology_evidence_policy":{
+          "base_supported_technologies":BASE_EXPERIENCE_TECHNOLOGIES,
+          "extended_jd_technologies_are_skills_only_unless_candidate_evidence_explicitly_supports_hands_on_use":True,
+          "never_convert_jd_keyword_presence_into_claimed_employer_experience":True,
+          "when_unsupported_requirement_is_important":"express the supported underlying capability without naming the unsupported tool in Professional Experience"
+        }
       },
       "quality_rules":{
         "optimize_human_readability":True,"no_keyword_stuffing":True,"no_inventory_dumping":True,
