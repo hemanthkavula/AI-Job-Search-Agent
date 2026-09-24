@@ -93,6 +93,12 @@ CLEARANCE_PATTERNS=(
  "ts/sci","top secret","secret clearance","active clearance",
  "security clearance required","must hold a security clearance",
  "must possess a security clearance","must have a security clearance",
+ "eligible to obtain and maintain a security clearance",
+ "eligibility to obtain and maintain a security clearance",
+ "eligible to obtain and maintain an active clearance",
+ "eligibility to obtain and maintain an active clearance",
+ "eligible to obtain and maintain an active u.s. secret",
+ "eligibility to obtain and maintain a u.s. security clearance",
  "public trust clearance required","active public trust"
 )
 
