@@ -25,7 +25,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox"):
         existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
@@ -102,7 +102,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Newly learned ATS families initially use the hardened generic crawler.
         # This gives production coverage immediately while preserving provider identity;
         # provider-specific API collectors can replace this path as endpoints are validated.
-        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
+        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url")
                 if not url:continue
@@ -170,6 +170,43 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "freshteam": len(config.get("freshteam",[])),
         "jobscore": len(config.get("jobscore",[])),
         "personio": len(config.get("personio",[])),
+        "ukg": len(config.get("ukg",[])),
+        "paycom": len(config.get("paycom",[])),
+        "bullhorn": len(config.get("bullhorn",[])),
+        "comeet": len(config.get("comeet",[])),
+        "clearcompany": len(config.get("clearcompany",[])),
+        "applicantpro": len(config.get("applicantpro",[])),
+        "fountain": len(config.get("fountain",[])),
+        "hirebridge": len(config.get("hirebridge",[])),
+        "jobdiva": len(config.get("jobdiva",[])),
+        "zoho_recruit": len(config.get("zoho_recruit",[])),
+        "manatal": len(config.get("manatal",[])),
+        "join": len(config.get("join",[])),
+        "greenhouse_eu": len(config.get("greenhouse_eu",[])),
+        "applitrack": len(config.get("applitrack",[])),
+        "hireology": len(config.get("hireology",[])),
+        "paycor": len(config.get("paycor",[])),
+        "peopleadmin": len(config.get("peopleadmin",[])),
+        "isolved": len(config.get("isolved",[])),
+        "hibob": len(config.get("hibob",[])),
+        "gohire": len(config.get("gohire",[])),
+        "hiringthing": len(config.get("hiringthing",[])),
+        "homerun": len(config.get("homerun",[])),
+        "pageup": len(config.get("pageup",[])),
+        "trinet": len(config.get("trinet",[])),
+        "dover": len(config.get("dover",[])),
+        "gem": len(config.get("gem",[])),
+        "polymer": len(config.get("polymer",[])),
+        "hirehive": len(config.get("hirehive",[])),
+        "kula": len(config.get("kula",[])),
+        "rival": len(config.get("rival",[])),
+        "werecruit": len(config.get("werecruit",[])),
+        "deel": len(config.get("deel",[])),
+        "firststage": len(config.get("firststage",[])),
+        "recruiterbox": len(config.get("recruiterbox",[])),
+        "talentbrew": len(config.get("talentbrew",[])),
+        "radancy": len(config.get("radancy",[])),
+        "paradox": len(config.get("paradox",[])),
         "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
         "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
     }
