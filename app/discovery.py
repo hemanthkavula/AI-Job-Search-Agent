@@ -29,14 +29,14 @@ from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet")
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","neogov")
 FALLBACK_ATS_PROVIDERS=(
  "recruiting_com",
  "taleo","brassring",
  "paycom","bullhorn","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
  "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
  "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
- "applicantstack","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
+ "applicantstack","ceipal","trakstar_hire","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
  "jobappnetwork","myworkchoice"
 )
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
@@ -163,7 +163,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
-        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet"):
+        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","neogov"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
