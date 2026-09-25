@@ -201,6 +201,24 @@ def _reusable_search_url(provider,url):
   return f"{p.scheme}://{host}{p.path}"+(("?"+urlencode(keep)) if keep else "")
  if provider=="paylocity" and len(parts)>=2:
   return f"{p.scheme}://{host}/Recruiting/Jobs/"
+ if provider=="teamtailor":return f"{p.scheme}://{host}/jobs"
+ if provider=="recruitee":return f"{p.scheme}://{host}/"
+ if provider=="bamboohr":return f"{p.scheme}://{host}/careers"
+ if provider=="breezyhr":return f"{p.scheme}://{host}/"
+ if provider=="pinpoint":return f"{p.scheme}://{host}/jobs"
+ if provider=="freshteam":return f"{p.scheme}://{host}/jobs"
+ if provider=="personio":return f"{p.scheme}://{host}/"
+ if provider=="careerplug":return f"{p.scheme}://{host}/jobs"
+ if provider=="rippling" and parts:return f"{p.scheme}://{host}/{parts[0]}/jobs"
+ if provider=="jobscore" and len(parts)>=2:return f"{p.scheme}://{host}/careers/{parts[1]}"
+ if provider=="comeet":
+  m=re.search(r"/jobs/([^/?#]+)",p.path,re.I)
+  if m:return f"{p.scheme}://{host}/jobs/{m.group(1)}"
+ if provider in {"applicantpro","clearcompany","fountain","hirebridge","zoho_recruit","manatal","hireology","homerun","gem","polymer","hirehive","dover","join"}:
+  # These providers generally expose a reusable tenant/board at or above the
+  # discovered detail path. Strip common detail suffixes conservatively.
+  clean=re.sub(r"/(?:jobs?|positions?|openings?)/(?:[^/]+/?)$","/jobs",p.path,flags=re.I)
+  return f"{p.scheme}://{host}{clean or '/'}"
  return url
 
 def as_discovery_config(registry):
