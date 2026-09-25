@@ -61,5 +61,37 @@
       "id": "nonprofits",
       "status": "planned"
     }
+  ],
+  "authoritative_catalogs": [
+    {
+      "id": "sec",
+      "status": "working",
+      "scope": "public registrants and market participants"
+    },
+    {
+      "id": "ncua_active_credit_unions",
+      "status": "next",
+      "scope": "active federally insured credit unions"
+    },
+    {
+      "id": "ncua_cuso_registry",
+      "status": "next",
+      "scope": "credit union service organizations; registry can include public website"
+    },
+    {
+      "id": "fdic_bank_directory",
+      "status": "research",
+      "scope": "insured banks and institutions"
+    },
+    {
+      "id": "education_institutions",
+      "status": "research",
+      "scope": "universities and colleges"
+    },
+    {
+      "id": "healthcare_provider_orgs",
+      "status": "research",
+      "scope": "health systems and provider organizations"
+    }
   ]
 }
