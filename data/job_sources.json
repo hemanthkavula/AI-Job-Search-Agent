@@ -1574,5 +1574,59 @@
       "search_url": "https://oatsont.rec.pro.ukg.net/OAT1500OONT/JobBoard/48ca857e-ff8f-41ec-acdf-74958e5f8448",
       "job_url_pattern": ".*OpportunityDetail.*"
     }
-  ]
+  ],
+  "discovery_portals": {
+    "policy": "discovery_only_resolve_to_authoritative_employer_posting",
+    "enabled": [
+      "dice",
+      "ziprecruiter"
+    ],
+    "planned": [
+      {
+        "provider": "indeed",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "linkedin_jobs",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "glassdoor",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "monster",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "careerbuilder",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "builtin",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "wellfound",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "simplyhired",
+        "status": "PLANNED",
+        "mode": "discovery"
+      },
+      {
+        "provider": "handshake",
+        "status": "PLANNED",
+        "mode": "discovery"
+      }
+    ]
+  }
 }
