@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from app.company_registry import load as load_registry, save as save_registry, upsert, company_key
 from app.company_feeders import collect as collect_company_feeders
-from app.company_domain_resolver import resolve_company
+from app.company_domain_resolver import resolve_company, can_resolve_company
 from app.career_page_resolver import resolve as resolve_career_page
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_from_jobs as learn_sources_from_jobs, learn_career_site
 
@@ -66,7 +66,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain")), key=lambda r: r.get("domain_last_attempt_at") or "")
+    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r)), key=lambda r: r.get("domain_last_attempt_at") or "")
     for row in domain_candidates:
         if domain_attempts>=domain_budget:break
         row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
