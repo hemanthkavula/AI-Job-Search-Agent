@@ -71,6 +71,14 @@
     {
       "company": "Coinbase",
       "board_token": "coinbase"
+    },
+    {
+      "company": "PerfectServe",
+      "board_token": "perfectserve"
+    },
+    {
+      "company": "StubHub",
+      "board_token": "stubhubinc"
     }
   ],
   "lever": [
@@ -219,6 +227,18 @@
     {
       "company": "Plaid",
       "board_name": "plaid"
+    },
+    {
+      "company": "Collective",
+      "board_name": "collective"
+    },
+    {
+      "company": "HealthLeap",
+      "board_name": "healthleap"
+    },
+    {
+      "company": "Teleport",
+      "board_name": "goteleport"
     }
   ],
   "smartrecruiters": [
@@ -261,6 +281,10 @@
     {
       "company": "Meta",
       "company_identifier": "Meta1"
+    },
+    {
+      "company": "Vitol",
+      "company_identifier": "Vitol"
     }
   ],
   "workday": [
@@ -647,6 +671,34 @@
       "host": "broadcom.wd1.myworkdayjobs.com",
       "tenant": "broadcom",
       "site": "External_Career",
+      "locale": "en-US"
+    },
+    {
+      "company": "Trane Technologies",
+      "host": "tranetechnologies.wd12.myworkdayjobs.com",
+      "tenant": "tranetechnologies",
+      "site": "trane_technologies_careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "The University of Kansas Health System",
+      "host": "kansashealthsystem.wd1.myworkdayjobs.com",
+      "tenant": "kansashealthsystem",
+      "site": "careers",
+      "locale": "en-US"
+    },
+    {
+      "company": "Bangor Savings Bank",
+      "host": "osv-bsb.wd503.myworkdayjobs.com",
+      "tenant": "osv-bsb",
+      "site": "bsb",
+      "locale": "en-US"
+    },
+    {
+      "company": "Samsung Austin Semiconductor",
+      "host": "sec.wd3.myworkdayjobs.com",
+      "tenant": "sec",
+      "site": "samsung_careers",
       "locale": "en-US"
     }
   ],
@@ -1455,6 +1507,16 @@
       "company": "Experian",
       "search_url": "https://jobs.experian.com/",
       "job_url_pattern": "jobs\\.experian\\.com/.+"
+    },
+    {
+      "company": "EchoStar",
+      "search_url": "https://jobs.echostar.com/search/?q=data+engineer",
+      "job_url_pattern": "https://jobs\\.echostar\\.com/jobs/.+"
+    },
+    {
+      "company": "Husco",
+      "search_url": "https://careers.husco.com/",
+      "job_url_pattern": "https://careers\\.husco\\.com/job/.+"
     }
   ],
   "eightfold": [
@@ -1465,6 +1527,10 @@
     {
       "company": "Microsoft",
       "careers_url": "https://apply.careers.microsoft.com/careers?domain=microsoft.com"
+    },
+    {
+      "company": "Vizient",
+      "careers_url": "https://vizientinc.eightfold.ai/careers"
     }
   ],
   "workable": [
