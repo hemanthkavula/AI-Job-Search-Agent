@@ -53,7 +53,23 @@ PATTERNS={
  "careerplug":[r"https?://([^.]+)\.careerplug\.com/"],
  "freshteam":[r"https?://([^.]+)\.freshteam\.com/jobs"],
  "jobscore":[r"https?://careers\.jobscore\.com/careers/([^/?#]+)"],
- "personio":[r"https?://([^.]+)\.jobs\.personio\.(?:de|com)/"],
+ "personio":[r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/"],
+ "eightfold":[r"https?://([^.]+)\\.eightfold\\.ai/"],
+ "successfactors":[r"https?://[^/]*(?:successfactors|successfactors\\.eu|successfactors\\.com)/",r"https?://career[^/]*\\.successfactors\\."],
+ "oracle":[r"https?://[^/]*oraclecloud\\.com/hcmUI/CandidateExperience/",r"https?://[^/]*oraclecloud\\.com/.*CandidateExperience/"],
+ "ukg":[r"https?://[^/]*\\.rec\\.pro\\.ukg\\.net/",r"https?://recruiting\\.ultipro\\.com/"],
+ "paycom":[r"https?://www\\.paycomonline\\.net/v4/ats/web\\.php/",r"https?://www\\.paycomonline\\.net/v4/ats/"],
+ "bullhorn":[r"https?://[^/]*bullhornstaffing\\.com/",r"https?://public\\.bullhornstaffing\\.com/"],
+ "comeet":[r"https?://www\\.comeet\\.com/jobs/([^/?#]+)",r"https?://jobs\\.comeet\\.com/"],
+ "clearcompany":[r"https?://[^/]*clearcompany\\.com/",r"https?://careers\\.clearcompany\\.com/"],
+ "applicantpro":[r"https?://[^/]*\\.applicantpro\\.com/jobs/"],
+ "fountain":[r"https?://[^/]*fountain\\.com/jobs/",r"https?://apply\\.fountain\\.com/"],
+ "hirebridge":[r"https?://[^/]*hirebridge\\.com/"],
+ "jobdiva":[r"https?://[^/]*jobdiva\\.com/"],
+ "zoho_recruit":[r"https?://jobs\\.zohorecruit\\.(?:com|eu|in)/",r"https?://[^/]*zohorecruit\\.(?:com|eu|in)/jobs/"],
+ "manatal":[r"https?://[^/]*manatal\\.com/jobs/"],
+ "join":[r"https?://join\\.com/companies/([^/?#]+)"],
+ "greenhouse_eu":[r"https?://job-boards\\.eu\\.greenhouse\\.io/([^/?#]+)"],
 }
 
 def load_registry(path=DEFAULT_PATH):
@@ -102,7 +118,7 @@ def as_discovery_config(registry):
  for x in registry.get("lever",[]):out["lever"].append({"company":x.get("company"),"site":x.get("identifier") or x.get("site")})
  for x in registry.get("ashby",[]):out["ashby"].append({"company":x.get("company"),"board_name":x.get("identifier") or x.get("board_name")})
  for x in registry.get("smartrecruiters",[]):out["smartrecruiters"].append({"company":x.get("company"),"company_identifier":x.get("identifier") or x.get("company_identifier")})
- for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
+ for provider in ("eightfold","successfactors","oracle","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
   for x in registry.get(provider,[]):
    url=x.get("original_url") or x.get("url")
    if url:out[provider].append({"company":x.get("company"),"search_url":url,"job_url_pattern":r".+"})
