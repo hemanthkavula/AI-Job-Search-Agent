@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 from app.company_registry import load as load_registry, save as save_registry, upsert
+from app.company_feeders import collect as collect_company_feeders
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -32,8 +33,18 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             # be the employer's corporate domain.
             upsert(reg,company,careers_url=url,ats_provider=None if provider=="career_site" else provider,
                    discovered_by="configured_source")
+    # Add identity-level companies from authoritative/public universe feeders.
+    # These companies still require official-domain/career-page resolution before
+    # they become executable job sources.
+    feeder_rows,feeder_errors=collect_company_feeders()
+    for row in feeder_rows:
+        upsert(reg,row.get("company"),discovered_by=row.get("discovered_by"))
+        key=(row.get("company") or "").strip().lower()
+        if key in reg:
+            if row.get("cik"):reg[key]["sec_cik"]=row["cik"]
+            if row.get("ticker"):reg[key]["ticker"]=row["ticker"]
     save_registry(reg,registry_path)
-    return {"companies":len(reg),"added":len(reg)-before}
+    return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),"feeder_errors":feeder_errors}
 
 if __name__=="__main__":
     print(json.dumps(build(),indent=2))
