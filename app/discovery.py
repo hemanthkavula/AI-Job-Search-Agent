@@ -21,15 +21,16 @@ from app.sources.paylocity import fetch_jobs as paylocity_jobs
 from app.sources.workable import fetch_jobs as workable_jobs
 from app.sources.jazzhr import fetch_jobs as jazzhr_jobs
 from app.sources.dayforce import fetch_jobs as dayforce_jobs
+from app.sources.cornerstone import fetch_jobs as cornerstone_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce")
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone")
 FALLBACK_ATS_PROVIDERS=(
  "recruiting_com","recruitee","teamtailor","bamboohr",
- "taleo","cornerstone","breezyhr","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
+ "taleo","breezyhr","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
  "paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
  "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
  "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
@@ -150,6 +151,9 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         for src in config.get("dayforce",[]) if only_source in (None,"dayforce") else []:
             url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
             if url:tasks.append((pool.submit(dayforce_jobs,src.get("company") or "dayforce",url),"dayforce",src.get("company") or "dayforce"))
+        for src in config.get("cornerstone",[]) if only_source in (None,"cornerstone") else []:
+            url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
+            if url:tasks.append((pool.submit(cornerstone_jobs,src.get("company") or "cornerstone",url),"cornerstone",src.get("company") or "cornerstone"))
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
