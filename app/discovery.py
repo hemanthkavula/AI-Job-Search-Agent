@@ -13,20 +13,21 @@ from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
 from app.sources.career_site import fetch_jobs as career_site_jobs
 from app.sources.eightfold import fetch_jobs as eightfold_jobs
+from app.sources.ukg import fetch_jobs as ukg_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold")
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg")
 FALLBACK_ATS_PROVIDERS=(
  "dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature",
  "taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
- "ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
+ "paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
  "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
  "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
  "applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
- "jobappnetwork","myworkchoice","ultipro_ukg"
+ "jobappnetwork","myworkchoice"
 )
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
@@ -111,6 +112,11 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
             tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
+        for provider in ("ukg","ultipro","ultipro_ukg"):
+            for src in config.get(provider,[]) if only_source in (None,provider) else []:
+                url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
+                if url:
+                    tasks.append((pool.submit(ukg_jobs,src.get("company") or provider,url),provider,src.get("company") or provider))
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
