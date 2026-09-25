@@ -34,8 +34,31 @@ def _jsonld(body: str) -> dict:
                         return node
     return {}
 
+def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
+    m=re.search(r"apply\\.workable\\.com/([^/?#]+)",search_url,re.I)
+    if not m:return []
+    slug=m.group(1)
+    payload=json.loads(_get(f"https://www.workable.com/api/accounts/{slug}?details=true",timeout))
+    out=[]
+    for j in payload.get("jobs",[]):
+        title=str(j.get("title") or "")
+        desc=_plain(str(j.get("description") or j.get("full_description") or ""))
+        hay=(title+" "+desc[:2500]).lower()
+        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer")):continue
+        shortcode=str(j.get("shortcode") or j.get("code") or "")
+        url=j.get("url") or (f"https://apply.workable.com/{slug}/j/{shortcode}" if shortcode else search_url)
+        loc=", ".join(str(x) for x in (j.get("city"),j.get("state"),j.get("country")) if x)
+        out.append({"external_id":f"workable:{slug}:{shortcode or url}","source":"workable","company_key":company,
+          "title":title,"location":loc or None,"url":url,"original_url":url,"ats_provider":"workable",
+          "ats_identifier":slug,"job_id":shortcode or url,"description":desc,"description_complete":bool(desc),
+          "updated_at":j.get("published") or j.get("created_at")})
+    return out
+
 def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int = 20) -> list[dict]:
     """Crawl a public employer career search page for Data Engineering jobs."""
+    if "apply.workable.com/" in search_url.lower():
+        try:return _workable_public(company,search_url,timeout)
+        except Exception:pass
     body=_get(search_url,timeout)
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
