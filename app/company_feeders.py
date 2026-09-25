@@ -41,7 +41,24 @@ def json_catalog(url, name_field="name", timeout=30):
         if name:out.append({"company":name,"discovered_by":"public_json_catalog"})
     return out
 
-FEEDERS={"sec_public_companies":sec_public_companies}
+def fdic_insured_banks(timeout=30):
+    """Active FDIC-insured institutions. The FDIC institutions endpoint also
+    exposes institution website fields when available, which can become trusted
+    domain evidence downstream."""
+    url="https://banks.data.fdic.gov/bankfind-suite/api/institutions?filters=ACTIVE%3A1&fields=NAME,CERT,WEBADDR&limit=10000&format=json"
+    req=Request(url,headers=UA)
+    with urlopen(req,timeout=timeout) as r:data=json.load(r)
+    out=[]
+    for item in data.get("data",[]):
+        row=item.get("data",item) if isinstance(item,dict) else {}
+        name=(row.get("NAME") or "").strip()
+        if not name:continue
+        web=(row.get("WEBADDR") or "").strip()
+        out.append({"company":name,"fdic_cert":str(row.get("CERT") or ""),
+                    "official_url":web or None,"discovered_by":"fdic_active_institutions"})
+    return out
+
+FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks}
 
 def collect(enabled=None):
     enabled=enabled or list(FEEDERS)
