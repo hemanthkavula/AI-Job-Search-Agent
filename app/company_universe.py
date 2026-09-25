@@ -66,10 +66,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    for row in reg.values():
-        if row.get("official_domain"):continue
-        if domain_attempts>=domain_budget:break
-        domain_attempts+=1
+    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain")), key=lambda r: r.get("domain_last_attempt_at") or "")\n    for row in domain_candidates:\n        if domain_attempts>=domain_budget:break\n        row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()\n        domain_attempts+=1
         try:
             resolved=resolve_company(row)
             if resolved:
@@ -83,10 +80,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     custom_career_sites=0
     source_registry=load_source_registry()
     career_attempts=0
-    for row in reg.values():
-        if not row.get("official_domain") or row.get("ats_provider"):continue
-        if career_attempts>=career_budget:break
-        career_attempts+=1
+    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider")), key=lambda r: r.get("career_last_attempt_at") or "")\n    for row in career_candidates:\n        if career_attempts>=career_budget:break\n        row["career_last_attempt_at"]=datetime.now(timezone.utc).isoformat()\n        career_attempts+=1
         try:
             career=resolve_career_page(row["official_domain"])
             if not career:
