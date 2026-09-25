@@ -13,7 +13,6 @@ from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
 from app.sources.career_site import fetch_jobs as career_site_jobs
 from app.sources.eightfold import fetch_jobs as eightfold_jobs
-from app.sources.career_site import fetch_jobs as generic_ats_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
@@ -100,7 +99,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
             tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
-        # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.\n        # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
+        # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
+        # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
         # provider-specific API collectors can replace this path as endpoints are validated.
         for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox"):
