@@ -57,6 +57,19 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _is_expired(j: dict) -> bool:
+    """Mark postings whose schema validThrough is already in the past."""
+    value=j.get("validThrough")
+    if not value: return False
+    try:
+        from datetime import datetime, timezone
+        raw=str(value).replace("Z","+00:00")
+        dt=datetime.fromisoformat(raw)
+        if dt.tzinfo is None: dt=dt.replace(tzinfo=timezone.utc)
+        return dt < datetime.now(timezone.utc)
+    except Exception:
+        return False
+
 def _canonical_url(url: str) -> str:
     """Remove common tracking noise while preserving the authoritative job path."""
     try:
@@ -72,6 +85,7 @@ def _source_evidence(j: dict, page_url: str) -> dict:
         "source_page_url": page_url,
         "schema_type": str(j.get("@type") or "JobPosting"),
         "direct_job_url": _canonical_url(str(j.get("url") or page_url)),
+        "schema_expired": _is_expired(j),
     }
 
 def _education_experience(j: dict) -> dict:
