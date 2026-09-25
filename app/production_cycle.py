@@ -102,10 +102,16 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
   _sync_manifest(manifest,ledger,stamp)
  queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel)) if manifest else []
- summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":discovery.get("eligible",0),
+ # Dashboard-facing eligibility is intentionally the final application-ready
+ # count. Preliminary filter matches remain available in the eligible report,
+ # but are not presented as "eligible" until JD/live-route verification,
+ # resume generation, and artifact validation have all succeeded.
+ ready_count=sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest)
+ summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":ready_count,
+          "preliminary_eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
-          "ready_to_apply":sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest),
+          "ready_to_apply":ready_count,
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
           "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
           "retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),
