@@ -1,11 +1,12 @@
 from __future__ import annotations
 import json
+import os
 import re
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_PATH="generated/company_registry.json"
+DEFAULT_PATH=str(Path(os.getenv("JOB_AGENT_STATE_DIR","generated"))/"company_registry.json")
 
 def load(path=DEFAULT_PATH):
     p=Path(path)
