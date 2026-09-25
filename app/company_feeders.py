@@ -110,9 +110,39 @@ def cms_hospitals(timeout=30):
                     "discovered_by":"cms_hospital_general_information"})
     return out
 
+def sam_registered_entities(timeout=30):
+    """Private/public organizations registered in SAM.gov.
+
+    Requires SAM_API_KEY. This is an employer-identity expansion feed, not proof
+    that an entity is hiring and not an eligibility allowlist.
+    """
+    import os
+    from urllib.parse import urlencode
+    key=os.getenv("SAM_API_KEY")
+    if not key:return []
+    base="https://api.sam.gov/entity-information/v3/entities"
+    out=[];offset=0;limit=100
+    # Bound each scheduled refresh; persistent registry accumulates identities.
+    for _ in range(20):
+        qs=urlencode({"api_key":key,"registrationStatus":"A","purposeOfRegistrationCode":"Z2",
+                      "includeSections":"entityRegistration","offset":offset,"limit":limit})
+        req=Request(base+"?"+qs,headers=UA)
+        with urlopen(req,timeout=timeout) as r:data=json.load(r)
+        rows=data.get("entityData") or []
+        if not rows:break
+        for item in rows:
+            reg=item.get("entityRegistration") or {}
+            name=(reg.get("legalBusinessName") or "").strip()
+            if not name:continue
+            out.append({"company":name,"uei":reg.get("ueiSAM"),
+                        "discovered_by":"sam_registered_entities"})
+        offset+=len(rows)
+        if len(rows)<limit:break
+    return out
+
 FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
          "college_scorecard_institutions":college_scorecard_institutions,
-         "cms_hospitals":cms_hospitals}
+         "cms_hospitals":cms_hospitals,"sam_registered_entities":sam_registered_entities}
 
 def collect(enabled=None):
     enabled=enabled or list(FEEDERS)
