@@ -41,7 +41,8 @@ FALLBACK_ATS_PROVIDERS=(
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
-    registry_path=registry_path or str(DEFAULT_PATH)\n    source_hours=source_hours or {}
+    registry_path=registry_path or str(DEFAULT_PATH)
+    source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
     def _hours(source): return source_hours.get(source,hours)
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
