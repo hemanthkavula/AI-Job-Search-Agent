@@ -150,83 +150,14 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
 
     # Emit a provider-level summary for every supported source so a provider that
     # returned zero jobs is still visible instead of looking as if it never ran.
-    configured_units={
-        "greenhouse": len(config.get("greenhouse",[])),
-        "lever": len(config.get("lever",[])),
-        "ashby": len(config.get("ashby",[])),
-        "smartrecruiters": len(config.get("smartrecruiters",[])),
-        "workday": len(config.get("workday",[])),
-        "successfactors": len(config.get("successfactors",[])),
-        "icims": len(config.get("icims",[])),
-        "oracle": len(config.get("oracle",[])),
-        "career_site": len(config.get("career_site",[])),
-        "eightfold": len(config.get("eightfold",[])),
-        "dayforce": len(config.get("dayforce",[])),
-        "ultipro": len(config.get("ultipro",[])),
-        "recruiting_com": len(config.get("recruiting_com",[])),
-        "adp_workforce_now": len(config.get("adp_workforce_now",[])),
-        "workable": len(config.get("workable",[])),
-        "recruitee": len(config.get("recruitee",[])),
-        "teamtailor": len(config.get("teamtailor",[])),
-        "bamboohr": len(config.get("bamboohr",[])),
-        "phenom": len(config.get("phenom",[])),
-        "avature": len(config.get("avature",[])),
-        "taleo": len(config.get("taleo",[])),
-        "cornerstone": len(config.get("cornerstone",[])),
-        "jazzhr": len(config.get("jazzhr",[])),
-        "breezyhr": len(config.get("breezyhr",[])),
-        "paylocity": len(config.get("paylocity",[])),
-        "rippling": len(config.get("rippling",[])),
-        "pinpoint": len(config.get("pinpoint",[])),
-        "brassring": len(config.get("brassring",[])),
-        "careerplug": len(config.get("careerplug",[])),
-        "freshteam": len(config.get("freshteam",[])),
-        "jobscore": len(config.get("jobscore",[])),
-        "personio": len(config.get("personio",[])),
-        "ukg": len(config.get("ukg",[])),
-        "paycom": len(config.get("paycom",[])),
-        "bullhorn": len(config.get("bullhorn",[])),
-        "comeet": len(config.get("comeet",[])),
-        "clearcompany": len(config.get("clearcompany",[])),
-        "applicantpro": len(config.get("applicantpro",[])),
-        "fountain": len(config.get("fountain",[])),
-        "hirebridge": len(config.get("hirebridge",[])),
-        "jobdiva": len(config.get("jobdiva",[])),
-        "zoho_recruit": len(config.get("zoho_recruit",[])),
-        "manatal": len(config.get("manatal",[])),
-        "join": len(config.get("join",[])),
-        "greenhouse_eu": len(config.get("greenhouse_eu",[])),
-        "applitrack": len(config.get("applitrack",[])),
-        "hireology": len(config.get("hireology",[])),
-        "paycor": len(config.get("paycor",[])),
-        "peopleadmin": len(config.get("peopleadmin",[])),
-        "isolved": len(config.get("isolved",[])),
-        "hibob": len(config.get("hibob",[])),
-        "gohire": len(config.get("gohire",[])),
-        "hiringthing": len(config.get("hiringthing",[])),
-        "homerun": len(config.get("homerun",[])),
-        "pageup": len(config.get("pageup",[])),
-        "trinet": len(config.get("trinet",[])),
-        "dover": len(config.get("dover",[])),
-        "gem": len(config.get("gem",[])),
-        "polymer": len(config.get("polymer",[])),
-        "hirehive": len(config.get("hirehive",[])),
-        "kula": len(config.get("kula",[])),
-        "rival": len(config.get("rival",[])),
-        "werecruit": len(config.get("werecruit",[])),
-        "deel": len(config.get("deel",[])),
-        "firststage": len(config.get("firststage",[])),
-        "recruiterbox": len(config.get("recruiterbox",[])),
-        "talentbrew": len(config.get("talentbrew",[])),
-        "radancy": len(config.get("radancy",[])),
-        "paradox": len(config.get("paradox",[])),
-        "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
-        "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
-    }
+    configured_units={provider:len(config.get(provider,[])) for provider in ALL_ATS_PROVIDERS}
+    configured_units["career_site"]=len(config.get("career_site",[]))
+    configured_units["dice"]=1 if config.get("dice",{}).get("enabled",False) else 0
+    configured_units["ziprecruiter"]=1 if config.get("ziprecruiter",{}).get("enabled",False) else 0
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","dice","ziprecruiter"):
+    for provider in ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter"):
         if only_source not in (None,provider):
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
