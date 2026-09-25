@@ -29,10 +29,8 @@ from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","neogov","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire")
-FALLBACK_ATS_PROVIDERS=(
- "recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival","werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice"
-)
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","neogov","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival","werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice")
+FALLBACK_ATS_PROVIDERS=()
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
@@ -162,7 +160,12 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
                 tasks.append((pool.submit(public_ats_jobs,src.get("company") or provider,url,provider,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
-        # provider-specific API collectors can replace this path as endpoints are validated.
+        for provider in ("recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival","werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice"):
+            for src in config.get(provider,[]) if only_source in (None,provider) else []:
+                url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
+                if not url: continue
+                tasks.append((pool.submit(public_ats_jobs,src.get("company") or provider,url,provider,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
+        # Reserved fallback path for newly recognized ATS families until promoted.
         for provider in FALLBACK_ATS_PROVIDERS:
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url")
