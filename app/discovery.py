@@ -17,15 +17,16 @@ from app.sources.ukg import fetch_jobs as ukg_jobs
 from app.sources.adp_workforce_now import fetch_jobs as adp_jobs
 from app.sources.avature import fetch_jobs as avature_jobs
 from app.sources.phenom import fetch_jobs as phenom_jobs
+from app.sources.paylocity import fetch_jobs as paylocity_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom")
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity")
 FALLBACK_ATS_PROVIDERS=(
  "dayforce","recruiting_com","workable","recruitee","teamtailor","bamboohr",
- "taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
+ "taleo","cornerstone","jazzhr","breezyhr","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
  "paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
  "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
  "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
@@ -132,6 +133,10 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
             if url:
                 tasks.append((pool.submit(phenom_jobs,src.get("company") or "phenom",url),"phenom",src.get("company") or "phenom"))
+        for src in config.get("paylocity",[]) if only_source in (None,"paylocity") else []:
+            url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
+            if url:
+                tasks.append((pool.submit(paylocity_jobs,src.get("company") or "paylocity",url),"paylocity",src.get("company") or "paylocity"))
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
