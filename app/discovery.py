@@ -23,7 +23,7 @@ from app.sources.jazzhr import fetch_jobs as jazzhr_jobs
 from app.sources.dayforce import fetch_jobs as dayforce_jobs
 from app.sources.cornerstone import fetch_jobs as cornerstone_jobs
 from app.sources.jobvite import fetch_jobs as jobvite_jobs
-from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
+from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config, DEFAULT_PATH
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
@@ -40,8 +40,8 @@ FALLBACK_ATS_PROVIDERS=(
 )
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
-    source_hours=source_hours or {}
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
+    registry_path=registry_path or str(DEFAULT_PATH)\n    source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
     def _hours(source): return source_hours.get(source,hours)
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
