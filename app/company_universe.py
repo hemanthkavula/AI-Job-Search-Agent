@@ -16,14 +16,15 @@ def _domain(url):
         return host[4:] if host.startswith("www.") else host
     except Exception:return None
 
-def build(source_path="data/job_sources.json", registry_path="generated/company_registry.json"):
+def build(source_path="data/job_sources.json", registry_path=None):
     """Seed the open-ended employer universe from every configured company source.
 
     This is intentionally not an allowlist. Broad discovery and future resolvers
     can add companies that do not appear in job_sources.json.
     """
     cfg=json.loads((ROOT/source_path).read_text(encoding="utf-8"))
-    reg=load_registry(registry_path)
+    registry_path=registry_path or None
+    reg=load_registry() if registry_path is None else load_registry(registry_path)
     before=len(reg)
     for provider,units in cfg.items():
         if not isinstance(units,list):continue
@@ -102,7 +103,7 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             resolution_failures+=1
             continue
     save_source_registry(source_registry)
-    save_registry(reg,registry_path)
+    save_registry(reg) if registry_path is None else save_registry(reg,registry_path)
     return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
             "resolved_domains":resolved_domains,"resolved_careers":resolved_careers,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
