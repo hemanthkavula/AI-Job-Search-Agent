@@ -57,7 +57,7 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     # Every configured ATS family must appear in source health.  For providers
     # without a dedicated API probe yet, probe the configured public board and
     # label it fallback/configured rather than silently omitting it.
-    dedicated={"career_site","greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dice","ziprecruiter"}
+    dedicated={"career_site","greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","dice","ziprecruiter"}
     for provider, units in cfg.items():
         if provider in dedicated or not isinstance(units,list):
             continue
