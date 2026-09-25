@@ -3,8 +3,8 @@ import json
 from collections import Counter
 from app.company_registry import load
 
-def report(path="generated/company_registry.json"):
-    reg=load(path)
+def report(path=None):
+    reg=load() if path is None else load(path)
     rows=list(reg.values())
     by_feeder=Counter((r.get("discovered_by") or "unknown") for r in rows)
     by_ats=Counter((r.get("ats_provider") or "unresolved") for r in rows)
