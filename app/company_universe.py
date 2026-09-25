@@ -47,6 +47,7 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             if row.get("cik"):reg[key]["sec_cik"]=row["cik"]
             if row.get("ticker"):reg[key]["ticker"]=row["ticker"]
             if row.get("fdic_cert"):reg[key]["fdic_cert"]=row["fdic_cert"]
+            if row.get("education_id"):reg[key]["education_id"]=row["education_id"]
             if row.get("official_url"):
                 from urllib.parse import urlparse
                 url=row["official_url"]
@@ -56,7 +57,7 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
                 if host:
                     reg[key]["official_url"]=url
                     reg[key]["official_domain"]=host
-                    reg[key]["domain_evidence"]="fdic_institutions"
+                    reg[key]["domain_evidence"]="fdic_institutions" if row.get("fdic_cert") else "college_scorecard"
     resolved_domains=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
     for row in reg.values():
