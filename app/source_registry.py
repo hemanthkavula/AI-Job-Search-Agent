@@ -99,7 +99,7 @@ PATTERNS={
  "jazzhr_alt":[r"https?://[^/]*jazzhr\\.com/"],
  "ceipal":[r"https?://[^/]*ceipal\\.com/",r"https?://jobs\\.ceipal\\.com/"],
  "trakstar_hire":[r"https?://[^/]*hire\\.trakstar\\.com/",r"https?://hire\\.trakstar\\.com/jobs/"],
- "neogov":[r"https?://[^/]*governmentjobs\\.com/",r"https?://[^/]*neogov\\.com/",r"https?://www\\.governmentjobs\\.com/careers/[^/]+/jobs/\\d+"],
+ "neogov":[r"https?://[^/]*governmentjobs\.com/",r"https?://[^/]*neogov\.com/",r"https?://www\.governmentjobs\.com/careers/[^/]+/jobs/\d+"],
  "schooljobs":[r"https?://[^/]*schooljobs\\.com/",r"https?://www\\.schooljobs\\.com/careers/[^/]+/jobs/\\d+"],
  "higheredjobs":[r"https?://[^/]*higheredjobs\\.com/",r"https?://www\\.higheredjobs\\.com/admin/details\.cfm"],
  "applynow":[r"https?://[^/]*applynow\\.net/",r"https?://[^/]*apply-now\\.(?:com|net)/"],
