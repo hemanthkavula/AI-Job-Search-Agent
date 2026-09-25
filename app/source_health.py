@@ -54,6 +54,17 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     for x in cfg.get("eightfold",[]):
         url=x.get("careers_url")
         rows.append(_row("eightfold",x.get("company") or "eightfold",url,_probe(url,timeout)))
+    # Dedicated collectors beyond the original API-backed set still need a
+    # board-level health row for every configured tenant.
+    for provider in ("ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite"):
+        for x in cfg.get(provider,[]):
+            url=x.get("search_url") or x.get("base_url") or x.get("careers_url") or x.get("original_url")
+            if not url:
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
+                continue
+            probe=_probe(url,timeout)
+            coverage="DIRECT" if probe.get("status")=="ok" else "BLOCKED"
+            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage))
     # Every configured ATS family must appear in source health.  For providers
     # without a dedicated API probe yet, probe the configured public board and
     # label it fallback/configured rather than silently omitting it.
