@@ -651,7 +651,7 @@
     }
   ],
   "dice": {
-    "enabled": false,
+    "enabled": true,
     "jobs_per_page": 100
   },
   "ziprecruiter": {
