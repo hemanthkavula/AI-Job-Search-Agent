@@ -74,14 +74,19 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             continue
     resolved_careers=0
     learned_sources=0
+    resolution_failures=0
+    custom_career_sites=0
     source_registry=load_source_registry()
     for row in reg.values():
         if not row.get("official_domain") or row.get("ats_provider"):continue
         try:
             career=resolve_career_page(row["official_domain"])
-            if not career:continue
+            if not career:
+                resolution_failures+=1
+                continue
             row.update({k:v for k,v in career.items() if v})
             resolved_careers+=1
+            if career.get("ats_provider")=="career_site":custom_career_sites+=1
             # Promote the verified career/ATS result through the same registry
             # learner used by broad discovery, so it becomes executable config.
             synthetic={"company":row.get("company"),"company_key":row.get("company"),
@@ -90,12 +95,14 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             added=learn_sources_from_jobs([synthetic],source_registry)
             learned_sources+=len(added)
         except Exception:
+            resolution_failures+=1
             continue
     save_source_registry(source_registry)
     save_registry(reg,registry_path)
     return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
             "resolved_domains":resolved_domains,"resolved_careers":resolved_careers,
-            "learned_sources":learned_sources,"feeder_errors":feeder_errors}
+            "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
+            "resolution_failures":resolution_failures,"feeder_errors":feeder_errors}
 
 if __name__=="__main__":
     print(json.dumps(build(),indent=2))
