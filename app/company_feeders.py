@@ -12,7 +12,7 @@ import json
 from urllib.request import Request,urlopen
 
 SEC_TICKERS="https://www.sec.gov/files/company_tickers.json"
-UA={"User-Agent":"AI-Job-Search-Agent/1.0 contact=job-search-agent"}
+UA={"User-Agent":"AI-Job-Search-Agent/1.0 (employer-source discovery; contact: hemanthkavula/AI-Job-Search-Agent)","Accept":"application/json"}
 
 def sec_public_companies(timeout=30):
     req=Request(SEC_TICKERS,headers=UA)
@@ -133,10 +133,10 @@ def sam_registered_entities(timeout=30):
                       "includeSections":"entityRegistration","offset":offset,"limit":limit})
         req=Request(base+"?"+qs,headers=UA)
         with urlopen(req,timeout=timeout) as r:data=json.load(r)
-        rows=data.get("entityData") or []
+        rows=data.get("entityData") or data.get("entityDataList") or []
         if not rows:break
         for item in rows:
-            reg=item.get("entityRegistration") or {}
+            reg=item.get("entityRegistration") or item.get("entityRegistrationData") or {}
             name=(reg.get("legalBusinessName") or "").strip()
             if not name:continue
             out.append({"company":name,"uei":reg.get("ueiSAM"),
