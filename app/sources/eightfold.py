@@ -9,11 +9,21 @@ def _get(url: str, timeout: int = 25) -> str:
         return resp.read().decode("utf-8","replace")
 
 def _positions(body: str) -> list[dict]:
-    marker='"positions":'
-    start=body.find(marker)
+    # Eightfold tenants serialize the position collection in several forms
+    # (plain JSON, escaped hydration JSON, and whitespace-separated script data).
+    # Try each marker rather than assuming one exact HTML representation.
+    candidates=[body, body.replace('\\\"','"')]
+    for candidate in candidates:
+        rows=_positions_from(candidate)
+        if rows:return rows
+    return []
+
+def _positions_from(body: str) -> list[dict]:
+    m=re.search(r'["\\\']positions["\\\']\\s*:\\s*',body,re.I)
+    start=m.start() if m else -1
     if start < 0:
         return []
-    start=body.find("[",start+len(marker))
+    start=body.find("[",m.end() if m else start)
     if start < 0:
         return []
     depth=0; in_string=False; escape=False
@@ -33,11 +43,26 @@ def _positions(body: str) -> list[dict]:
                 except Exception:return []
     return []
 
+def _next_data_positions(body: str) -> list[dict]:
+    for raw in re.findall(r'<script[^>]+id=["\\\']__NEXT_DATA__["\\\'][^>]*>(.*?)</script>',body,re.I|re.S):
+        try:data=json.loads(raw)
+        except Exception:continue
+        stack=[data]
+        while stack:
+            node=stack.pop()
+            if isinstance(node,dict):
+                value=node.get("positions")
+                if isinstance(value,list) and value:return value
+                stack.extend(node.values())
+            elif isinstance(node,list):stack.extend(node)
+    return []
+
 def fetch_jobs(company: str, careers_url: str, timeout: int = 25) -> list[dict]:
     """Fetch public Eightfold career positions embedded in the career page."""
     body=_get(careers_url,timeout)
     out=[]
-    for j in _positions(body):
+    positions=_positions(body) or _next_data_positions(body)
+    for j in positions:
         title=str(j.get("posting_name") or j.get("name") or "")
         desc=str(j.get("job_description") or "")
         hay=(title+" "+desc[:2500]).lower()
