@@ -1,0 +1,65 @@
+{
+  "policy": {
+    "mode": "open_ended",
+    "purpose": "discover employers and official career sites; never an eligibility allowlist",
+    "official_career_site_primary": true
+  },
+  "feeders": [
+    {
+      "id": "sec_public_companies",
+      "enabled": true,
+      "kind": "authoritative_identity",
+      "scope": "US public registrants"
+    },
+    {
+      "id": "existing_source_companies",
+      "enabled": true,
+      "kind": "internal_seed",
+      "scope": "companies already configured or learned"
+    },
+    {
+      "id": "discovered_job_employers",
+      "enabled": true,
+      "kind": "continuous_learning",
+      "scope": "employers encountered by any job discovery source"
+    }
+  ],
+  "expansion_classes": [
+    {
+      "id": "private_companies",
+      "status": "planned"
+    },
+    {
+      "id": "startups",
+      "status": "planned"
+    },
+    {
+      "id": "healthcare",
+      "status": "planned"
+    },
+    {
+      "id": "universities",
+      "status": "planned"
+    },
+    {
+      "id": "financial_services",
+      "status": "planned"
+    },
+    {
+      "id": "consulting_staffing",
+      "status": "planned"
+    },
+    {
+      "id": "retail_logistics_manufacturing",
+      "status": "planned"
+    },
+    {
+      "id": "government_public_sector",
+      "status": "planned"
+    },
+    {
+      "id": "nonprofits",
+      "status": "planned"
+    }
+  ]
+}
