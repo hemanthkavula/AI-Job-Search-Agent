@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from urllib.parse import urlparse
-from app.company_registry import load as load_registry, save as save_registry, upsert
+from app.company_registry import load as load_registry, save as save_registry, upsert, company_key
 from app.company_feeders import collect as collect_company_feeders
 from app.company_domain_resolver import resolve_company
 from app.career_page_resolver import resolve as resolve_career_page
@@ -43,7 +43,7 @@ def build(source_path="data/job_sources.json", registry_path=None):
     feeder_rows,feeder_errors=collect_company_feeders()
     for row in feeder_rows:
         upsert(reg,row.get("company"),discovered_by=row.get("discovered_by"))
-        key=(row.get("company") or "").strip().lower()
+        key=company_key(row.get("company") or "")
         if key in reg:
             if row.get("cik"):reg[key]["sec_cik"]=row["cik"]
             if row.get("ticker"):reg[key]["ticker"]=row["ticker"]
