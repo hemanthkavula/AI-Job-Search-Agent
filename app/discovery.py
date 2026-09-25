@@ -18,6 +18,18 @@ from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold")
+FALLBACK_ATS_PROVIDERS=(
+ "dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature",
+ "taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
+ "ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
+ "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
+ "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
+ "applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
+ "jobappnetwork","myworkchoice","ultipro_ukg"
+)
+ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
+
 def discover(config: dict, only_source=None, dice_search_terms=None, registry_path="generated/discovered_sources.json", hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
     source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
@@ -25,8 +37,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice","ultipro_ukg"):
-        existing=list(config.get(provider,[]))
+    for provider in ALL_ATS_PROVIDERS:\n        existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
             for row in learned_config.get(provider,[]):
