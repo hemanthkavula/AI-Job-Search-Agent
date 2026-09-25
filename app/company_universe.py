@@ -16,7 +16,7 @@ def _domain(url):
         return host[4:] if host.startswith("www.") else host
     except Exception:return None
 
-def build(source_path="data/job_sources.json", registry_path=None):
+def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250):
     """Seed the open-ended employer universe from every configured company source.
 
     This is intentionally not an allowlist. Broad discovery and future resolvers
@@ -62,12 +62,8 @@ def build(source_path="data/job_sources.json", registry_path=None):
                     reg[key]["official_url"]=url
                     reg[key]["official_domain"]=host
                     reg[key]["domain_evidence"]="fdic_institutions" if row.get("fdic_cert") else "college_scorecard"
-    resolved_domains=0
-    # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    for row in reg.values():
-        if row.get("official_domain"):continue
-        try:
-            resolved=resolve_company(row)
+    resolved_domains=0\n    domain_attempts=0\n    # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
+    for row in reg.values():\n        if row.get("official_domain"):continue\n        if domain_attempts>=domain_budget:break\n        domain_attempts+=1\n        try:\n            resolved=resolve_company(row)
             if resolved:
                 row.update({k:v for k,v in resolved.items() if v})
                 resolved_domains+=1
@@ -77,10 +73,7 @@ def build(source_path="data/job_sources.json", registry_path=None):
     learned_sources=0
     resolution_failures=0
     custom_career_sites=0
-    source_registry=load_source_registry()
-    for row in reg.values():
-        if not row.get("official_domain") or row.get("ats_provider"):continue
-        try:
+    source_registry=load_source_registry()\n    career_attempts=0\n    for row in reg.values():\n        if not row.get("official_domain") or row.get("ats_provider"):continue\n        if career_attempts>=career_budget:break\n        career_attempts+=1\n        try:
             career=resolve_career_page(row["official_domain"])
             if not career:
                 resolution_failures+=1
@@ -105,7 +98,7 @@ def build(source_path="data/job_sources.json", registry_path=None):
     save_source_registry(source_registry)
     save_registry(reg) if registry_path is None else save_registry(reg,registry_path)
     return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
-            "resolved_domains":resolved_domains,"resolved_careers":resolved_careers,
+            "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,\n            "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
             "resolution_failures":resolution_failures,"feeder_errors":feeder_errors}
 
