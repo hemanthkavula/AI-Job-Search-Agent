@@ -74,24 +74,54 @@ def _fetch_public_page(url):
         with request.urlopen(req,timeout=30) as resp:return resp.read().decode("utf-8",errors="replace")
     except Exception:return ""
 
-def _extract_jsonld_job_description(page):
-    """Extract a full JobPosting description embedded as schema.org JSON-LD."""
+def _jsonld_jobpostings(page):
+    """Return schema.org JobPosting nodes for identity-aware employer resolution."""
+    found=[]
     for block in re.findall(r"(?is)<script[^>]+type=['\"]application/ld\\+json['\"][^>]*>(.*?)</script>",page or ""):
-        try:
-            payload=json.loads(html.unescape(block).strip())
-        except Exception:
-            continue
+        try: payload=json.loads(html.unescape(block).strip())
+        except Exception: continue
         stack=payload if isinstance(payload,list) else [payload]
         for item in stack:
             if not isinstance(item,dict):continue
-            candidates=item.get("@graph") if isinstance(item.get("@graph"),list) else [item]
-            for node in candidates:
+            nodes=item.get("@graph") if isinstance(item.get("@graph"),list) else [item]
+            for node in nodes:
                 if not isinstance(node,dict):continue
-                kind=node.get("@type")
-                kinds=kind if isinstance(kind,list) else [kind]
-                if "JobPosting" in kinds and node.get("description"):
-                    return _clean_html(str(node["description"]))
+                kinds=node.get("@type");kinds=kinds if isinstance(kinds,list) else [kinds]
+                if "JobPosting" in kinds:found.append(node)
+    return found
+
+def _extract_jsonld_job_description(page):
+    for node in _jsonld_jobpostings(page):
+        if node.get("description"):return _clean_html(str(node["description"]))
     return ""
+
+def _norm_identity(value):
+    return re.sub(r"[^a-z0-9]+"," ",(value or "").lower()).strip()
+
+def _jobposting_identity_matches(job,node,url):
+    """Require a candidate page to identify the same employer and role, not merely mention them."""
+    expected_title=_norm_identity(job.get("title"))
+    actual_title=_norm_identity(str(node.get("title") or ""))
+    if not expected_title or not actual_title:return False
+    et=set(expected_title.split());at=set(actual_title.split())
+    title_ratio=len(et & at)/max(1,len(et))
+    if title_ratio<0.70:return False
+    org=node.get("hiringOrganization") or {}
+    org_name=_norm_identity(org.get("name") if isinstance(org,dict) else str(org))
+    company=_norm_identity(job.get("company_key") or job.get("company"))
+    company_tokens={x for x in company.split() if len(x)>=4 and x not in {"company","corporation","inc","llc","ltd"}}
+    org_tokens=set(org_name.split())
+    host=_norm_identity(parse.urlsplit(url).netloc).replace(" ","")
+    company_ok=bool(company_tokens & org_tokens) if org_name else any(x in host for x in company_tokens)
+    if not company_ok:return False
+    expected_id=_norm_identity(str(job.get("requisition_id") or job.get("job_id") or job.get("external_id") or ""))
+    ident=node.get("identifier") or {}
+    actual_id=_norm_identity(str(ident.get("value") if isinstance(ident,dict) else ident))
+    # When both sides expose a useful requisition identifier, disagreement is a hard mismatch.
+    if expected_id and actual_id and len(expected_id)>=4 and len(actual_id)>=4 and expected_id not in actual_id and actual_id not in expected_id:
+        # Aggregator external IDs are often unrelated UUIDs; only enforce recognizable requisition-like IDs.
+        if any(ch.isdigit() for ch in expected_id) and len(expected_id)<80:return False
+    return True
 
 def _best_resolved_description(page,source=""):
     jsonld=_extract_jsonld_job_description(page)
@@ -111,32 +141,30 @@ def _extract_dice(page):
     return plain
 
 def _resolve_employer_career_page(job):
-    """Fallback for aggregator excerpts: locate the same role on the employer's public careers site."""
+    """Resolve an aggregator lead only to a strongly identity-matched employer/ATS JobPosting."""
     company=(job.get("company_key") or job.get("company") or "").strip()
     title=(job.get("title") or "").strip()
     if not company or not title:return ("","")
-    # Search-engine fallback is intentionally limited to public employer career pages.
-    # It is used only after the aggregator page itself fails to expose an ATS link.
-    q=parse.quote(f'{company} {title} careers')
-    page=_fetch_public_page("https://www.google.com/search?q="+q)
-    urls=re.findall(r'https?://[^&"<> ]+',page or "")
-    company_tokens=[x for x in re.findall(r"[a-z0-9]+",company.lower()) if len(x)>=4]
-    title_tokens=set(x for x in re.findall(r"[a-z0-9]+",title.lower()) if len(x)>=3)
-    ranked=[]
-    for u in urls:
-        u=html.unescape(u)
-        if any(x in u.lower() for x in ("dice.com","indeed.com","linkedin.com","ziprecruiter.com","google.com")):continue
-        host=re.sub(r"[^a-z0-9]","",parse.urlsplit(u).netloc.lower())
-        company_score=sum(t in host for t in company_tokens)
-        if not company_score:continue
-        p=_fetch_public_page(u)
-        desc=_best_resolved_description(p,"")
-        words=set(re.findall(r"[a-z0-9]+",desc.lower()))
-        overlap=len(title_tokens & words)
-        if _looks_like_usable_jd(desc,"") and overlap>=max(2,min(4,len(title_tokens))):
-            ranked.append((company_score,overlap,_jd_signal_score(desc),len(desc),u,desc))
+    queries=[f'"{title}" "{company}" careers',f'"{title}" "{company}" jobs']
+    seen=set();ranked=[]
+    for query in queries:
+        page=_fetch_public_page("https://www.google.com/search?q="+parse.quote(query))
+        urls=re.findall(r'https?://[^&"<> ]+',page or "")
+        for u in urls:
+            u=html.unescape(u)
+            if u in seen:continue
+            seen.add(u)
+            low=u.lower()
+            if any(x in low for x in ("dice.com","indeed.com","linkedin.com","ziprecruiter.com","google.com")):continue
+            p=_fetch_public_page(u)
+            for node in _jsonld_jobpostings(p):
+                if not _jobposting_identity_matches(job,node,u):continue
+                desc=_clean_html(str(node.get("description") or ""))
+                if not _looks_like_usable_jd(desc,""):continue
+                provider_bonus=1 if any(x in low for x in ("greenhouse","lever.co","ashbyhq","myworkdayjobs","smartrecruiters","icims","jobvite","oraclecloud")) else 0
+                ranked.append((provider_bonus,_jd_signal_score(desc),len(desc),u,desc))
     if not ranked:return ("","")
-    _,_,_,_,u,desc=max(ranked)
+    _,_,_,u,desc=max(ranked)
     return u,desc
 
 def resolve_full_jd(job):
@@ -202,7 +230,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
             held.append({"job":raw,"action":"HOLD_LIVE_STATUS_UNVERIFIED","reason":"Application page could not be verified as live before resume generation.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
             continue
         if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
-            held.append({"job":raw,"action":"HOLD_UNUSABLE_JD","reason":"Job description is too limited to identify meaningful tailoring targets safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
+            held.append({"job":raw,"action":"HOLD_ORIGINAL_JD_NOT_FOUND","reason":"A trustworthy complete/original job description could not be resolved safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
         raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
