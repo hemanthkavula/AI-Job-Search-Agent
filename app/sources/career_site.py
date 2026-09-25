@@ -57,6 +57,18 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _source_quality(j: dict) -> dict:
+    """Expose evidence signals without turning them into an eligibility decision."""
+    return {
+        "has_structured_jobposting": True,
+        "has_direct_job_url": bool(j.get("url")),
+        "has_stable_identifier": bool(j.get("identifier")),
+        "has_hiring_organization": bool(j.get("hiringOrganization")),
+        "has_location_evidence": bool(j.get("jobLocation") or j.get("applicantLocationRequirements") or j.get("jobLocationType")),
+        "has_employment_type": bool(j.get("employmentType")),
+        "has_posting_date": bool(j.get("datePosted")),
+    }
+
 def _freshness(j: dict) -> str:
     if _is_expired(j): return "expired"
     if j.get("validThrough"): return "active_by_schema"
@@ -93,6 +105,7 @@ def _source_evidence(j: dict, page_url: str) -> dict:
         "direct_job_url": _canonical_url(str(j.get("url") or page_url)),
         "schema_expired": _is_expired(j),
         "freshness_evidence": _freshness(j),
+        "source_quality_evidence": _source_quality(j),
     }
 
 def _education_experience(j: dict) -> dict:
