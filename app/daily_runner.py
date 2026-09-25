@@ -34,7 +34,7 @@ def _norm_title(value):
     text=re.sub(r"[^a-z0-9]+"," ",text)
     return re.sub(r"\s+"," ",text).strip()
 
-SOURCE_PRIORITY={"greenhouse":0,"lever":0,"ashby":0,"smartrecruiters":0,"workday":0,"successfactors":0,"icims":0,"oracle":0,"eightfold":0,"career_site":1,"dice":2,"ziprecruiter":2}
+SOURCE_PRIORITY={"greenhouse":0,"lever":0,"ashby":0,"smartrecruiters":0,"workday":0,"successfactors":0,"icims":0,"oracle":0,"eightfold":0,"dayforce":0,"ultipro":0,"recruiting_com":0,"adp_workforce_now":0,"career_site":1,"dice":2,"ziprecruiter":2}
 
 def _dedup_eligible(items):
     """Prefer official ATS/company sources over aggregators for semantic duplicates."""
