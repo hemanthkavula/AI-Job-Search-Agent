@@ -58,7 +58,36 @@ def fdic_insured_banks(timeout=30):
                     "official_url":web or None,"discovered_by":"fdic_active_institutions"})
     return out
 
-FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks}
+def college_scorecard_institutions(timeout=30):
+    """U.S. higher-education institutions from the Department of Education
+    College Scorecard public API. Requires COLLEGE_SCORECARD_API_KEY."""
+    import os
+    key=os.getenv("COLLEGE_SCORECARD_API_KEY")
+    if not key:return []
+    url=("https://api.data.gov/ed/collegescorecard/v1/schools.json"
+         "?school.operating=1&fields=id,school.name,school.school_url&per_page=100"
+         f"&api_key={key}")
+    out=[];page=0
+    while True:
+        req=Request(url+f"&page={page}",headers=UA)
+        with urlopen(req,timeout=timeout) as r:data=json.load(r)
+        rows=data.get("results") or []
+        if not rows:break
+        for row in rows:
+            name=(row.get("school.name") or "").strip()
+            if not name:continue
+            web=(row.get("school.school_url") or "").strip()
+            out.append({"company":name,"education_id":str(row.get("id") or ""),
+                        "official_url":web or None,
+                        "discovered_by":"college_scorecard"})
+        meta=data.get("metadata") or {}
+        total=int(meta.get("total") or 0)
+        page+=1
+        if page*100>=total:break
+    return out
+
+FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
+         "college_scorecard_institutions":college_scorecard_institutions}
 
 def collect(enabled=None):
     enabled=enabled or list(FEEDERS)
