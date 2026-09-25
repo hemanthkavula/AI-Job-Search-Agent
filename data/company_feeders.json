@@ -101,5 +101,18 @@
     "retail_logistics_manufacturing",
     "government_public_sector",
     "nonprofits"
-  ]
+  ],
+  "validation_policy": {
+    "career_source_required": true,
+    "executable_ats_required_for_working": true,
+    "metrics": [
+      "employers_loaded",
+      "official_domains_resolved",
+      "career_pages_resolved",
+      "ats_sources_learned",
+      "custom_career_sites",
+      "resolution_failures"
+    ],
+    "rule": "A feeder/category is not WORKING merely because employer identities were loaded; official career-page resolution and executable job-source promotion must be measured."
+  }
 }
