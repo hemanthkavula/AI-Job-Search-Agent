@@ -145,6 +145,18 @@ def detect_ats(url):
    return provider,identifier or None
  return None,None
 
+def learn_career_site(company, careers_url, registry, learned_from="official_career_resolver"):
+ """Persist a verified custom employer careers page as an executable source."""
+ if not company or not careers_url:return False
+ rows=registry.setdefault("career_site",[])
+ normalized=careers_url.rstrip("/")
+ if any((x.get("search_url") or x.get("careers_url") or "").rstrip("/")==normalized for x in rows):
+  return False
+ rows.append({"company":company,"search_url":careers_url,"careers_url":careers_url,
+              "identifier":urlparse(careers_url).netloc.lower(),
+              "learned_from":learned_from,"verified_official_career_site":True})
+ return True
+
 def learn_from_jobs(jobs,registry):
  """Learn reusable public ATS board identifiers from broad-discovery results."""
  added=[]
