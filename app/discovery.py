@@ -37,7 +37,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ALL_ATS_PROVIDERS:\n        existing=list(config.get(provider,[]))
+    for provider in ALL_ATS_PROVIDERS:
+        existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
             for row in learned_config.get(provider,[]):
