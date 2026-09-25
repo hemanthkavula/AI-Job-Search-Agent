@@ -6,7 +6,7 @@ from app.company_registry import load as load_registry, save as save_registry, u
 from app.company_feeders import collect as collect_company_feeders
 from app.company_domain_resolver import resolve_company
 from app.career_page_resolver import resolve as resolve_career_page
-from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_from_jobs as learn_sources_from_jobs
+from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_from_jobs as learn_sources_from_jobs, learn_career_site
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -89,11 +89,15 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             if career.get("ats_provider")=="career_site":custom_career_sites+=1
             # Promote the verified career/ATS result through the same registry
             # learner used by broad discovery, so it becomes executable config.
-            synthetic={"company":row.get("company"),"company_key":row.get("company"),
-                       "source":"official_career_resolver",
-                       "original_url":career.get("careers_url")}
-            added=learn_sources_from_jobs([synthetic],source_registry)
-            learned_sources+=len(added)
+            if career.get("ats_provider")=="career_site":
+                if learn_career_site(row.get("company"),career.get("careers_url"),source_registry):
+                    learned_sources+=1
+            else:
+                synthetic={"company":row.get("company"),"company_key":row.get("company"),
+                           "source":"official_career_resolver",
+                           "original_url":career.get("careers_url")}
+                added=learn_sources_from_jobs([synthetic],source_registry)
+                learned_sources+=len(added)
         except Exception:
             resolution_failures+=1
             continue
