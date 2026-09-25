@@ -1,9 +1,10 @@
 from __future__ import annotations
-import json,re
+import json
+import os,re
 from pathlib import Path
 from urllib.parse import urlparse
 
-DEFAULT_PATH=Path("generated/discovered_sources.json")
+DEFAULT_PATH=Path(os.getenv("JOB_AGENT_STATE_DIR","generated"))/"discovered_sources.json"
 PATTERNS={
  "greenhouse":[r"(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)",r"boards\.greenhouse\.io/([^/?#]+)"],
  "lever":[r"jobs\.lever\.co/([^/?#]+)"],
