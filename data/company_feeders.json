@@ -35,15 +35,15 @@
     },
     {
       "id": "healthcare",
-      "status": "planned"
+      "status": "implemented"
     },
     {
       "id": "universities",
-      "status": "planned"
+      "status": "implemented"
     },
     {
       "id": "financial_services",
-      "status": "planned"
+      "status": "implemented"
     },
     {
       "id": "consulting_staffing",
@@ -93,5 +93,13 @@
       "status": "research",
       "scope": "health systems and provider organizations"
     }
+  ],
+  "next_implementation_priority": [
+    "private_companies",
+    "startups",
+    "consulting_staffing",
+    "retail_logistics_manufacturing",
+    "government_public_sector",
+    "nonprofits"
   ]
 }
