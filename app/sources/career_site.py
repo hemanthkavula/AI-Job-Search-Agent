@@ -47,6 +47,16 @@ def _identifier(j: dict, fallback: str) -> str:
 def _direct_apply_url(j: dict, fallback: str) -> str:
     return str(j.get("url") or fallback)
 
+def _dedupe_jobs(rows: list[dict]) -> list[dict]:
+    """Prefer one authoritative record per stable job id/URL."""
+    out=[]; seen=set()
+    for row in rows:
+        key=str(row.get("job_id") or row.get("external_id") or row.get("url") or "").strip().lower()
+        if not key: key=f"{row.get('company_key','')}|{row.get('title','')}|{row.get('location','')}".lower()
+        if key in seen: continue
+        seen.add(key); out.append(row)
+    return out
+
 def _job_type(j: dict) -> str | None:
     value=j.get("employmentType")
     if isinstance(value,list): value=", ".join(str(x) for x in value if x)
@@ -187,6 +197,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
           "title":title,"location":None,"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":ident,"description":text,"description_complete":bool(text),
           "updated_at":j.get("datePosted") or j.get("validThrough")})
+    out=_dedupe_jobs(out)
     print(f"CareerSite / {company}: {len(out)} DE jobs",flush=True)
     return out
 
