@@ -75,8 +75,13 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             resolved=resolve_company(row)
             if resolved:
                 row.update({k:v for k,v in resolved.items() if v})
+                row["domain_last_success_at"]=datetime.now(timezone.utc).isoformat()
+                row.pop("domain_last_error",None)
                 resolved_domains+=1
-        except Exception:
+            else:
+                row["domain_last_error"]="NO_VERIFIED_DOMAIN_EVIDENCE_RETURNED"
+        except Exception as e:
+            row["domain_last_error"]=f"{type(e).__name__}: {e}"[:500]
             continue
     resolved_careers=0
     learned_sources=0
@@ -92,9 +97,12 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         try:
             career=resolve_career_page(row["official_domain"])
             if not career:
+                row["career_last_error"]="NO_CAREER_PAGE_RESOLVED"
                 resolution_failures+=1
                 continue
             row.update({k:v for k,v in career.items() if v})
+            row["career_last_success_at"]=datetime.now(timezone.utc).isoformat()
+            row.pop("career_last_error",None)
             resolved_careers+=1
             if career.get("ats_provider")=="career_site":custom_career_sites+=1
             # Promote the verified career/ATS result through the same registry
@@ -108,7 +116,8 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
                            "original_url":career.get("careers_url")}
                 added=learn_sources_from_jobs([synthetic],source_registry)
                 learned_sources+=len(added)
-        except Exception:
+        except Exception as e:
+            row["career_last_error"]=f"{type(e).__name__}: {e}"[:500]
             resolution_failures+=1
             continue
     save_source_registry(source_registry)
