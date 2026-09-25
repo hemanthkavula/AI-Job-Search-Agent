@@ -17,6 +17,27 @@ def _plain(value: str) -> str:
     value=re.sub(r"<style[\\s\\S]*?</style>"," ",value,flags=re.I)
     return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
 
+def _jobpostings(body: str) -> list[dict]:
+    """Return all schema.org JobPosting objects embedded in a career page."""
+    found=[]
+    pat = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+    for raw in re.findall(pat, body, re.I | re.S):
+        try:
+            data=json.loads(html.unescape(raw.strip()))
+        except Exception:
+            continue
+        rows=data if isinstance(data,list) else [data]
+        for row in rows:
+            if not isinstance(row,dict):
+                continue
+            nodes=[row]
+            if isinstance(row.get("@graph"),list):
+                nodes.extend(row["@graph"])
+            for node in nodes:
+                if isinstance(node,dict) and node.get("@type")=="JobPosting":
+                    found.append(node)
+    return found
+
 def _jsonld(body: str) -> dict:
     pat = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
     for raw in re.findall(pat, body, re.I | re.S):
@@ -74,6 +95,21 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         try:return _workable_public(company,search_url,timeout)
         except Exception:pass
     body=_get(search_url,timeout)
+    embedded=[]
+    for j in _jobpostings(body):
+        title=_plain(str(j.get("title") or ""))
+        desc=_plain(str(j.get("description") or ""))
+        hay=(title+" "+desc[:2500]).lower()
+        if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")):
+            continue
+        ident=j.get("identifier") or j.get("url") or title
+        if isinstance(ident,dict):
+            ident=ident.get("value") or title
+        url=j.get("url") or search_url
+        embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
+          "title":title,"location":None,"url":url,"original_url":url,"ats_provider":"career_site",
+          "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
+          "updated_at":j.get("datePosted") or j.get("validThrough")})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
     # Normalize one escaping layer so valid static job links remain discoverable.
@@ -87,8 +123,10 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
     if not links:
         fallback=_detail_fallback(company,search_url,timeout)
         if fallback:return fallback
-    out=[]
+    out=list(embedded)
+    embedded_urls={x.get("url") for x in embedded}
     for url in links:
+        if url in embedded_urls:continue
         try:detail=_get(url,timeout)
         except Exception:continue
         j=_jsonld(detail)
