@@ -63,7 +63,7 @@ PATTERNS={
  "bullhorn":[r"https?://[^/]*bullhornstaffing\\.com/",r"https?://public\\.bullhornstaffing\\.com/"],
  "comeet":[r"https?://www\.comeet\.com/jobs/([^/?#]+)",r"https?://jobs\.comeet\.com/",r"https?://www\.comeet\.com/jobs/([^/?#]+)/[^?#]*"],
  "clearcompany":[r"https?://[^/]*clearcompany\\.com/",r"https?://careers\\.clearcompany\\.com/",r"https?://[^/]*clearcompany\\.com/[^?#]*(?:job|position)"],
- "applicantpro":[r"https?://[^/]*\\.applicantpro\\.com/jobs/",r"https?://[^/]*\\.applicantpro\\.com/jobs/\\d+"],
+ "applicantpro":[r"https?://[^/]*\.applicantpro\.com/jobs/",r"https?://[^/]*\.applicantpro\.com/jobs/\d+"],
  "fountain":[r"https?://[^/]*fountain\\.com/jobs/",r"https?://apply\\.fountain\\.com/",r"https?://jobs\\.fountain\\.com/"],
  "hirebridge":[r"https?://[^/]*hirebridge\\.com/",r"https?://jobs\\.hirebridge\\.com/"],
  "jobdiva":[r"https?://[^/]*jobdiva\\.com/"],
