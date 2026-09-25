@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 from app.company_registry import load as load_registry, save as save_registry, upsert, company_key
@@ -17,7 +17,15 @@ def _domain(url):
         return host[4:] if host.startswith("www.") else host
     except Exception:return None
 
-def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250):
+def _retry_due(row, prefix, retry_days):
+    last=row.get(f"{prefix}_last_attempt_at")
+    if not last:return True
+    try:
+        attempted=datetime.fromisoformat(last.replace("Z","+00:00"))
+        return datetime.now(timezone.utc)-attempted >= timedelta(days=retry_days)
+    except Exception:return True
+
+def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250, retry_days=7):
     """Seed the open-ended employer universe from every configured company source.
 
     This is intentionally not an allowlist. Broad discovery and future resolvers
@@ -66,7 +74,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r)), key=lambda r: r.get("domain_last_attempt_at") or "")
+    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days)), key=lambda r: r.get("domain_last_attempt_at") or "")
     for row in domain_candidates:
         if domain_attempts>=domain_budget:break
         row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
@@ -89,7 +97,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     custom_career_sites=0
     source_registry=load_source_registry()
     career_attempts=0
-    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider")), key=lambda r: r.get("career_last_attempt_at") or "")
+    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days)), key=lambda r: r.get("career_last_attempt_at") or "")
     for row in career_candidates:
         if career_attempts>=career_budget:break
         row["career_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
@@ -126,7 +134,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,
             "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
-            "resolution_failures":resolution_failures,"feeder_errors":feeder_errors}
+            "resolution_failures":resolution_failures,"retry_days":retry_days,"feeder_errors":feeder_errors}
 
 if __name__=="__main__":
     print(json.dumps(build(),indent=2))
