@@ -57,6 +57,11 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _remote_flag(j: dict) -> bool:
+    if str(j.get("jobLocationType") or "").upper()=="TELECOMMUTE": return True
+    text=" ".join(str(x) for x in (j.get("title"),j.get("description"),j.get("jobLocationType")) if x).lower()
+    return bool(re.search(r"\b(remote|telecommute|work from home)\b",text))
+
 def _dates(j: dict) -> tuple[str | None, str | None]:
     posted=j.get("datePosted")
     expires=j.get("validThrough")
@@ -170,7 +175,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j)})
+          "updated_at":j.get("datePosted") or j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j),"remote":_remote_flag(j)})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
     # Normalize one escaping layer so valid static job links remain discoverable.
