@@ -28,6 +28,10 @@ def sec_company_domain(cik,timeout=20):
     return {"official_domain":domain,"official_url":website or None,
             "domain_evidence":"sec_submissions"} if domain else None
 
+def can_resolve_company(row):
+    """True only when the row contains evidence that the resolver can use.\n\n    This prevents bounded enrichment batches from being consumed by identities\n    that currently have no verified domain evidence.\n    """
+    return bool(row.get("official_domain") or row.get("sec_cik"))
+
 def resolve_company(row):
     if row.get("official_domain"):
         return {"official_domain":row["official_domain"],"official_url":row.get("official_url"),
