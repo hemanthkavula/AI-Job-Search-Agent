@@ -5,7 +5,7 @@ NO_SPONSOR_PATTERNS=(
  "without visa sponsorship","without sponsorship","no visa sponsorship",
  "not provide visa sponsorship","does not provide visa sponsorship","do not provide visa sponsorship",
  "unable to sponsor","cannot sponsor","not eligible for sponsorship","must not require sponsorship",
- "will not sponsor","no sponsorship available","not offer sponsorship",
+ "will not sponsor","no sponsorship available","not offer sponsorship","does not intend to provide sponsorship","do not intend to provide sponsorship",
  "no current or future sponsorship","current or future sponsorship is not available",
  "cannot provide current or future sponsorship","will not provide sponsorship",
  "does not provide employer support or sponsorship","do not provide employer support or sponsorship",
@@ -37,7 +37,7 @@ def experience_range(text: str):
     # Require explicit experience context so unrelated values such as "50 years in business"
     # cannot become a candidate experience requirement.
     patterns=(
-        r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+        r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
         r"(?:experience|experienced)\s+(?:of\s+)?(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)",
     )
     for pattern in patterns:
@@ -51,13 +51,13 @@ def required_years(text: str):
     if rng:return rng[0]
     vals=[]
     patterns=(
-      r"(?:minimum(?: of)?|min\.?|at least)\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
-      r"(?:requires?|required|requirement:?|qualifications?:?)\s+(?:a\s+)?(?:minimum(?: of)?\s+)?(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
-      r"(\d{1,2})\s*\+\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:[a-z0-9&/+.\-]+\s+){0,5}?experience",
-      r"(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience\s+(?:required|minimum)",
-      r"(?:experience\s+)?min(?:imum)?\.?\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:software\s+engineering\s+)?experience",
-      r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)\s*\+?\s*(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
-      r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)[^.;\n]{0,80}?(\d{1,2})\s*(?:years?|yrs?)\s+(?:of\s+)?(?:[a-z0-9&/, .\-]+\s+){0,8}?experience",
+      r"(?:minimum(?: of)?|min\.?|at least)\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(?:requires?|required|requirement:?|qualifications?:?)\s+(?:a\s+)?(?:minimum(?: of)?\s+)?(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
+      r"(\d{1,2})\s*\+\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:[a-z0-9&/+.\-]+\s+){0,5}?experience",
+      r"(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience\s+(?:required|minimum)",
+      r"(?:experience\s+)?min(?:imum)?\.?\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:software\s+engineering\s+)?experience",
+      r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)\s*\+?\s*(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?experience",
+      r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)[^.;\n]{0,80}?(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:[a-z0-9&/, .\-]+\s+){0,8}?experience",
     )
     for pattern in patterns:
         vals.extend(int(x) for x in re.findall(pattern,text))
