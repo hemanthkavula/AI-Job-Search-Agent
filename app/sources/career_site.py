@@ -57,6 +57,12 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _freshness(j: dict) -> str:
+    if _is_expired(j): return "expired"
+    if j.get("validThrough"): return "active_by_schema"
+    if j.get("datePosted"): return "dated_no_expiry"
+    return "unknown"
+
 def _is_expired(j: dict) -> bool:
     """Mark postings whose schema validThrough is already in the past."""
     value=j.get("validThrough")
@@ -86,6 +92,7 @@ def _source_evidence(j: dict, page_url: str) -> dict:
         "schema_type": str(j.get("@type") or "JobPosting"),
         "direct_job_url": _canonical_url(str(j.get("url") or page_url)),
         "schema_expired": _is_expired(j),
+        "freshness_evidence": _freshness(j),
     }
 
 def _education_experience(j: dict) -> dict:
