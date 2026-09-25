@@ -86,8 +86,33 @@ def college_scorecard_institutions(timeout=30):
         if page*100>=total:break
     return out
 
+def cms_hospitals(timeout=30):
+    """Hospital organizations from CMS Provider Data API.
+
+    This is an organization-identity feeder. CMS data is authoritative for
+    participating facilities, but facility website availability varies, so
+    official domains are resolved separately unless a website is present.
+    """
+    url=("https://data.cms.gov/provider-data/api/1/datastore/sql"
+         "?query=SELECT%20facility_id,facility_name,address,city,state,zip_code"
+         "%20FROM%20xubh-q36u%20LIMIT%2050000")
+    req=Request(url,headers=UA)
+    with urlopen(req,timeout=timeout) as r:data=json.load(r)
+    rows=data if isinstance(data,list) else data.get("results") or data.get("data") or []
+    out=[]
+    for row in rows:
+        if not isinstance(row,dict):continue
+        name=(row.get("facility_name") or row.get("Facility Name") or "").strip()
+        if not name:continue
+        out.append({"company":name,
+                    "cms_facility_id":str(row.get("facility_id") or row.get("Facility ID") or ""),
+                    "state":row.get("state") or row.get("State"),
+                    "discovered_by":"cms_hospital_general_information"})
+    return out
+
 FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
-         "college_scorecard_institutions":college_scorecard_institutions}
+         "college_scorecard_institutions":college_scorecard_institutions,
+         "cms_hospitals":cms_hospitals}
 
 def collect(enabled=None):
     enabled=enabled or list(FEEDERS)
