@@ -50,6 +50,7 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
             if row.get("education_id"):reg[key]["education_id"]=row["education_id"]
             if row.get("cms_facility_id"):reg[key]["cms_facility_id"]=row["cms_facility_id"]
             if row.get("state"):reg[key]["state"]=row["state"]
+            if row.get("uei"):reg[key]["sam_uei"]=row["uei"]
             if row.get("official_url"):
                 from urllib.parse import urlparse
                 url=row["official_url"]
