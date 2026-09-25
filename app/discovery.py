@@ -25,7 +25,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     def _unit_hours(source, unit): return source_unit_hours.get(f"{source}:{unit}", _hours(source))
     registry=load_registry(registry_path);learned_config=as_discovery_config(registry)
     merged=dict(config)
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
         existing=list(config.get(provider,[]))
         if provider=="workday":
             seen={(x.get("host"),x.get("tenant"),x.get("site")) for x in existing}
@@ -102,7 +102,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Newly learned ATS families initially use the hardened generic crawler.
         # This gives production coverage immediately while preserving provider identity;
         # provider-specific API collectors can replace this path as endpoints are validated.
-        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now"):
+        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url")
                 if not url:continue
@@ -152,13 +152,31 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "ultipro": len(config.get("ultipro",[])),
         "recruiting_com": len(config.get("recruiting_com",[])),
         "adp_workforce_now": len(config.get("adp_workforce_now",[])),
+        "workable": len(config.get("workable",[])),
+        "recruitee": len(config.get("recruitee",[])),
+        "teamtailor": len(config.get("teamtailor",[])),
+        "bamboohr": len(config.get("bamboohr",[])),
+        "phenom": len(config.get("phenom",[])),
+        "avature": len(config.get("avature",[])),
+        "taleo": len(config.get("taleo",[])),
+        "cornerstone": len(config.get("cornerstone",[])),
+        "jazzhr": len(config.get("jazzhr",[])),
+        "breezyhr": len(config.get("breezyhr",[])),
+        "paylocity": len(config.get("paylocity",[])),
+        "rippling": len(config.get("rippling",[])),
+        "pinpoint": len(config.get("pinpoint",[])),
+        "brassring": len(config.get("brassring",[])),
+        "careerplug": len(config.get("careerplug",[])),
+        "freshteam": len(config.get("freshteam",[])),
+        "jobscore": len(config.get("jobscore",[])),
+        "personio": len(config.get("personio",[])),
         "dice": 1 if config.get("dice",{}).get("enabled",False) else 0,
         "ziprecruiter": 1 if config.get("ziprecruiter",{}).get("enabled",False) else 0,
     }
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
-    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","dice","ziprecruiter"):
+    for provider in ("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","dice","ziprecruiter"):
         if only_source not in (None,provider):
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
