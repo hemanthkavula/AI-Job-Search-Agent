@@ -1,7 +1,7 @@
 from __future__ import annotations
 import html, json, re
 from http.client import IncompleteRead
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
@@ -54,6 +54,20 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
           "updated_at":j.get("published") or j.get("created_at")})
     return out
 
+def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
+    low=search_url.lower()
+    if not any(x in low for x in ("opportunitydetail","/jobdetail/","/jobs/details/","/apply/")): return []
+    body=_get(search_url,timeout); j=_jsonld(body)
+    title=_plain(str(j.get("title") or ""))
+    if not title:
+        m=re.search(r"<title>(.*?)</title>",body,re.I|re.S); title=_plain(m.group(1)) if m else ""
+    text=_plain(str(j.get("description") or body)); hay=(title+" "+text[:3000]).lower()
+    if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")): return []
+    ident=j.get("identifier") or search_url
+    if isinstance(ident,dict): ident=ident.get("value") or search_url
+    host=urlparse(search_url).netloc
+    return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":None,"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted") or j.get("validThrough")}]
+
 def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int = 20) -> list[dict]:
     """Crawl a public employer career search page for Data Engineering jobs."""
     if "apply.workable.com/" in search_url.lower():
@@ -70,6 +84,9 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         url=urljoin(search_url,html.unescape(href))
         if rx.search(url) and url not in seen:
             seen.add(url);links.append(url)
+    if not links:
+        fallback=_detail_fallback(company,search_url,timeout)
+        if fallback:return fallback
     out=[]
     for url in links:
         try:detail=_get(url,timeout)
