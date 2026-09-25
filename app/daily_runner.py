@@ -69,7 +69,9 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     """
     profile=load_profile();ledger=load_ledger(ledger_path)
     config=load_sources(source_config)
-    # Company/career-site enrichment runs separately on a slower cadence.\n    # Fast job cycles only consume persisted sources and learn newly seen employers.\n    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours,source_unit_hours=source_unit_hours)
+    # Company/career-site enrichment runs separately on a slower cadence.
+    # Fast job cycles only consume persisted sources and learn newly seen employers.
+    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours,source_unit_hours=source_unit_hours)
     company_registry=load_company_registry()
     learn_companies_from_jobs(jobs,company_registry);save_company_registry(company_registry)
     source_since=source_since or {}
