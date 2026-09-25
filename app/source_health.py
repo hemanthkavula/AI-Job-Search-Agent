@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from app.sources.career_site import validate_source as validate_career_site
+from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS
 
 ROOT=Path(__file__).resolve().parents[1]
 UA={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/html,*/*"}
@@ -80,13 +81,20 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
                 rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
                 continue
             probe=_probe(url,timeout)
-            coverage="FALLBACK" if probe.get("status")=="ok" else "BLOCKED"
-            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage))
+            if probe.get("status")=="ok":
+                coverage="DIRECT_PUBLIC_BOARD" if provider in DIRECT_PROVIDERS else "FALLBACK"
+            else:
+                coverage="BLOCKED"
+            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage,collector_class=("direct_public_board" if provider in DIRECT_PROVIDERS else "fallback")))
     counts={}
     for r in rows:
         s=r.get("effective_status") or r["status"]
         counts[s]=counts.get(s,0)+1
-    return {"counts":counts,"sources":rows}
+    coverage_counts={}
+    for r in rows:
+        k=r.get("coverage_status") or ("DIRECT" if (r.get("effective_status") or r.get("status"))=="ok" else "UNKNOWN")
+        coverage_counts[k]=coverage_counts.get(k,0)+1
+    return {"counts":counts,"coverage_counts":coverage_counts,"provider_classes":{"direct":list(DIRECT_PROVIDERS),"fallback":list(FALLBACK_ATS_PROVIDERS)},"sources":rows}
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
