@@ -6,8 +6,8 @@ from urllib.parse import urlparse
 
 DEFAULT_PATH=Path(os.getenv("JOB_AGENT_STATE_DIR","generated"))/"discovered_sources.json"
 PATTERNS={
- "greenhouse":[r"(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)",r"boards\.greenhouse\.io/([^/?#]+)"],
- "lever":[r"jobs\.lever\.co/([^/?#]+)"],
+ "greenhouse":[r"(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)",r"boards\.greenhouse\.io/([^/?#]+)",r"job-boards\.greenhouse\.io/([^/?#]+)"],
+ "lever":[r"jobs\.lever\.co/([^/?#]+)",r"jobs\.eu\.lever\.co/([^/?#]+)"],
  "ashby":[r"jobs\.ashbyhq\.com/([^/?#]+)"],
  "smartrecruiters":[r"(?:jobs\.)?smartrecruiters\.com/([^/?#]+)"],
  "workday":[
@@ -39,8 +39,8 @@ PATTERNS={
  ],
  "workable":[r"https?://apply\.workable\.com/([^/?#]+)",r"https?://jobs\.workable\.com/([^/?#]+)"],
  "recruitee":[r"https?://([^.]+)\.recruitee\.com/",r"https?://careers\.recruitee\.com/([^/?#]+)"],
- "teamtailor":[r"https?://([^.]+)\.teamtailor\.com/"],
- "bamboohr":[r"https?://([^.]+)\.bamboohr\.com/careers"],
+ "teamtailor":[r"https?://([^.]+)\.teamtailor\.com/",r"https?://careers\.([^.]+)\.[^/]+/.*teamtailor"],
+ "bamboohr":[r"https?://([^.]+)\.bamboohr\.com/careers",r"https?://([^.]+)\.bamboohr\.com/jobs"],
  "phenom":[r"https?://([^/]+)/(?:us/)?en/(?:careers|jobs)",r"https?://([^/]*phenom[^/]*)/"],
  "avature":[r"https?://([^.]+)\.avature\.net/"],
  "taleo":[r"https?://[^/]*taleo\.net/[^?]*\?(?:[^#]*&)?org=([^&#]+)",r"https?://([^.]+)\.taleo\.net/"],
@@ -48,13 +48,13 @@ PATTERNS={
  "jazzhr":[r"https?://([^.]+)\.applytojob\.com/"],
  "breezyhr":[r"https?://([^.]+)\.breezy\.hr/"],
  "paylocity":[r"https?://recruiting\.paylocity\.com/recruiting/jobs/[^/]+/([^/?#]+)"],
- "rippling":[r"https?://ats\.rippling\.com/([^/?#]+)"],
+ "rippling":[r"https?://ats\.rippling\.com/([^/?#]+)",r"https?://ats\.rippling\.com/([^/?#]+)/jobs"],
  "pinpoint":[r"https?://([^.]+)\.pinpointhq\.com/"],
  "brassring":[r"https?://[^/]*brassring\.com/"],
  "careerplug":[r"https?://([^.]+)\.careerplug\.com/"],
  "freshteam":[r"https?://([^.]+)\.freshteam\.com/jobs"],
  "jobscore":[r"https?://careers\.jobscore\.com/careers/([^/?#]+)"],
- "personio":[r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/"],
+ "personio":[r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/",r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/job/"],
  "eightfold":[r"https?://([^.]+)\\.eightfold\\.ai/"],
  "successfactors":[r"https?://[^/]*(?:successfactors|successfactors\\.eu|successfactors\\.com)/",r"https?://career[^/]*\\.successfactors\\."],
  "oracle":[r"https?://[^/]*oraclecloud\\.com/hcmUI/CandidateExperience/",r"https?://[^/]*oraclecloud\\.com/.*CandidateExperience/"],
