@@ -38,6 +38,35 @@ def _jobpostings(body: str) -> list[dict]:
                     found.append(node)
     return found
 
+def _location(j: dict) -> str | None:
+    """Extract human-readable location evidence from schema.org JobPosting."""
+    parts=[]
+    locs=j.get("jobLocation") or []
+    if isinstance(locs,dict): locs=[locs]
+    for loc in locs if isinstance(locs,list) else []:
+        if not isinstance(loc,dict): continue
+        addr=loc.get("address") or {}
+        if isinstance(addr,str):
+            parts.append(_plain(addr))
+            continue
+        if isinstance(addr,dict):
+            vals=[addr.get("addressLocality"),addr.get("addressRegion"),addr.get("postalCode"),addr.get("addressCountry")]
+            parts.append(", ".join(str(v) for v in vals if v))
+    req=j.get("applicantLocationRequirements") or []
+    if isinstance(req,dict): req=[req]
+    for item in req if isinstance(req,list) else []:
+        if isinstance(item,dict):
+            name=item.get("name")
+            if name: parts.append(str(name))
+        elif item: parts.append(str(item))
+    if str(j.get("jobLocationType") or "").upper()=="TELECOMMUTE":
+        parts.append("Remote")
+    clean=[]
+    for p in parts:
+        p=_plain(str(p))
+        if p and p not in clean: clean.append(p)
+    return " | ".join(clean) or None
+
 def _jsonld(body: str) -> dict:
     pat = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
     for raw in re.findall(pat, body, re.I | re.S):
@@ -87,7 +116,7 @@ def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
     ident=j.get("identifier") or search_url
     if isinstance(ident,dict): ident=ident.get("value") or search_url
     host=urlparse(search_url).netloc
-    return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":None,"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted") or j.get("validThrough")}]
+    return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":_location(j),"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted") or j.get("validThrough")}]
 
 def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int = 20) -> list[dict]:
     """Crawl a public employer career search page for Data Engineering jobs."""
@@ -107,7 +136,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
             ident=ident.get("value") or title
         url=j.get("url") or search_url
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
-          "title":title,"location":None,"url":url,"original_url":url,"ats_provider":"career_site",
+          "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
           "updated_at":j.get("datePosted") or j.get("validThrough")})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
