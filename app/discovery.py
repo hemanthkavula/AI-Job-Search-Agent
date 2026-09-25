@@ -115,7 +115,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
         # provider-specific API collectors can replace this path as endpoints are validated.
-        for provider in ("dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice","ultipro_ukg"):
+        for provider in FALLBACK_ATS_PROVIDERS:
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url")
                 if not url:continue
