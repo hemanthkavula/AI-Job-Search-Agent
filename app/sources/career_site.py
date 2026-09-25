@@ -38,6 +38,17 @@ def _jobpostings(body: str) -> list[dict]:
                     found.append(node)
     return found
 
+def _job_type(j: dict) -> str | None:
+    value=j.get("employmentType")
+    if isinstance(value,list): value=", ".join(str(x) for x in value if x)
+    return _plain(str(value)) or None if value else None
+
+def _organization(j: dict) -> str | None:
+    org=j.get("hiringOrganization")
+    if isinstance(org,dict):
+        return _plain(str(org.get("name") or "")) or None
+    return _plain(str(org)) or None if org else None
+
 def _location(j: dict) -> str | None:
     """Extract human-readable location evidence from schema.org JobPosting."""
     parts=[]
@@ -138,7 +149,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "updated_at":j.get("datePosted") or j.get("validThrough"),"employment_type":_job_type(j),"hiring_organization":_organization(j)})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
     # Normalize one escaping layer so valid static job links remain discoverable.
