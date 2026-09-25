@@ -54,6 +54,23 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     for x in cfg.get("eightfold",[]):
         url=x.get("careers_url")
         rows.append(_row("eightfold",x.get("company") or "eightfold",url,_probe(url,timeout)))
+    # Every configured ATS family must appear in source health.  For providers
+    # without a dedicated API probe yet, probe the configured public board and
+    # label it fallback/configured rather than silently omitting it.
+    dedicated={"career_site","greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","dice","ziprecruiter"}
+    for provider, units in cfg.items():
+        if provider in dedicated or not isinstance(units,list):
+            continue
+        for x in units:
+            if not isinstance(x,dict):
+                continue
+            url=x.get("search_url") or x.get("base_url") or x.get("careers_url") or x.get("original_url")
+            if not url:
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
+                continue
+            probe=_probe(url,timeout)
+            coverage="FALLBACK" if probe.get("status")=="ok" else "BLOCKED"
+            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage))
     counts={}
     for r in rows:
         s=r.get("effective_status") or r["status"]
