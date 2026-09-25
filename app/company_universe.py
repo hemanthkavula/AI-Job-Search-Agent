@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 from app.company_registry import load as load_registry, save as save_registry, upsert
 from app.company_feeders import collect as collect_company_feeders
 from app.company_domain_resolver import resolve_company
+from app.career_page_resolver import resolve as resolve_career_page
+from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_from_jobs as learn_sources_from_jobs
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -55,9 +57,30 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
                 resolved_domains+=1
         except Exception:
             continue
+    resolved_careers=0
+    learned_sources=0
+    source_registry=load_source_registry()
+    for row in reg.values():
+        if not row.get("official_domain") or row.get("ats_provider"):continue
+        try:
+            career=resolve_career_page(row["official_domain"])
+            if not career:continue
+            row.update({k:v for k,v in career.items() if v})
+            resolved_careers+=1
+            # Promote the verified career/ATS result through the same registry
+            # learner used by broad discovery, so it becomes executable config.
+            synthetic={"company":row.get("company"),"company_key":row.get("company"),
+                       "source":"official_career_resolver",
+                       "original_url":career.get("careers_url")}
+            added=learn_sources_from_jobs([synthetic],source_registry)
+            learned_sources+=len(added)
+        except Exception:
+            continue
+    save_source_registry(source_registry)
     save_registry(reg,registry_path)
     return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
-            "resolved_domains":resolved_domains,"feeder_errors":feeder_errors}
+            "resolved_domains":resolved_domains,"resolved_careers":resolved_careers,
+            "learned_sources":learned_sources,"feeder_errors":feeder_errors}
 
 if __name__=="__main__":
     print(json.dumps(build(),indent=2))
