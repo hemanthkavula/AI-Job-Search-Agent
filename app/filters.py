@@ -85,6 +85,14 @@ def title_is_target(title,description=""):
     )
     return adjacent_engineering_title and jd_is_data_engineering(description)
 
+def _description_has_us_location(description):
+    text=_clean(description)
+    if any(marker in text for marker in US_MARKERS):return True
+    if US_STATE_RE.search(description or ""):return True
+    if any(re.search(rf"\\b{re.escape(state)}\\b",text) for state in US_STATE_NAMES):return True
+    if any(re.search(rf"\\b{re.escape(city)}\\b",text) for city in US_CITY_MARKERS):return True
+    return False
+
 def _description_has_non_us_location(description):
     text=_clean(description)
     # Discovery providers can occasionally return an empty/incorrect location even
