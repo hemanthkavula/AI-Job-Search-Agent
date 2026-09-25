@@ -107,12 +107,28 @@ def save_registry(registry,path=DEFAULT_PATH):
 
 def detect_ats(url):
  if not url:return None,None
+ parsed=urlparse(url)
  for provider,patterns in PATTERNS.items():
   for pat in patterns:
    m=re.search(pat,url,re.I)
-   if m:
-    if provider=="workday":return provider,"|".join(x for x in m.groups() if x)
-    return provider,next((x for x in m.groups() if x),None)
+   if not m:continue
+   groups=[x for x in m.groups() if x]
+   if provider=="workday" and groups:return provider,"|".join(groups)
+   if groups:return provider,groups[0]
+   # Host-only ATS patterns still need a stable reusable identity so they can
+   # be learned instead of silently discarded.
+   host=(parsed.netloc or "").lower()
+   path=(parsed.path or "").strip("/")
+   identifier=host
+   if provider=="adp_workforce_now":
+    from urllib.parse import parse_qs
+    identifier=(parse_qs(parsed.query).get("cid") or [host])[0]
+   elif provider=="ukg":
+    parts=path.split("/")
+    identifier="|".join([host]+parts[:2]) if parts else host
+   elif provider in {"oracle","successfactors","paycom","bullhorn","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","brassring"}:
+    identifier=host
+   return provider,identifier or None
  return None,None
 
 def learn_from_jobs(jobs,registry):
