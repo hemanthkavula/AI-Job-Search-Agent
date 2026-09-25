@@ -116,7 +116,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # replaying the provider-level historical catch-up window forever.
     configured_workday=list(source_config.get("workday",[]) or [])
     try:
-        learned_workday=list(as_discovery_config(load_registry("generated/discovered_sources.json")).get("workday",[]) or [])
+        learned_workday=list(as_discovery_config(load_registry()).get("workday",[]) or [])
     except Exception:
         learned_workday=[]
     seen_workday={(x.get("host"),x.get("tenant"),x.get("site")) for x in configured_workday}
