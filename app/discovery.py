@@ -18,19 +18,21 @@ from app.sources.adp_workforce_now import fetch_jobs as adp_jobs
 from app.sources.avature import fetch_jobs as avature_jobs
 from app.sources.phenom import fetch_jobs as phenom_jobs
 from app.sources.paylocity import fetch_jobs as paylocity_jobs
+from app.sources.workable import fetch_jobs as workable_jobs
+from app.sources.jazzhr import fetch_jobs as jazzhr_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
 
-DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity")
+DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt")
 FALLBACK_ATS_PROVIDERS=(
- "dayforce","recruiting_com","workable","recruitee","teamtailor","bamboohr",
- "taleo","cornerstone","jazzhr","breezyhr","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
+ "dayforce","recruiting_com","recruitee","teamtailor","bamboohr",
+ "taleo","cornerstone","breezyhr","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio",
  "paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join",
  "greenhouse_eu","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet",
  "dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox",
- "applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
+ "applicantstack","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
  "jobappnetwork","myworkchoice"
 )
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
@@ -137,6 +139,13 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
             if url:
                 tasks.append((pool.submit(paylocity_jobs,src.get("company") or "paylocity",url),"paylocity",src.get("company") or "paylocity"))
+        for src in config.get("workable",[]) if only_source in (None,"workable") else []:
+            url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
+            if url:tasks.append((pool.submit(workable_jobs,src.get("company") or "workable",url),"workable",src.get("company") or "workable"))
+        for provider in ("jazzhr","jazzhr_alt"):
+            for src in config.get(provider,[]) if only_source in (None,provider) else []:
+                url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
+                if url:tasks.append((pool.submit(jazzhr_jobs,src.get("company") or provider,url),provider,src.get("company") or provider))
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
