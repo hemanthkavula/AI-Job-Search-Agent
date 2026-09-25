@@ -152,6 +152,31 @@ def learn_from_jobs(jobs,registry):
   rows.append(row);added.append({"provider":provider,**row})
  return added
 
+def _reusable_search_url(provider,url):
+ """Turn a discovered job-detail URL into the broadest safe public board URL we know."""
+ if not url:return url
+ p=urlparse(url);host=p.netloc;parts=[x for x in p.path.split("/") if x]
+ if provider=="workable" and parts:return f"{p.scheme}://{host}/{parts[0]}/"
+ if provider=="jazzhr":return f"{p.scheme}://{host}/"
+ if provider=="avature":
+  # Avature detail links commonly use /<locale>/careers/JobDetail/<id>.
+  if "careers" in parts:
+   i=parts.index("careers");return f"{p.scheme}://{host}/"+"/".join(parts[:i+1])+"/"
+ if provider=="ukg":
+  # Preserve tenant + JobBoard UUID, drop OpportunityDetail/job UUID.
+  try:
+   i=parts.index("JobBoard")
+   if len(parts)>i+1:return f"{p.scheme}://{host}/"+"/".join(parts[:i+2])+"/"
+  except ValueError:pass
+ if provider=="adp_workforce_now":
+  # The ADP recruitment shell is the reusable board; query cid identifies employer.
+  from urllib.parse import parse_qs,urlencode
+  q=parse_qs(p.query);keep={k:q[k][0] for k in ("cid","ccId","lang") if q.get(k)}
+  return f"{p.scheme}://{host}{p.path}"+(("?"+urlencode(keep)) if keep else "")
+ if provider=="paylocity" and len(parts)>=2:
+  return f"{p.scheme}://{host}/Recruiting/Jobs/"
+ return url
+
 def as_discovery_config(registry):
  out={k:[] for k in PATTERNS}
  for x in registry.get("greenhouse",[]):out["greenhouse"].append({"company":x.get("company"),"board_token":x.get("identifier") or x.get("board_token")})
@@ -161,6 +186,7 @@ def as_discovery_config(registry):
  for provider in ("applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","eightfold","successfactors","oracle","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
   for x in registry.get(provider,[]):
    url=x.get("original_url") or x.get("url")
+   url=_reusable_search_url(provider,url)
    if url:out[provider].append({"company":x.get("company"),"search_url":url,"job_url_pattern":r".+"})
  for x in registry.get("workday",[]):
   identifier=x.get("identifier") or ""
