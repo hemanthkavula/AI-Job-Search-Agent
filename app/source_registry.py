@@ -61,7 +61,7 @@ PATTERNS={
  "ukg":[r"https?://[^/]*\\.rec\\.pro\\.ukg\\.net/",r"https?://recruiting\\.ultipro\\.com/"],
  "paycom":[r"https?://www\\.paycomonline\\.net/v4/ats/web\\.php/",r"https?://www\\.paycomonline\\.net/v4/ats/"],
  "bullhorn":[r"https?://[^/]*bullhornstaffing\\.com/",r"https?://public\\.bullhornstaffing\\.com/"],
- "comeet":[r"https?://www\\.comeet\\.com/jobs/([^/?#]+)",r"https?://jobs\\.comeet\\.com/"],
+ "comeet":[r"https?://www\\.comeet\\.com/jobs/([^/?#]+)",r"https?://jobs\\.comeet\\.com/",r"https?://www\\.comeet\\.com/jobs/([^/?#]+)/[^?#]*"],
  "clearcompany":[r"https?://[^/]*clearcompany\\.com/",r"https?://careers\\.clearcompany\\.com/"],
  "applicantpro":[r"https?://[^/]*\\.applicantpro\\.com/jobs/"],
  "fountain":[r"https?://[^/]*fountain\\.com/jobs/",r"https?://apply\\.fountain\\.com/"],
