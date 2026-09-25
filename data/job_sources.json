@@ -1699,9 +1699,12 @@
   "source_policy": {
     "ats_catalog_mode": "open_ended",
     "configured_provider_families": 82,
-    "learned_sources_path": "generated/discovered_sources.json",
+    "learned_sources_path": "JOB_AGENT_STATE_DIR/discovered_sources.json",
     "unknown_employers_allowed": true,
     "seed_lists_are_allowlists": false,
-    "authoritative_jd_required_before_resume": true
+    "authoritative_jd_required_before_resume": true,
+    "company_registry_path": "JOB_AGENT_STATE_DIR/company_registry.json",
+    "state_path_fallback": "generated/",
+    "persistence_note": "Runtime resolves JOB_AGENT_STATE_DIR; generated/ is the local/GitHub fallback."
   }
 }
