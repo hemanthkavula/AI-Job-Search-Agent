@@ -46,6 +46,17 @@ def build(source_path="data/job_sources.json", registry_path="generated/company_
         if key in reg:
             if row.get("cik"):reg[key]["sec_cik"]=row["cik"]
             if row.get("ticker"):reg[key]["ticker"]=row["ticker"]
+            if row.get("fdic_cert"):reg[key]["fdic_cert"]=row["fdic_cert"]
+            if row.get("official_url"):
+                from urllib.parse import urlparse
+                url=row["official_url"]
+                if "://" not in url:url="https://"+url
+                host=urlparse(url).netloc.lower()
+                if host.startswith("www."):host=host[4:]
+                if host:
+                    reg[key]["official_url"]=url
+                    reg[key]["official_domain"]=host
+                    reg[key]["domain_evidence"]="fdic_institutions"
     resolved_domains=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
     for row in reg.values():
