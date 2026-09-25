@@ -1627,7 +1627,55 @@
         "status": "PLANNED",
         "mode": "discovery"
       }
-    ]
+    ],
+    "integration_policy": {
+      "Indeed": {
+        "mode": "partner_or_authorized_only",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "LinkedIn Jobs": {
+        "mode": "partner_or_authorized_only",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "Glassdoor": {
+        "mode": "partner_or_authorized_only",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "Monster": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "CareerBuilder": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "Built In": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "Wellfound": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "SimplyHired": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      },
+      "Handshake": {
+        "mode": "public_discovery_adapter",
+        "role": "supplemental_discovery",
+        "authoritative_jd_required": true
+      }
+    },
+    "notes": "Company career sites and direct ATS boards remain primary. Aggregators are supplemental discovery only; every aggregator hit must resolve to an authoritative employer/ATS JD before eligibility, resume generation, or application."
   },
   "jobvite": [],
   "dayforce": [],
