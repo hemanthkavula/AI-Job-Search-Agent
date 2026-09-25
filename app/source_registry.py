@@ -54,7 +54,7 @@ PATTERNS={
  "careerplug":[r"https?://([^.]+)\.careerplug\.com/"],
  "freshteam":[r"https?://([^.]+)\.freshteam\.com/jobs"],
  "jobscore":[r"https?://careers\.jobscore\.com/careers/([^/?#]+)"],
- "personio":[r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/",r"https?://([^.]+)\\.jobs\\.personio\\.(?:de|com)/job/"],
+ "personio":[r"https?://([^.]+)\.jobs\.personio\.(?:de|com)/",r"https?://([^.]+)\.jobs\.personio\.(?:de|com)/job/"],
  "eightfold":[r"https?://([^.]+)\\.eightfold\\.ai/"],
  "successfactors":[r"https?://[^/]*(?:successfactors|successfactors\\.eu|successfactors\\.com)/",r"https?://career[^/]*\\.successfactors\\."],
  "oracle":[r"https?://[^/]*oraclecloud\\.com/hcmUI/CandidateExperience/",r"https?://[^/]*oraclecloud\\.com/.*CandidateExperience/"],
