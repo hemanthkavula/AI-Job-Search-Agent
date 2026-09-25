@@ -57,6 +57,12 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _education_experience(j: dict) -> dict:
+    return {
+        "education_requirements": _plain(str(j.get("educationRequirements") or "")) or None,
+        "experience_requirements": _plain(str(j.get("experienceRequirements") or "")) or None,
+    }
+
 def _skills(j: dict) -> list[str]:
     value=j.get("skills") or j.get("qualifications")
     if isinstance(value,list):
@@ -202,7 +208,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j),"remote":_remote_flag(j),"salary":_salary(j),"structured_skills":_skills(j)})
+          "updated_at":j.get("datePosted") or j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j),"remote":_remote_flag(j),"salary":_salary(j),"structured_skills":_skills(j),**_education_experience(j)})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
     # Normalize one escaping layer so valid static job links remain discoverable.
