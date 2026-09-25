@@ -25,6 +25,22 @@ def sec_public_companies(timeout=30):
                         "discovered_by":"sec_company_tickers"})
     return out
 
+def json_catalog(url, name_field="name", timeout=30):
+    """Generic adapter for vetted public JSON organization catalogs.
+
+    A catalog must be explicitly configured; this does not crawl arbitrary
+    directories or infer company identities.
+    """
+    req=Request(url,headers=UA)
+    with urlopen(req,timeout=timeout) as r:data=json.load(r)
+    rows=data if isinstance(data,list) else data.get("results") or data.get("data") or []
+    out=[]
+    for row in rows:
+        if not isinstance(row,dict):continue
+        name=(row.get(name_field) or "").strip()
+        if name:out.append({"company":name,"discovered_by":"public_json_catalog"})
+    return out
+
 FEEDERS={"sec_public_companies":sec_public_companies}
 
 def collect(enabled=None):
