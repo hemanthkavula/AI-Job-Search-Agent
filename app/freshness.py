@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
+import re
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/"generated"/"seen_jobs.json"
 STATUS=ROOT/"generated"/"job_status.json"
@@ -10,6 +11,21 @@ def _parse(v):
     if not v:return None
     try:return datetime.fromisoformat(v.replace("Z","+00:00")).astimezone(timezone.utc)
     except Exception:return None
+
+def _parse_posting_value(v,now):
+    """Parse authoritative posting dates, including ATS relative-age labels."""
+    ts=_parse(v)
+    if ts is not None:return ts
+    text=str(v or "").strip().lower()
+    if not text:return None
+    if re.fullmatch(r"posted\s+(?:today|just now)",text):return now
+    if re.fullmatch(r"posted\s+(?:an?|1)\s+hours?\s+ago",text):return now-timedelta(hours=1)
+    m=re.fullmatch(r"posted\s+(\d+)\s+hours?\s+ago",text)
+    if m:return now-timedelta(hours=int(m.group(1)))
+    if re.fullmatch(r"posted\s+(?:a|1)\s+days?\s+ago",text):return now-timedelta(days=1)
+    m=re.fullmatch(r"posted\s+(\d+)\s+days?\s+ago",text)
+    if m:return now-timedelta(days=int(m.group(1)))
+    return None
 
 def _load(path):
     if not path.exists():return {}
@@ -42,17 +58,28 @@ def fresh_jobs(jobs,hours=24,since=None,now=None):
         if isinstance(state,str):state={"status":state}
         if state.get("status") in terminal:
             already.append(job);continue
-        # Accept authoritative provider posting fields without using first-seen time.
-        ts=None
-        for field in ("updated_at","posted_at","posted_on","date_posted","datePosted","published_at","publication_date"):
-            ts=_parse(job.get(field))
-            if ts is not None:break
+        # Prefer actual publication/posting fields. An ATS updated_at value must not
+        # override explicit evidence such as "Posted 3 Days Ago".
+        ts=None;basis=None
+        posting_fields=("posted_at","posted_on","date_posted","datePosted","published_at","publication_date")
+        explicit_posting_present=any(job.get(field) not in (None,"") for field in posting_fields)
+        for field in posting_fields:
+            ts=_parse_posting_value(job.get(field),now)
+            if ts is not None:
+                basis=field
+                break
+        # updated_at is only a last-resort provider timestamp when the source supplied
+        # no explicit posting field at all. If explicit posting text exists but cannot
+        # be parsed, strict freshness rejects it rather than silently substituting an update time.
+        if ts is None and not explicit_posting_present:
+            ts=_parse(job.get("updated_at"))
+            if ts is not None:basis="updated_at_fallback"
         if ts is None:
             item=dict(job);item["freshness_rejection_reason"]="missing trustworthy posting timestamp"
             stale.append(item);continue
         if ts<cutoff or ts>now+timedelta(minutes=10):
             item=dict(job);item["freshness_rejection_reason"]="outside requested posting window"
             stale.append(item);continue
-        job["freshness_basis"]="source_timestamp"
+        job["freshness_basis"]=basis or "source_timestamp"
         fresh.append(job)
     save_seen(seen);return fresh,stale,already
