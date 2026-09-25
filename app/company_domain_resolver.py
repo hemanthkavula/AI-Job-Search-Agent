@@ -18,12 +18,12 @@ def _host(url):
     except Exception:return None
 
 def sec_company_domain(cik,timeout=20):
-    """Use SEC company submissions metadata as trusted identity evidence."""
+    """Use SEC submissions metadata only when it actually exposes a website.\n\n    SEC documents the submissions API for filing history and filer metadata,\n    but does not guarantee a corporate website field. Missing website data is\n    therefore a normal unresolved result, not a reason to guess a domain.\n    """
     if not cik:return None
     cik=str(cik).strip().zfill(10)
     req=Request(f"https://data.sec.gov/submissions/CIK{cik}.json",headers=UA)
     with urlopen(req,timeout=timeout) as r:data=json.load(r)
-    website=(data.get("website") or data.get("investorWebsite") or "").strip()
+    website=(data.get("website") or data.get("investorWebsite") or "").strip() if isinstance(data,dict) else ""
     domain=_host(website) if website else None
     return {"official_domain":domain,"official_url":website or None,
             "domain_evidence":"sec_submissions"} if domain else None
