@@ -1538,6 +1538,14 @@
       "company": "OpenDataJobs",
       "search_url": "https://apply.workable.com/opendatajobs/",
       "job_url_pattern": "https://apply\\.workable\\.com/opendatajobs/j/.+"
+    },
+    {
+      "company": "Tiger Analytics",
+      "search_url": "https://apply.workable.com/tiger-analytics/"
+    },
+    {
+      "company": "Wider Circle",
+      "search_url": "https://apply.workable.com/wider-circle/"
     }
   ],
   "avature": [
@@ -1680,7 +1688,12 @@
   "jobvite": [],
   "dayforce": [],
   "recruiting_com": [],
-  "recruitee": [],
+  "recruitee": [
+    {
+      "company": "BasisPath",
+      "search_url": "https://basispathinc.recruitee.com/"
+    }
+  ],
   "teamtailor": [],
   "bamboohr": [],
   "phenom": [],
