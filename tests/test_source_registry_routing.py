@@ -13,6 +13,18 @@ CASES=[
 ("https://www.comeet.com/jobs/acme/ABC","comeet"),
 ("https://acme.applicantpro.com/jobs/123","applicantpro"),
 ("https://www.governmentjobs.com/careers/acme/jobs/123/data-engineer","neogov"),
+("https://acme.eightfold.ai/careers/job/123","eightfold"),
+("https://jobs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Acme/job/123","oracle"),
+("https://acme.clearcompany.com/careers/jobs/123","clearcompany"),
+("https://apply.fountain.com/acme/opening/123","fountain"),
+("https://jobs.zohorecruit.com/recruit/Portal.na?digest=abc","zoho_recruit"),
+("https://join.com/companies/acme/123-data-engineer","join"),
+("https://jobs.gem.com/acme/123","gem"),
+("https://jobs.polymer.co/acme/123","polymer"),
+("https://jobs.deel.com/acme/123","deel"),
+("https://jobs.ceipal.com/acme/123","ceipal"),
+("https://apply.talentreef.com/acme/jobs/123","talentreef"),
+("https://jobs.myworkchoice.com/acme/123","myworkchoice"),
 ]
 
 def test_detect_promoted_public_ats_variants():
@@ -31,3 +43,13 @@ def test_registry_rows_become_executable_search_urls():
     cfg=as_discovery_config(registry)
     assert cfg["teamtailor"][0]["company"] == "Acme"
     assert cfg["teamtailor"][0]["search_url"] == "https://acme.teamtailor.com/jobs"
+
+
+def test_registry_patterns_do_not_contain_accidental_double_regex_escapes():
+    from app.source_registry import PATTERNS
+    bad=[]
+    for provider,patterns in PATTERNS.items():
+        for pattern in patterns:
+            if r"\\." in pattern or r"\\d" in pattern:
+                bad.append((provider,pattern))
+    assert not bad, bad
