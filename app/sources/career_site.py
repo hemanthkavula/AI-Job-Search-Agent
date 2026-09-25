@@ -45,7 +45,7 @@ def _identifier(j: dict, fallback: str) -> str:
     return str(ident or j.get("url") or fallback)
 
 def _direct_apply_url(j: dict, fallback: str) -> str:
-    return str(j.get("url") or fallback)
+    return _canonical_url(str(j.get("url") or fallback))
 
 def _dedupe_jobs(rows: list[dict]) -> list[dict]:
     """Prefer one authoritative record per stable job id/URL."""
@@ -57,12 +57,21 @@ def _dedupe_jobs(rows: list[dict]) -> list[dict]:
         seen.add(key); out.append(row)
     return out
 
+def _canonical_url(url: str) -> str:
+    """Remove common tracking noise while preserving the authoritative job path."""
+    try:
+        p=urlparse(str(url))
+        if not p.scheme or not p.netloc: return str(url)
+        return p._replace(fragment="",query="").geturl()
+    except Exception:
+        return str(url)
+
 def _source_evidence(j: dict, page_url: str) -> dict:
     return {
         "authoritative_source": "employer_career_site",
         "source_page_url": page_url,
         "schema_type": str(j.get("@type") or "JobPosting"),
-        "direct_job_url": str(j.get("url") or page_url),
+        "direct_job_url": _canonical_url(str(j.get("url") or page_url)),
     }
 
 def _education_experience(j: dict) -> dict:
