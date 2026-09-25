@@ -94,6 +94,19 @@ PATTERNS={
  "talentbrew":[r"https?://[^/]*talentbrew\\.com/"],
  "radancy":[r"https?://[^/]*radancy\\.com/"],
  "paradox":[r"https?://[^/]*paradox\\.ai/"],
+ "applicantstack":[r"https?://[^/]*applicantstack\\.com/",r"https?://[^/]*applicantstack\\.com/x/"],
+ "jazzhr_alt":[r"https?://[^/]*jazzhr\\.com/"],
+ "ceipal":[r"https?://[^/]*ceipal\\.com/"],
+ "trakstar_hire":[r"https?://[^/]*hire\\.trakstar\\.com/"],
+ "neogov":[r"https?://[^/]*governmentjobs\\.com/",r"https?://[^/]*neogov\\.com/"],
+ "schooljobs":[r"https?://[^/]*schooljobs\\.com/"],
+ "higheredjobs":[r"https?://[^/]*higheredjobs\\.com/"],
+ "applynow":[r"https?://[^/]*applynow\\.net/"],
+ "talentreef":[r"https?://[^/]*talentreef\\.com/"],
+ "icims_alt":[r"https?://[^/]*icims\\.com/jobs/"],
+ "jobappnetwork":[r"https?://[^/]*jobappnetwork\\.com/"],
+ "myworkchoice":[r"https?://[^/]*myworkchoice\\.com/"],
+ "ultipro_ukg":[r"https?://[^/]*ultipro\\.com/"],
 }
 
 def load_registry(path=DEFAULT_PATH):
@@ -126,7 +139,7 @@ def detect_ats(url):
    elif provider=="ukg":
     parts=path.split("/")
     identifier="|".join([host]+parts[:2]) if parts else host
-   elif provider in {"oracle","successfactors","paycom","bullhorn","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","brassring"}:
+   elif provider in {"oracle","successfactors","paycom","bullhorn","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","brassring","applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice","ultipro_ukg"}:
     identifier=host
    return provider,identifier or None
  return None,None
@@ -183,7 +196,7 @@ def as_discovery_config(registry):
  for x in registry.get("lever",[]):out["lever"].append({"company":x.get("company"),"site":x.get("identifier") or x.get("site")})
  for x in registry.get("ashby",[]):out["ashby"].append({"company":x.get("company"),"board_name":x.get("identifier") or x.get("board_name")})
  for x in registry.get("smartrecruiters",[]):out["smartrecruiters"].append({"company":x.get("company"),"company_identifier":x.get("identifier") or x.get("company_identifier")})
- for provider in ("applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","eightfold","successfactors","oracle","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio"):
+ for provider in ("applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","eightfold","successfactors","oracle","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","dayforce","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","applynow","talentreef","icims_alt","jobappnetwork","myworkchoice","ultipro_ukg"):
   for x in registry.get(provider,[]):
    url=x.get("original_url") or x.get("url")
    url=_reusable_search_url(provider,url)
