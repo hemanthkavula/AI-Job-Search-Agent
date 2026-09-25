@@ -120,7 +120,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         url=urljoin(search_url,html.unescape(href))
         if rx.search(url) and url not in seen:
             seen.add(url);links.append(url)
-    if not links:
+    if not links and not embedded:
         fallback=_detail_fallback(company,search_url,timeout)
         if fallback:return fallback
     out=list(embedded)
@@ -167,6 +167,8 @@ def validate_source(company: str, search_url: str, job_url_pattern: str, timeout
         rx=re.compile(normalized_pattern,re.I)
         hrefs=re.findall(r"href=[\'\\\"]([^\'\\\"]+)[\'\\\"]",body,re.I)
         result["matching_job_links"]=sum(1 for h in hrefs if rx.search(urljoin(search_url,html.unescape(h))))
+        result["embedded_jobpostings"]=len(_jobpostings(body))
+        result["discoverable_jobs"]=result["matching_job_links"]+result["embedded_jobpostings"]
     except HTTPError as exc:
         result["http_status"]=exc.code
         result["status"]="broken" if exc.code in (404,410) else "blocked_or_http_error"
