@@ -2312,9 +2312,10 @@
     {
       "provider": "yc_jobs",
       "company": "Y Combinator Startups",
-      "enabled": true,
+      "enabled": false,
       "search_url": "https://www.ycombinator.com/jobs/role/all",
-      "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+"
+      "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+",
+      "disabled_reason": "live_smoke_zero_results_requires_source_specific_adapter"
     },
     {
       "provider": "wellfound",
@@ -2326,9 +2327,10 @@
     {
       "provider": "builtin",
       "company": "Built In",
-      "enabled": true,
+      "enabled": false,
       "search_url": "https://builtin.com/jobs/data-analytics/search/data-engineer",
-      "job_url_pattern": "builtin[.]com/job/"
+      "job_url_pattern": "builtin[.]com/job/",
+      "disabled_reason": "live_smoke_zero_results_requires_source_specific_adapter"
     }
   ]
 }
