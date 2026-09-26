@@ -127,6 +127,13 @@ jobs:
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
 
+      - name: Generate exhaustive source execution report
+        if: steps.guard.outputs.should_run == 'true'
+        run: |
+          REPORT_PATH=$(python -m app.run_report)
+          echo "Source report: $REPORT_PATH"
+          cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Verify production acceptance invariants
         if: steps.guard.outputs.should_run == 'true'
         run: python -m app.production_acceptance
