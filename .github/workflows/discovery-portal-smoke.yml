@@ -1,0 +1,42 @@
+name: Discovery Portal Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/job_sources.json"
+      - "app/sources/discovery_portal.py"
+      - ".github/workflows/discovery-portal-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Smoke public discovery portals
+        run: |
+          python - <<'PY'
+          import json
+          from app.sources.discovery_portal import fetch_jobs
+          cfg=json.load(open("data/job_sources.json",encoding="utf-8"))
+          failed=[]
+          for src in cfg.get("discovery_portal",[]):
+              if not src.get("enabled",True):
+                  continue
+              try:
+                  rows=fetch_jobs(src["provider"],src["search_url"],src["job_url_pattern"],timeout=15)
+                  print(f'SMOKE {src["provider"]}: {len(rows)} DE jobs')
+              except Exception as exc:
+                  failed.append((src["provider"],repr(exc)))
+                  print(f'SMOKE_ERROR {src["provider"]}: {exc!r}')
+          if failed:
+              raise SystemExit("Discovery portal smoke failures: "+repr(failed))
+          PY
