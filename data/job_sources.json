@@ -1694,14 +1694,33 @@
       "search_url": "https://basispathinc.recruitee.com/"
     }
   ],
-  "teamtailor": [],
+  "teamtailor": [
+    {
+      "company": "Teamtailor",
+      "search_url": "https://career.teamtailor.com/jobs"
+    }
+  ],
   "bamboohr": [],
   "phenom": [],
   "taleo": [],
   "cornerstone": [],
-  "breezyhr": [],
+  "breezyhr": [
+    {
+      "company": "NuView Analytics",
+      "search_url": "https://nuview.breezy.hr/"
+    },
+    {
+      "company": "Collectiv",
+      "search_url": "https://collectiv.breezy.hr/"
+    }
+  ],
   "rippling": [],
-  "pinpoint": [],
+  "pinpoint": [
+    {
+      "company": "Pinpoint",
+      "search_url": "https://workwithus.pinpointhq.com/"
+    }
+  ],
   "brassring": [],
   "careerplug": [],
   "freshteam": [],
