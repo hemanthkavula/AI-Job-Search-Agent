@@ -1546,6 +1546,26 @@
     {
       "company": "Wider Circle",
       "search_url": "https://apply.workable.com/wider-circle/"
+    },
+    {
+      "company": "ProArch",
+      "search_url": "https://apply.workable.com/proarch/"
+    },
+    {
+      "company": "Irth Solutions",
+      "search_url": "https://apply.workable.com/irth-solutions/"
+    },
+    {
+      "company": "ActivTrak",
+      "search_url": "https://apply.workable.com/activtrak/"
+    },
+    {
+      "company": "Claritas Rx",
+      "search_url": "https://apply.workable.com/claritas-rx/"
+    },
+    {
+      "company": "Q2Impact",
+      "search_url": "https://apply.workable.com/q2impact/"
     }
   ],
   "avature": [
@@ -1781,7 +1801,12 @@
   "gohire": [],
   "hiringthing": [],
   "homerun": [],
-  "pageup": [],
+  "pageup": [
+    {
+      "company": "California State University San Bernardino",
+      "search_url": "https://secure.dc4.pageuppeople.com/apply/873/gateway/Default.aspx"
+    }
+  ],
   "trinet": [],
   "dover": [],
   "gem": [],
