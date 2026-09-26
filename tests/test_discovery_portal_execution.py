@@ -9,5 +9,6 @@ def test_enabled_portal_is_executed(monkeypatch,tmp_path):
     monkeypatch.setattr(discovery,"load_registry",lambda path:{})
     rows,errors=discovery.discover({"discovery_portal":[{"provider":"wellfound","company":"Wellfound","enabled":True,"search_url":"https://example.invalid/jobs","job_url_pattern":".+"}]},only_source="wellfound",registry_path=tmp_path/"sources.json",health_path=tmp_path/"health.json")
     assert not errors
-    assert calls and calls[0][0]=="wellfound"\n    assert calls[0][1] is not None
+    assert calls and calls[0][0]=="wellfound"
+    assert calls[0][1] is not None
     assert len(rows)==1
