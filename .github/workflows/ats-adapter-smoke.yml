@@ -26,8 +26,10 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import json
+          import json, re
           from pathlib import Path
+          from urllib.parse import urlsplit
+          from app.sources.career_site import _get, _jobpostings
           from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
           from app.sources.workable import fetch_jobs as workable_jobs
 
@@ -50,6 +52,17 @@ jobs:
               company=src.get("company") or src.get("search_url")
               url=src.get("search_url")
               try:
+                  slug=urlsplit(url).path.strip("/").split("/")[0]
+                  api_url=f"https://www.workable.com/api/accounts/{slug}?details=true"
+                  api_body=_get(api_url,25)
+                  api_payload=json.loads(api_body)
+                  api_jobs=api_payload.get("jobs") if isinstance(api_payload,dict) else None
+                  board=_get(url,25)
+                  ordinary=len(re.findall(r'href=[\\\'"][^\\\'"]*/j/[^\\\'"]+[\\\'"]',board,re.I))
+                  embedded=len(re.findall(r'(?:/j/|%2Fj%2F)([A-Za-z0-9]{6,})',board,re.I))
+                  jsonld=len(_jobpostings(board))
+                  keys=sorted(api_payload.keys())[:30] if isinstance(api_payload,dict) else []
+                  print(f"DIAG workable | {company} | api_bytes={len(api_body)} api_keys={keys} api_jobs={len(api_jobs) if isinstance(api_jobs,list) else 'NA'} board_bytes={len(board)} jsonld={jsonld} anchors={ordinary} embedded_ids={embedded}",flush=True)
                   jobs=workable_jobs(company,url,timeout=25)
                   totals["workable"] += len(jobs)
                   print(f"SMOKE workable | {company} | {len(jobs)} DE jobs",flush=True)
