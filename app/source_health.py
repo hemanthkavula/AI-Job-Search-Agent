@@ -74,10 +74,16 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
         rows.append(_row("workday",x.get("company") or x["tenant"],url,_probe(url,timeout,method="POST",data=body,headers={"Content-Type":"application/json"})))
     for provider in ("successfactors","icims","oracle"):
         for x in cfg.get(provider,[]):
-            url=x.get("base_url")
+            url=x.get("base_url") or x.get("search_url") or x.get("careers_url") or x.get("original_url")
+            if not url:
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
+                continue
             rows.append(_row(provider,x.get("company") or provider,url,_probe(url,timeout)))
     for x in cfg.get("eightfold",[]):
-        url=x.get("careers_url")
+        url=x.get("careers_url") or x.get("search_url") or x.get("base_url") or x.get("original_url")
+        if not url:
+            rows.append(_row("eightfold",x.get("company") or "eightfold","",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
+            continue
         rows.append(_row("eightfold",x.get("company") or "eightfold",url,_probe(url,timeout)))
     # Dedicated collectors beyond the original API-backed set still need a
     # board-level health row for every configured tenant.
