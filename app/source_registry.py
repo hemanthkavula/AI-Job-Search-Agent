@@ -102,7 +102,7 @@ PATTERNS={
  "neogov":[r"https?://[^/]*governmentjobs\.com/",r"https?://[^/]*neogov\.com/",r"https?://www\.governmentjobs\.com/careers/[^/]+/jobs/\d+"],
  "schooljobs":[r"https?://[^/]*schooljobs\.com/",r"https?://www\.schooljobs\.com/careers/[^/]+/jobs/\d+"],
  "higheredjobs":[r"https?://[^/]*higheredjobs\.com/",r"https?://www\.higheredjobs\.com/admin/details\.cfm"],
- "applynow":[r"https?://[^/]*applynow\.net/",r"https?://[^/]*apply-now\.(?:com|net)/"],
+ :[r"https?://[^/]*applynow\.net/",r"https?://[^/]*apply-now\.(?:com|net)/"],
  "talentreef":[r"https?://[^/]*talentreef\.com/",r"https?://apply\.talentreef\.com/"],
  "icims_alt":[r"https?://[^/]*icims\.com/jobs/"],
  "jobappnetwork":[r"https?://[^/]*jobappnetwork\.com/",r"https?://apply\.jobappnetwork\.com/"],
