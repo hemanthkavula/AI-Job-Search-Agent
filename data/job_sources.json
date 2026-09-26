@@ -2307,5 +2307,14 @@
   },
   "monster": {
     "enabled": true
-  }
+  },
+  "discovery_portal": [
+    {
+      "provider": "yc_jobs",
+      "company": "Y Combinator Startups",
+      "enabled": true,
+      "search_url": "https://www.ycombinator.com/jobs/role/all",
+      "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+"
+    }
+  ]
 }
