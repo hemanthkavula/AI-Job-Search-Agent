@@ -40,7 +40,7 @@ def audit(summary_path:str)->dict:
                     failures.append(f"non-authoritative application destination for {eid}: {host or 'missing'}")
                 if not (row.get("application_gate") or {}).get("passed"): failures.append(f"application gate not passed for {eid}")
                 resume=row.get("resume_path")
-                if not resume or Path(resume).suffix.lower()!=".pdf": failures.append(f"validated PDF missing for {eid}")
+                if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): failures.append(f"validated PDF missing for {eid}")
                 validation=row.get("artifact_validation")
                 if validation and not validation.get("passed"): failures.append(f"artifact validation failed for {eid}")
     result={"passed":not failures,"cycle_id":summary.get("cycle_id"),"ready_to_apply":ready,"failures":failures}
