@@ -1587,6 +1587,11 @@
       "company": "Abington Reldan Metals",
       "search_url": "https://abingtonreldanmetalsllc.applytojob.com/apply/",
       "job_url_pattern": "https://abingtonreldanmetalsllc\\.applytojob\\.com/apply/.+"
+    },
+    {
+      "company": "Bright Vision Technologies",
+      "search_url": "https://brightvisiontechnologies.applytojob.com/apply/",
+      "job_url_pattern": "https://brightvisiontechnologies\\.applytojob\\.com/apply/.+"
     }
   ],
   "adp_workforce_now": [
