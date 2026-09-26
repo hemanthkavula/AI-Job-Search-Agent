@@ -157,6 +157,15 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
                 }
     except Exception:
         pass
+    # Backfill explicit adapter errors even when tests or legacy callers do not
+    # persist source-health, preserving backward-compatible Workday status strings.
+    for error in errors:
+        source=error.get("source"); company=error.get("company")
+        if source and company and f"{source}:{company}" not in source_unit_status:
+            source_unit_status[f"{source}:{company}"]="ERROR" if source=="workday" else {
+                "source":source,"company":company,"status":"ERROR","jobs_returned":0,
+                "error":error.get("error"),"checked_at":None
+            }
     target_fresh=sum(bool(j.get("target_company")) for j in jobs24)
     target_eligible=sum(bool((x.get("job") or {}).get("target_company")) for x in eligible)
     target_rejected=sum(bool((x.get("job") or {}).get("target_company")) for x in skipped)
