@@ -2125,7 +2125,12 @@
       "search_url": "https://jobs.silkroad.com/BU/External"
     }
   ],
-  "werecruit": [],
+  "werecruit": [
+    {
+      "company": "WeRecruit ATS public careers network",
+      "search_url": "https://careers.werecruit.io/"
+    }
+  ],
   "deel": [
     {
       "company": "Guardare",
