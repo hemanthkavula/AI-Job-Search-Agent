@@ -1724,12 +1724,7 @@
       "search_url": "https://us60.dayforcehcm.com/CandidatePortal/en-US/clearcaptions"
     }
   ],
-  "recruiting_com": [
-    {
-      "company": "Recruiting.com Career Sites",
-      "search_url": "https://www.recruiting.com/career-sites/"
-    }
-  ],
+  "recruiting_com": [],
   "recruitee": [
     {
       "company": "BasisPath",
@@ -2046,12 +2041,7 @@
       "search_url": "https://isolved.isolvedhire.com/jobs/"
     }
   ],
-  "hibob": [
-    {
-      "company": "HiBob",
-      "search_url": "https://www.hibob.com/careers/"
-    }
-  ],
+  "hibob": [],
   "gohire": [
     {
       "company": "Qualifinds",
@@ -2070,18 +2060,8 @@
       "search_url": "https://jobs.gohire.io/axiom-data-science-hit6mioe/"
     }
   ],
-  "hiringthing": [
-    {
-      "company": "HiringThing",
-      "search_url": "https://careers.hiringthing.com/"
-    }
-  ],
-  "homerun": [
-    {
-      "company": "Homerun",
-      "search_url": "https://jobs.homerun.co/"
-    }
-  ],
+  "hiringthing": [],
+  "homerun": [],
   "pageup": [
     {
       "company": "California State University San Bernardino",
@@ -2138,12 +2118,7 @@
       "search_url": "https://redo.hirehive.com/"
     }
   ],
-  "kula": [
-    {
-      "company": "Kula Showcase",
-      "search_url": "https://careers.kula.ai/showcase"
-    }
-  ],
+  "kula": [],
   "rival": [
     {
       "company": "CALIBRE Systems",
@@ -2154,12 +2129,7 @@
       "search_url": "https://jobs.silkroad.com/BU/External"
     }
   ],
-  "werecruit": [
-    {
-      "company": "WeRecruit ATS public careers network",
-      "search_url": "https://careers.werecruit.io/"
-    }
-  ],
+  "werecruit": [],
   "deel": [
     {
       "company": "Guardare",
@@ -2194,12 +2164,7 @@
       "search_url": "https://jobs.radancy.com/en"
     }
   ],
-  "paradox": [
-    {
-      "company": "Labcorp",
-      "search_url": "https://labcorp895.sites.stg.paradox.ai/"
-    }
-  ],
+  "paradox": [],
   "applicantstack": [
     {
       "company": "Sparibis",
@@ -2275,10 +2240,6 @@
     }
   ],
   "jobappnetwork": [
-    {
-      "company": "LodgeWorks",
-      "search_url": "https://apply.jobappnetwork.com/lodgeworks/en"
-    },
     {
       "company": "LodgeWorks",
       "search_url": "https://apply.jobappnetwork.com/lodgeworksjobs/en"
