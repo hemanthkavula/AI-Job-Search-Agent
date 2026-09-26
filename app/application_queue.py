@@ -8,7 +8,6 @@ from app.job_identity import identity_keys
 
 ROOT=Path(__file__).resolve().parents[1]
 
-SUPPORTED_ATS={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite","dice"}
 MANUAL_BLOCKERS=("captcha","recaptcha","hcaptcha","mfa","two-factor","2fa","verification code")
 
 def _provider(row):
@@ -93,8 +92,8 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
           "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
-          "status":"READY_FOR_ATS_ADAPTER" if provider in SUPPORTED_ATS else "MANUAL_ACTION_REQUIRED",
-          "status_reason":None if provider in SUPPORTED_ATS else "Application ATS/provider could not be determined safely."
+          "status":"READY_FOR_ATS_ADAPTER",
+          "status_reason":None
         })
     out=Path(output);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(queue,indent=2),encoding="utf-8");return queue
 
