@@ -82,10 +82,10 @@ def _page_fallback(provider:str,body:str,page_url:str)->dict|None:
 def _pagination_links(body:str,page_url:str)->list[str]:
     """Return conservative same-host pagination links from a portal results page."""
     host=urlsplit(page_url).netloc.lower();out=[]
-    for href in re.findall(r'href=["\\']([^"\\']+)["\\']',body,re.I):
+    for href in re.findall(r"""href=["']([^"']+)["']""",body,re.I):
         u=urljoin(page_url,html.unescape(href));p=urlsplit(u)
         if p.netloc.lower()!=host:continue
-        tag_match=re.search(r'<a[^>]*href=["\\']'+re.escape(href)+r'["\\'][^>]*>(.*?)</a>',body,re.I|re.S)
+        tag_match=re.search(r"""<a[^>]*href=["']"""+re.escape(href)+r"""["'][^>]*>(.*?)</a>""",body,re.I|re.S)
         label=_plain(tag_match.group(1)) if tag_match else ""
         low=(href+" "+label).lower()
         if re.search(r'(?:[?&](?:page|p|offset)=\\d+|/page/\\d+)',href,re.I) or re.search(r'\\b(next|older|more)\\b',low):
