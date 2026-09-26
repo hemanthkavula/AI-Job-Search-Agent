@@ -32,7 +32,14 @@ def _candidate_links(page,base):
   r'''(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)'''+
   r'''[^:]{0,30}:\s*["'](https?://[^"']+)["']''', value))
  for href in raw:
-  u=unquote(urljoin(base,href)).rstrip("),.;")
+  # Discovery/aggregator pages can contain malformed pseudo-URLs in script
+  # state (for example unmatched IPv6 brackets). One bad candidate must not
+  # abort resolution for every other job in the production cycle.
+  try:
+   u=unquote(urljoin(base,href)).rstrip("),.;")
+   urlsplit(u)  # validate bracketed netlocs before downstream provider checks
+  except (ValueError, TypeError):
+   continue
   if any(host in u.lower() for host in ATS_HOST_HINTS):links.append(u)
  return list(dict.fromkeys(links))
 
