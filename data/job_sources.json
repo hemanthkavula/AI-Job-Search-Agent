@@ -1745,7 +1745,12 @@
     }
   ],
   "phenom": [],
-  "taleo": [],
+  "taleo": [
+    {
+      "company": "Starbucks",
+      "search_url": "https://starbucks.taleo.net/careersection/1000222im2/joblist.ftl"
+    }
+  ],
   "cornerstone": [
     {
       "company": "Cornerstone OnDemand",
