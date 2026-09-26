@@ -1801,7 +1801,12 @@
       "search_url": "https://chhj-corporate.careerplug.com/jobs?locale=en-US"
     }
   ],
-  "freshteam": [],
+  "freshteam": [
+    {
+      "company": "LuckyJay Consulting",
+      "search_url": "https://luckyjayconsulting.freshteam.com/jobs"
+    }
+  ],
   "jobscore": [],
   "personio": [
     {
