@@ -35,7 +35,7 @@ jobs:
               if not src.get("enabled",True):
                   continue
               try:
-                  rows=fetch_jobs(src["provider"],src["search_url"],src["job_url_pattern"],timeout=15)
+                  rows=fetch_jobs(src["provider"],src["search_url"],src["job_url_pattern"],timeout=15,max_detail_pages=src.get("max_detail_pages",60))
                   print(f'SMOKE {src["provider"]}: {len(rows)} DE jobs')
                   if not rows:
                       failed.append((src["provider"],"zero_results"))
