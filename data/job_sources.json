@@ -1752,7 +1752,32 @@
       "search_url": "https://collectiv.breezy.hr/"
     }
   ],
-  "rippling": [],
+  "rippling": [
+    {
+      "company": "Karoo Health",
+      "search_url": "https://ats.rippling.com/karoo-health/jobs"
+    },
+    {
+      "company": "Martello Re",
+      "search_url": "https://ats.rippling.com/martello-re/jobs"
+    },
+    {
+      "company": "TheGuarantors",
+      "search_url": "https://ats.rippling.com/theguarantors-open-positions/jobs"
+    },
+    {
+      "company": "Orderly Wellness",
+      "search_url": "https://ats.rippling.com/orderly-wellness/jobs"
+    },
+    {
+      "company": "Mytra",
+      "search_url": "https://ats.rippling.com/mytra/jobs"
+    },
+    {
+      "company": "OneEnergy Renewables",
+      "search_url": "https://ats.rippling.com/oneenergyrenewables/jobs"
+    }
+  ],
   "pinpoint": [
     {
       "company": "Pinpoint",
@@ -1788,7 +1813,12 @@
   "fountain": [],
   "hirebridge": [],
   "jobdiva": [],
-  "zoho_recruit": [],
+  "zoho_recruit": [
+    {
+      "company": "Unit21",
+      "search_url": "https://unit21.zohorecruit.com/jobs/Careers"
+    }
+  ],
   "manatal": [],
   "join": [],
   "greenhouse_eu": [],
