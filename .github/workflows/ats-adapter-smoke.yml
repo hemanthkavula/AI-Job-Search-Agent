@@ -111,6 +111,14 @@ jobs:
                       print(f"DIAG {family} | {company} | duplicate={duplicate} board_bytes={len(body)} jsonld={jsonld} visible_job_links={visible}",flush=True)
                       print(f"DIAG UKG hints | {company} | endpoints={endpoint_hints} scripts={script_srcs}",flush=True)
                       print(f"DIAG UKG inline | {company} | snippets={inline_hints[:6]}",flush=True)
+                      model_keys=sorted(set(re.findall(r'["\\\']([A-Za-z][A-Za-z0-9_]{2,50})["\\\']\\s*:',body)))
+                      guid_context=[]
+                      for gm in re.finditer(r'[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}',body):
+                          ctx=body[max(0,gm.start()-500):gm.end()+800]
+                          if any(k.lower() in ctx.lower() for k in ("opportunity","title","description","job")):
+                              guid_context.append(ctx.replace("\\n"," ")[:1400])
+                          if len(guid_context)>=8: break
+                      print(f"DIAG UKG model | {company} | keys={model_keys[:120]} guid_context={guid_context}",flush=True)
                       print(f"DIAG UKG request | {company} | snippets={js_hints[:3]}",flush=True)
                       print(f"SMOKE {family} | {company} | {len(jobs)} DE jobs",flush=True)
                   except Exception as exc:
