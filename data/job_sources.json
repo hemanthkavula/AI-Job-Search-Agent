@@ -1996,10 +1996,6 @@
       "search_url": "https://job-boards.eu.greenhouse.io/overstory"
     },
     {
-      "company": "Sales Automation Board",
-      "search_url": "https://job-boards.eu.greenhouse.io/recruit-with-zero"
-    },
-    {
       "company": "StubHub",
       "search_url": "https://job-boards.eu.greenhouse.io/stubhubinc"
     }
@@ -2158,12 +2154,7 @@
       "search_url": "https://jobs.silkroad.com/BU/External"
     }
   ],
-  "werecruit": [
-    {
-      "company": "Valoway",
-      "search_url": "https://careers.werecruit.io/fr/valoway"
-    }
-  ],
+  "werecruit": [],
   "deel": [
     {
       "company": "Guardare",
