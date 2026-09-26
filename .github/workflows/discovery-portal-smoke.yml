@@ -8,6 +8,7 @@ on:
       - "app/sources/discovery_portal.py"
       - "app/discovery.py"
       - "app/scheduled_runner.py"
+      - "tests/test_discovery_portal.py"
       - ".github/workflows/discovery-portal-smoke.yml"
   workflow_dispatch:
 
