@@ -2022,7 +2022,12 @@
     }
   ],
   "hiringthing": [],
-  "homerun": [],
+  "homerun": [
+    {
+      "company": "Homerun",
+      "search_url": "https://jobs.homerun.co/"
+    }
+  ],
   "pageup": [
     {
       "company": "California State University San Bernardino",
