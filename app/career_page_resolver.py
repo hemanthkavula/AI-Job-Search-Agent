@@ -33,11 +33,16 @@ def resolve(official_domain,timeout=15):
             final,body=_get(url,timeout)
             provider,ident=detect_ats(final)
             if not provider:
-                for link in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
+                # Outbound job links reveal hosted ATS boards; script assets reveal
+                # branded/embedded ATS layers (notably Phenom) even when the browser
+                # remains on the employer's own careers domain.
+                for attr, link in re.findall(r'(href|src)=["\']([^"\']+)["\']',body,re.I):
                     absolute=urljoin(final,link)
-                    provider,ident=detect_ats(absolute)
-                    if provider:
-                        return {"careers_url":absolute,"ats_provider":provider,"ats_identifier":ident}
+                    embedded_provider,embedded_ident=detect_ats(absolute)
+                    if embedded_provider:
+                        if attr.lower()=="src":
+                            return {"careers_url":final,"ats_provider":embedded_provider,"ats_identifier":embedded_ident}
+                        return {"careers_url":absolute,"ats_provider":embedded_provider,"ats_identifier":embedded_ident}
             if provider:return {"careers_url":final,"ats_provider":provider,"ats_identifier":ident}
             if any(x in body.lower() for x in ("jobposting","job opening","open positions","search jobs")):
                 return {"careers_url":final,"ats_provider":"career_site","ats_identifier":urlparse(final).netloc}
