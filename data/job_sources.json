@@ -1891,7 +1891,12 @@
   "join": [],
   "greenhouse_eu": [],
   "applitrack": [],
-  "hireology": [],
+  "hireology": [
+    {
+      "company": "Anvaya Solutions",
+      "search_url": "https://careers.hireology.com/anvayasolutions/"
+    }
+  ],
   "paycor": [],
   "peopleadmin": [
     {
