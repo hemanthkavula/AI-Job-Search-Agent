@@ -34,6 +34,8 @@ jobs:
               try:
                   rows=fetch_jobs(src["provider"],src["search_url"],src["job_url_pattern"],timeout=15)
                   print(f'SMOKE {src["provider"]}: {len(rows)} DE jobs')
+                  if not rows:
+                      failed.append((src["provider"],"zero_results"))
               except Exception as exc:
                   failed.append((src["provider"],repr(exc)))
                   print(f'SMOKE_ERROR {src["provider"]}: {exc!r}')
