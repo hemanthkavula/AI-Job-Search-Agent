@@ -1816,7 +1816,16 @@
       "search_url": "https://www.paycomonline.net/v4/ats/web.php/jobs?clientkey=1004F9A89ABF3C3C93296BEF59C72475"
     }
   ],
-  "bullhorn": [],
+  "bullhorn": [
+    {
+      "company": "Innova Solutions",
+      "search_url": "https://public-rest34.bullhornstaffing.com/"
+    },
+    {
+      "company": "Corporate Brokers",
+      "search_url": "https://public-rest40.bullhornstaffing.com/"
+    }
+  ],
   "comeet": [
     {
       "company": "BDR Solutions LLC",
