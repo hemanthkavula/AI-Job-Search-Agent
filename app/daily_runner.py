@@ -4,7 +4,7 @@ from datetime import datetime,timezone
 from collections import Counter
 from pathlib import Path
 from app.config import load_profile
-from app.discovery import discover
+from app.discovery import discover, ALL_ATS_PROVIDERS
 from app.freshness import fresh_jobs
 from app.filters import passes_hard_filters
 from app.eligibility import two_category_filter
@@ -103,7 +103,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     eligible,duplicates=_dedup_eligible(eligible)
     for item in eligible:record_seen(item["job"],ledger,"ELIGIBLE_FOR_RESUME")
     save_ledger(ledger,ledger_path)
-    provider_names=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","dice","ziprecruiter")
+    # Keep production diagnostics aligned with the exact provider universe that\n    # discovery can execute, including newly learned long-tail ATS families.\n    provider_names=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter")))
     configured_sources={name for name in provider_names if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
     failed_sources={e.get("source") for e in errors if e.get("source")}
     source_status={}
