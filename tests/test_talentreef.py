@@ -28,9 +28,19 @@ def test_talentreef_client_scoped_mapping(monkeypatch):
     assert jobs[0]["source"]=="talentreef"
     assert jobs[0]["description_complete"] is True
 
-def test_talentreef_requires_client_id():
+def test_talentreef_requires_client_id_or_search_url():
     try:
         talentreef.fetch_jobs("Example Employer","")
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+def test_talentreef_public_board_fallback(monkeypatch):
+    from app.sources import career_site
+    monkeypatch.setattr(career_site,"fetch_jobs",lambda company,url,pattern:[{
+        "title":"Data Engineer","url":url+"/jobs/42","description":"Build pipelines"
+    }])
+    jobs=talentreef.fetch_jobs("Example Employer","",search_url="https://apply.jobappnetwork.com/example/en")
+    assert jobs[0]["source"]=="talentreef"
+    assert jobs[0]["source_family"]=="direct_ats_public_board"
+    assert jobs[0]["ats_provider"]=="talentreef"
