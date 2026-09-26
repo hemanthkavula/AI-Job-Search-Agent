@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from app.config import load_profile
 from app.filters import passes_hard_filters
+from app.job_identity import identity_keys
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -52,24 +53,20 @@ def _application_gate(row,profile):
     }
     return passes_hard_filters(job,profile)
 
-def _queue_identity(row):
-    """Stable identity used to prevent duplicate ATS submissions in one queue."""
-    return (
-      str(row.get("external_id") or "").strip().lower()
-      or "|".join([
-        str(row.get("company") or "").strip().lower(),
-        str(row.get("title") or "").strip().lower(),
-        str(row.get("original_url") or row.get("url") or "").split("?",1)[0].rstrip("/").lower(),
-      ])
-    )
+def _queue_identity_keys(row):
+    """Shared cross-source aliases used to block duplicate final submissions."""
+    job=dict(row)
+    # Manifest rows use company while the shared identity helper accepts either
+    # company or company_key. Preserve all requisition/URL aliases when present.
+    return identity_keys(job)
 
 def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
     """Queue only fully validated, still-eligible artifacts; never trust an earlier gate alone."""
-    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile();seen=set()
+    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile();seen_keys=set()
     for r in rows:
         if r.get("next_action")!="READY_TO_APPLY":continue
-        identity=_queue_identity(r)
-        if identity in seen:continue
+        keys=_queue_identity_keys(r)
+        if any(key in seen_keys for key in keys):continue
         validation=r.get("artifact_validation") or {}
         pdf=r.get("pdf_path")
         # Backward compatibility: manifests created before artifact_validation was
@@ -86,7 +83,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
             continue
-        seen.add(identity)
+        seen_keys.update(keys)
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
