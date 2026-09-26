@@ -57,11 +57,13 @@
   "expansion_classes": [
     {
       "id": "private_companies",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     },
     {
       "id": "startups",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     },
     {
       "id": "healthcare",
@@ -77,19 +79,23 @@
     },
     {
       "id": "consulting_staffing",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     },
     {
       "id": "retail_logistics_manufacturing",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     },
     {
       "id": "government_public_sector",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     },
     {
       "id": "nonprofits",
-      "status": "planned"
+      "status": "continuous_learning",
+      "coverage": "discovered employers from job boards/portals and official-domain/career-page enrichment; open-ended, not an allowlist"
     }
   ],
   "authoritative_catalogs": [
@@ -125,12 +131,10 @@
     }
   ],
   "next_implementation_priority": [
-    "private_companies",
-    "startups",
-    "consulting_staffing",
-    "retail_logistics_manufacturing",
-    "government_public_sector",
-    "nonprofits"
+    "dedicated_startup_portal_adapters",
+    "additional_authoritative_employer_catalogs",
+    "provider_specific_long_tail_ats_adapters",
+    "authorized_partner_job_board_integrations"
   ],
   "validation_policy": {
     "career_source_required": true,
