@@ -4,7 +4,7 @@ from urllib import request
 from urllib.parse import urljoin, urlsplit, unquote
 from app.source_registry import detect_ats
 
-ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","icims.com","jobvite.com","dayforcehcm.com","ultipro.com","recruiting.com","workforcenow.adp.com","jobs.adp.com")
+ATS_HOST_HINTS=("greenhouse.io","boards.greenhouse.io","job-boards.greenhouse.io","lever.co","jobs.lever.co","ashbyhq.com","jobs.ashbyhq.com","smartrecruiters.com","jobs.smartrecruiters.com","myworkdayjobs.com","myworkdaysite.com","icims.com","jobs.icims.com","jobvite.com","jobs.jobvite.com","dayforcehcm.com","dayforce.com","ultipro.com","recruiting.com","workforcenow.adp.com","jobs.adp.com","successfactors.com","successfactors.eu","oraclecloud.com","oracle.com","eightfold.ai","phenompeople.com","workable.com","apply.workable.com","teamtailor.com","recruitee.com","bamboohr.com","breezy.hr","rippling.com","pinpointhq.com","careerplug.com","freshteam.com","jobscore.com","personio.com","comeet.com","neogov.com","governmentjobs.com","applicantpro.com","hirebridge.com","zoho.com","manatal.com","join.com","applitrack.com","hireology.com","paycor.com","peopleadmin.com","isolvedhire.com","hibob.com","gohire.io","hiringthing.com","homerun.co","pageuppeople.com","dover.com","gem.com","polymer.co","hirehive.com","deel.com","applicantstack.com","ceipal.com","trakstar.com","taleo.net","brassring.com","paycomonline.net","bullhornstaffing.com","jobdiva.com")
 APPLY_KEY_RE=re.compile(r'(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)|applyUrl')
 
 def _fetch(url):
