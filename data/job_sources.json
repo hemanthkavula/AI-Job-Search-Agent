@@ -1606,9 +1606,7 @@
       "ziprecruiter",
       "wellfound",
       "yc_jobs",
-      "builtin",
-      "careerbuilder",
-      "simplyhired"
+      "builtin"
     ],
     "planned": [
       {
@@ -1630,6 +1628,16 @@
         "provider": "handshake",
         "status": "PLANNED",
         "mode": "discovery"
+      },
+      {
+        "provider": "careerbuilder",
+        "mode": "discovery",
+        "status": "BLOCKED_PUBLIC_ACCESS"
+      },
+      {
+        "provider": "simplyhired",
+        "mode": "discovery",
+        "status": "BLOCKED_PUBLIC_ACCESS"
       }
     ],
     "integration_policy": {
@@ -2311,18 +2319,20 @@
     {
       "provider": "careerbuilder",
       "company": "CareerBuilder",
-      "enabled": true,
+      "enabled": false,
       "search_url": "https://www.careerbuilder.com/jobs-data-engineer",
       "job_url_pattern": "careerbuilder[.]com/job-details/",
-      "max_detail_pages": 60
+      "max_detail_pages": 60,
+      "disabled_reason": "live GitHub Actions smoke returns HTTP 403; do not bypass provider access controls"
     },
     {
       "provider": "simplyhired",
       "company": "SimplyHired",
-      "enabled": true,
+      "enabled": false,
       "search_url": "https://www.simplyhired.com/search?l=united%20states&q=data%20engineer",
       "job_url_pattern": "simplyhired[.]com/job/",
-      "max_detail_pages": 60
+      "max_detail_pages": 60,
+      "disabled_reason": "live GitHub Actions smoke returns HTTP 403; do not bypass provider access controls"
     }
   ]
 }
