@@ -1699,7 +1699,12 @@
       "search_url": "https://jobs.jobvite.com/amerisavecareers/"
     }
   ],
-  "dayforce": [],
+  "dayforce": [
+    {
+      "company": "ClearCaptions",
+      "search_url": "https://us60.dayforcehcm.com/CandidatePortal/en-US/clearcaptions"
+    }
+  ],
   "recruiting_com": [],
   "recruitee": [
     {
@@ -1735,7 +1740,12 @@
     }
   ],
   "brassring": [],
-  "careerplug": [],
+  "careerplug": [
+    {
+      "company": "College HUNKS Hauling Junk & Moving",
+      "search_url": "https://chhj-corporate.careerplug.com/jobs?locale=en-US"
+    }
+  ],
   "freshteam": [],
   "jobscore": [],
   "personio": [
@@ -1745,7 +1755,12 @@
     }
   ],
   "ukg": [],
-  "paycom": [],
+  "paycom": [
+    {
+      "company": "Lulus",
+      "search_url": "https://www.paycomonline.net/v4/ats/web.php/jobs?clientkey=1004F9A89ABF3C3C93296BEF59C72475"
+    }
+  ],
   "bullhorn": [],
   "comeet": [],
   "clearcompany": [],
@@ -1782,7 +1797,12 @@
   "radancy": [],
   "paradox": [],
   "applicantstack": [],
-  "jazzhr_alt": [],
+  "jazzhr_alt": [
+    {
+      "company": "Analytica",
+      "search_url": "https://analyticallc.applytojob.com/"
+    }
+  ],
   "ceipal": [],
   "trakstar_hire": [],
   "neogov": [
