@@ -189,7 +189,8 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 audit_history.append({"version":attempts,"resume_path":str(resume),"audit":audit})
                 print(f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
                 if not audit["passed"]: print(f"V{attempts} failure | "+_audit_failure_summary(audit),flush=True)
-            audit["generation_attempts"]=attempts;audit["generation_source"]="openai_llm_quality_driven"
+            audit["generation_attempts"]=attempts
+            if attempts>0:audit["generation_source"]="openai_llm_quality_driven"
             pdf_path=None
             artifact_validation={"passed":False,"reason":"Resume audit did not pass","attempts":0}
             if audit["passed"]:
