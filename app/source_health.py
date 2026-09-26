@@ -5,6 +5,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from app.sources.career_site import validate_source as validate_career_site
 from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS
+from app.source_registry import load_registry, as_discovery_config
 
 ROOT=Path(__file__).resolve().parents[1]
 UA={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/html,*/*"}
@@ -24,6 +25,21 @@ def _row(provider, company, target, result, **extra):
 
 def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     cfg=json.loads((ROOT/path).read_text(encoding="utf-8"))
+    # Health must audit the same effective universe discovery can execute:
+    # configured seeds plus persistent sources learned from employer enrichment.
+    learned=as_discovery_config(load_registry())
+    for provider, units in learned.items():
+        if not isinstance(units,list):
+            continue
+        existing=cfg.get(provider)
+        if not isinstance(existing,list):
+            existing=[]
+        seen={json.dumps(x,sort_keys=True,default=str) for x in existing if isinstance(x,dict)}
+        for unit in units:
+            key=json.dumps(unit,sort_keys=True,default=str)
+            if key not in seen:
+                existing.append(unit);seen.add(key)
+        cfg[provider]=existing
     rows=[]
     for x in cfg.get("career_site",[]):
         r=validate_career_site(x["company"],x["search_url"],x["job_url_pattern"],timeout)
