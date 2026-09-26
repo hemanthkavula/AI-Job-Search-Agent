@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from app import batch_prepare
 
 
-def test_manual_verified_ats_never_becomes_auto_ready(monkeypatch,tmp_path):
+def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
     raw={"external_id":"manatal:1","source":"manatal","company_key":"Example Staffing","title":"Data Engineer",
          "location":"United States","employment_type":"Full-Time","url":"https://example.test/jobs/1",
          "original_url":"https://example.test/jobs/1","ats_provider":"manatal","application_route":"MANUAL_VERIFIED_ATS",
@@ -18,5 +18,5 @@ def test_manual_verified_ats_never_becomes_auto_ready(monkeypatch,tmp_path):
     monkeypatch.setattr(batch_prepare,"convert_docx_to_pdf_detailed",lambda path,attempts=2:{"pdf_path":str(tmp_path/"approved.pdf"),"attempts":1,"reason":"ok","renderer":"test"})
     monkeypatch.setattr(batch_prepare,"validate_docx_pdf_parity",lambda docx,pdf:{"passed":True})
     rows=batch_prepare.prepare(str(report),str(out))
-    assert rows[0]["next_action"]=="MANUAL_READY_TO_APPLY"
+    assert rows[0]["next_action"]=="READY_TO_APPLY"
     assert rows[0]["manual_application_required"] is True
