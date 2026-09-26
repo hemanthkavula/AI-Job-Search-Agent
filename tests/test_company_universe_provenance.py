@@ -23,3 +23,4 @@ def test_authoritative_feeder_official_url_preserves_provenance(monkeypatch,tmp_
     assert row["official_domain"]=="private-example.test"
     assert row["domain_evidence"]=="verified_private_catalog"
     assert result["feeder_rows"]==1
+
