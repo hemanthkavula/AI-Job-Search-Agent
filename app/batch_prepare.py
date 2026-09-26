@@ -226,7 +226,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 next_action="HOLD_ARTIFACT_VALIDATION"
                 print("ARTIFACT HOLD after deterministic headless conversion | "+json.dumps(artifact_validation,ensure_ascii=False),flush=True)
             else:
-                next_action="MANUAL_READY_TO_APPLY" if raw.get("application_route")=="MANUAL_VERIFIED_ATS" else "READY_TO_APPLY"
+                next_action="READY_TO_APPLY"
             print(f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
         except Exception as exc:
             # Clean up any draft that may have been rendered before a later pipeline failure.
