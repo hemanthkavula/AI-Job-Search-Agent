@@ -1921,7 +1921,12 @@
       "search_url": "https://recruit.hirebridge.com/v3/Jobs/list.aspx?cid=7856"
     }
   ],
-  "jobdiva": [],
+  "jobdiva": [
+    {
+      "company": "RIT Solutions / JobDiva Portal",
+      "search_url": "https://www1.jobdiva.com/candidates/myjobs/searchjobsdone.jsp?a=xbjdnwgjodtga1y1im2g881fkkeiwd0775lbvq8yqgps8vb2q36w2vj1ga6xxork&compid=-1"
+    }
+  ],
   "zoho_recruit": [
     {
       "company": "Unit21",
