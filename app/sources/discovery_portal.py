@@ -66,7 +66,7 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20)->
         row=_normalize(provider,j,search_url)
         if row and row["external_id"] not in seen:
             seen.add(row["external_id"]);out.append(row)
-    rx=re.compile(job_url_pattern.replace("\\","\"),re.I)
+    rx=re.compile(job_url_pattern,re.I)
     links=[]
     for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
         u=urljoin(search_url,html.unescape(href))
