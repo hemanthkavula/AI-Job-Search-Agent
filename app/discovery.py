@@ -66,6 +66,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     # Reuse the latest source-health report to avoid repeatedly crawling generic
     # career pages that are already known to be blocked, unreachable, or JS-only.
     unhealthy_career_sites=set()
+    unhealthy_units=set()
     try:
         from pathlib import Path
         import time
@@ -85,8 +86,25 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 if row.get("provider")=="career_site" and status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"}:
                     if row.get("company"):
                         unhealthy_career_sites.add(row["company"])
+                if status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"} and row.get("provider") and row.get("company"):
+                    unhealthy_units.add((row["provider"],row["company"]))
     except Exception:
         pass
+    # Quarantine stale/broken learned ATS tenants for the health TTL instead of
+    # repeatedly spending the production window on known 404/403/unreachable boards.
+    # Source health is refreshed before every production discovery, so recovered
+    # tenants automatically re-enter without deleting them from persistent learning.
+    for provider in ALL_ATS_PROVIDERS:
+        units=config.get(provider,[])
+        if not isinstance(units,list) or not units: continue
+        kept=[]
+        for src in units:
+            company=src.get("company") or src.get("tenant") or src.get("site") or src.get("board_token") or src.get("board_name")
+            if (provider,company) in unhealthy_units:
+                health[f"{provider}:{company or provider}"]={"source":provider,"company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+            else:
+                kept.append(src)
+        config[provider]=kept
     # Network-bound ATS/company calls are independent. Run them concurrently so a
     # slow Workday tenant cannot serially block every other source in the hourly cycle.
     with ThreadPoolExecutor(max_workers=10) as pool:
