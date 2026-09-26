@@ -2064,7 +2064,12 @@
       "search_url": "https://jobs.gohire.io/axiom-data-science-hit6mioe/"
     }
   ],
-  "hiringthing": [],
+  "hiringthing": [
+    {
+      "company": "HiringThing",
+      "search_url": "https://careers.hiringthing.com/"
+    }
+  ],
   "homerun": [],
   "pageup": [
     {
