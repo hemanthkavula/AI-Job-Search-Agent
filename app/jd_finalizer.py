@@ -250,11 +250,12 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
             # Preserve the valid job for manual application instead of falsely
             # rejecting it as an unresolved ATS or auto-applying unsafely.
             raw["application_route"]="MANUAL_VERIFIED_ATS"
+            raw["manual_application_required"]=True
         elif (raw.get("source") or "").lower()=="dice" and "dice.com" in (raw.get("original_url") or raw.get("url") or "").lower():
             raw["application_route"]="DICE"
             raw["ats_provider"]="dice"
         elif raw.get("application_route")=="MANUAL_VERIFIED_ATS":
-            raw["manual_application_required"]=True
+            pass
         else:
             held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue
