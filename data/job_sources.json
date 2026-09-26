@@ -1720,7 +1720,12 @@
       "search_url": "https://us60.dayforcehcm.com/CandidatePortal/en-US/clearcaptions"
     }
   ],
-  "recruiting_com": [],
+  "recruiting_com": [
+    {
+      "company": "Recruiting.com Career Sites",
+      "search_url": "https://www.recruiting.com/career-sites/"
+    }
+  ],
   "recruitee": [
     {
       "company": "BasisPath",
