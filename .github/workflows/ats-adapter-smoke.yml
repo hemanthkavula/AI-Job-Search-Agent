@@ -62,7 +62,10 @@ jobs:
                   embedded=len(re.findall(r'(?:/j/|%2Fj%2F)([A-Za-z0-9]{6,})',board,re.I))
                   jsonld=len(_jobpostings(board))
                   keys=sorted(api_payload.keys())[:30] if isinstance(api_payload,dict) else []
+                  sample_keys=sorted(api_jobs[0].keys()) if isinstance(api_jobs,list) and api_jobs and isinstance(api_jobs[0],dict) else []
+                  sample_types={k:type(api_jobs[0].get(k)).__name__ for k in sample_keys} if sample_keys else {}
                   print(f"DIAG workable | {company} | api_bytes={len(api_body)} api_keys={keys} api_jobs={len(api_jobs) if isinstance(api_jobs,list) else 'NA'} board_bytes={len(board)} jsonld={jsonld} anchors={ordinary} embedded_ids={embedded}",flush=True)
+                  print(f"DIAG workable shape | {company} | job_keys={sample_keys} job_types={sample_types}",flush=True)
                   jobs=workable_jobs(company,url,timeout=25)
                   totals["workable"] += len(jobs)
                   print(f"SMOKE workable | {company} | {len(jobs)} DE jobs",flush=True)
