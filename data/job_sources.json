@@ -1852,7 +1852,20 @@
     }
   ],
   "fountain": [],
-  "hirebridge": [],
+  "hirebridge": [
+    {
+      "company": "Numerator",
+      "search_url": "https://recruit.hirebridge.com/v3/Jobs/list.aspx?cid=7844"
+    },
+    {
+      "company": "Aspira",
+      "search_url": "https://recruit.hirebridge.com/v3/Jobs/list.aspx?cid=7025"
+    },
+    {
+      "company": "EAB",
+      "search_url": "https://recruit.hirebridge.com/v3/Jobs/list.aspx?cid=7856"
+    }
+  ],
   "jobdiva": [],
   "zoho_recruit": [
     {
@@ -1941,7 +1954,20 @@
   "talentbrew": [],
   "radancy": [],
   "paradox": [],
-  "applicantstack": [],
+  "applicantstack": [
+    {
+      "company": "Sparibis",
+      "search_url": "https://sparibis.applicantstack.com/x/openings"
+    },
+    {
+      "company": "Xpect Solutions",
+      "search_url": "https://xpectsolutions.applicantstack.com/x/openings"
+    },
+    {
+      "company": "Praescient Analytics",
+      "search_url": "https://praescientanalytics.applicantstack.com/x/openings"
+    }
+  ],
   "jazzhr_alt": [
     {
       "company": "Analytica",
