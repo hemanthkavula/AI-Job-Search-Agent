@@ -2306,8 +2306,9 @@
       "provider": "wellfound",
       "company": "Wellfound Startups",
       "enabled": true,
-      "search_url": "https://wellfound.com/jobs",
-      "job_url_pattern": "wellfound[.]com/(jobs|company)/"
+      "search_url": "https://wellfound.com/role/l/data-engineer/united-states",
+      "job_url_pattern": "wellfound[.]com/(jobs|company)/",
+      "max_detail_pages": 250
     },
     {
       "provider": "builtin",
