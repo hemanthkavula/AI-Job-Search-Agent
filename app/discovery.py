@@ -221,7 +221,9 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     configured_units["career_site"]=len(config.get("career_site",[]))
     configured_units["dice"]=1 if config.get("dice",{}).get("enabled",False) else 0
     configured_units["ziprecruiter"]=1 if config.get("ziprecruiter",{}).get("enabled",False) else 0
-    configured_units["monster"]=1 if config.get("monster",{}).get("enabled",False) else 0\n    for src in config.get("discovery_portal",[]):\n        if src.get("enabled",True): configured_units[src["provider"]]=configured_units.get(src["provider"],0)+1
+    configured_units["monster"]=1 if config.get("monster",{}).get("enabled",False) else 0
+    for src in config.get("discovery_portal",[]):
+        if src.get("enabled",True): configured_units[src["provider"]]=configured_units.get(src["provider"],0)+1
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
