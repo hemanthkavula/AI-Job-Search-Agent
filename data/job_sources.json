@@ -2315,6 +2315,13 @@
       "enabled": true,
       "search_url": "https://www.ycombinator.com/jobs/role/all",
       "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+"
+    },
+    {
+      "provider": "wellfound",
+      "company": "Wellfound Startups",
+      "enabled": true,
+      "search_url": "https://wellfound.com/jobs",
+      "job_url_pattern": "wellfound[.]com/(jobs|company)/"
     }
   ]
 }
