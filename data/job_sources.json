@@ -1980,7 +1980,12 @@
       "search_url": "https://jobs.polymer.co/return/"
     }
   ],
-  "hirehive": [],
+  "hirehive": [
+    {
+      "company": "Redo",
+      "search_url": "https://redo.hirehive.com/"
+    }
+  ],
   "kula": [],
   "rival": [],
   "werecruit": [],
