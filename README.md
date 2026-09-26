@@ -62,20 +62,17 @@ Hard filtering includes:
 
 ## Discovery
 
-The system supports discovery across configured and learned sources including:
+Discovery is employer/ATS-first and open-ended rather than an allowlist.
 
-- Greenhouse
-- Lever
-- Ashby
-- SmartRecruiters
-- Workday
-- SuccessFactors
-- iCIMS
-- Oracle
-- company career sites
-- Eightfold
-- Dice
-- ZipRecruiter
+- 82 recognized/configurable ATS and career-site provider families are supported by the source registry.
+- The static source catalog is seed coverage, not the complete employer universe.
+- At the 7 AM Eastern production slot, the slow enrichment layer expands the U.S. employer universe from public/authoritative company feeds, resolves evidence-backed official domains, finds employer career pages, detects hosted or embedded ATS platforms, and persists learned sources.
+- Fast production cycles merge configured seeds with those learned sources before collecting current jobs.
+- Direct employer career pages and ATS boards are primary. Dice and ZipRecruiter are supplemental discovery. Other aggregators remain supplemental/authorized-only unless an executable adapter exists.
+- Aggregator discoveries must resolve to a complete authoritative employer/ATS posting before eligibility, resume generation, or application.
+- Source health audits both configured and persistently learned sources.
+- Unknown employers are allowed; target-company lists are priorities/examples, never hard allowlists.
+- Fidelity Investments, Cigna Healthcare, and Target Corporation are explicit hard exclusions from eligibility/application even if broad discovery sees their jobs.
 
 Discovery state is persisted across cloud runs so providers resume from their own successful watermarks rather than relying on a single global time window.
 
