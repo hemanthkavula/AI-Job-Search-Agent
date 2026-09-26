@@ -125,7 +125,8 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "application_queue":queue_rel if manifest else None,
           "queued_for_application":queued_ready_count,
           "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
-          "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{})}
+          "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),
+          "coverage":discovery.get("coverage",{})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
