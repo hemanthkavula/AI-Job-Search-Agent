@@ -2221,14 +2221,24 @@
     }
   ],
   "applynow": [],
-  "talentreef": [],
+  "talentreef": [
+    {
+      "company": "Puyallup Tribal Enterprises",
+      "search_url": "https://apply.jobappnetwork.com/puyallup-tribal-enterprises/en"
+    }
+  ],
   "icims_alt": [
     {
       "company": "Applied Systems",
       "search_url": "https://careers-appliedsystems.icims.com/jobs/"
     }
   ],
-  "jobappnetwork": [],
+  "jobappnetwork": [
+    {
+      "company": "Tahoma Global Logistics",
+      "search_url": "https://apply.jobappnetwork.com/tahomaglobal/en"
+    }
+  ],
   "myworkchoice": [
     {
       "company": "MyWorkChoice",
