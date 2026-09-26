@@ -49,6 +49,7 @@ def canonical_job_key(job):
     for prefix in ("req:","url:","semantic:"):
         for key in keys:
             if key.startswith(prefix):return key
+    employer=normalize_company(job.get("company_key") or job.get("company"))
     title=normalize_title(job.get("title"))
     loc=_norm(job.get("location"))
     url=normalize_url(job.get("original_url") or job.get("url"))
