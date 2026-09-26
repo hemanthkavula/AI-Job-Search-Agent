@@ -1807,9 +1807,31 @@
     }
   ],
   "bullhorn": [],
-  "comeet": [],
+  "comeet": [
+    {
+      "company": "BDR Solutions LLC",
+      "search_url": "https://www.comeet.com/jobs/bdrsolutionsllc/79.00B/"
+    },
+    {
+      "company": "MWDN",
+      "search_url": "https://www.comeet.com/jobs/mwdn/61.005/"
+    }
+  ],
   "clearcompany": [],
-  "applicantpro": [],
+  "applicantpro": [
+    {
+      "company": "VillageCare",
+      "search_url": "https://villagecare.applicantpro.com/jobs/"
+    },
+    {
+      "company": "NBME",
+      "search_url": "https://nbme.applicantpro.com/jobs/"
+    },
+    {
+      "company": "SESLOC Credit Union",
+      "search_url": "https://sesloc.applicantpro.com/jobs/"
+    }
+  ],
   "fountain": [],
   "hirebridge": [],
   "jobdiva": [],
