@@ -51,3 +51,4 @@ def test_ncua_feeder_is_enabled_by_default():
     assert company_feeders.FEEDERS["ncua_active_credit_unions"] is company_feeders.ncua_active_credit_unions
 
 # Regression guard: feeder registry must remain importable and enabled in CI.
+
