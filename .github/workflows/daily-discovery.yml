@@ -106,8 +106,8 @@ jobs:
         run: |
           python -m app.company_enrichment_runner \
             --source-config data/job_sources.json \
-            --domain-budget 400 \
-            --career-budget 400 \
+            --domain-budget 1000 \
+            --career-budget 1000 \
             --retry-days 1
 
       - name: Audit configured source health
