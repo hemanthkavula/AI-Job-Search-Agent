@@ -36,7 +36,8 @@ def _norm_title(value):
     text=re.sub(r"[^a-z0-9]+"," ",text)
     return re.sub(r"\s+"," ",text).strip()
 
-SOURCE_PRIORITY={name:0 for name in ALL_ATS_PROVIDERS}\nSOURCE_PRIORITY.update({"career_site":1,"dice":2,"ziprecruiter":2})
+SOURCE_PRIORITY={name:0 for name in ALL_ATS_PROVIDERS}
+SOURCE_PRIORITY.update({"career_site":1,"dice":2,"ziprecruiter":2})
 
 def _dedup_eligible(items):
     """Prefer official ATS/company sources and use the persistent identity model."""
