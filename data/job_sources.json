@@ -2133,7 +2133,12 @@
       "search_url": "https://adidevtechnologies.recruiterbox.com/jobs"
     }
   ],
-  "talentbrew": [],
+  "talentbrew": [
+    {
+      "company": "Comcast",
+      "search_url": "https://jobs.comcast.com/"
+    }
+  ],
   "radancy": [
     {
       "company": "Radancy",
