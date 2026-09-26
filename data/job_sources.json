@@ -1988,7 +1988,12 @@
       "search_url": "https://careers.hireology.com/anvayasolutions/"
     }
   ],
-  "paycor": [],
+  "paycor": [
+    {
+      "company": "Paycor",
+      "search_url": "https://www.paycor.com/company/careers/"
+    }
+  ],
   "peopleadmin": [
     {
       "company": "University of Utah",
