@@ -2251,14 +2251,24 @@
     }
   ],
   "applynow": [],
-  "talentreef": [],
+  "talentreef": [
+    {
+      "company": "OAKBERRY",
+      "search_url": "https://apply.jobappnetwork.com/oakberry/en"
+    }
+  ],
   "icims_alt": [
     {
       "company": "Applied Systems",
       "search_url": "https://careers-appliedsystems.icims.com/jobs/"
     }
   ],
-  "jobappnetwork": [],
+  "jobappnetwork": [
+    {
+      "company": "LodgeWorks",
+      "search_url": "https://apply.jobappnetwork.com/lodgeworks/en"
+    }
+  ],
   "myworkchoice": [
     {
       "company": "MyWorkChoice",
