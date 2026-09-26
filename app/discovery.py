@@ -123,11 +123,14 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         for src in config.get("workday",[]) if only_source in (None,"workday") else []:
             tasks.append((pool.submit(workday_jobs,src.get("company") or src["tenant"],src["host"],src["tenant"],src["site"],src.get("locale","en-US"),hours=_unit_hours("workday",src.get("company") or src.get("tenant"))),"workday",src.get("company") or src.get("tenant")))
         for src in config.get("successfactors",[]) if only_source in (None,"successfactors") else []:
-            tasks.append((pool.submit(successfactors_jobs,src["company"],src["base_url"]),"successfactors",src.get("company")))
+            url=src.get("base_url") or src.get("search_url") or src.get("careers_url") or src.get("original_url")
+            if url:tasks.append((pool.submit(successfactors_jobs,src.get("company") or "successfactors",url),"successfactors",src.get("company") or "successfactors"))
         for src in config.get("icims",[]) if only_source in (None,"icims") else []:
-            tasks.append((pool.submit(icims_jobs,src["company"],src["base_url"]),"icims",src.get("company")))
+            url=src.get("base_url") or src.get("search_url") or src.get("careers_url") or src.get("original_url")
+            if url:tasks.append((pool.submit(icims_jobs,src.get("company") or "icims",url),"icims",src.get("company") or "icims"))
         for src in config.get("oracle",[]) if only_source in (None,"oracle") else []:
-            tasks.append((pool.submit(oracle_jobs,src["company"],src["base_url"]),"oracle",src.get("company")))
+            url=src.get("base_url") or src.get("search_url") or src.get("careers_url") or src.get("original_url")
+            if url:tasks.append((pool.submit(oracle_jobs,src.get("company") or "oracle",url),"oracle",src.get("company") or "oracle"))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
             company=src.get("company")
             if company in unhealthy_career_sites:
@@ -136,7 +139,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 continue
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
-            tasks.append((pool.submit(eightfold_jobs,src["company"],src["careers_url"]),"eightfold",src.get("company")))
+            url=src.get("careers_url") or src.get("search_url") or src.get("base_url") or src.get("original_url")
+            if url:tasks.append((pool.submit(eightfold_jobs,src.get("company") or "eightfold",url),"eightfold",src.get("company") or "eightfold"))
         for provider in ("ukg","ultipro","ultipro_ukg"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url")
