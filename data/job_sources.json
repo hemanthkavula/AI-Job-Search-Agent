@@ -2007,7 +2007,12 @@
     }
   ],
   "talentbrew": [],
-  "radancy": [],
+  "radancy": [
+    {
+      "company": "Radancy",
+      "search_url": "https://jobs.radancy.com/en"
+    }
+  ],
   "paradox": [],
   "applicantstack": [
     {
