@@ -1956,6 +1956,14 @@
     {
       "company": "Inizio Partners",
       "search_url": "https://inizio-partners.careers-page.com/"
+    },
+    {
+      "company": "Essence Coaching Group",
+      "search_url": "https://www.careers-page.com/essence-coaching-group"
+    },
+    {
+      "company": "24-MAG",
+      "search_url": "https://24-mag.careers-page.com/"
     }
   ],
   "join": [
@@ -1972,6 +1980,10 @@
     {
       "company": "Sales Automation Board",
       "search_url": "https://job-boards.eu.greenhouse.io/recruit-with-zero"
+    },
+    {
+      "company": "StubHub",
+      "search_url": "https://job-boards.eu.greenhouse.io/stubhubinc"
     }
   ],
   "applitrack": [],
