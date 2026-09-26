@@ -96,3 +96,30 @@ def test_learned_lever_board_is_executed_on_later_discovery(monkeypatch,tmp_path
     assert not errors
     assert called==["learned-employer"]
     assert [x["external_id"] for x in rows]==["lever:learned:1"]
+
+
+def test_broad_discovery_employer_is_persisted_even_without_ats_resolution(monkeypatch,tmp_path):
+    broad={
+        "external_id":"dice:private-1",
+        "source":"dice",
+        "company_key":"Private Startup Example",
+        "company":"Private Startup Example",
+        "title":"Data Engineer",
+        "url":"https://www.dice.com/job-detail/private-1",
+        "description":"Python SQL Spark data pipelines",
+    }
+    monkeypatch.setattr(discovery,"dice_jobs",lambda *a,**k:[broad])
+    monkeypatch.setattr(discovery,"resolve_original_ats",lambda job:job)
+    company_registry={}
+    saved={}
+    monkeypatch.setattr(discovery,"load_company_registry",lambda:company_registry)
+    monkeypatch.setattr(discovery,"save_company_registry",lambda reg:saved.update(reg))
+    rows,errors=discovery.discover(
+        {"dice":{"enabled":True},"ziprecruiter":{"enabled":False}},
+        only_source="dice",
+        registry_path=tmp_path/"source_registry.json",
+        health_path=tmp_path/"health.json",
+    )
+    assert not errors
+    assert rows
+    assert any(row.get("company")=="Private Startup Example" for row in saved.values())
