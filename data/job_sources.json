@@ -2090,7 +2090,16 @@
       "search_url": "https://careers.kula.ai/showcase"
     }
   ],
-  "rival": [],
+  "rival": [
+    {
+      "company": "CALIBRE Systems",
+      "search_url": "https://jobs.silkroad.com/CALIBRE/Careers"
+    },
+    {
+      "company": "Boston University",
+      "search_url": "https://jobs.silkroad.com/BU/External"
+    }
+  ],
   "werecruit": [],
   "deel": [
     {
