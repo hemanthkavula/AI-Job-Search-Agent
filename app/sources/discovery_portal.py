@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib, html, json, re
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8","Accept-Language":"en-US,en;q=0.9"}
@@ -79,16 +79,37 @@ def _page_fallback(provider:str,body:str,page_url:str)->dict|None:
       "description_complete":False,"updated_at":None,"posted_on":None,"valid_through":None,
       "discovery_only":True,"authoritative_source":False,"portal_source":provider}
 
-def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None,max_detail_pages:int=250)->list[dict]:
+def _pagination_links(body:str,page_url:str)->list[str]:
+    """Return conservative same-host pagination links from a portal results page."""
+    host=urlsplit(page_url).netloc.lower();out=[]
+    for href in re.findall(r'href=["\\']([^"\\']+)["\\']',body,re.I):
+        u=urljoin(page_url,html.unescape(href));p=urlsplit(u)
+        if p.netloc.lower()!=host:continue
+        tag_match=re.search(r'<a[^>]*href=["\\']'+re.escape(href)+r'["\\'][^>]*>(.*?)</a>',body,re.I|re.S)
+        label=_plain(tag_match.group(1)) if tag_match else ""
+        low=(href+" "+label).lower()
+        if re.search(r'(?:[?&](?:page|p|offset)=\\d+|/page/\\d+)',href,re.I) or re.search(r'\\b(next|older|more)\\b',low):
+            if u not in out:out.append(u)
+    return out
+
+def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None,max_detail_pages:int=250,max_search_pages:int=10)->list[dict]:
     """Crawl a public portal strictly as discovery; authoritative resolution is mandatory downstream."""
-    body=_get(search_url,timeout);out=[];seen=set()
-    for j in _jobpostings(body):
-        row=_normalize(provider,j,search_url,hours)
-        if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
-    rx=re.compile(job_url_pattern,re.I);links=[]
-    for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
-        u=urljoin(search_url,html.unescape(href))
-        if rx.search(u) and u not in links:links.append(u)
+    out=[];seen=set();rx=re.compile(job_url_pattern,re.I);links=[]
+    queue=[search_url];visited_pages=set()
+    while queue and len(visited_pages)<max_search_pages and len(links)<max_detail_pages:
+        page_url=queue.pop(0)
+        if page_url in visited_pages:continue
+        try:body=_get(page_url,timeout)
+        except Exception:continue
+        visited_pages.add(page_url)
+        for j in _jobpostings(body):
+            row=_normalize(provider,j,page_url,hours)
+            if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
+        for href in re.findall(r'href=["\\']([^"\\']+)["\\']',body,re.I):
+            u=urljoin(page_url,html.unescape(href))
+            if rx.search(u) and u not in links:links.append(u)
+        for u in _pagination_links(body,page_url):
+            if u not in visited_pages and u not in queue:queue.append(u)
     for u in links[:max_detail_pages]:
         try:detail=_get(u,timeout)
         except Exception:continue
@@ -101,5 +122,5 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,ho
         if not found:
             row=_page_fallback(provider,detail,u)
             if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
-    print(f"DiscoveryPortal / {provider}: {len(out)} DE jobs",flush=True)
+    print(f"DiscoveryPortal / {provider}: {len(out)} DE jobs from {len(visited_pages)} search page(s), {len(links)} detail link(s)",flush=True)
     return out
