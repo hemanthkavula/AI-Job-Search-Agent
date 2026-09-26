@@ -2076,7 +2076,12 @@
   ],
   "applynow": [],
   "talentreef": [],
-  "icims_alt": [],
+  "icims_alt": [
+    {
+      "company": "Applied Systems",
+      "search_url": "https://careers-appliedsystems.icims.com/jobs/"
+    }
+  ],
   "jobappnetwork": [],
   "myworkchoice": [
     {
