@@ -1901,7 +1901,12 @@
       "search_url": "https://sesloc.applicantpro.com/jobs/"
     }
   ],
-  "fountain": [],
+  "fountain": [
+    {
+      "company": "WeDriveU",
+      "search_url": "https://careers.fountain.com/wedriveu/1aced975-3570-4469-9e6b-a316eb0df049"
+    }
+  ],
   "hirebridge": [
     {
       "company": "Numerator",
