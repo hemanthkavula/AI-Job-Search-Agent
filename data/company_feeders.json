@@ -28,6 +28,30 @@
       "enabled": true,
       "kind": "authoritative_identity",
       "scope": "active federally insured U.S. credit unions"
+    },
+    {
+      "id": "fdic_insured_banks",
+      "enabled": true,
+      "kind": "authoritative_identity_with_official_url",
+      "scope": "active FDIC-insured U.S. institutions"
+    },
+    {
+      "id": "college_scorecard_institutions",
+      "enabled": true,
+      "kind": "authoritative_identity_with_official_url",
+      "scope": "operating U.S. colleges and universities; API key required"
+    },
+    {
+      "id": "cms_hospitals",
+      "enabled": true,
+      "kind": "authoritative_identity",
+      "scope": "U.S. hospital organizations from CMS Provider Data Catalog"
+    },
+    {
+      "id": "sam_registered_entities",
+      "enabled": true,
+      "kind": "authoritative_identity",
+      "scope": "active SAM.gov registered organizations; API key required"
     }
   ],
   "expansion_classes": [
@@ -86,17 +110,17 @@
     },
     {
       "id": "fdic_bank_directory",
-      "status": "research",
+      "status": "implemented",
       "scope": "insured banks and institutions"
     },
     {
       "id": "education_institutions",
-      "status": "research",
+      "status": "implemented",
       "scope": "universities and colleges"
     },
     {
       "id": "healthcare_provider_orgs",
-      "status": "research",
+      "status": "implemented",
       "scope": "health systems and provider organizations"
     }
   ],
