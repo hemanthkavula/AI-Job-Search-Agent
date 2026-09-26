@@ -707,7 +707,9 @@
     "jobs_per_page": 100
   },
   "ziprecruiter": {
-    "enabled": true
+    "enabled": true,
+    "source_mode": "official_mcp",
+    "failure_policy": "retain watermark and retry next production cycle"
   },
   "successfactors": [
     {
@@ -1861,16 +1863,7 @@
       "search_url": "https://www.paycomonline.net/v4/ats/web.php/jobs?clientkey=1004F9A89ABF3C3C93296BEF59C72475"
     }
   ],
-  "bullhorn": [
-    {
-      "company": "Innova Solutions",
-      "search_url": "https://public-rest34.bullhornstaffing.com/"
-    },
-    {
-      "company": "Corporate Brokers",
-      "search_url": "https://public-rest40.bullhornstaffing.com/"
-    }
-  ],
+  "bullhorn": [],
   "comeet": [
     {
       "company": "BDR Solutions LLC",
@@ -2067,12 +2060,7 @@
       "search_url": "https://careers.hiringthing.com/"
     }
   ],
-  "homerun": [
-    {
-      "company": "Sia Foundation",
-      "search_url": "https://siafoundation.homerun.co/"
-    }
-  ],
+  "homerun": [],
   "pageup": [
     {
       "company": "California State University San Bernardino",
@@ -2306,7 +2294,8 @@
     "unseeded_policy": "Recognition may remain for resolver compatibility, but an empty provider is not counted as live coverage. Activate only after a verified enumerable employer endpoint exists."
   },
   "monster": {
-    "enabled": true
+    "enabled": false,
+    "disabled_reason": "public search currently returns HTTP 403; do not bypass provider access controls"
   },
   "discovery_portal": [
     {
