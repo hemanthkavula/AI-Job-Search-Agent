@@ -2,7 +2,7 @@ import json
 from app import jd_finalizer
 
 
-def test_verified_long_tail_ats_is_finalized_for_manual_application(monkeypatch,tmp_path):
+def test_verified_long_tail_ats_is_finalized_for_external_handoff(monkeypatch,tmp_path):
     report=tmp_path/"eligible.json"
     output=tmp_path/"finalized.json"
     job={
@@ -21,5 +21,5 @@ def test_verified_long_tail_ats_is_finalized_for_manual_application(monkeypatch,
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     raw=result["results"][0]["job"]
-    assert raw["application_route"]=="MANUAL_VERIFIED_ATS"
-    assert raw["manual_application_required"] is True
+    assert raw["application_route"]=="EXTERNAL_ATS"
+    assert "manual_application_required" not in raw
