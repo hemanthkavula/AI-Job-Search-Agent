@@ -1929,7 +1929,12 @@
     }
   ],
   "manatal": [],
-  "join": [],
+  "join": [
+    {
+      "company": "AiMi",
+      "search_url": "https://join.com/companies/aimitechnology"
+    }
+  ],
   "greenhouse_eu": [],
   "applitrack": [],
   "hireology": [
