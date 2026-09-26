@@ -17,3 +17,12 @@ def test_candidate_links_recognize_long_tail_ats_hosts():
     ])
     links=ats_resolver._candidate_links(page,"https://board.example/job/1")
     assert len(links)==5
+
+
+def test_candidate_links_skip_malformed_ipv6_style_url_without_aborting():
+    page = "".join([
+        '<a href="https://[not-an-ipv6]/jobs/123">bad</a>',
+        '<a href="https://apply.workable.com/example/j/GOOD123/">good</a>',
+    ])
+    links = ats_resolver._candidate_links(page, "https://board.example/job/1")
+    assert links == ["https://apply.workable.com/example/j/GOOD123/"]
