@@ -1995,7 +1995,12 @@
     }
   ],
   "firststage": [],
-  "recruiterbox": [],
+  "recruiterbox": [
+    {
+      "company": "Adidev Technologies",
+      "search_url": "https://adidevtechnologies.recruiterbox.com/jobs"
+    }
+  ],
   "talentbrew": [],
   "radancy": [],
   "paradox": [],
