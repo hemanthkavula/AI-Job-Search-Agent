@@ -43,50 +43,63 @@ def _location(j:dict)->str|None:
 
 def _parse_posted(value):
     if not value:return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+    try:return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
     except Exception:return None
 
 def _normalize(provider:str,j:dict,page_url:str,hours:float|None=None)->dict|None:
     title=_plain(j.get("title"));desc=_plain(j.get("description"))
     posted=_parse_posted(j.get("datePosted"))
-    if hours is not None and posted is not None and posted < datetime.now(timezone.utc)-timedelta(hours=float(hours)):
-        return None
+    if hours is not None and posted is not None and posted < datetime.now(timezone.utc)-timedelta(hours=float(hours)):return None
     if not any(t in (title+" "+desc[:2500]).lower() for t in DE_TERMS):return None
     org=j.get("hiringOrganization")
     company=_plain(org.get("name")) if isinstance(org,dict) else _plain(org)
     url=urljoin(page_url,str(j.get("url") or page_url))
     ident=j.get("identifier")
     if isinstance(ident,dict):ident=ident.get("value") or ident.get("name")
-    stable=str(ident or url or company+":"+title)
-    sid=hashlib.sha1(stable.encode()).hexdigest()[:20]
+    stable=str(ident or url or company+":"+title);sid=hashlib.sha1(stable.encode()).hexdigest()[:20]
     return {"external_id":f"{provider}:{sid}","source":provider,"company_key":company or "Unknown","title":title,
       "location":_location(j),"employment_type":j.get("employmentType"),"url":url,"original_url":url,
       "description":desc,"description_complete":bool(desc),"updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),
       "valid_through":j.get("validThrough"),"discovery_only":True,"authoritative_source":False,"portal_source":provider}
 
-def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None)->list[dict]:
-    """Crawl a public job portal strictly as a discovery feeder.
+def _page_fallback(provider:str,body:str,page_url:str)->dict|None:
+    # Some public boards render useful job detail pages without JobPosting JSON-LD.
+    # Use conservative title/company extraction; rows remain discovery-only.
+    tm=re.search(r"<h1[^>]*>(.*?)</h1>",body,re.I|re.S) or re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+    title=_plain(tm.group(1)) if tm else ""
+    text=_plain(body)
+    if not any(t in (title+" "+text[:5000]).lower() for t in DE_TERMS):return None
+    company=""
+    for pat in (r'"hiringOrganization"\s*:\s*\{[^{}]*"name"\s*:\s*"([^"]+)"',r'"company"\s*:\s*\{[^{}]*"name"\s*:\s*"([^"]+)"'):
+        m=re.search(pat,body,re.I|re.S)
+        if m:company=_plain(m.group(1));break
+    sid=hashlib.sha1(page_url.encode()).hexdigest()[:20]
+    return {"external_id":f"{provider}:{sid}","source":provider,"company_key":company or "Unknown","title":title,
+      "location":None,"employment_type":None,"url":page_url,"original_url":page_url,"description":text[:12000],
+      "description_complete":False,"updated_at":None,"posted_on":None,"valid_through":None,
+      "discovery_only":True,"authoritative_source":False,"portal_source":provider}
 
-    Every returned row is marked discovery_only and must resolve to an
-    authoritative employer/ATS posting before resume generation.
-    """
+def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None,max_detail_pages:int=250)->list[dict]:
+    """Crawl a public portal strictly as discovery; authoritative resolution is mandatory downstream."""
     body=_get(search_url,timeout);out=[];seen=set()
     for j in _jobpostings(body):
         row=_normalize(provider,j,search_url,hours)
-        if row and row["external_id"] not in seen:
-            seen.add(row["external_id"]);out.append(row)
-    rx=re.compile(job_url_pattern,re.I)
-    links=[]
+        if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
+    rx=re.compile(job_url_pattern,re.I);links=[]
     for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
         u=urljoin(search_url,html.unescape(href))
         if rx.search(u) and u not in links:links.append(u)
-    for u in links[:250]:
+    for u in links[:max_detail_pages]:
         try:detail=_get(u,timeout)
         except Exception:continue
+        found=False
         for j in _jobpostings(detail):
             row=_normalize(provider,j,u,hours)
-            if row and row["external_id"] not in seen:
-                seen.add(row["external_id"]);out.append(row)
+            if row:
+                found=True
+                if row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
+        if not found:
+            row=_page_fallback(provider,detail,u)
+            if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
     print(f"DiscoveryPortal / {provider}: {len(out)} DE jobs",flush=True)
     return out
