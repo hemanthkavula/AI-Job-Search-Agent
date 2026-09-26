@@ -240,7 +240,7 @@ def _jsonld(body: str) -> dict:
     return {}
 
 def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
-    m=re.search(r"apply\\.workable\\.com/([^/?#]+)",search_url,re.I)
+    m=re.search(r"apply\.workable\.com/([^/?#]+)",search_url,re.I)
     if not m:return []
     slug=m.group(1)
     payload=json.loads(_get(f"https://www.workable.com/api/accounts/{slug}?details=true",timeout))
@@ -267,7 +267,7 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
     links=[];seen=set()
     for href in re.findall(r'href=[\'"]([^\'"]+)[\'"]',body,re.I):
         url=urljoin(search_url,html.unescape(href))
-        if re.search(rf"apply\\.workable\\.com/{re.escape(slug)}/j/[^/?#]+",url,re.I) and url not in seen:
+        if re.search(rf"apply\.workable\.com/{re.escape(slug)}/j/[^/?#]+",url,re.I) and url not in seen:
             seen.add(url);links.append(url)
     # Current Workable boards can render the job collection without exposing
     # ordinary /j/... anchors in the initial HTML. Recover job identifiers from
