@@ -56,7 +56,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         if key in reg:
             if row.get("cik"):reg[key]["sec_cik"]=row["cik"]
             if row.get("ticker"):reg[key]["ticker"]=row["ticker"]
-            if row.get("fdic_cert"):reg[key]["fdic_cert"]=row["fdic_cert"]
+            if row.get("fdic_cert"):reg[key]["fdic_cert"]=row["fdic_cert"]\n            if row.get("ncua_charter"):reg[key]["ncua_charter"]=row["ncua_charter"]
             if row.get("education_id"):reg[key]["education_id"]=row["education_id"]
             if row.get("cms_facility_id"):reg[key]["cms_facility_id"]=row["cms_facility_id"]
             if row.get("state"):reg[key]["state"]=row["state"]
