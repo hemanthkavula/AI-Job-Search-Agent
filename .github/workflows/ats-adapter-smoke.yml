@@ -27,9 +27,9 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import json, re
+          import html, json, re
           from pathlib import Path
-          from urllib.parse import urlsplit, urljoin
+          from urllib.parse import urlsplit, urljoin, unquote
           from app.sources.career_site import _get, _jobpostings
           from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
           from app.sources.workable import fetch_jobs as workable_jobs
