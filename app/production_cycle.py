@@ -109,20 +109,21 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  # count. Preliminary filter matches remain available in the eligible report,
  # but are not presented as "eligible" until JD/live-route verification,
  # resume generation, and artifact validation have all succeeded.
- ready_count=sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest)
- summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":ready_count,
+ manifest_ready_count=sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest)
+ queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
+ summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
           "preliminary_eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
-          "ready_to_apply":ready_count,
-          "manual_ready_to_apply":sum(x.get("next_action")=="MANUAL_READY_TO_APPLY" for x in manifest),
+          "manifest_ready_to_apply":manifest_ready_count,
+          "ready_to_apply":queued_ready_count,
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
           "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
           "retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),
           "eligible_report":eligible_rel,"finalized_report":finalized_rel,
           "manifest":manifest_rel if generate_resumes else None,
           "application_queue":queue_rel if manifest else None,
-          "queued_for_application":sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue),
+          "queued_for_application":queued_ready_count,
           "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
           "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
