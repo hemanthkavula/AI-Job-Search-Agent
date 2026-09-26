@@ -145,7 +145,7 @@ jobs:
                           contract.append("ERROR:"+type(exc).__name__)
                   print(f"DIAG dayforce contract | {company} | snippets={contract[:20]}",flush=True)
                   # Probe Next.js server-data routes using confirmed build/tenant metadata.
-                  server_probes=[]
+                  from urllib.request import Request as DayforceProbeRequest, urlopen as dayforce_probe_open\n                  server_probes=[]
                   if next_data:
                       nd=next_data[0]
                       build=nd.get("buildId")
@@ -162,8 +162,8 @@ jobs:
                       ]
                       for p in paths:
                           try:
-                              req=Request(base+p,headers={**UA,"Accept":"application/json,text/plain,*/*","Referer":url})
-                              with urlopen(req,timeout=20) as resp:
+                              req=DayforceProbeRequest(base+p,headers={**UA,"Accept":"application/json,text/plain,*/*","Referer":url})
+                              with dayforce_probe_open(req,timeout=20) as resp:
                                   raw=resp.read(20000).decode("utf-8","replace")
                                   server_probes.append({"path":p,"status":resp.status,"type":resp.headers.get("Content-Type",""),"bytes":len(raw),"head":raw[:1200].replace("\n"," ")})
                           except Exception as exc:
