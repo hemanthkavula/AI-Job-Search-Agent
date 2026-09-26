@@ -2310,7 +2310,6 @@
     "state_path_fallback": "generated/",
     "persistence_note": "Runtime resolves JOB_AGENT_STATE_DIR; generated/ is the local/GitHub fallback.",
     "unseeded_provider_families": {
-      "homerun": "Public boards exist, but no verified US data-engineering employer seed currently meets the production-source standard.",
       "werecruit": "No verified US data-engineering employer board currently meets the production-source standard."
     },
     "unseeded_policy": "Recognition may remain for resolver compatibility, but an empty provider is not counted as live coverage. Activate only after a verified enumerable employer endpoint exists."
