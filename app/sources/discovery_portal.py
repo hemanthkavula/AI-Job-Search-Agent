@@ -105,7 +105,7 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,ho
         for j in _jobpostings(body):
             row=_normalize(provider,j,page_url,hours)
             if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
-        for href in re.findall(r'href=["\\']([^"\\']+)["\\']',body,re.I):
+        for href in re.findall(r"""href=["']([^"']+)["']""",body,re.I):
             u=urljoin(page_url,html.unescape(href))
             if rx.search(u) and u not in links:links.append(u)
         for u in _pagination_links(body,page_url):
