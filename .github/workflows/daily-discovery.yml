@@ -98,6 +98,18 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: python -m pytest -q
 
+      - name: Enrich US employer universe and learn career sources
+        if: steps.guard.outputs.should_run == 'true' && endsWith(steps.guard.outputs.slot, 'T07:00')
+        env:
+          COLLEGE_SCORECARD_API_KEY: ${{ secrets.COLLEGE_SCORECARD_API_KEY }}
+          SAM_API_KEY: ${{ secrets.SAM_API_KEY }}
+        run: |
+          python -m app.company_enrichment_runner \
+            --sources data/job_sources.json \
+            --domain-budget 250 \
+            --career-budget 250 \
+            --retry-days 7
+
       - name: Audit configured source health
         if: steps.guard.outputs.should_run == 'true'
         run: |
