@@ -69,7 +69,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     config=load_sources(source_config)
     # Company/career-site enrichment runs separately on a slower cadence.
     # Fast job cycles only consume persisted sources and learn newly seen employers.
-    jobs,errors=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours,source_unit_hours=source_unit_hours)
+    jobs,errors,coverage=discover(config,only_source,dice_search_terms,hours=hours,source_hours=source_hours,source_unit_hours=source_unit_hours,return_coverage=True)
     company_registry=load_company_registry()
     learn_companies_from_jobs(jobs,company_registry);save_company_registry(company_registry)
     source_since=source_since or {}
@@ -155,7 +155,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
         "eligible":len(eligible),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
         "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,"source_unit_status":source_unit_status,
-        "results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
+        "coverage":coverage,"results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
     }
 
 def _print_diagnostics(d,hours):
