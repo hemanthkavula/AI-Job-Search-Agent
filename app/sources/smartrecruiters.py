@@ -34,6 +34,9 @@ DE_TITLE_PATTERNS = (
     "azure data engineer",
     "data analytics engineer",
     "data integration engineer",
+    "data infrastructure engineer",
+    "data pipeline engineer",
+    "etl engineer",
     "analytics engineer",
 )
 
@@ -99,9 +102,11 @@ def fetch_jobs(company_identifier: str, timeout: int = 12, hours: int = 24) -> l
         cutoff=datetime.now(timezone.utc)-timedelta(hours=hours)
         def recent(row):
             raw=row.get("releasedDate")
-            if not raw:return False
+            # Missing/unparseable timestamps are unknown, not evidence that a live
+            # public posting is stale. Keep them eligible for title/JD validation.
+            if not raw:return True
             try:return datetime.fromisoformat(raw.replace("Z","+00:00")).astimezone(timezone.utc)>=cutoff
-            except Exception:return False
+            except Exception:return True
         recent_rows=[row for row in rows if recent(row)]
         candidates = [row for row in recent_rows if _is_de_title(row.get("name"))]
         candidate_count += len(candidates)
