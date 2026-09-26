@@ -2258,6 +2258,14 @@
     {
       "company": "OAKBERRY",
       "search_url": "https://apply.jobappnetwork.com/oakberry/en"
+    },
+    {
+      "company": "Rooms To Go",
+      "search_url": "https://apply.jobappnetwork.com/rtg/en"
+    },
+    {
+      "company": "Spirit Halloween",
+      "search_url": "https://apply.jobappnetwork.com/spirithalloweenjobs/en"
     }
   ],
   "icims_alt": [
@@ -2270,6 +2278,10 @@
     {
       "company": "LodgeWorks",
       "search_url": "https://apply.jobappnetwork.com/lodgeworks/en"
+    },
+    {
+      "company": "LodgeWorks",
+      "search_url": "https://apply.jobappnetwork.com/lodgeworksjobs/en"
     }
   ],
   "myworkchoice": [
