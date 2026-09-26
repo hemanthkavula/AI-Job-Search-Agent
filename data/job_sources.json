@@ -1604,36 +1604,28 @@
     "enabled": [
       "dice",
       "ziprecruiter",
-      "monster"
+      "wellfound",
+      "yc_jobs",
+      "builtin"
     ],
     "planned": [
       {
         "provider": "indeed",
-        "status": "PLANNED",
+        "status": "AUTHORIZED_INTEGRATION_REQUIRED",
         "mode": "discovery"
       },
       {
         "provider": "linkedin_jobs",
-        "status": "PLANNED",
+        "status": "AUTHORIZED_INTEGRATION_REQUIRED",
         "mode": "discovery"
       },
       {
         "provider": "glassdoor",
-        "status": "PLANNED",
+        "status": "AUTHORIZED_INTEGRATION_REQUIRED",
         "mode": "discovery"
       },
       {
         "provider": "careerbuilder",
-        "status": "PLANNED",
-        "mode": "discovery"
-      },
-      {
-        "provider": "builtin",
-        "status": "PLANNED",
-        "mode": "discovery"
-      },
-      {
-        "provider": "wellfound",
         "status": "PLANNED",
         "mode": "discovery"
       },
@@ -1693,9 +1685,14 @@
         "mode": "public_discovery_adapter",
         "role": "supplemental_discovery",
         "authoritative_jd_required": true
+      },
+      "YC Jobs": {
+        "mode": "public_discovery_adapter",
+        "role": "startup_discovery",
+        "authoritative_jd_required": true
       }
     },
-    "notes": "Company career sites and direct ATS boards remain primary. Aggregators are supplemental discovery only; every aggregator hit must resolve to an authoritative employer/ATS JD before eligibility, resume generation, or application."
+    "notes": "Direct employer/ATS sources remain primary. Public boards are discovery-only and every hit must resolve to an authoritative employer/ATS JD. LinkedIn, Indeed, and Glassdoor remain disabled unless an authorized integration is available; access controls are never bypassed."
   },
   "jobvite": [
     {
@@ -2301,10 +2298,9 @@
     {
       "provider": "yc_jobs",
       "company": "Y Combinator Startups",
-      "enabled": false,
+      "enabled": true,
       "search_url": "https://www.ycombinator.com/jobs/role/all",
-      "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+",
-      "disabled_reason": "live_smoke_zero_results_requires_source_specific_adapter"
+      "job_url_pattern": "/companies/[^/]+/jobs/[^/?#]+"
     },
     {
       "provider": "wellfound",
@@ -2316,10 +2312,9 @@
     {
       "provider": "builtin",
       "company": "Built In",
-      "enabled": false,
+      "enabled": true,
       "search_url": "https://builtin.com/jobs/data-analytics/search/data-engineer",
-      "job_url_pattern": "builtin[.]com/job/",
-      "disabled_reason": "live_smoke_zero_results_requires_source_specific_adapter"
+      "job_url_pattern": "builtin[.]com/job/"
     }
   ]
 }
