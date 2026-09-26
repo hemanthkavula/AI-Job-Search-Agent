@@ -1,0 +1,63 @@
+name: ATS Adapter Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "app/sources/smartrecruiters.py"
+      - "app/sources/workable.py"
+      - "app/sources/career_site.py"
+      - "data/job_sources.json"
+      - ".github/workflows/ats-adapter-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run SmartRecruiters and Workable live smoke
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
+          from app.sources.workable import fetch_jobs as workable_jobs
+
+          cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8"))
+          totals={"smartrecruiters":0,"workable":0}
+          failures=[]
+
+          for src in cfg.get("smartrecruiters",[]):
+              company=src.get("company") or src.get("company_identifier")
+              ident=src.get("company_identifier")
+              try:
+                  jobs=smartrecruiters_jobs(ident,timeout=20,hours=168)
+                  totals["smartrecruiters"] += len(jobs)
+                  print(f"SMOKE smartrecruiters | {company} | {ident} | {len(jobs)} DE jobs",flush=True)
+              except Exception as exc:
+                  failures.append(("smartrecruiters",company,str(exc)))
+                  print(f"SMOKE smartrecruiters | {company} | ERROR | {exc}",flush=True)
+
+          for src in cfg.get("workable",[]):
+              company=src.get("company") or src.get("search_url")
+              url=src.get("search_url")
+              try:
+                  jobs=workable_jobs(company,url,timeout=25)
+                  totals["workable"] += len(jobs)
+                  print(f"SMOKE workable | {company} | {len(jobs)} DE jobs",flush=True)
+              except Exception as exc:
+                  failures.append(("workable",company,str(exc)))
+                  print(f"SMOKE workable | {company} | ERROR | {exc}",flush=True)
+
+          print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} failures={len(failures)}",flush=True)
+          if failures:
+              raise SystemExit("ATS smoke had execution failures")
+          PY
