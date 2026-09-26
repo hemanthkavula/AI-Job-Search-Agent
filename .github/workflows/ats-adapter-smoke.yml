@@ -97,14 +97,19 @@ jobs:
                       endpoint_hints=[x for x in endpoint_hints if any(k in x.lower() for k in ("api","jobboard","opportunit","recruit","posting","search"))][:40]
                       script_srcs=re.findall(r'<script[^>]+src=["\\\']([^"\\\']+)["\\\']',body,re.I)[:40]
                       js_hints=[]
-                      for script_url in script_srcs:
+                      bundle_urls=[urljoin(url,x) for x in script_srcs if any(k in x.lower() for k in ("sitebundle","site.min","site.js","jslib"))]
+                      for full_script in bundle_urls:
                           try:
-                              script_body=ukg_get(urljoin(url,script_url),25)
-                              if "LoadSearchResults" in script_body:
-                                  pos=script_body.find("LoadSearchResults")
-                                  js_hints.append(script_body[max(0,pos-1200):pos+2200].replace("\\n"," ")[:3400])
-                          except Exception:
-                              pass
+                              script_body=ukg_get(full_script,25)
+                              for token in ("LoadSearchResults","GetOpportunityMatchCount"):
+                                  start=0
+                                  while len(js_hints)<12:
+                                      pos=script_body.find(token,start)
+                                      if pos<0: break
+                                      js_hints.append(script_body[max(0,pos-3000):pos+5000].replace("\\n"," ")[:8000])
+                                      start=pos+len(token)
+                          except Exception as exc:
+                              js_hints.append("BUNDLE_ERROR:"+type(exc).__name__)
                       visible=len(re.findall(r'href=["\\\'][^"\\\']*(?:OpportunityDetail|/job/|/jobs/)[^"\\\']*["\\\']',body,re.I))
                       jobs=ukg_jobs(company,url,timeout=25)
                       totals["ukg"] += len(jobs)
