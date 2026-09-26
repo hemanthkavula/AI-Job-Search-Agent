@@ -200,10 +200,10 @@ def sam_registered_entities(timeout=30):
         if len(rows)<limit:break
     return out
 
-FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,\n         "ncua_active_credit_unions":ncua_active_credit_unions,
+FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
+         "ncua_active_credit_unions":ncua_active_credit_unions,
          "college_scorecard_institutions":college_scorecard_institutions,
          "cms_hospitals":cms_hospitals,"sam_registered_entities":sam_registered_entities}
-
 def collect(enabled=None):
     enabled=enabled or list(FEEDERS)
     rows=[];errors=[]
