@@ -2280,7 +2280,7 @@
   ],
   "source_policy": {
     "ats_catalog_mode": "open_ended",
-    "configured_provider_families": 81,
+    "configured_provider_families": 82,
     "learned_sources_path": "JOB_AGENT_STATE_DIR/discovered_sources.json",
     "unknown_employers_allowed": true,
     "seed_lists_are_allowlists": false,
