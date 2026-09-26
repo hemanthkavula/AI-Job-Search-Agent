@@ -1944,7 +1944,16 @@
       "search_url": "https://join.com/companies/aimitechnology"
     }
   ],
-  "greenhouse_eu": [],
+  "greenhouse_eu": [
+    {
+      "company": "Overstory",
+      "search_url": "https://job-boards.eu.greenhouse.io/overstory"
+    },
+    {
+      "company": "Sales Automation Board",
+      "search_url": "https://job-boards.eu.greenhouse.io/recruit-with-zero"
+    }
+  ],
   "applitrack": [],
   "hireology": [
     {
@@ -1989,7 +1998,20 @@
     }
   ],
   "trinet": [],
-  "dover": [],
+  "dover": [
+    {
+      "company": "Entrada AI",
+      "search_url": "https://app.dover.com/jobs/entrada"
+    },
+    {
+      "company": "GovSignals",
+      "search_url": "https://app.dover.com/GovSignals/careers/d6832272-6a66-48f3-8560-abb4c76960cf"
+    },
+    {
+      "company": "Cogniify",
+      "search_url": "https://app.dover.com/apply/cogniify/78303162-560e-41b6-ba4b-10c5eeabacde"
+    }
+  ],
   "gem": [
     {
       "company": "Félix",
