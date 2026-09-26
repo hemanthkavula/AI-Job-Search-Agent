@@ -1823,7 +1823,20 @@
       "search_url": "https://open.jobs.personio.com/"
     }
   ],
-  "ukg": [],
+  "ukg": [
+    {
+      "company": "Aircraft Owners and Pilots Association",
+      "search_url": "https://recruiting.ultipro.com/AIR1010AOPA/JobBoard/07eab000-39ca-4e0b-8446-d62688e95fef/"
+    },
+    {
+      "company": "Candid",
+      "search_url": "https://recruiting.ultipro.com/FOU1009FCCN/JobBoard/7f7b3de0-a56b-44ee-a561-34aaf535549c/"
+    },
+    {
+      "company": "US Cold",
+      "search_url": "https://recruiting.ultipro.com/UNI1105USCS/JobBoard/d4ff7dd5-4039-40e8-862a-d044370634fa/"
+    }
+  ],
   "paycom": [
     {
       "company": "Lulus",
@@ -2023,7 +2036,20 @@
   "icims_alt": [],
   "jobappnetwork": [],
   "myworkchoice": [],
-  "ultipro_ukg": [],
+  "ultipro_ukg": [
+    {
+      "company": "Aircraft Owners and Pilots Association",
+      "search_url": "https://recruiting.ultipro.com/AIR1010AOPA/JobBoard/07eab000-39ca-4e0b-8446-d62688e95fef/"
+    },
+    {
+      "company": "Candid",
+      "search_url": "https://recruiting.ultipro.com/FOU1009FCCN/JobBoard/7f7b3de0-a56b-44ee-a561-34aaf535549c/"
+    },
+    {
+      "company": "US Cold",
+      "search_url": "https://recruiting.ultipro.com/UNI1105USCS/JobBoard/d4ff7dd5-4039-40e8-862a-d044370634fa/"
+    }
+  ],
   "source_policy": {
     "ats_catalog_mode": "open_ended",
     "configured_provider_families": 82,
