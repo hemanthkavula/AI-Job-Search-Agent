@@ -1928,7 +1928,16 @@
       "search_url": "https://unit21.zohorecruit.com/jobs/Careers"
     }
   ],
-  "manatal": [],
+  "manatal": [
+    {
+      "company": "Manatal Tech Team Account (Production)",
+      "search_url": "https://careers-page.com/manatal-tech-team-account-prod"
+    },
+    {
+      "company": "Inclusion Cloud",
+      "search_url": "https://www.careers-page.com/inclusioncloud"
+    }
+  ],
   "join": [
     {
       "company": "AiMi",
