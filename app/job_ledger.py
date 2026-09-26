@@ -63,7 +63,7 @@ PROCESSED_STATUSES={
     "SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",
 }
 
-RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION","RETRY_APPLICATION"}
+RETRYABLE_STATUSES={"RETRY_RESUME_GENERATION"}
 MAX_RESUME_RETRIES=3
 MAX_APPLICATION_RETRIES=3
 RETRY_BACKOFF_MINUTES=(60,120,240)
@@ -100,7 +100,7 @@ def retryable_jobs(ledger):
     out=[]
     for key,row in (ledger.get("jobs") or {}).items():
         if row.get("application_status") not in RETRYABLE_STATUSES:continue
-        if row.get("application_status")=="RETRY_RESUME_GENERATION" and not _retry_due(row,"resume"):continue
+        if not _retry_due(row,"resume"):continue
         payload=row.get("retry_job")
         if isinstance(payload,dict) and payload.get("external_id"):
             out.append(payload)
