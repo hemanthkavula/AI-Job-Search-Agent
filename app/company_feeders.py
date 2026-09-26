@@ -115,6 +115,61 @@ def cms_hospitals(timeout=30):
         if len(rows)<limit:break
     return out
 
+
+def ncua_active_credit_unions(timeout=30):
+    """Active federally insured credit unions from NCUA's latest quarterly list.
+
+    NCUA publishes this as a ZIP containing a spreadsheet.  This feeder is
+    deliberately dependency-light: it reads the XLSX workbook XML directly and
+    returns employer identities only.  Career/ATS resolution remains a separate
+    verification step.
+    """
+    import io, re, zipfile
+    from xml.etree import ElementTree as ET
+    index="https://ncua.gov/analysis/credit-union-corporate-call-report-data"
+    req=Request(index,headers=UA)
+    with urlopen(req,timeout=timeout) as r:html=r.read().decode("utf-8","ignore")
+    m=re.search(r'href=["\\\']([^"\\\']*federally-insured-credit-union-list[^"\\\']*\\.zip)["\\\']',html,re.I)
+    if not m:return []
+    from urllib.parse import urljoin
+    zip_url=urljoin(index,m.group(1))
+    with urlopen(Request(zip_url,headers=UA),timeout=timeout) as r:payload=r.read()
+    z=zipfile.ZipFile(io.BytesIO(payload))
+    xlsx=next((n for n in z.namelist() if n.lower().endswith(".xlsx")),None)
+    if not xlsx:return []
+    book=zipfile.ZipFile(io.BytesIO(z.read(xlsx)))
+    ns={"m":"http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    shared=[]
+    if "xl/sharedStrings.xml" in book.namelist():
+        root=ET.fromstring(book.read("xl/sharedStrings.xml"))
+        for si in root.findall("m:si",ns):
+            shared.append("".join(t.text or "" for t in si.iterfind(".//m:t",ns)))
+    sheet=next((n for n in book.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")),None)
+    if not sheet:return []
+    root=ET.fromstring(book.read(sheet))
+    rows=[]
+    for row in root.findall(".//m:row",ns):
+        vals=[]
+        for cell in row.findall("m:c",ns):
+            v=cell.find("m:v",ns);value="" if v is None else (v.text or "")
+            if cell.get("t")=="s" and value.isdigit() and int(value)<len(shared):value=shared[int(value)]
+            vals.append(value.strip())
+        if vals:rows.append(vals)
+    if not rows:return []
+    header=[x.upper().replace(" ","_") for x in rows[0]]
+    name_idx=next((i for i,x in enumerate(header) if x in {"CU_NAME","CREDIT_UNION_NAME","NAME"}),None)
+    number_idx=next((i for i,x in enumerate(header) if x in {"CU_NUMBER","CHARTER_NUMBER","CHARTER"}),None)
+    if name_idx is None:return []
+    out=[]
+    for vals in rows[1:]:
+        if name_idx>=len(vals):continue
+        name=vals[name_idx].strip()
+        if not name:continue
+        number=vals[number_idx].strip() if number_idx is not None and number_idx<len(vals) else ""
+        out.append({"company":name,"ncua_charter":number or None,
+                    "discovered_by":"ncua_active_federally_insured_credit_unions"})
+    return out
+
 def sam_registered_entities(timeout=30):
     """Private/public organizations registered in SAM.gov.
 
@@ -145,7 +200,7 @@ def sam_registered_entities(timeout=30):
         if len(rows)<limit:break
     return out
 
-FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
+FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,\n         "ncua_active_credit_unions":ncua_active_credit_unions,
          "college_scorecard_institutions":college_scorecard_institutions,
          "cms_hospitals":cms_hospitals,"sam_registered_entities":sam_registered_entities}
 
