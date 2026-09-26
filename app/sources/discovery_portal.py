@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib, html, json, re
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8","Accept-Language":"en-US,en;q=0.9"}
@@ -92,10 +92,18 @@ def _pagination_links(body:str,page_url:str)->list[str]:
             if u not in out:out.append(u)
     return out
 
+def _numbered_page_url(url:str,page:int)->str:
+    p=urlsplit(url);q=dict(parse_qsl(p.query,keep_blank_values=True));q["page"]=str(page)
+    return urlunsplit((p.scheme,p.netloc,p.path,urlencode(q),p.fragment))
+
 def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None,max_detail_pages:int=250,max_search_pages:int=10)->list[dict]:
     """Crawl a public portal strictly as discovery; authoritative resolution is mandatory downstream."""
     out=[];seen=set();rx=re.compile(job_url_pattern,re.I);links=[]
     queue=[search_url];visited_pages=set()
+    # Wellfound's public role pages use ?page=N but do not consistently expose
+    # pagination anchors in the HTML returned to the crawler.
+    if provider.lower()=="wellfound":
+        queue.extend(_numbered_page_url(search_url,n) for n in range(2,max_search_pages+1))
     while queue and len(visited_pages)<max_search_pages and len(links)<max_detail_pages:
         page_url=queue.pop(0)
         if page_url in visited_pages:continue
