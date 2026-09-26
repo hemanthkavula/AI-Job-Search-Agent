@@ -1891,7 +1891,12 @@
       "search_url": "https://www.comeet.com/jobs/mwdn/61.005/"
     }
   ],
-  "clearcompany": [],
+  "clearcompany": [
+    {
+      "company": "Middlesex Water Company",
+      "search_url": "https://www.middlesexwater.com/careers/"
+    }
+  ],
   "applicantpro": [
     {
       "company": "VillageCare",
