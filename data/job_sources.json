@@ -1772,7 +1772,12 @@
   "jazzhr_alt": [],
   "ceipal": [],
   "trakstar_hire": [],
-  "neogov": [],
+  "neogov": [
+    {
+      "company": "NEOGOV",
+      "search_url": "https://www.governmentjobs.com/careers/neogov"
+    }
+  ],
   "schooljobs": [],
   "higheredjobs": [],
   "applynow": [],
