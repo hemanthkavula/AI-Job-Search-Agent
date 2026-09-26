@@ -129,7 +129,7 @@ def ncua_active_credit_unions(timeout=30):
     index="https://ncua.gov/analysis/credit-union-corporate-call-report-data"
     req=Request(index,headers=UA)
     with urlopen(req,timeout=timeout) as r:html=r.read().decode("utf-8","ignore")
-    m=re.search(r'href=["\\\']([^"\\\']*federally-insured-credit-union-list[^"\\\']*\\.zip)["\\\']',html,re.I)
+    m=re.search(r'href=["\\\']([^"\\\']*federally-insured-credit-union-list[^"\\\']*\.zip)["\\\']',html,re.I)
     if not m:return []
     from urllib.parse import urljoin
     zip_url=urljoin(index,m.group(1))
