@@ -1872,7 +1872,20 @@
       "search_url": "https://utah.peopleadmin.com/postings/search"
     }
   ],
-  "isolved": [],
+  "isolved": [
+    {
+      "company": "Imagine360",
+      "search_url": "https://imagine360.isolvedhire.com/jobs/"
+    },
+    {
+      "company": "Sheakley",
+      "search_url": "https://sheakleygroup.isolvedhire.com/jobs/"
+    },
+    {
+      "company": "iSolved",
+      "search_url": "https://isolved.isolvedhire.com/jobs/"
+    }
+  ],
   "hibob": [],
   "gohire": [],
   "hiringthing": [],
