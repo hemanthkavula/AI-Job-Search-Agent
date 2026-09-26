@@ -249,7 +249,7 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
         title=str(j.get("title") or "")
         desc=_plain(str(j.get("description") or j.get("full_description") or ""))
         hay=(title+" "+desc[:2500]).lower()
-        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer")):continue
+        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):continue
         shortcode=str(j.get("shortcode") or j.get("code") or "")
         url=j.get("url") or (f"https://apply.workable.com/{slug}/j/{shortcode}" if shortcode else search_url)
         loc=", ".join(str(x) for x in (j.get("city"),j.get("state"),j.get("country")) if x)
@@ -257,7 +257,36 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
           "title":title,"location":loc or None,"url":url,"original_url":url,"ats_provider":"workable",
           "ats_identifier":slug,"job_id":shortcode or url,"description":desc,"description_complete":bool(desc),
           "updated_at":j.get("published") or j.get("created_at")})
-    return out
+    if out:
+        return _dedupe_jobs(out)
+
+    # Workable's public account API can be incomplete even while the official
+    # apply.workable.com board has live postings. Fall back to authoritative
+    # board links rather than treating an API zero as proof of no jobs.
+    body=_get(search_url,timeout)
+    links=[];seen=set()
+    for href in re.findall(r'href=[\'"]([^\'"]+)[\'"]',body,re.I):
+        url=urljoin(search_url,html.unescape(href))
+        if re.search(rf"apply\\.workable\\.com/{re.escape(slug)}/j/[^/?#]+",url,re.I) and url not in seen:
+            seen.add(url);links.append(url)
+    for url in links[:250]:
+        try: detail=_get(url,timeout)
+        except Exception: continue
+        j=_jsonld(detail)
+        title=_plain(str(j.get("title") or ""))
+        if not title:
+            mt=re.search(r"<title>(.*?)</title>",detail,re.I|re.S)
+            title=_plain(mt.group(1)) if mt else ""
+        desc=_plain(str(j.get("description") or detail))
+        hay=(title+" "+desc[:2500]).lower()
+        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):
+            continue
+        ident=_identifier(j,url)
+        out.append({"external_id":f"workable:{slug}:{ident}","source":"workable","company_key":company,
+          "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"workable",
+          "ats_identifier":slug,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
+          "updated_at":j.get("datePosted") or j.get("validThrough")})
+    return _dedupe_jobs(out)
 
 def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
     low=search_url.lower()
