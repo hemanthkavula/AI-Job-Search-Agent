@@ -2024,7 +2024,12 @@
       "search_url": "https://secure.dc4.pageuppeople.com/apply/873/gateway/Default.aspx"
     }
   ],
-  "trinet": [],
+  "trinet": [
+    {
+      "company": "TriNet",
+      "search_url": "https://jobs.trinet.com/careers"
+    }
+  ],
   "dover": [
     {
       "company": "Entrada AI",
