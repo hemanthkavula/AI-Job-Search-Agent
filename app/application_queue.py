@@ -52,11 +52,24 @@ def _application_gate(row,profile):
     }
     return passes_hard_filters(job,profile)
 
+def _queue_identity(row):
+    """Stable identity used to prevent duplicate ATS submissions in one queue."""
+    return (
+      str(row.get("external_id") or "").strip().lower()
+      or "|".join([
+        str(row.get("company") or "").strip().lower(),
+        str(row.get("title") or "").strip().lower(),
+        str(row.get("original_url") or row.get("url") or "").split("?",1)[0].rstrip("/").lower(),
+      ])
+    )
+
 def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
     """Queue only fully validated, still-eligible artifacts; never trust an earlier gate alone."""
-    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile()
+    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile();seen=set()
     for r in rows:
         if r.get("next_action")!="READY_TO_APPLY":continue
+        identity=_queue_identity(r)
+        if identity in seen:continue
         validation=r.get("artifact_validation") or {}
         pdf=r.get("pdf_path")
         # Backward compatibility: manifests created before artifact_validation was
@@ -73,6 +86,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
             continue
+        seen.add(identity)
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
