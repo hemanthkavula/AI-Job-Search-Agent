@@ -105,7 +105,7 @@ jobs:
           SAM_API_KEY: ${{ secrets.SAM_API_KEY }}
         run: |
           python -m app.company_enrichment_runner \
-            --sources data/job_sources.json \
+            --source-config data/job_sources.json \
             --domain-budget 250 \
             --career-budget 250 \
             --retry-days 7
