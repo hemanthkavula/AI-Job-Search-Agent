@@ -26,3 +26,11 @@ def test_acceptance_rejects_aggregator_ready_destination(tmp_path,monkeypatch):
     summary={"cycle_id":"c1","ready_to_apply":1,"queued_for_application":1,"eligible":1,"manifest_ready_to_apply":1,"prepared":1,"resume_generation_enabled":True,"application_queue":"queue.json"}
     p=Path("summary.json");p.write_text(json.dumps(summary))
     with pytest.raises(SystemExit): audit(str(p))
+
+def test_acceptance_rejects_nonexistent_resume_pdf(tmp_path,monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    queue=[{"external_id":"x1","status":"READY_FOR_ATS_ADAPTER","application_gate":{"passed":True},"resume_path":"missing.pdf","artifact_validation":{"passed":True},"url":"https://jobs.example.com/job/1"}]
+    Path("queue.json").write_text(json.dumps(queue))
+    summary={"cycle_id":"c1","ready_to_apply":1,"queued_for_application":1,"eligible":1,"manifest_ready_to_apply":1,"prepared":1,"resume_generation_enabled":True,"application_queue":"queue.json"}
+    p=Path("summary.json");p.write_text(json.dumps(summary))
+    with pytest.raises(SystemExit): audit(str(p))
