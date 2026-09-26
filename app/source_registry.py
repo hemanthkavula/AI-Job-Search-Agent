@@ -156,6 +156,26 @@ def learn_career_site(company, careers_url, registry, learned_from="official_car
               "learned_from":learned_from,"verified_official_career_site":True})
  return True
 
+def learn_resolved_source(provider, company, careers_url, registry, identifier=None, learned_from="official_career_resolver"):
+ """Persist an ATS/provider result already verified by the official career resolver.
+
+ Unlike learn_from_jobs(), this does not re-detect the provider from the URL;
+ branded employer domains may hide the ATS hostname entirely.
+ """
+ if not provider or not company or not careers_url:return False
+ if provider=="career_site":
+  return learn_career_site(company,careers_url,registry,learned_from)
+ rows=registry.setdefault(provider,[])
+ normalized=careers_url.rstrip("/")
+ for row in rows:
+  existing=(row.get("original_url") or row.get("url") or row.get("search_url") or "").rstrip("/")
+  if existing==normalized and row.get("company")==company:
+   return False
+ rows.append({"company":company,"identifier":identifier or urlparse(careers_url).netloc.lower(),
+              "learned_from":learned_from,"original_url":careers_url,
+              "verified_official_career_site":True})
+ return True
+
 def learn_from_jobs(jobs,registry):
  """Learn reusable public ATS board identifiers from broad-discovery results."""
  added=[]
