@@ -85,6 +85,27 @@ jobs:
                   joblinks=[urljoin(url,html.unescape(h)) for h in hrefs if any(x in h.lower() for x in ("/job/","/jobs/","jobdetail","job-details","posting"))]
                   scripts=re.findall(r'<script[^>]+src=["\\\']([^"\\\']+)["\\\']',body,re.I)
                   hints=sorted(set(x for x in re.findall(r'(?i)(?:https?:)?//[^"\\\'<> ]+|/[A-Za-z0-9_.?=&%/-]{3,}',body) if any(k in x.lower() for k in ("api","job","career","posting","candidate"))))[:80]
+                  next_data=[]
+                  for raw in re.findall(r'<script[^>]+id=["\\\']__NEXT_DATA__["\\\'][^>]*>(.*?)</script>',body,re.I|re.S):
+                      try:
+                          nd=json.loads(html.unescape(raw.strip()))
+                          next_data.append(nd)
+                      except Exception: pass
+                  bundle_hints=[]
+                  for src in scripts:
+                      if "[clientNamespace]" in src or "careerSiteXRefCode" in src or "%5BclientNamespace%5D" in src:
+                          try:
+                              js=dayforce_get(urljoin(url,src),25)
+                              for token in ("api/","job","posting","search","careerSite","CandidatePortal"):
+                                  start=0
+                                  while len(bundle_hints)<20:
+                                      pos=js.lower().find(token.lower(),start)
+                                      if pos<0: break
+                                      bundle_hints.append(js[max(0,pos-1800):pos+3000].replace("\\n"," ")[:4800])
+                                      start=pos+len(token)
+                          except Exception as exc:
+                              bundle_hints.append("BUNDLE_ERROR:"+type(exc).__name__)
+                  print(f"DIAG dayforce next | {company} | next_data={next_data[:1]} bundle_snippets={bundle_hints[:8]}",flush=True)
                   jobs=dayforce_jobs(company,url,timeout=25)
                   print(f"DIAG dayforce | {company} | bytes={len(body)} jsonld={len(posts)} joblinks={len(joblinks)} scripts={scripts[:30]}",flush=True)
                   print(f"DIAG dayforce hints | {company} | {hints}",flush=True)
