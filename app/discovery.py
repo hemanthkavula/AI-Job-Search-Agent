@@ -37,7 +37,7 @@ DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","succ
 FALLBACK_ATS_PROVIDERS=()
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None, return_coverage=False) -> list[dict]:
     registry_path=registry_path or str(DEFAULT_PATH)
     source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
@@ -251,6 +251,28 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             f"jobs_returned={provider_counts.get(provider,0)} | healthy_units={ok_for_provider} | failed_units={errors_for_provider} | skipped_unhealthy={skipped_for_provider}",
             flush=True,
         )
+    board_sources={"dice","ziprecruiter","monster"} | {src.get("provider") for src in config.get("discovery_portal",[]) if src.get("enabled",True)}
+    attempted=[v for v in health.values() if v.get("status") in {"OK","ERROR","SKIPPED_UNHEALTHY"}]
+    employer_units=[v for v in attempted if v.get("source") not in board_sources and v.get("company")]
+    ats_units=[v for v in employer_units if v.get("source") in ALL_ATS_PROVIDERS]
+    career_units=[v for v in employer_units if v.get("source")=="career_site"]
+    board_units=[v for v in attempted if v.get("source") in board_sources]
+    def _names(items): return sorted({str(x.get("company")).strip() for x in items if x.get("company")})
+    coverage={
+        "unique_employers_or_tenants_attempted":len(set(_names(employer_units))),
+        "career_site_units_attempted":len(career_units),
+        "career_site_unique_names":len(set(_names(career_units))),
+        "ats_tenant_units_attempted":len(ats_units),
+        "ats_tenant_unique_names":len(set(_names(ats_units))),
+        "ats_provider_families_attempted":len({x.get("source") for x in ats_units}),
+        "job_board_or_discovery_units_attempted":len(board_units),
+        "job_board_or_discovery_providers_attempted":sorted({x.get("source") for x in board_units}),
+        "successful_units":sum(x.get("status")=="OK" for x in attempted),
+        "failed_units":sum(x.get("status")=="ERROR" for x in attempted),
+        "skipped_unhealthy_units":sum(x.get("status")=="SKIPPED_UNHEALTHY" for x in attempted),
+        "configured_units_by_provider":configured_units,
+    }
+    print("COVERAGE "+json.dumps(coverage,sort_keys=True),flush=True)
     learned=learn_from_jobs(learnable,registry)
     if learned:
         for item in learned:
@@ -277,4 +299,4 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     except Exception:prior={}
     prior.update(health)
     hp.write_text(json.dumps(prior,indent=2),encoding="utf-8")
-    return rows, errors
+    return (rows, errors, coverage) if return_coverage else (rows, errors)
