@@ -251,9 +251,11 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     # This lets later enrichment retry official-domain/career resolution instead
     # of losing private/startup/staffing employers after a single job-board hit.
     company_registry=load_company_registry()
-    company_count_before=len(company_registry)
-    learn_companies_from_jobs(learnable,company_registry)
-    if len(company_registry)!=company_count_before:
+    if learnable:
+        # Existing employers can gain better careers/ATS metadata even when no
+        # new registry key is created. Persist every learning pass so those
+        # upgrades survive into later enrichment and discovery cycles.
+        learn_companies_from_jobs(learnable,company_registry)
         save_company_registry(company_registry)
     # Persist source health independently from cycle output so the dashboard and
     # scheduler can surface degraded ATS/job-board coverage instead of silently
