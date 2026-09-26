@@ -407,3 +407,18 @@ A healthy scheduled slot should:
 9. leave employer submission for the user.
 
 If an external scheduled trigger or source fails, the system should preserve the unprocessed interval and retry it rather than silently losing that interval.
+
+
+## Source expansion architecture — Sep 26, 2026
+
+- Source discovery is open-ended; configured companies are seeds/priorities, not an allowlist.
+- The source registry recognizes 82 ATS/career-site provider families. The current static catalog contains 423 configured source units; WeRecruit is intentionally unseeded until a verified U.S. employer board is available.
+- Direct employer career sites and ATS boards are primary. Dice and ZipRecruiter are supplemental discovery; aggregator hits still require authoritative employer/ATS JD resolution.
+- The 7 AM Eastern production slot now runs persistent U.S. employer enrichment before normal source health/discovery. SEC public-company identities, active FDIC institutions, CMS hospitals, and optional College Scorecard/SAM feeds expand the employer universe.
+- Enrichment resolves evidence-backed official domains, finds career pages, detects hosted or embedded ATS systems, and persists learned sources under JOB_AGENT_STATE_DIR.
+- Source health now merges configured and learned sources so newly discovered boards are visible to health monitoring.
+- Branded career pages can identify ATS platforms from embedded script assets; resolver-verified provider identity is persisted without requiring the employer URL itself to expose the ATS hostname.
+- TalentReef/JobAppNetwork support client-scoped structured collection when a verified client ID exists and verified public-board fallback otherwise.
+- Explicit prior-employer hard exclusions are enforced for Fidelity Investments, Cigna Healthcare/The Cigna Group, and Target Corporation/Target.
+- Non-U.S. and low-quality placeholder seeds discovered during the audit were removed.
+- No claim is made that every U.S. job can be captured: private/internal jobs, blocked sites, partner-only boards, and postings not publicly exposed remain outside guaranteed coverage. The design continuously expands public employer/ATS coverage instead of depending on a finite company list.
