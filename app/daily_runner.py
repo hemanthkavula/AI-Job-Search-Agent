@@ -141,12 +141,22 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     # Workday is composed of independent company/tenant scans. Expose their
     # status separately so one broken tenant does not force every healthy tenant
     # to replay the same historical interval.
+    # Preserve every executed employer/tenant unit, not only Workday. Discovery's
+    # persisted source-health file is the authoritative execution ledger for this scan.
     source_unit_status={}
-    failed_workday={e.get("company") for e in errors if e.get("source")=="workday"}
-    for src in config.get("workday",[]) or []:
-        unit=src.get("company") or src.get("tenant")
-        if unit:
-            source_unit_status[f"workday:{unit}"]="ERROR" if unit in failed_workday else "OK"
+    try:
+        health=json.loads(Path("state/source_health.json").read_text(encoding="utf-8"))
+        for key,row in health.items():
+            if not isinstance(row,dict): continue
+            source=row.get("source"); company=row.get("company")
+            if source and company:
+                source_unit_status[f"{source}:{company}"]={
+                    "source":source,"company":company,"status":row.get("status"),
+                    "jobs_returned":row.get("jobs_returned",0),"error":row.get("error"),
+                    "checked_at":row.get("checked_at")
+                }
+    except Exception:
+        pass
     target_fresh=sum(bool(j.get("target_company")) for j in jobs24)
     target_eligible=sum(bool((x.get("job") or {}).get("target_company")) for x in eligible)
     target_rejected=sum(bool((x.get("job") or {}).get("target_company")) for x in skipped)
