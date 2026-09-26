@@ -96,7 +96,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     hours,mode,cutoff=_window_for(now,state)
     # Each provider resumes from its own last successful discovery. Existing
     # scheduler state migrates safely by falling back to the global cutoff.
-    providers=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter","monster")))
+    source_config_for_watermarks=json.loads((ROOT/sources).read_text(encoding="utf-8")) if (ROOT/sources).exists() else {}\n    portal_providers=tuple(row.get("provider") for row in source_config_for_watermarks.get("discovery_portal",[]) if isinstance(row,dict) and row.get("enabled",True) and row.get("provider"))\n    providers=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter","monster")+portal_providers))
     watermarks=state.get("source_watermarks") or {}
     source_cutoffs={}
     source_hours={}
