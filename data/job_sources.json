@@ -2078,7 +2078,12 @@
   "talentreef": [],
   "icims_alt": [],
   "jobappnetwork": [],
-  "myworkchoice": [],
+  "myworkchoice": [
+    {
+      "company": "MyWorkChoice",
+      "search_url": "https://myworkchoice.com/search-jobs/"
+    }
+  ],
   "ultipro_ukg": [
     {
       "company": "Aircraft Owners and Pilots Association",
