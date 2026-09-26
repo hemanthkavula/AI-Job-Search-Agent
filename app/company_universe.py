@@ -47,9 +47,21 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             upsert(reg,company,careers_url=url,ats_provider=None if provider=="career_site" else provider,
                    discovered_by="configured_source")
     # Add identity-level companies from authoritative/public universe feeders.
-    # These companies still require official-domain/career-page resolution before
-    # they become executable job sources.
-    feeder_rows,feeder_errors=collect_company_feeders()
+    # data/company_feeders.json is the control plane: only explicitly enabled
+    # implemented feeder IDs are executed. Internal seed/learning entries are
+    # handled above/by normal discovery and are not external feeder functions.
+    feeder_cfg_path=ROOT/"data/company_feeders.json"
+    enabled_feeders=None
+    if feeder_cfg_path.exists():
+        feeder_cfg=json.loads(feeder_cfg_path.read_text(encoding="utf-8"))
+        enabled_feeders=[
+            row.get("id") for row in feeder_cfg.get("feeders",[])
+            if isinstance(row,dict) and row.get("enabled") and row.get("id") in {
+                "sec_public_companies","fdic_insured_banks","ncua_active_credit_unions",
+                "college_scorecard_institutions","cms_hospitals","sam_registered_entities"
+            }
+        ]
+    feeder_rows,feeder_errors=collect_company_feeders(enabled_feeders)
     for row in feeder_rows:
         upsert(reg,row.get("company"),discovered_by=row.get("discovered_by"))
         key=company_key(row.get("company") or "")
