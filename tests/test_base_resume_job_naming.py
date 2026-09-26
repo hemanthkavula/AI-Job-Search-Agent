@@ -85,5 +85,6 @@ def test_incomplete_dice_jd_uses_master_resume_without_llm(tmp_path, monkeypatch
     assert len(rows)==1
     assert rows[0]["next_action"]=="READY_TO_APPLY"
     assert rows[0]["tailoring_mode"]=="BASE_RESUME_CONSERVATIVE"
+    # Incomplete Dice JDs must retain the non-LLM fallback provenance in the manifest.
     assert rows[0]["ats_audit"]["generation_source"]=="master_resume_incomplete_jd"
     assert rows[0]["ats_audit"]["generation_attempts"]==0
