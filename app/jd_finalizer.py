@@ -14,6 +14,11 @@ MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
 MIN_USABLE_JD_CHARS=250
 DICE_BOILERPLATE_MARKERS=("Search all similar jobs","Jobs Directory","Career Advice","Employers and Recruiters","Get the Dice app","Copyright ©","Apply Now To see how well you match")
+AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com")
+
+def _is_aggregator_url(url):
+    host=(parse.urlsplit(url or "").netloc or "").lower()
+    return any(host==name or host.endswith("."+name) for name in AGGREGATOR_HOSTS)
 JD_SECTION_SIGNALS=("responsibilities","requirements","qualifications","what you'll do","what you will do","skills","experience","preferred","minimum qualifications","basic qualifications")
 
 def _jd_signal_score(text):
@@ -185,7 +190,10 @@ def resolve_full_jd(job):
     # Aggregator URLs are discovery leads, not preferred application targets.
     # Always try to canonicalize Dice to the employer's own careers/ATS page,
     # even when Dice already supplied a usable/full JD.
-    should_resolve_employer=(source=="dice")
+    lead_url=out.get("original_url") or out.get("url") or ""
+    # Any aggregator-origin lead is discovery-only. It must resolve to the
+    # employer/ATS job page before it can become eligible for paid resume work.
+    should_resolve_employer=(source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
         if len(employer_desc)>len(resolved):resolved=employer_desc
@@ -223,7 +231,11 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
         # Every provider gets a final live-page check. Never spend resume
         # generation on a URL known to be dead, and never assume an unverifiable
         # application is live.
-        live_status,live_reason=_live_public_job_page(raw.get("original_url") or raw.get("url"))
+        application_url=raw.get("original_url") or raw.get("url") or ""
+        if _is_aggregator_url(application_url):
+            held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
+            continue
+        live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
             held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Application page no longer exists or is explicitly closed.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
             continue
