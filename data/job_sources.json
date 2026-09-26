@@ -919,11 +919,6 @@
       "job_url_pattern": "careers\\.oracle\\.com/.+"
     },
     {
-      "company": "LinkedIn",
-      "search_url": "https://www.linkedin.com/jobs/search/?keywords=data%20engineer",
-      "job_url_pattern": "linkedin\\.com/jobs/view/.+"
-    },
-    {
       "company": "TikTok",
       "search_url": "https://lifeattiktok.com/search?keyword=data%20engineer",
       "job_url_pattern": "lifeattiktok\\.com/.+(?:job|search).+"
