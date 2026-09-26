@@ -1725,7 +1725,12 @@
   "careerplug": [],
   "freshteam": [],
   "jobscore": [],
-  "personio": [],
+  "personio": [
+    {
+      "company": "Open",
+      "search_url": "https://open.jobs.personio.com/"
+    }
+  ],
   "ukg": [],
   "paycom": [],
   "bullhorn": [],
