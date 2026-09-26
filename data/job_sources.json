@@ -759,11 +759,6 @@
       "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
     },
     {
-      "company": "Amazon Web Services (AWS)",
-      "search_url": "https://www.amazon.jobs/en/search?base_query=data+engineer&loc_query=United+States",
-      "job_url_pattern": "amazon\\\\.jobs/(?:en/)?jobs/"
-    },
-    {
       "company": "Cognizant",
       "search_url": "https://careers.cognizant.com/us-en/jobs/?keywords=data%20engineer",
       "job_url_pattern": "careers\\\\.cognizant\\\\.com/.+/jobs/.+"
@@ -830,11 +825,6 @@
     },
     {
       "company": "UnitedHealth Group",
-      "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
-      "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
-    },
-    {
-      "company": "Optum",
       "search_url": "https://careers.unitedhealthgroup.com/search-jobs/data%20engineer/50688/1",
       "job_url_pattern": "careers\\.unitedhealthgroup\\.com/job/.*"
     },
@@ -2024,10 +2014,6 @@
     {
       "company": "J.Walker Salon Group",
       "search_url": "https://jobs.gohire.io/jwalker-salon-group-inyldliv/"
-    },
-    {
-      "company": "J.Walker Salon Group",
-      "search_url": "https://jobs.gohire.io/jwalker-salon-group-inyldliv/"
     }
   ],
   "hiringthing": [],
@@ -2157,24 +2143,14 @@
     }
   ],
   "applynow": [],
-  "talentreef": [
-    {
-      "company": "Rooms To Go",
-      "search_url": "https://apply.jobappnetwork.com/rtg/en"
-    }
-  ],
+  "talentreef": [],
   "icims_alt": [
     {
       "company": "Applied Systems",
       "search_url": "https://careers-appliedsystems.icims.com/jobs/"
     }
   ],
-  "jobappnetwork": [
-    {
-      "company": "Spirit Halloween",
-      "search_url": "https://apply.jobappnetwork.com/spirithalloweenjobs/en"
-    }
-  ],
+  "jobappnetwork": [],
   "myworkchoice": [
     {
       "company": "MyWorkChoice",
