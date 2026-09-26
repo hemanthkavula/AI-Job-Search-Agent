@@ -14,7 +14,7 @@ def _get(url: str) -> str:
 
 def _job_links(page: str) -> list[str]:
     links=[]
-    for href in re.findall(r'href=["\']([^"\']+/job-openings/[^"\']+)["\']',page,re.I):
+    for href in re.findall(r'href=["\']([^"\']*?/job-openings/[^"\']+)["\']',page,re.I):
         url=parse.urljoin(BASE,html.unescape(href))
         if url not in links: links.append(url)
     return links
