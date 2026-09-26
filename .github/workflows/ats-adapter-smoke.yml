@@ -111,6 +111,25 @@ jobs:
                           except Exception as exc:
                               js_hints.append("BUNDLE_ERROR:"+type(exc).__name__)
                       visible=len(re.findall(r'href=["\\\'][^"\\\']*(?:OpportunityDetail|/job/|/jobs/)[^"\\\']*["\\\']',body,re.I))
+                      from urllib.request import Request as ProbeRequest, urlopen as probe_open
+                      from urllib.error import HTTPError
+                      probe_url=urljoin(url.rstrip("/")+"/","JobBoardView/LoadSearchResults")
+                      probes=[("GET",None,None),("POST_FORM",b"page=1&pageSize=20","application/x-www-form-urlencoded"),("POST_JSON",b'{"page":1,"pageSize":20}',"application/json"),("POST_EMPTY",b"","application/x-www-form-urlencoded")]
+                      probe_results=[]
+                      for pname,pdata,pctype in probes:
+                          try:
+                              headers={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/html,*/*","Referer":url}
+                              if pctype: headers["Content-Type"]=pctype
+                              req=ProbeRequest(probe_url,data=pdata,headers=headers,method="GET" if pdata is None else "POST")
+                              with probe_open(req,timeout=20) as resp:
+                                  raw=resp.read(12000).decode("utf-8","replace")
+                                  probe_results.append((pname,resp.status,resp.headers.get("Content-Type",""),len(raw),raw[:1500].replace("\\n"," ")))
+                          except HTTPError as exc:
+                              raw=exc.read(4000).decode("utf-8","replace")
+                              probe_results.append((pname,exc.code,exc.headers.get("Content-Type",""),len(raw),raw[:1000].replace("\\n"," ")))
+                          except Exception as exc:
+                              probe_results.append((pname,"ERR",type(exc).__name__,0,str(exc)[:500]))
+                      print(f"DIAG UKG probe | {company} | {probe_results}",flush=True)
                       jobs=ukg_jobs(company,url,timeout=25)
                       totals["ukg"] += len(jobs)
                       print(f"DIAG {family} | {company} | duplicate={duplicate} board_bytes={len(body)} jsonld={jsonld} visible_job_links={visible}",flush=True)
