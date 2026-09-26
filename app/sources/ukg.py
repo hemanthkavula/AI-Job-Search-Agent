@@ -40,6 +40,38 @@ def _location(j: dict) -> str|None:
             if text:vals.append(text)
     return "; ".join(vals) or None
 
+def _embedded_opportunities(body: str) -> list[dict]:
+    """Decode UKG opportunity objects embedded in the public board bootstrap."""
+    out=[]; seen=set(); decoder=json.JSONDecoder()
+    # Opportunity records have a stable Id + Featured prefix; raw_decode safely
+    # handles nested Locations/Address objects without brittle regex matching.
+    for m in re.finditer(r'\{"Id":"[0-9a-fA-F-]{36}","Featured":', body):
+        try:
+            row,_=decoder.raw_decode(body[m.start():])
+        except Exception:
+            continue
+        if not isinstance(row,dict) or not row.get("Title") or not row.get("Id"):
+            continue
+        ident=str(row["Id"])
+        if ident in seen: continue
+        seen.add(ident); out.append(row)
+    return out
+
+def _embedded_location(row: dict) -> str|None:
+    vals=[]
+    for loc in row.get("Locations") or []:
+        if not isinstance(loc,dict): continue
+        addr=loc.get("Address") or {}
+        state=addr.get("State") or {} if isinstance(addr,dict) else {}
+        country=addr.get("Country") or {} if isinstance(addr,dict) else {}
+        parts=[]
+        if isinstance(addr,dict) and addr.get("City"): parts.append(str(addr["City"]))
+        if isinstance(state,dict) and state.get("Code"): parts.append(str(state["Code"]))
+        if isinstance(country,dict) and country.get("Code"): parts.append(str(country["Code"]))
+        label=", ".join(parts) or _plain(loc.get("LocalizedName") or loc.get("LocalizedDescription"))
+        if label and label not in vals: vals.append(label)
+    return "; ".join(vals) or None
+
 def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
     """Collect public UKG/UltiPro postings exposed by the tenant's rendered board.
 
@@ -48,8 +80,22 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
     available as fallback for unsupported tenant variants.
     """
     body=_get(search_url,timeout)
-    jobs=_jobposting(body)
     out=[];seen=set()
+    terms=("data engineer","data engineering","data platform engineer","data infrastructure engineer","database engineer","data pipeline engineer","etl engineer","analytics engineer")
+    for row in _embedded_opportunities(body):
+        title=_plain(row.get("Title")); desc=_plain(row.get("BriefDescription"))
+        if not any(x in (title+" "+desc[:2500]).lower() for x in terms): continue
+        ident=str(row.get("Id")); url=search_url.rstrip("/")+"/OpportunityDetail?opportunityId="+ident
+        if ident in seen: continue
+        seen.add(ident)
+        out.append({"external_id":f"ukg:{company}:{ident}","source":"ukg","company_key":company,
+          "title":title,"location":_embedded_location(row),"url":url,"original_url":url,
+          "ats_provider":"ukg","ats_identifier":search_url,"job_id":ident,
+          "description":desc,"description_complete":False,
+          "updated_at":row.get("PostedDate")})
+    if out:return out
+
+    jobs=_jobposting(body)
     for j in jobs:
         title=_plain(j.get("title"))
         desc=_plain(j.get("description"))
