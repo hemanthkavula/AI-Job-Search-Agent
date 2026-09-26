@@ -6,6 +6,7 @@ on:
     paths:
       - "app/sources/**"
       - "app/discovery.py"
+      - "app/daily_runner.py"
       - "app/source_registry.py"
       - "app/source_health.py"
       - "app/company_feeders.py"
