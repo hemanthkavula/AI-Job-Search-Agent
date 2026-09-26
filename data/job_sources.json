@@ -2157,14 +2157,24 @@
     }
   ],
   "applynow": [],
-  "talentreef": [],
+  "talentreef": [
+    {
+      "company": "Rooms To Go",
+      "search_url": "https://apply.jobappnetwork.com/rtg/en"
+    }
+  ],
   "icims_alt": [
     {
       "company": "Applied Systems",
       "search_url": "https://careers-appliedsystems.icims.com/jobs/"
     }
   ],
-  "jobappnetwork": [],
+  "jobappnetwork": [
+    {
+      "company": "Spirit Halloween",
+      "search_url": "https://apply.jobappnetwork.com/spirithalloweenjobs/en"
+    }
+  ],
   "myworkchoice": [
     {
       "company": "MyWorkChoice",
