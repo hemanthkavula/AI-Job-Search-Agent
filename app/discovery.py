@@ -26,6 +26,7 @@ from app.sources.jobvite import fetch_jobs as jobvite_jobs
 from app.sources.public_ats_board import fetch_jobs as public_ats_jobs
 from app.sources.talentreef import fetch_jobs as talentreef_jobs
 from app.source_registry import load_registry, save_registry, learn_from_jobs, as_discovery_config, DEFAULT_PATH
+from app.company_registry import load as load_company_registry, save as save_company_registry, learn_from_jobs as learn_companies_from_jobs
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
 import json
@@ -243,7 +244,17 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     if learned:
         for item in learned:
             print(f"LEARNED ATS {item.get('provider')}: {item.get('company')} | {item.get('identifier')}",flush=True)
-    if learned:save_registry(registry,registry_path)
+        save_registry(registry,registry_path)
+
+    # Every broad-discovery employer becomes part of the persistent employer
+    # universe, even when its ATS cannot be resolved on the first encounter.
+    # This lets later enrichment retry official-domain/career resolution instead
+    # of losing private/startup/staffing employers after a single job-board hit.
+    company_registry=load_company_registry()
+    company_count_before=len(company_registry)
+    learn_companies_from_jobs(learnable,company_registry)
+    if len(company_registry)!=company_count_before:
+        save_company_registry(company_registry)
     # Persist source health independently from cycle output so the dashboard and
     # scheduler can surface degraded ATS/job-board coverage instead of silently
     # treating a failed provider as "zero jobs".
