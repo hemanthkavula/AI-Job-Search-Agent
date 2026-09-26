@@ -127,6 +127,10 @@ jobs:
           fi
           python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
 
+      - name: Verify production acceptance invariants
+        if: steps.guard.outputs.should_run == 'true'
+        run: python -m app.production_acceptance
+
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'
         env:
