@@ -12,6 +12,7 @@ from app.application_queue import _application_gate
 from app.config import load_profile
 from app.job_ledger import load_ledger, save_ledger, record_seen, retry_metadata, _retry_due, _lookup
 from app.source_registry import load_registry, as_discovery_config
+from app.discovery import ALL_ATS_PROVIDERS
 
 def _eastern_tz():
     """Use IANA Eastern time when available; fall back to Windows local Eastern time.
@@ -95,7 +96,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     hours,mode,cutoff=_window_for(now,state)
     # Each provider resumes from its own last successful discovery. Existing
     # scheduler state migrates safely by falling back to the global cutoff.
-    providers=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","career_site","eightfold","dayforce","ultipro","recruiting_com","adp_workforce_now","dice","ziprecruiter")
+    providers=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter")))
     watermarks=state.get("source_watermarks") or {}
     source_cutoffs={}
     source_hours={}
