@@ -2155,7 +2155,12 @@
       "search_url": "https://jobs.radancy.com/en"
     }
   ],
-  "paradox": [],
+  "paradox": [
+    {
+      "company": "Labcorp",
+      "search_url": "https://labcorp895.sites.stg.paradox.ai/"
+    }
+  ],
   "applicantstack": [
     {
       "company": "Sparibis",
@@ -2176,7 +2181,16 @@
       "search_url": "https://analyticallc.applytojob.com/"
     }
   ],
-  "ceipal": [],
+  "ceipal": [
+    {
+      "company": "TekWissen",
+      "search_url": "https://talenthire.ceipal.com/GoogleJobs/index/49608/9fa8671d6d5f2796100bbd67eca81450"
+    },
+    {
+      "company": "Mayo Clinic Staffing Feed",
+      "search_url": "https://talenthire.ceipal.com/GoogleJobs/index/9848/a9ad5f2808f68eea468621a04c49efe1"
+    }
+  ],
   "trakstar_hire": [
     {
       "company": "Tango",
