@@ -106,6 +106,28 @@ jobs:
                           except Exception as exc:
                               bundle_hints.append("BUNDLE_ERROR:"+type(exc).__name__)
                   print(f"DIAG dayforce next | {company} | next_data={next_data[:1]} bundle_snippets={bundle_hints[:8]}",flush=True)
+                  # Inspect compact Next.js dehydrated query metadata and discover API-shaped strings.
+                  next_summary=[]
+                  api_strings=[]
+                  if next_data:
+                      nd=next_data[0]
+                      pp=(nd.get("props") or {}).get("pageProps") or {}
+                      dq=((pp.get("dehydratedState") or {}).get("queries") or [])
+                      for q in dq:
+                          qk=q.get("queryKey")
+                          data=((q.get("state") or {}).get("data"))
+                          if isinstance(data,dict):
+                              next_summary.append({"queryKey":qk,"data_keys":sorted(data.keys())[:60],"sample":{k:data.get(k) for k in ("clientNamespace","careerSiteXRefCode","language","clientId","jobBoardId","id") if k in data}})
+                      def walk(v):
+                          if isinstance(v,dict):
+                              for k,x in v.items():
+                                  if isinstance(x,str) and any(t in x.lower() for t in ("/api/","search-jobs","job-post","jobs.dayforce","candidateportal")):
+                                      api_strings.append(x[:1000])
+                                  walk(x)
+                          elif isinstance(v,list):
+                              for x in v: walk(x)
+                      walk(nd)
+                  print(f"DIAG dayforce model | {company} | queries={next_summary[:20]} strings={sorted(set(api_strings))[:40]}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
