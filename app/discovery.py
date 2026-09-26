@@ -165,11 +165,12 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Require a configured client_id so discovery stays employer-scoped.
         for provider in ("talentreef","jobappnetwork"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
-                client_id=src.get("client_id") or src.get("clientId")
-                if not client_id:
-                    errors.append({"source":provider,"company":src.get("company"),"error":"Missing client_id"})
+                client_id=src.get("client_id") or src.get("clientId") or ""
+                search_url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or ""
+                if not client_id and not search_url:
+                    errors.append({"source":provider,"company":src.get("company"),"error":"Missing client_id or search_url"})
                     continue
-                tasks.append((pool.submit(talentreef_jobs,src.get("company") or provider,str(client_id)),provider,src.get("company") or provider))
+                tasks.append((pool.submit(talentreef_jobs,src.get("company") or provider,str(client_id),search_url=search_url),provider,src.get("company") or provider))
         for provider in ("recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival","werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","applynow","icims_alt","myworkchoice"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
