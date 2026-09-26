@@ -185,6 +185,10 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 url=src.get("search_url")
                 if not url:continue
                 tasks.append((pool.submit(career_site_jobs,src.get("company") or provider,url,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
+        for src in config.get("discovery_portal",[]):
+            provider=src.get("provider")
+            if src.get("enabled",True) and only_source in (None,"discovery_portal",provider):
+                tasks.append((pool.submit(discovery_portal_jobs,provider,src.get("search_url"),src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
             tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
