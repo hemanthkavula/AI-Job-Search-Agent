@@ -86,6 +86,19 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
             else:
                 coverage="BLOCKED"
             rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage,collector_class=("direct_public_board" if provider in DIRECT_PROVIDERS else "fallback")))
+    # Surface provider families with no configured tenant instead of silently
+    # omitting them from the health report. This separates collector support
+    # from actual production coverage.
+    for provider in DIRECT_PROVIDERS:
+        units=cfg.get(provider,[])
+        if isinstance(units,list) and not units:
+            collector_class="native_client_scoped" if provider in {"talentreef","jobappnetwork"} else "unseeded"
+            rows.append(_row(
+                provider, provider, "",
+                {"status":"unseeded","http_status":None},
+                coverage_status="UNSEEDED",
+                collector_class=collector_class,
+            ))
     counts={}
     for r in rows:
         s=r.get("effective_status") or r["status"]
