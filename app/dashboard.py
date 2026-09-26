@@ -124,7 +124,7 @@ def _pipeline_runs():
             cid=str(d.get("cycle_id") or p.name.replace("_summary.json",""))
             try: ts=datetime.strptime(cid,"%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
             except Exception: continue
-            runs.append({"cycle_id":cid,"ts":ts,"created":ts.isoformat(),"discovered":d.get("discovered",0),"eligible":d.get("eligible",0),"prepared":d.get("prepared",0),"ready":d.get("ready_to_apply",0),"manual_ready":d.get("manual_ready_to_apply",0)})
+            runs.append({"cycle_id":cid,"ts":ts,"created":ts.isoformat(),"discovered":d.get("discovered",0),"eligible":d.get("eligible",0),"prepared":d.get("prepared",0),"ready":d.get("ready_to_apply",0)})
     runs.sort(key=lambda x:x["ts"])
     return runs
 
@@ -186,7 +186,7 @@ def _pipeline_jobs(cycle_id):
                 "portal":row.get("portal") or row.get("source") or "",
                 "url":row.get("url") or row.get("job_url") or row.get("apply_url") or "",
                 "created":row.get("created") or row.get("first_seen") or row.get("created_at") or "",
-                "stage":"Manual apply" if row.get("next_action")=="MANUAL_READY_TO_APPLY" else "Ready to apply",
+                "stage":"Ready to apply",
                 "status":row.get("next_action") or "READY_TO_APPLY",
                 "resume_available":bool(row.get("resume") or row.get("resume_path") or row.get("resume_file")),
             }
@@ -203,7 +203,7 @@ def _jobs():
     out=[]
     runs=_pipeline_runs()
     hidden=_hidden_keys()
-    active={"READY_TO_APPLY","MANUAL_READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION","RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
+    active={"READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION","RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
     for key,row in (ledger.get("jobs") or {}).items():
         if key in hidden:continue
         hist=by_key.get(key) or by_name.get((str(row.get("company") or "").lower(),str(row.get("title") or "").lower()))
