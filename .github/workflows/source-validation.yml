@@ -8,6 +8,7 @@ on:
       - "app/discovery.py"
       - "app/daily_runner.py"
       - "app/application_queue.py"
+      - "app/batch_prepare.py"
       - "app/production_cycle.py"
       - "app/jd_finalizer.py"
       - "app/source_registry.py"
