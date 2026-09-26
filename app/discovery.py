@@ -8,6 +8,7 @@ from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
+from app.sources.monster import fetch_jobs as monster_jobs
 from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
@@ -187,6 +188,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
             tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
+        if only_source in (None,"monster") and config.get("monster",{}).get("enabled",False):
+            tasks.append((pool.submit(monster_jobs,hours=_hours("monster")),"monster","Monster"))
         for future,source,company in tasks:
             key=f"{source}:{company or source}"
             started=datetime.now(timezone.utc)
@@ -206,7 +209,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     # pages before learning so the employer's real ATS can seed future direct scans.
     learnable=[]
     for row in rows:
-        if row.get("source") in {"dice","ziprecruiter"}:
+        if row.get("source") in {"dice","ziprecruiter","monster"}:
             learnable.append(resolve_original_ats(row))
         else:
             learnable.append(row)
@@ -217,10 +220,11 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     configured_units["career_site"]=len(config.get("career_site",[]))
     configured_units["dice"]=1 if config.get("dice",{}).get("enabled",False) else 0
     configured_units["ziprecruiter"]=1 if config.get("ziprecruiter",{}).get("enabled",False) else 0
+    configured_units["monster"]=1 if config.get("monster",{}).get("enabled",False) else 0
     provider_counts={}
     for row in rows:
         provider_counts[row.get("source")]=provider_counts.get(row.get("source"),0)+1
-    for provider in ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter"):
+    for provider in ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter","monster"):
         if only_source not in (None,provider):
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
