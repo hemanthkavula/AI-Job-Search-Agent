@@ -2157,7 +2157,12 @@
       "search_url": "https://jobs.silkroad.com/BU/External"
     }
   ],
-  "werecruit": [],
+  "werecruit": [
+    {
+      "company": "Valoway",
+      "search_url": "https://careers.werecruit.io/fr/valoway"
+    }
+  ],
   "deel": [
     {
       "company": "Guardare",
