@@ -1,5 +1,6 @@
 from __future__ import annotations
 import hashlib, html, json, re
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
@@ -40,8 +41,17 @@ def _location(j:dict)->str|None:
     if str(j.get("jobLocationType") or "").upper()=="TELECOMMUTE":vals.append("Remote")
     return " | ".join(x for x in vals if x) or None
 
-def _normalize(provider:str,j:dict,page_url:str)->dict|None:
+def _parse_posted(value):
+    if not value:return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+    except Exception:return None
+
+def _normalize(provider:str,j:dict,page_url:str,hours:float|None=None)->dict|None:
     title=_plain(j.get("title"));desc=_plain(j.get("description"))
+    posted=_parse_posted(j.get("datePosted"))
+    if hours is not None and posted is not None and posted < datetime.now(timezone.utc)-timedelta(hours=float(hours)):
+        return None
     if not any(t in (title+" "+desc[:2500]).lower() for t in DE_TERMS):return None
     org=j.get("hiringOrganization")
     company=_plain(org.get("name")) if isinstance(org,dict) else _plain(org)
@@ -55,7 +65,7 @@ def _normalize(provider:str,j:dict,page_url:str)->dict|None:
       "description":desc,"description_complete":bool(desc),"updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),
       "valid_through":j.get("validThrough"),"discovery_only":True,"authoritative_source":False,"portal_source":provider}
 
-def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20)->list[dict]:
+def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None)->list[dict]:
     """Crawl a public job portal strictly as a discovery feeder.
 
     Every returned row is marked discovery_only and must resolve to an
@@ -63,7 +73,7 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20)->
     """
     body=_get(search_url,timeout);out=[];seen=set()
     for j in _jobpostings(body):
-        row=_normalize(provider,j,search_url)
+        row=_normalize(provider,j,search_url,hours)
         if row and row["external_id"] not in seen:
             seen.add(row["external_id"]);out.append(row)
     rx=re.compile(job_url_pattern,re.I)
@@ -75,7 +85,7 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20)->
         try:detail=_get(u,timeout)
         except Exception:continue
         for j in _jobpostings(detail):
-            row=_normalize(provider,j,u)
+            row=_normalize(provider,j,u,hours)
             if row and row["external_id"] not in seen:
                 seen.add(row["external_id"]);out.append(row)
     print(f"DiscoveryPortal / {provider}: {len(out)} DE jobs",flush=True)
