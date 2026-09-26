@@ -269,6 +269,14 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
         url=urljoin(search_url,html.unescape(href))
         if re.search(rf"apply\\.workable\\.com/{re.escape(slug)}/j/[^/?#]+",url,re.I) and url not in seen:
             seen.add(url);links.append(url)
+    # Current Workable boards can render the job collection without exposing
+    # ordinary /j/... anchors in the initial HTML. Recover job identifiers from
+    # any embedded Workable job URLs/shortcodes present in scripts/state too.
+    for shortcode in re.findall(r'(?:/j/|%2Fj%2F)([A-Za-z0-9]{6,})',body,re.I):
+        url=f"https://apply.workable.com/{slug}/j/{shortcode}"
+        if url not in seen:
+            seen.add(url);links.append(url)
+
     for url in links[:250]:
         try: detail=_get(url,timeout)
         except Exception: continue
