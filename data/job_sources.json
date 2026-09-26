@@ -2014,14 +2014,24 @@
       "search_url": "https://isolved.isolvedhire.com/jobs/"
     }
   ],
-  "hibob": [],
+  "hibob": [
+    {
+      "company": "HiBob",
+      "search_url": "https://www.hibob.com/careers/"
+    }
+  ],
   "gohire": [
     {
       "company": "J.Walker Salon Group",
       "search_url": "https://jobs.gohire.io/jwalker-salon-group-inyldliv/"
     }
   ],
-  "hiringthing": [],
+  "hiringthing": [
+    {
+      "company": "HiringThing",
+      "search_url": "https://careers.hiringthing.com/"
+    }
+  ],
   "homerun": [
     {
       "company": "Homerun",
