@@ -6,6 +6,8 @@ on:
     paths:
       - "data/job_sources.json"
       - "app/sources/discovery_portal.py"
+      - "app/discovery.py"
+      - "app/scheduled_runner.py"
       - ".github/workflows/discovery-portal-smoke.yml"
   workflow_dispatch:
 
