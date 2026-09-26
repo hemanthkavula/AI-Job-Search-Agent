@@ -23,6 +23,9 @@ on:
       - "app/company_registry.py"
       - "data/job_sources.json"
       - "tests/**"
+      - "app/scheduled_runner.py"
+      - "app/job_identity.py"
+      - ".github/workflows/daily-discovery.yml"
       - ".github/workflows/source-validation.yml"
   workflow_dispatch:
 
