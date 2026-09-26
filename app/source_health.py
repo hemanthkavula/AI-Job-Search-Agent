@@ -1,6 +1,5 @@
 from __future__ import annotations
 import argparse, json, re
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -42,19 +41,12 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
                 existing.append(unit);seen.add(key)
         cfg[provider]=existing
     rows=[]
-    # Career-site validation is network-bound and independent per employer.
-    # Validate in parallel so a few slow/blocked sites do not serialize the
-    # entire production health gate.
-    career_units=list(cfg.get("career_site",[]))
-    def _validate_career(x):
+    for x in cfg.get("career_site",[]):
         r=validate_career_site(x["company"],x["search_url"],x["job_url_pattern"],timeout)
         effective=r["status"]
         if effective=="ok" and r.get("matching_job_links",0)==0: effective="no_crawlable_links"
         r["effective_status"]=effective
-        return _row("career_site",x["company"],x["search_url"],r)
-    if career_units:
-        with ThreadPoolExecutor(max_workers=min(16,len(career_units))) as pool:
-            rows.extend(pool.map(_validate_career,career_units))
+        rows.append(_row("career_site",x["company"],x["search_url"],r))
     for x in cfg.get("greenhouse",[]):
         url=f'https://boards-api.greenhouse.io/v1/boards/{x["board_token"]}/jobs'
         rows.append(_row("greenhouse",x.get("company") or x["board_token"],url,_probe(url,timeout)))
