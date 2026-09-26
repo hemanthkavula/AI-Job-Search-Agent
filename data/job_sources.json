@@ -1741,7 +1741,12 @@
   "bamboohr": [],
   "phenom": [],
   "taleo": [],
-  "cornerstone": [],
+  "cornerstone": [
+    {
+      "company": "Cornerstone OnDemand",
+      "search_url": "https://cornerstone.csod.com/ux/ats/careersite/2/home?c=cornerstone"
+    }
+  ],
   "breezyhr": [
     {
       "company": "NuView Analytics",
