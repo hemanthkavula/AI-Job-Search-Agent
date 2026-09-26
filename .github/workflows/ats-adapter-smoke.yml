@@ -144,6 +144,31 @@ jobs:
                       except Exception as exc:
                           contract.append("ERROR:"+type(exc).__name__)
                   print(f"DIAG dayforce contract | {company} | snippets={contract[:20]}",flush=True)
+                  # Probe Next.js server-data routes using confirmed build/tenant metadata.
+                  server_probes=[]
+                  if next_data:
+                      nd=next_data[0]
+                      build=nd.get("buildId")
+                      q=nd.get("query") or {}
+                      ns=q.get("clientNamespace") or "clearcaptions"
+                      cs=q.get("careerSiteXRefCode") or "CANDIDATEPORTAL"
+                      base="https://jobs.dayforcehcm.com"
+                      paths=[
+                          f"/_next/data/{build}/en-US/{ns}/{cs}.json",
+                          f"/_next/data/{build}/{ns}/{cs}.json",
+                          f"/api/{ns}/{cs}/jobs",
+                          f"/api/jobs?clientNamespace={ns}&careerSiteXRefCode={cs}&language=en-US",
+                          f"/api/job-postings?clientNamespace={ns}&careerSiteXRefCode={cs}&language=en-US",
+                      ]
+                      for p in paths:
+                          try:
+                              req=Request(base+p,headers={**UA,"Accept":"application/json,text/plain,*/*","Referer":url})
+                              with urlopen(req,timeout=20) as resp:
+                                  raw=resp.read(20000).decode("utf-8","replace")
+                                  server_probes.append({"path":p,"status":resp.status,"type":resp.headers.get("Content-Type",""),"bytes":len(raw),"head":raw[:1200].replace("\n"," ")})
+                          except Exception as exc:
+                              server_probes.append({"path":p,"error":type(exc).__name__+":"+str(exc)[:200]})
+                  print(f"DIAG dayforce server | {company} | probes={server_probes}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
