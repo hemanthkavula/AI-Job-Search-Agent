@@ -1778,8 +1778,18 @@
       "search_url": "https://www.governmentjobs.com/careers/neogov"
     }
   ],
-  "schooljobs": [],
-  "higheredjobs": [],
+  "schooljobs": [
+    {
+      "company": "SchoolJobs",
+      "search_url": "https://www.schooljobs.com/careers/"
+    }
+  ],
+  "higheredjobs": [
+    {
+      "company": "HigherEdJobs",
+      "search_url": "https://www.higheredjobs.com/search/"
+    }
+  ],
   "applynow": [],
   "talentreef": [],
   "icims_alt": [],
