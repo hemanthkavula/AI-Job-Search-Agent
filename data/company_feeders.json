@@ -22,6 +22,12 @@
       "enabled": true,
       "kind": "continuous_learning",
       "scope": "employers encountered by any job discovery source"
+    },
+    {
+      "id": "ncua_active_credit_unions",
+      "enabled": true,
+      "kind": "authoritative_identity",
+      "scope": "active federally insured U.S. credit unions"
     }
   ],
   "expansion_classes": [
@@ -70,8 +76,8 @@
     },
     {
       "id": "ncua_active_credit_unions",
-      "status": "next",
-      "scope": "active federally insured credit unions"
+      "status": "implemented",
+      "scope": "active federally insured U.S. credit unions"
     },
     {
       "id": "ncua_cuso_registry",
