@@ -1724,7 +1724,12 @@
       "search_url": "https://us60.dayforcehcm.com/CandidatePortal/en-US/clearcaptions"
     }
   ],
-  "recruiting_com": [],
+  "recruiting_com": [
+    {
+      "company": "Recruiting.com",
+      "search_url": "https://careers.recruiting.com/"
+    }
+  ],
   "recruitee": [
     {
       "company": "BasisPath",
@@ -2182,7 +2187,12 @@
       "search_url": "https://jobs.radancy.com/en"
     }
   ],
-  "paradox": [],
+  "paradox": [
+    {
+      "company": "Paradox",
+      "search_url": "https://careers.paradox.ai/joblist"
+    }
+  ],
   "applicantstack": [
     {
       "company": "Sparibis",
