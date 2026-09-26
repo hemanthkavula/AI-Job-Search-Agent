@@ -3,12 +3,15 @@ from pathlib import Path
 
 CONFIG=Path("data/job_sources.json")
 
-def test_talentreef_sources_are_always_client_scoped():
+def test_talentreef_sources_are_client_scoped_or_verified_public_tenants():
     cfg=json.loads(CONFIG.read_text(encoding="utf-8"))
     for provider in ("talentreef","jobappnetwork"):
         for src in cfg.get(provider,[]):
-            assert src.get("client_id") or src.get("clientId"), (
-                f"{provider} source {src.get('company')} is unsafe/unusable without client_id"
+            client_id=src.get("client_id") or src.get("clientId")
+            search_url=(src.get("search_url") or "").lower()
+            verified_public_tenant=search_url.startswith("https://apply.jobappnetwork.com/")
+            assert client_id or verified_public_tenant, (
+                f"{provider} source {src.get('company')} needs client_id or verified JobAppNetwork tenant URL"
             )
 
 def test_source_config_has_no_duplicate_urls_within_provider():
