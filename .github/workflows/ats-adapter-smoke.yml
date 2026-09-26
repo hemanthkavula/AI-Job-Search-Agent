@@ -106,6 +106,18 @@ jobs:
                           except Exception as exc:
                               bundle_hints.append("BUNDLE_ERROR:"+type(exc).__name__)
                   print(f"DIAG dayforce next | {company} | next_data={next_data[:1]} bundle_snippets={bundle_hints[:8]}",flush=True)
+                  # Follow concrete Dayforce Go?item references exposed by the rendered career page.
+                  go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',body,re.I)))
+                  go_results=[]
+                  for gu in go_refs[:10]:
+                      try:
+                          req=Request(gu,headers=UA)
+                          with urlopen(req,timeout=25) as resp:
+                              final_url=resp.geturl(); gb=resp.read().decode("utf-8","replace")
+                              go_results.append({"source":gu,"final":final_url,"status":resp.status,"bytes":len(gb),"jsonld":len(dayforce_posts(gb)),"title":re.findall(r'<title[^>]*>(.*?)</title>',gb,re.I|re.S)[:1],"hints":sorted(set(x for x in re.findall(r'(?i)(?:https?:)?//[^"\\\'<> ]+|/[A-Za-z0-9_.?=&%/-]{3,}',gb) if any(k in x.lower() for k in ("api","job","career","posting","candidate"))))[:40]})
+                      except Exception as exc:
+                          go_results.append({"source":gu,"error":type(exc).__name__+":"+str(exc)[:300]})
+                  print(f"DIAG dayforce go | {company} | refs={go_refs[:10]} results={go_results}",flush=True)
                   jobs=dayforce_jobs(company,url,timeout=25)
                   print(f"DIAG dayforce | {company} | bytes={len(body)} jsonld={len(posts)} joblinks={len(joblinks)} scripts={scripts[:30]}",flush=True)
                   print(f"DIAG dayforce hints | {company} | {hints}",flush=True)
