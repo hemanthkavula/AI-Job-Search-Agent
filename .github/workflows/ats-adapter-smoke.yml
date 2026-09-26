@@ -128,6 +128,22 @@ jobs:
                               for x in v: walk(x)
                       walk(nd)
                   print(f"DIAG dayforce model | {company} | queries={next_summary[:20]} strings={sorted(set(api_strings))[:40]}",flush=True)
+                  # Trace search contract from the active Dayforce page bundle.
+                  contract=[]
+                  for src in scripts:
+                      if "%5BclientNamespace%5D" not in src: continue
+                      try:
+                          js=dayforce_get(urljoin(url,src),25)
+                          for token in ("job-search","jobSearch","searchJobs","job-postings","jobPostings","posting-search","search-results","site-info"):
+                              start=0
+                              while len(contract)<40:
+                                  pos=js.lower().find(token.lower(),start)
+                                  if pos<0: break
+                                  contract.append(js[max(0,pos-1200):pos+2200].replace("\n"," ")[:3400])
+                                  start=pos+len(token)
+                      except Exception as exc:
+                          contract.append("ERROR:"+type(exc).__name__)
+                  print(f"DIAG dayforce contract | {company} | snippets={contract[:20]}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
