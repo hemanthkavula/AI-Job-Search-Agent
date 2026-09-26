@@ -7,7 +7,7 @@ def test_authoritative_feeder_official_url_preserves_provenance(monkeypatch,tmp_
     sources=tmp_path/"sources.json"
     sources.write_text(json.dumps({"career_site":[]}),encoding="utf-8")
     monkeypatch.setattr(company_universe,"ROOT",tmp_path)
-    monkeypatch.setattr(company_universe,"collect_company_feeders",lambda: ([{
+    monkeypatch.setattr(company_universe,"collect_company_feeders",lambda enabled=None: ([{
         "company":"Private Example Inc",
         "official_url":"https://private-example.test",
         "discovered_by":"verified_private_catalog",
@@ -24,3 +24,25 @@ def test_authoritative_feeder_official_url_preserves_provenance(monkeypatch,tmp_
     assert row["domain_evidence"]=="verified_private_catalog"
     assert result["feeder_rows"]==1
 
+
+
+def test_company_universe_uses_enabled_feeder_control_plane(monkeypatch,tmp_path):
+    (tmp_path/"data").mkdir()
+    (tmp_path/"sources.json").write_text(json.dumps({"career_site":[]}),encoding="utf-8")
+    (tmp_path/"data"/"company_feeders.json").write_text(json.dumps({"feeders":[
+        {"id":"sec_public_companies","enabled":True},
+        {"id":"fdic_insured_banks","enabled":False},
+        {"id":"existing_source_companies","enabled":True}
+    ]}),encoding="utf-8")
+    monkeypatch.setattr(company_universe,"ROOT",tmp_path)
+    captured={}
+    def fake_collect(enabled=None):
+        captured["enabled"]=enabled
+        return [],[]
+    monkeypatch.setattr(company_universe,"collect_company_feeders",fake_collect)
+    monkeypatch.setattr(company_universe,"load_registry",lambda *a,**k:{})
+    monkeypatch.setattr(company_universe,"save_registry",lambda *a,**k:None)
+    monkeypatch.setattr(company_universe,"load_source_registry",lambda:{})
+    monkeypatch.setattr(company_universe,"save_source_registry",lambda reg:None)
+    company_universe.build("sources.json",registry_path=tmp_path/"registry.json",domain_budget=0,career_budget=0)
+    assert captured["enabled"]==["sec_public_companies"]
