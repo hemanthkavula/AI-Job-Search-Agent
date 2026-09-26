@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse, json
+from urllib.parse import urlparse
 from pathlib import Path
 
 def audit(summary_path:str)->dict:
@@ -16,6 +17,8 @@ def audit(summary_path:str)->dict:
         failures.append(f"queued ready exceeds validated manifest ready: {ready}>{manifest_ready}")
     if summary.get("resume_generation_enabled") and summary.get("prepared",0)<manifest_ready:
         failures.append("manifest ready exceeds prepared artifacts")
+    if int(summary.get("manual_application_action") or 0):
+        failures.append("manual application state is not allowed in the ready-only production flow")
     queue_path=summary.get("application_queue")
     if ready:
         if not queue_path or not Path(queue_path).exists():
@@ -30,6 +33,11 @@ def audit(summary_path:str)->dict:
                 if not eid or eid in ids: failures.append(f"duplicate/missing queue external_id: {eid}")
                 ids.add(eid)
                 if row.get("status")!="READY_FOR_ATS_ADAPTER": failures.append(f"invalid queue status for {eid}")
+                url=row.get("url") or ""
+                host=(urlparse(url).netloc or "").lower()
+                aggregator_hosts=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com")
+                if not url or any(host==h or host.endswith("."+h) for h in aggregator_hosts):
+                    failures.append(f"non-authoritative application destination for {eid}: {host or 'missing'}")
                 if not (row.get("application_gate") or {}).get("passed"): failures.append(f"application gate not passed for {eid}")
                 resume=row.get("resume_path")
                 if not resume or Path(resume).suffix.lower()!=".pdf": failures.append(f"validated PDF missing for {eid}")
