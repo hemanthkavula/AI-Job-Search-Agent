@@ -3,6 +3,7 @@ import argparse, json, os, io, shutil, tarfile, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+from app.job_identity import identity_keys
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
@@ -123,7 +124,7 @@ def _pipeline_runs():
             cid=str(d.get("cycle_id") or p.name.replace("_summary.json",""))
             try: ts=datetime.strptime(cid,"%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
             except Exception: continue
-            runs.append({"cycle_id":cid,"ts":ts,"created":ts.isoformat(),"discovered":d.get("discovered",0),"eligible":d.get("eligible",0),"prepared":d.get("prepared",0),"ready":d.get("ready_to_apply",0)})
+            runs.append({"cycle_id":cid,"ts":ts,"created":ts.isoformat(),"discovered":d.get("discovered",0),"eligible":d.get("eligible",0),"prepared":d.get("prepared",0),"ready":d.get("ready_to_apply",0),"manual_ready":d.get("manual_ready_to_apply",0)})
     runs.sort(key=lambda x:x["ts"])
     return runs
 
@@ -146,7 +147,14 @@ def _cycle_snapshot(cycle_id):
     manifest=_json(CYCLES/f"{cycle_id}_manifest.json",[])
     rows=manifest if isinstance(manifest,list) else (manifest.get("results") or manifest.get("jobs") or manifest.get("applications") or [])
     if rows:
-        ready=[x for x in rows if isinstance(x,dict) and x.get("next_action")=="READY_TO_APPLY"]
+        ready=[]
+        seen=set()
+        for row in rows:
+            if not isinstance(row,dict) or row.get("next_action") not in {"READY_TO_APPLY","MANUAL_READY_TO_APPLY"}:continue
+            keys=identity_keys(row)
+            if any(key in seen for key in keys):continue
+            seen.update(keys)
+            ready.append(row)
         return ready
     # Older cycles may only have an application queue.
     queue=_json(CYCLES/f"{cycle_id}_application_queue.json",[])
@@ -178,8 +186,8 @@ def _pipeline_jobs(cycle_id):
                 "portal":row.get("portal") or row.get("source") or "",
                 "url":row.get("url") or row.get("job_url") or row.get("apply_url") or "",
                 "created":row.get("created") or row.get("first_seen") or row.get("created_at") or "",
-                "stage":"Ready to apply",
-                "status":"READY_TO_APPLY",
+                "stage":"Manual apply" if row.get("next_action")=="MANUAL_READY_TO_APPLY" else "Ready to apply",
+                "status":row.get("next_action") or "READY_TO_APPLY",
                 "resume_available":bool(row.get("resume") or row.get("resume_path") or row.get("resume_file")),
             }
         item["pipeline"]=cycle_id
