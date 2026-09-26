@@ -8,7 +8,8 @@ from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.dice import fetch_jobs as dice_jobs
 from app.sources.ziprecruiter import fetch_jobs as ziprecruiter_jobs
-from app.sources.monster import fetch_jobs as monster_jobs\nfrom app.sources.discovery_portal import fetch_jobs as discovery_portal_jobs
+from app.sources.monster import fetch_jobs as monster_jobs
+from app.sources.discovery_portal import fetch_jobs as discovery_portal_jobs
 from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
