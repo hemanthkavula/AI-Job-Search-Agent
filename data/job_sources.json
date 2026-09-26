@@ -1852,7 +1852,12 @@
   "applitrack": [],
   "hireology": [],
   "paycor": [],
-  "peopleadmin": [],
+  "peopleadmin": [
+    {
+      "company": "University of Utah",
+      "search_url": "https://utah.peopleadmin.com/postings/search"
+    }
+  ],
   "isolved": [],
   "hibob": [],
   "gohire": [],
@@ -1917,7 +1922,12 @@
     }
   ],
   "ceipal": [],
-  "trakstar_hire": [],
+  "trakstar_hire": [
+    {
+      "company": "Tango",
+      "search_url": "https://tangoanalytics.hire.trakstar.com/"
+    }
+  ],
   "neogov": [
     {
       "company": "NEOGOV",
