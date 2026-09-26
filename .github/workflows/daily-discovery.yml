@@ -87,16 +87,16 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
+      - name: Run tests
+        if: steps.guard.outputs.should_run == 'true'
+        run: python -m pytest -q
+
       - name: Install LibreOffice for resume PDF validation
         if: steps.guard.outputs.should_run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-writer
           soffice --version
-
-      - name: Run tests
-        if: steps.guard.outputs.should_run == 'true'
-        run: python -m pytest -q
 
       - name: Enrich US employer universe and learn career sources
         if: steps.guard.outputs.should_run == 'true' && endsWith(steps.guard.outputs.slot, 'T07:00')
