@@ -103,7 +103,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     save_ledger(ledger,ledger_path)
     # Keep production diagnostics aligned with the exact provider universe that
     # discovery can execute, including newly learned long-tail ATS families.
-    provider_names=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter")))
+    provider_names=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter","monster")))
     configured_sources={name for name in provider_names if (config.get(name) and (not isinstance(config.get(name),dict) or config.get(name,{}).get("enabled",False)))}
     failed_sources={e.get("source") for e in errors if e.get("source")}
     source_status={}
