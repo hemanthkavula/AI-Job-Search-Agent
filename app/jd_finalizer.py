@@ -7,6 +7,7 @@ from app.eligibility import two_category_filter
 from app.filters import passes_hard_filters
 from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
+from app.discovery import ALL_ATS_PROVIDERS
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -239,12 +240,21 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
         # external ATS is preferred. Dice-hosted jobs remain eligible for a
         # controlled Dice adapter; the adapter must inspect the Apply flow and
         # stop on redirects, CAPTCHA/MFA, or unknown questions.
-        supported={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite"}
-        if raw.get("ats_provider") in supported:
+        auto_apply_supported={"greenhouse","lever","ashby","workday","smartrecruiters","icims","jobvite"}
+        source_supported=set(ALL_ATS_PROVIDERS)
+        if raw.get("ats_provider") in auto_apply_supported:
             raw["application_route"]="EXTERNAL_ATS"
+        elif raw.get("ats_provider") in source_supported:
+            # The posting is from a verified/supported discovery ATS, but no
+            # automated application adapter has been proven safe for this family.
+            # Preserve the valid job for manual application instead of falsely
+            # rejecting it as an unresolved ATS or auto-applying unsafely.
+            raw["application_route"]="MANUAL_VERIFIED_ATS"
         elif (raw.get("source") or "").lower()=="dice" and "dice.com" in (raw.get("original_url") or raw.get("url") or "").lower():
             raw["application_route"]="DICE"
             raw["ats_provider"]="dice"
+        elif raw.get("application_route")=="MANUAL_VERIFIED_ATS":
+            raw["manual_application_required"]=True
         else:
             held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue
