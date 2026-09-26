@@ -118,3 +118,10 @@ def test_data_platform_engineer_remains_target():
     },PROFILE)
     assert ok
 
+
+
+def test_excluded_prior_employers_are_hard_rejected():
+    from app.filters import employer_is_excluded
+    for name in ("Fidelity Investments","Fidelity","Cigna Healthcare","The Cigna Group","Target Corporation","Target"):
+        assert employer_is_excluded(name) is True
+    assert employer_is_excluded("Capital One") is False
