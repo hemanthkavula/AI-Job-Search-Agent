@@ -1,6 +1,10 @@
 from app.source_registry import detect_ats, _reusable_search_url, as_discovery_config
 
 CASES=[
+("https://recruitingbypaycor.com/career/CareerHome.action?clientId=abc","paycor"),
+("https://hibob-fa0ad69d0cb34a.careers.hibob.com/jobs/123","hibob"),
+("https://careers.kula.ai/alaffia/123","kula"),
+("https://www.careers-page.com/inclusioncloud","manatal"),
 ("https://acme.teamtailor.com/jobs/123-data-engineer","teamtailor"),
 ("https://acme.recruitee.com/o/data-engineer","recruitee"),
 ("https://acme.bamboohr.com/careers/42","bamboohr"),
@@ -53,3 +57,8 @@ def test_registry_patterns_do_not_contain_accidental_double_regex_escapes():
             if r"\\." in pattern or r"\\d" in pattern:
                 bad.append((provider,pattern))
     assert not bad, bad
+
+
+def test_generic_career_path_is_not_misclassified_as_phenom():
+    provider,identifier=detect_ats("https://careers.example.com/en/jobs")
+    assert provider != "phenom"
