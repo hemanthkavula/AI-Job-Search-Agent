@@ -70,7 +70,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
                 if host:
                     reg[key]["official_url"]=url
                     reg[key]["official_domain"]=host
-                    reg[key]["domain_evidence"]="fdic_institutions" if row.get("fdic_cert") else "college_scorecard"
+                    reg[key]["domain_evidence"]=row.get("discovered_by") or ("fdic_active_institutions" if row.get("fdic_cert") else "authoritative_feeder")
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
