@@ -193,7 +193,7 @@ def resolve_full_jd(job):
     lead_url=out.get("original_url") or out.get("url") or ""
     # Any aggregator-origin lead is discovery-only. It must resolve to the
     # employer/ATS job page before it can become eligible for paid resume work.
-    should_resolve_employer=(source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
+    should_resolve_employer=(bool(out.get("discovery_only")) or source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
         if len(employer_desc)>len(resolved):resolved=employer_desc
