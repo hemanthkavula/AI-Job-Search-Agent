@@ -1807,7 +1807,16 @@
       "search_url": "https://luckyjayconsulting.freshteam.com/jobs"
     }
   ],
-  "jobscore": [],
+  "jobscore": [
+    {
+      "company": "Edmunds",
+      "search_url": "https://careers.jobscore.com/careers/edmunds"
+    },
+    {
+      "company": "MatrixSpace",
+      "search_url": "https://careers.jobscore.com/careers/matrixspace"
+    }
+  ],
   "personio": [
     {
       "company": "Open",
