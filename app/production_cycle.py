@@ -112,6 +112,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
           "ready_to_apply":ready_count,
+          "manual_ready_to_apply":sum(x.get("next_action")=="MANUAL_READY_TO_APPLY" for x in manifest),
           "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
           "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
           "retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),
