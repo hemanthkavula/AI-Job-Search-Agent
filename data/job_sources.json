@@ -1606,7 +1606,9 @@
       "ziprecruiter",
       "wellfound",
       "yc_jobs",
-      "builtin"
+      "builtin",
+      "careerbuilder",
+      "simplyhired"
     ],
     "planned": [
       {
@@ -1622,16 +1624,6 @@
       {
         "provider": "glassdoor",
         "status": "AUTHORIZED_INTEGRATION_REQUIRED",
-        "mode": "discovery"
-      },
-      {
-        "provider": "careerbuilder",
-        "status": "PLANNED",
-        "mode": "discovery"
-      },
-      {
-        "provider": "simplyhired",
-        "status": "PLANNED",
         "mode": "discovery"
       },
       {
@@ -2315,6 +2307,22 @@
       "enabled": true,
       "search_url": "https://builtin.com/jobs/data-analytics/search/data-engineer",
       "job_url_pattern": "builtin[.]com/job/"
+    },
+    {
+      "provider": "careerbuilder",
+      "company": "CareerBuilder",
+      "enabled": true,
+      "search_url": "https://www.careerbuilder.com/jobs-data-engineer",
+      "job_url_pattern": "careerbuilder[.]com/job-details/",
+      "max_detail_pages": 60
+    },
+    {
+      "provider": "simplyhired",
+      "company": "SimplyHired",
+      "enabled": true,
+      "search_url": "https://www.simplyhired.com/search?l=united%20states&q=data%20engineer",
+      "job_url_pattern": "simplyhired[.]com/job/",
+      "max_detail_pages": 60
     }
   ]
 }
