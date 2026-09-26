@@ -2322,6 +2322,13 @@
       "enabled": true,
       "search_url": "https://wellfound.com/jobs",
       "job_url_pattern": "wellfound[.]com/(jobs|company)/"
+    },
+    {
+      "provider": "builtin",
+      "company": "Built In",
+      "enabled": true,
+      "search_url": "https://builtin.com/jobs/data-analytics/search/data-engineer",
+      "job_url_pattern": "builtin[.]com/job/"
     }
   ]
 }
