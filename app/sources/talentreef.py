@@ -7,9 +7,21 @@ from urllib.request import Request, urlopen
 # so one configured employer cannot silently turn into a platform-wide scrape.
 BASE = "https://prod-kong.internal.talentreef.com/apply/proxy-es/search-en-us/posting/_search"
 
-def fetch_jobs(company: str, client_id: str, timeout: int = 20, page_size: int = 100, max_pages: int = 20) -> list[dict]:
+def fetch_jobs(company: str, client_id: str = "", timeout: int = 20, page_size: int = 100, max_pages: int = 20, search_url: str = "") -> list[dict]:
+    # Prefer the structured client-scoped API when the numeric client id is known.
+    # Some public TalentReef/JobAppNetwork tenants expose a fully enumerable board
+    # without surfacing that internal id; keep those useful via the hardened
+    # career-site collector rather than guessing an identifier.
     if not client_id:
-        raise ValueError("TalentReef source requires client_id")
+        if not search_url:
+            raise ValueError("TalentReef source requires client_id or verified search_url")
+        from app.sources.career_site import fetch_jobs as career_site_jobs
+        rows=career_site_jobs(company,search_url,r".+")
+        for row in rows:
+            row["source"]="talentreef"
+            row["source_family"]="direct_ats_public_board"
+            row["ats_provider"]="talentreef"
+        return rows
     out=[]
     offset=0
     for _ in range(max_pages):
