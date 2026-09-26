@@ -2084,7 +2084,12 @@
       "search_url": "https://redo.hirehive.com/"
     }
   ],
-  "kula": [],
+  "kula": [
+    {
+      "company": "Kula Showcase",
+      "search_url": "https://careers.kula.ai/showcase"
+    }
+  ],
   "rival": [],
   "werecruit": [],
   "deel": [
