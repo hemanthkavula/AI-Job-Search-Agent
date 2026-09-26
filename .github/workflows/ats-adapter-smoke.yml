@@ -85,10 +85,14 @@ jobs:
                   try:
                       body=ukg_get(url,25)
                       jsonld=len(ukg_jobposting(body))
+                      endpoint_hints=sorted(set(re.findall(r'(?i)(?:https?:)?//[^"\\\'<> ]+|/[A-Za-z0-9_.?=&%/-]{3,}',body)))
+                      endpoint_hints=[x for x in endpoint_hints if any(k in x.lower() for k in ("api","jobboard","opportunit","recruit","posting","search"))][:40]
+                      script_srcs=re.findall(r'<script[^>]+src=["\\\']([^"\\\']+)["\\\']',body,re.I)[:40]
                       visible=len(re.findall(r'href=["\\\'][^"\\\']*(?:OpportunityDetail|/job/|/jobs/)[^"\\\']*["\\\']',body,re.I))
                       jobs=ukg_jobs(company,url,timeout=25)
                       totals["ukg"] += len(jobs)
                       print(f"DIAG {family} | {company} | duplicate={duplicate} board_bytes={len(body)} jsonld={jsonld} visible_job_links={visible}",flush=True)
+                      print(f"DIAG UKG hints | {company} | endpoints={endpoint_hints} scripts={script_srcs}",flush=True)
                       print(f"SMOKE {family} | {company} | {len(jobs)} DE jobs",flush=True)
                   except Exception as exc:
                       failures.append((family,company,str(exc)))
