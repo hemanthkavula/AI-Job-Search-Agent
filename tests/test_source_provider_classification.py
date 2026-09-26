@@ -5,7 +5,7 @@ PUBLIC_BOARD_PROVIDERS={
 "clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin",
 "isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal",
 "trakstar_hire","neogov","recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival",
-"werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","applynow","talentreef","icims_alt",
+"werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","talentreef","icims_alt",
 "jobappnetwork","myworkchoice"
 }
 
