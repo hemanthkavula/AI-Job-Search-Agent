@@ -11,6 +11,7 @@ from app.eligibility import two_category_filter
 from app.job_ledger import load_ledger, save_ledger, seen_or_submitted, record_seen
 from app.target_companies import match_target
 from app.company_registry import load as load_company_registry, save as save_company_registry, learn_from_jobs as learn_companies_from_jobs
+from app.job_identity import identity_keys
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -38,27 +39,23 @@ def _norm_title(value):
 SOURCE_PRIORITY={"greenhouse":0,"lever":0,"ashby":0,"smartrecruiters":0,"workday":0,"successfactors":0,"icims":0,"oracle":0,"eightfold":0,"dayforce":0,"ultipro":0,"recruiting_com":0,"adp_workforce_now":0,"workable":0,"recruitee":0,"teamtailor":0,"bamboohr":0,"phenom":0,"avature":0,"taleo":0,"cornerstone":0,"jazzhr":0,"breezyhr":0,"paylocity":0,"rippling":0,"pinpoint":0,"brassring":0,"careerplug":0,"freshteam":0,"jobscore":0,"personio":0,"career_site":1,"dice":2,"ziprecruiter":2}
 
 def _dedup_eligible(items):
-    """Prefer official ATS/company sources over aggregators for semantic duplicates."""
+    """Prefer official ATS/company sources and use the persistent identity model."""
     kept=[];duplicates=[];seen={}
     items=sorted(items,key=lambda x: SOURCE_PRIORITY.get((x.get("job") or {}).get("source"),1))
     for item in items:
         raw=item["job"]
-        company=_norm_company(raw.get("company_key") or raw.get("company"))
-        title=_norm_title(raw.get("title"))
-        location=re.sub(r"\s+"," ",(raw.get("location") or "").lower()).strip()
-        # Company+title is the primary semantic identity. Location is used only when
-        # present on both postings so multi-location openings can remain distinct.
-        base=(company,title)
-        candidates=seen.get(base,[])
+        keys=identity_keys(raw)
         duplicate=None
-        for prior in candidates:
-            ploc=re.sub(r"\s+"," ",(prior["job"].get("location") or "").lower()).strip()
-            if not location or not ploc or location==ploc:
-                duplicate=prior;break
+        for key in keys:
+            if key in seen:
+                duplicate=seen[key]
+                break
         if duplicate:
             duplicates.append({"job":raw,"duplicate_of":duplicate["job"].get("external_id"),"action":"SKIP_DUPLICATE"})
             continue
-        seen.setdefault(base,[]).append(item);kept.append(item)
+        kept.append(item)
+        for key in keys:
+            seen[key]=item
     return kept,duplicates
 
 def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None,source_unit_hours=None):
