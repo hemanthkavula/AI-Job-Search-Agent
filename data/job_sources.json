@@ -1981,7 +1981,12 @@
       "search_url": "https://job-boards.eu.greenhouse.io/stubhubinc"
     }
   ],
-  "applitrack": [],
+  "applitrack": [
+    {
+      "company": "Education Service Center Region 13",
+      "search_url": "https://www.applitrack.com/region13/onlineapp/default.aspx"
+    }
+  ],
   "hireology": [
     {
       "company": "Anvaya Solutions",
