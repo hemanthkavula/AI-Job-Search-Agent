@@ -1504,6 +1504,11 @@
       "company": "Husco",
       "search_url": "https://careers.husco.com/",
       "job_url_pattern": "https://careers\\.husco\\.com/job/.+"
+    },
+    {
+      "company": "Claritas Rx",
+      "search_url": "https://www.claritasrx.com/about/careers/",
+      "job_url_pattern": "jobs\\.workable\\.com/view/"
     }
   ],
   "eightfold": [
@@ -1545,10 +1550,6 @@
     {
       "company": "ActivTrak",
       "search_url": "https://apply.workable.com/activtrak/"
-    },
-    {
-      "company": "Claritas Rx",
-      "search_url": "https://apply.workable.com/claritas-rx/"
     },
     {
       "company": "Q2Impact",
