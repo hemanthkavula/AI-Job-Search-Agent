@@ -6,6 +6,7 @@ on:
     paths:
       - "app/sources/smartrecruiters.py"
       - "app/sources/workable.py"
+      - "app/sources/ukg.py"
       - "app/sources/career_site.py"
       - "data/job_sources.json"
       - ".github/workflows/ats-adapter-smoke.yml"
@@ -32,9 +33,10 @@ jobs:
           from app.sources.career_site import _get, _jobpostings
           from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
           from app.sources.workable import fetch_jobs as workable_jobs
+          from app.sources.ukg import fetch_jobs as ukg_jobs, _get as ukg_get, _jobposting as ukg_jobposting
 
           cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8"))
-          totals={"smartrecruiters":0,"workable":0}
+          totals={"smartrecruiters":0,"workable":0,"ukg":0}
           failures=[]
 
           for src in cfg.get("smartrecruiters",[]):
@@ -73,7 +75,26 @@ jobs:
                   failures.append(("workable",company,str(exc)))
                   print(f"SMOKE workable | {company} | ERROR | {exc}",flush=True)
 
-          print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} failures={len(failures)}",flush=True)
+          seen_ukg=set()
+          for family in ("ukg","ultipro","ultipro_ukg"):
+              for src in cfg.get(family,[]):
+                  company=src.get("company") or src.get("search_url")
+                  url=src.get("search_url")
+                  duplicate=url in seen_ukg
+                  seen_ukg.add(url)
+                  try:
+                      body=ukg_get(url,25)
+                      jsonld=len(ukg_jobposting(body))
+                      visible=len(re.findall(r'href=["\\\'][^"\\\']*(?:OpportunityDetail|/job/|/jobs/)[^"\\\']*["\\\']',body,re.I))
+                      jobs=ukg_jobs(company,url,timeout=25)
+                      totals["ukg"] += len(jobs)
+                      print(f"DIAG {family} | {company} | duplicate={duplicate} board_bytes={len(body)} jsonld={jsonld} visible_job_links={visible}",flush=True)
+                      print(f"SMOKE {family} | {company} | {len(jobs)} DE jobs",flush=True)
+                  except Exception as exc:
+                      failures.append((family,company,str(exc)))
+                      print(f"SMOKE {family} | {company} | ERROR | {exc}",flush=True)
+
+          print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} ukg={totals['ukg']} failures={len(failures)}",flush=True)
           if failures:
               raise SystemExit("ATS smoke had execution failures")
           PY
