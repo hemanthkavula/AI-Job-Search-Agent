@@ -40,6 +40,17 @@ CONTRACT_MARKERS=("contract","contractor")
 CLEARANCE_PATTERNS=(r"\bts\/sci\b",r"\btop secret\b",r"\bsecret clearance\b",r"\bactive clearance\b",r"\bsecurity clearance required\b",r"\bmust (?:be|hold|possess|have) (?:a )?(?:u\.?s\.? )?security clearance\b",r"\bcleared (?:senior )?data engineer\b")
 CITIZENSHIP_PATTERNS=(r"\bu\.?s\.? citizens? only\b",r"\bus citizens? only\b",r"\bmust be (?:a )?u\.?s\.? citizens?\b",r"\bmust be (?:a )?us citizens?\b",r"\bu\.?s\.? citizenship required\b",r"\bus citizenship required\b")
 
+EXCLUDED_EMPLOYER_ALIASES={
+ "fidelity investments","fidelity","fidelity investments inc","fidelity investments institutional services",
+ "cigna healthcare","cigna","the cigna group","cigna group",
+ "target corporation","target corp","target"
+}
+
+def employer_is_excluded(company):
+    normalized=re.sub(r"[^a-z0-9]+"," ",(company or "").lower()).strip()
+    if not normalized:return False
+    return normalized in EXCLUDED_EMPLOYER_ALIASES
+
 def _clean(v):return re.sub(r"\s+"," ",(v or "").lower()).strip()
 def _title_for_match(title):
     # Parenthetical work-arrangement/location qualifiers do not change the role family.
@@ -148,6 +159,8 @@ def passes_hard_filters(job:dict,profile:dict):
     hard gate because the configured search targets Full-Time/W-2 roles.
     """
     reasons=[]
+    if employer_is_excluded(job.get("company") or job.get("company_key")):
+        reasons.append("excluded prior employer")
     if not title_is_target(job.get("title"),job.get("description")):
         reasons.append("title/JD outside data-engineering job family")
     if not location_is_us(job.get("location"),job.get("source"),job.get("description")):
