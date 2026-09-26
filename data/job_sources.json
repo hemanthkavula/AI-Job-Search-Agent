@@ -1794,7 +1794,20 @@
       "search_url": "https://workwithus.pinpointhq.com/"
     }
   ],
-  "brassring": [],
+  "brassring": [
+    {
+      "company": "Infosys",
+      "search_url": "https://sjobs.brassring.com/TGnewUI/Search/Home/Home?partnerid=25633&siteid=5439"
+    },
+    {
+      "company": "Lockheed Martin",
+      "search_url": "https://sjobs.brassring.com/TGnewUI/Search/Home/Home?partnerid=25037&siteid=5010"
+    },
+    {
+      "company": "BAE Systems",
+      "search_url": "https://sjobs.brassring.com/TGnewUI/Search/Home/Home?partnerid=25771&siteid=5464"
+    }
+  ],
   "careerplug": [
     {
       "company": "College HUNKS Hauling Junk & Moving",
