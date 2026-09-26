@@ -59,7 +59,7 @@ def _lookup(job,ledger):
 PROCESSED_STATUSES={
     # FINAL_JD_VERIFIED is intentionally NOT terminal: a free discovery/finalization
     # cycle must not prevent a later paid resume-generation cycle from processing it.
-    "HOLD_ATS_REVIEW","READY_TO_APPLY","MANUAL_READY_TO_APPLY",
+    "HOLD_ATS_REVIEW","READY_TO_APPLY",
     "SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",
 }
 
