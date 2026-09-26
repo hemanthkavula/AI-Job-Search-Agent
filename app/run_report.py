@@ -16,7 +16,8 @@ def build(summary_path=None):
     by_provider={}
     for _,row in units.items():
         if isinstance(row,str):
-            continue
+            provider,_,company=_.partition(":")
+            row={"source":provider,"company":company,"status":row,"jobs_returned":0}
         p=row.get("source") or "unknown"
         by_provider.setdefault(p,[]).append(row)
     lines=[f"# Production Source Report — {s.get('cycle_id','unknown')}","",
