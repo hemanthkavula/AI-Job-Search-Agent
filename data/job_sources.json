@@ -1861,8 +1861,30 @@
   ],
   "trinet": [],
   "dover": [],
-  "gem": [],
-  "polymer": [],
+  "gem": [
+    {
+      "company": "Félix",
+      "search_url": "https://jobs.gem.com/felix"
+    },
+    {
+      "company": "Farmers Business Network",
+      "search_url": "https://jobs.gem.com/farmers-business-network"
+    },
+    {
+      "company": "OneSignal",
+      "search_url": "https://jobs.gem.com/onesignal"
+    },
+    {
+      "company": "Tessellate",
+      "search_url": "https://jobs.gem.com/tessellate"
+    }
+  ],
+  "polymer": [
+    {
+      "company": "Return",
+      "search_url": "https://jobs.polymer.co/return/"
+    }
+  ],
   "hirehive": [],
   "kula": [],
   "rival": [],
