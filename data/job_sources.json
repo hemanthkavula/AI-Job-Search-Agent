@@ -1867,7 +1867,16 @@
   "kula": [],
   "rival": [],
   "werecruit": [],
-  "deel": [],
+  "deel": [
+    {
+      "company": "Guardare",
+      "search_url": "https://jobs.deel.com/guardare/"
+    },
+    {
+      "company": "Deel Jobs",
+      "search_url": "https://jobs.deel.com/"
+    }
+  ],
   "firststage": [],
   "recruiterbox": [],
   "talentbrew": [],
