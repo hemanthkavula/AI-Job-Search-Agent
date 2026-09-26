@@ -2097,7 +2097,12 @@
       "search_url": "https://jobs.deel.com/"
     }
   ],
-  "firststage": [],
+  "firststage": [
+    {
+      "company": "Wayve",
+      "search_url": "https://wayve.firststage.co/jobs"
+    }
+  ],
   "recruiterbox": [
     {
       "company": "Adidev Technologies",
