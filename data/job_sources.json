@@ -2050,7 +2050,12 @@
       "search_url": "https://isolved.isolvedhire.com/jobs/"
     }
   ],
-  "hibob": [],
+  "hibob": [
+    {
+      "company": "HiBob",
+      "search_url": "https://hibob-fa0ad69d0cb34a.careers.hibob.com/jobs"
+    }
+  ],
   "gohire": [
     {
       "company": "Qualifinds",
