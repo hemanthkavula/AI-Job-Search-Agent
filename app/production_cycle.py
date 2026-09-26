@@ -43,9 +43,12 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
   extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id}
+  status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="READY_TO_APPLY":
    pdf_path=row.get("pdf_path")
-   if pdf_path and Path(pdf_path).suffix.lower()==".pdf":
+   validation=row.get("artifact_validation") or {}
+   explicit_validation="artifact_validation" in row and row.get("artifact_validation") is not None
+   if pdf_path and Path(pdf_path).suffix.lower()==".pdf" and (not explicit_validation or validation.get("passed")):
     queue_payload={
      "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
      "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
@@ -55,8 +58,8 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
     if queue_payload.get("external_id"):extra["queue_item"]=queue_payload
    else:
     status="HOLD_ARTIFACT_VALIDATION"
+    extra["queue_item"]=None
     extra["application_reason"]="Validated PDF resume is required before application."
-  status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="RETRY_RESUME_GENERATION":
    _,existing=_lookup(job,ledger)
    meta=retry_metadata(existing or {},"resume")
