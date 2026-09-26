@@ -34,6 +34,7 @@ jobs:
           from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
           from app.sources.workable import fetch_jobs as workable_jobs
           from app.sources.ukg import fetch_jobs as ukg_jobs, _get as ukg_get, _jobposting as ukg_jobposting
+          from app.sources.dayforce import fetch_jobs as dayforce_jobs, _get as dayforce_get, _posts as dayforce_posts
 
           cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8"))
           totals={"smartrecruiters":0,"workable":0,"ukg":0}
@@ -74,6 +75,23 @@ jobs:
               except Exception as exc:
                   failures.append(("workable",company,str(exc)))
                   print(f"SMOKE workable | {company} | ERROR | {exc}",flush=True)
+
+          for src in cfg.get("dayforce",[]):
+              company=src.get("company") or src.get("search_url"); url=src.get("search_url")
+              try:
+                  body=dayforce_get(url,25)
+                  posts=dayforce_posts(body)
+                  hrefs=re.findall(r'href=["\\\']([^"\\\']+)["\\\']',body,re.I)
+                  joblinks=[urljoin(url,html.unescape(h)) for h in hrefs if any(x in h.lower() for x in ("/job/","/jobs/","jobdetail","job-details","posting"))]
+                  scripts=re.findall(r'<script[^>]+src=["\\\']([^"\\\']+)["\\\']',body,re.I)
+                  hints=sorted(set(x for x in re.findall(r'(?i)(?:https?:)?//[^"\\\'<> ]+|/[A-Za-z0-9_.?=&%/-]{3,}',body) if any(k in x.lower() for k in ("api","job","career","posting","candidate"))))[:80]
+                  jobs=dayforce_jobs(company,url,timeout=25)
+                  print(f"DIAG dayforce | {company} | bytes={len(body)} jsonld={len(posts)} joblinks={len(joblinks)} scripts={scripts[:30]}",flush=True)
+                  print(f"DIAG dayforce hints | {company} | {hints}",flush=True)
+                  print(f"SMOKE dayforce | {company} | {len(jobs)} DE jobs",flush=True)
+              except Exception as exc:
+                  failures.append(("dayforce",company,str(exc)))
+                  print(f"SMOKE dayforce | {company} | ERROR | {exc}",flush=True)
 
           seen_ukg=set()
           for family in ("ukg","ultipro","ultipro_ukg"):
