@@ -178,7 +178,17 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # not make a failed provider appear to have advanced.
     if source_status.get("workday")!="ERROR" and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
-    state.update({"last_run_at":now.isoformat(),"last_successful_scan_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),"source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks})
+    failed_providers=sorted(provider for provider,status in source_status.items() if status=="ERROR")
+    state_update={"last_run_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
+                  "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
+                  "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
+                  "last_failed_providers":failed_providers}
+    # Keep last_successful_scan_at reserved for a cycle where every reported
+    # provider completed. Partial cycles are still slot-complete because failed
+    # providers retain their own older watermarks and catch up next slot.
+    if not failed_providers:
+        state_update["last_successful_scan_at"]=now.isoformat()
+    state.update(state_update)
     summary["scan_cutoff_local"]=cutoff.isoformat()
     summary["scan_window_hours"]=hours
     _save_state(state)
@@ -187,6 +197,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=now.hour==FINAL_HOUR
+    summary["cycle_status"]="PARTIAL" if failed_providers else "SUCCESS"
+    summary["failed_providers"]=failed_providers
     return summary
 
 if __name__=="__main__":
