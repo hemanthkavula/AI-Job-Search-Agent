@@ -145,7 +145,8 @@ jobs:
                           contract.append("ERROR:"+type(exc).__name__)
                   print(f"DIAG dayforce contract | {company} | snippets={contract[:20]}",flush=True)
                   # Probe Next.js server-data routes using confirmed build/tenant metadata.
-                  from urllib.request import Request as DayforceProbeRequest, urlopen as dayforce_probe_open\n                  server_probes=[]
+                  from urllib.request import Request as DayforceProbeRequest, urlopen as dayforce_probe_open
+                  server_probes=[]
                   if next_data:
                       nd=next_data[0]
                       build=nd.get("buildId")
