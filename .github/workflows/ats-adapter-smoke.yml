@@ -163,7 +163,7 @@ jobs:
                       ]
                       for p in paths:
                           try:
-                              req=DayforceProbeRequest(base+p,headers={**UA,"Accept":"application/json,text/plain,*/*","Referer":url})
+                              req=DayforceProbeRequest(base+p,headers={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/plain,*/*","Referer":url})
                               with dayforce_probe_open(req,timeout=20) as resp:
                                   raw=resp.read(20000).decode("utf-8","replace")
                                   server_probes.append({"path":p,"status":resp.status,"type":resp.headers.get("Content-Type",""),"bytes":len(raw),"head":raw[:1200].replace("\n"," ")})
