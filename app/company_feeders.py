@@ -130,7 +130,7 @@ def ncua_active_credit_unions(timeout=30):
     req=Request(index,headers=UA)
     with urlopen(req,timeout=timeout) as r:html=r.read().decode("utf-8","ignore")
     m=re.search(r'href=["\\\']([^"\\\']*federally-insured-credit-union-list[^"\\\']*\.zip)["\\\']',html,re.I)
-    if not m:return []
+    if not m:raise RuntimeError("DOL FY2026 Q3 LCA disclosure workbook link not found")
     from urllib.parse import urljoin
     zip_url=urljoin(index,m.group(1))
     with urlopen(Request(zip_url,headers=UA),timeout=timeout) as r:payload=r.read()
@@ -220,29 +220,34 @@ def dol_h1b_employers(timeout=60):
     if not m:return []
     from urllib.parse import urljoin
     payload=urlopen(Request(urljoin(page,m.group(1)),headers=UA),timeout=timeout).read()
+    import openpyxl
     try:
-        import openpyxl
         wb=openpyxl.load_workbook(io.BytesIO(payload),read_only=True,data_only=True)
-        ws=wb.active
-        rows=ws.iter_rows(values_only=True)
+    except Exception as e:
+        raise RuntimeError(f"DOL LCA workbook could not be parsed: {e}") from e
+    ws=wb.active
+    rows=ws.iter_rows(values_only=True)
+    try:
         header=[str(x or "").strip().upper() for x in next(rows)]
-        idx={name:i for i,name in enumerate(header)}
-        required={"EMPLOYER_NAME","CASE_STATUS","VISA_CLASS"}
-        if not required.issubset(idx):return []
-        seen=set();out=[]
-        for vals in rows:
-            status=str(vals[idx["CASE_STATUS"]] or "").strip().upper()
-            visa=str(vals[idx["VISA_CLASS"]] or "").strip().upper()
-            name=str(vals[idx["EMPLOYER_NAME"]] or "").strip()
-            if status not in {"CERTIFIED","CERTIFIED-WITHDRAWN"} or visa!="H-1B" or not name:continue
-            key=name.casefold()
-            if key in seen:continue
-            seen.add(key)
-            out.append({"company":name,"recent_h1b_lca":True,
-                        "discovered_by":"dol_oflc_h1b_fy2026_q3"})
-        return out
-    except Exception:
-        return []
+    except StopIteration as e:
+        raise RuntimeError("DOL LCA workbook is empty") from e
+    idx={name:i for i,name in enumerate(header)}
+    required={"EMPLOYER_NAME","CASE_STATUS","VISA_CLASS"}
+    missing=sorted(required-set(idx))
+    if missing:
+        raise RuntimeError("DOL LCA workbook missing required columns: "+", ".join(missing))
+    seen=set();out=[]
+    for vals in rows:
+        status=str(vals[idx["CASE_STATUS"]] or "").strip().upper()
+        visa=str(vals[idx["VISA_CLASS"]] or "").strip().upper()
+        name=str(vals[idx["EMPLOYER_NAME"]] or "").strip()
+        if status not in {"CERTIFIED","CERTIFIED-WITHDRAWN"} or visa!="H-1B" or not name:continue
+        key=name.casefold()
+        if key in seen:continue
+        seen.add(key)
+        out.append({"company":name,"recent_h1b_lca":True,
+                    "discovered_by":"dol_oflc_h1b_fy2026_q3"})
+    return out
 
 
 FEEDERS={"sec_public_companies":sec_public_companies,"dol_h1b_employers":dol_h1b_employers,"fdic_insured_banks":fdic_insured_banks,
