@@ -40,7 +40,10 @@ def _search(api_base: str, site: str, keyword: str, page: int, limit: int, timeo
         "findParams":json.dumps(find_params,separators=(",",":")),
     }
     url=api_base.rstrip("/")+path+"?"+urlencode(params)
-    try:\n        return json.loads(_get(url,timeout))\n    except Exception as exc:\n        raise RuntimeError(f"Oracle search failed url={url}: {type(exc).__name__}:{exc}") from exc
+    try:
+        return json.loads(_get(url,timeout))
+    except Exception as exc:
+        raise RuntimeError(f"Oracle search failed url={url}: {type(exc).__name__}:{exc}") from exc
 
 def _job_url(base_url: str, row: dict) -> str:
     ident=str(row.get("id") or row.get("requisitionId") or row.get("requisitionNumber") or "")
