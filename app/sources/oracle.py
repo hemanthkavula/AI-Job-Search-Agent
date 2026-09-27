@@ -19,8 +19,8 @@ def _plain(value: str) -> str:
 
 def _page_config(base_url: str, timeout: int) -> tuple[str,str]:
     body=_get(base_url.rstrip("/")+"/requisitions",timeout)
-    site=re.search(r'data-sitenumber=["\\']([^"\\']+)',body,re.I)
-    api=re.search(r'data-apibaseurl=["\\']([^"\\']+)',body,re.I)
+    site=re.search(r"""data-sitenumber=["']([^"']+)""",body,re.I)
+    api=re.search(r"""data-apibaseurl=["']([^"']+)""",body,re.I)
     if not site:
         raise RuntimeError("Oracle Candidate Experience siteNumber not found")
     origin=f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
