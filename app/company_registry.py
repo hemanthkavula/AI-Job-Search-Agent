@@ -38,11 +38,15 @@ def upsert(registry, company, official_domain=None, careers_url=None, ats_provid
 def learn_from_jobs(jobs,registry):
     for j in jobs:
         company=j.get("company") or j.get("company_key")
-        # A discovered job proves that the employer is actively hiring, but a job
-        # detail URL is not automatically a reusable career source. Keep the job
-        # evidence separately and let source_registry/career resolution promote
-        # only verified reusable boards.
+        # A discovered ATS job proves both current hiring and, when the
+        # collector already supplied a verified ATS provider + tenant identifier,
+        # a reusable provider source. Persist that URL on the canonical employer
+        # record. Unknown/non-ATS job-detail URLs remain evidence only and are not
+        # promoted to careers_url.
+        source_url=j.get("original_url") or j.get("url")
+        verified_ats=bool(j.get("ats_provider") and j.get("ats_identifier"))
         upsert(registry,company,
+               careers_url=source_url if verified_ats else None,
                ats_provider=j.get("ats_provider"),ats_identifier=j.get("ats_identifier"),
                discovered_by=j.get("source"))
         key=company_key(company or "")
