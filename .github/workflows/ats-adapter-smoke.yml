@@ -417,6 +417,18 @@ jobs:
                   for pat in (r"""[^\'\"\\s<>]{0,120}(?:requisition|searchJobs|CandidateExperience|restApi)[^\'\"\\s<>]{0,180}""",r"""https?://[^\'\"\\s<>]+"""):
                       cfg.extend(re.findall(pat,body,re.I))
                   print(f"DIAG oracle assets | {src.get('company')} | scripts={scripts[-20:]} cfg={cfg[:30]}",flush=True)
+                  if src.get("company")=="Goldman Sachs":
+                      asset="https://static.oracle.com/cdn/fa/oj-hcm-ce/2607.26.262300322/js/main-minimal.js"
+                      js=urlopen(Request(asset,headers={"User-Agent":"Mozilla/5.0"}),timeout=30).read().decode("utf-8","replace")
+                      ctx=[]
+                      for token in ("hcmRestApi/CandidateExperience","requisitions","requisitionList","searchJobs","findJobs"):
+                          start=0
+                          while len(ctx)<40:
+                              k=js.find(token,start)
+                              if k<0:break
+                              ctx.append(js[max(0,k-350):k+650])
+                              start=k+len(token)
+                      print(f"DIAG oracle contract | bytes={len(js)} ctx={ctx[:40]}",flush=True)
           except Exception as exc:
               print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
