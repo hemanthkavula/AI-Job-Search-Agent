@@ -35,6 +35,37 @@ def _hide_job(job_key):
     HIDDEN.parent.mkdir(parents=True,exist_ok=True)
     HIDDEN.write_text(json.dumps({"job_keys":sorted(keys)},indent=2),encoding="utf-8")
 
+def _delete_resume_artifacts(row,hist=None):
+    """Delete generated resume artifacts for one dashboard application only."""
+    candidates=[
+        row.get("pdf_path"), row.get("resume_path"),
+        (row.get("queue_item") or {}).get("resume_path"),
+        (row.get("retry_application") or {}).get("resume_path"),
+        (hist or {}).get("resume_path"),
+    ]
+    allowed_roots=[STATE_DIR.resolve(), (ROOT/"generated").resolve()]
+    deleted=[]
+    for value in candidates:
+        if not value:continue
+        p=Path(value)
+        if not p.is_absolute():
+            options=[STATE_DIR/p, ROOT/p, STATE_DIR.parent/p]
+            p=next((x for x in options if x.exists()),options[0])
+        elif not p.exists():
+            parts=p.parts
+            if "generated" in parts:
+                idx=parts.index("generated")
+                p=STATE_DIR/Path(*parts[idx+1:])
+        for artifact in {p, p.with_suffix(".pdf"), p.with_suffix(".docx")}:
+            try:
+                resolved=artifact.resolve()
+                if artifact.exists() and artifact.is_file() and any(root==resolved or root in resolved.parents for root in allowed_roots):
+                    artifact.unlink()
+                    deleted.append(str(artifact))
+            except (OSError,ValueError):
+                continue
+    return deleted
+
 def _resume_path(row):
     candidates=[
         row.get("pdf_path"),
@@ -165,11 +196,13 @@ def _cycle_snapshot(cycle_id):
 
 def _pipeline_jobs(cycle_id):
     snapshot=_cycle_snapshot(cycle_id)
+    hidden=_hidden_keys()
     current=_jobs()
     by_key={str(x.get("key") or ""):x for x in current if x.get("key")}
     out=[]
     for row in snapshot:
         key=str(row.get("job_key") or row.get("key") or row.get("external_id") or row.get("job_id") or "")
+        if key and key in hidden:continue
         live=by_key.get(key)
         if not live:
             company=str(row.get("company") or row.get("company_name") or "").strip().lower()
@@ -302,12 +335,30 @@ def applications(pipeline: str | None = None, date: str | None = None):
     }}
 
 @app.delete("/api/applications/{job_key:path}")
-def hide_application(job_key:str):
+def delete_application(job_key:str):
     ledger=_json(LEDGER,{"jobs":{}})
-    if job_key not in (ledger.get("jobs") or {}):
+    row=(ledger.get("jobs") or {}).get(job_key)
+    if not row:
         raise HTTPException(404,"Job not found")
+
+    data,apps=_confirmed_map()
+    company=str(row.get("company") or "").strip().lower()
+    title=str(row.get("title") or "").strip().lower()
+    matching=[x for x in apps if x.get("job_key")==job_key or (
+        company and title
+        and str(x.get("company") or "").strip().lower()==company
+        and str(x.get("title") or "").strip().lower()==title
+    )]
+    deleted_files=_delete_resume_artifacts(row,matching[0] if matching else None)
+    data["applications"]=[x for x in apps if x not in matching]
+    if len(data["applications"])!=len(apps):
+        _save_confirmed(data)
+
+    # Keep the ledger record for duplicate prevention/source history, but hide it
+    # from every dashboard view. hidden_applications.json is intentionally
+    # preserved across future GitHub -> Railway syncs.
     _hide_job(job_key)
-    return {"ok":True,"hidden":True}
+    return {"ok":True,"deleted":True,"hidden":True,"deleted_files":deleted_files}
 
 @app.post("/api/applications/{job_key:path}/confirm-submitted")
 def confirm_submitted(job_key:str):
@@ -367,7 +418,7 @@ function counts(x){all.textContent=x.length;queue.textContent=x.filter(r=>["Read
 function renderTabs(){let today=dateKey(new Date());if(selectedDate===null)selectedDate=today;tabs.innerHTML='<button class="tab '+(selectedDate===today?"active":"")+'" data-date="'+today+'">Today</button><button class="tab '+(!selectedDate?"active":"")+'" data-all-dates="1">All Dates</button><button class="tab" data-prev="1">← Previous</button><button class="tab" data-next="1">Next →</button>'}
 function render(){datePicker.value=selectedDate||"";let q=search.value.toLowerCase(),f=filter.value;let x=rows.filter(r=>(!selectedPipeline||r.pipeline===selectedPipeline)&&(!q||(r.company+" "+r.title+" "+r.portal).toLowerCase().includes(q))&&(!f||r.stage===f));x.sort((a,b)=>{let pa=pipelineRows.findIndex(p=>p.cycle_id===a.pipeline),pb=pipelineRows.findIndex(p=>p.cycle_id===b.pipeline);if(pa!==pb){if(pa<0)return 1;if(pb<0)return -1;return pa-pb}return new Date(b.created||0)-new Date(a.created||0)});counts(x);jobCount.textContent="Showing "+x.length+" jobs";jobsTitle.textContent=selectedDate?"Jobs — "+labelDate(selectedDate):"Jobs — All Dates";jobs.innerHTML=x.map(r=>'<div class="row"><div class="jobInfo"><div class="title">'+esc(r.title)+'</div><div class="meta"><span class="company">'+esc(r.company)+'</span><span class="metaDot">•</span><span>'+esc(r.portal)+'</span><span class="metaDot">•</span><span>'+esc(pipelineName(r.pipeline))+'</span></span></div></div><div class="statusCell"><span class="badge '+cls(r.stage)+'">'+esc(r.stage)+'</span></div><div class="created">'+(r.applied_at?niceDate(r.applied_at):"—")+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open Job</a>':'<span></span>')+(r.resume_url?'<a class="btn" href="'+r.resume_url+'" target="_blank">View Resume</a>':'<span></span>')+(r.stage!=="Applied"?'<button class="btn" data-job-key="'+esc(r.key)+'">✓ Mark Applied</button>':'<span class="badge applied">✓ Applied</span>')+'<div class="menuWrap"><button class="btn" data-menu="1">•••</button><div class="menu"><button class="btn deleteBtn" data-delete-key="'+esc(r.key)+'">Delete</button></div></div></div></div>').join("")||'<div class="empty">No jobs in this view.</div>';let p=pipelineRows.filter(r=>!selectedDate||dateKey(r.created)===selectedDate);pipeCount.textContent=p.length+" runs";pipeTitle.textContent=selectedDate?"Pipeline Runs — "+labelDate(selectedDate):"Pipeline Runs — All Dates";pipes.innerHTML=p.map((r,i)=>'<div class="pipe"><b><span class="green">●</span> '+(i===0?"Latest Run":"Pipeline Run")+'</b><div>'+niceDate(r.created)+'</div><div>'+esc(r.discovered)+' jobs found · '+esc(r.eligible)+' eligible</div><div>'+esc(r.ready)+' ready to apply</div><div style="margin-top:12px"><button class="btn" data-pipeline="'+esc(r.cycle_id)+'">View Jobs →</button></div></div>').join("")||'<div class="empty">No pipeline records for this date.</div>'}
 async function markApplied(key,btn){if(!confirm("Mark this application as Applied?"))return;btn.disabled=true;try{let r=await fetch("/api/applications/"+encodeURIComponent(key)+"/confirm-submitted",{method:"POST"});if(!r.ok)throw 0;await load()}catch(e){alert("Could not update status.");btn.disabled=false}}
-async function deleteRow(key){if(!confirm("Delete this application from the dashboard?"))return;let r=await fetch("/api/applications/"+encodeURIComponent(key),{method:"DELETE"});if(r.ok)load();else alert("Could not delete this application.")}
+async function deleteRow(key){if(!confirm("Delete this entire application from the dashboard? This also removes its generated resume files."))return;let r=await fetch("/api/applications/"+encodeURIComponent(key),{method:"DELETE"});if(r.ok)load();else alert("Could not delete this application.")}
 async function load(){if(selectedDate===null)selectedDate=dateKey(new Date());let p=await fetch("/api/pipelines",{cache:"no-store"}).then(r=>r.json());pipelineRows=p.pipelines||[];let url="/api/applications";if(selectedPipeline)url+="?pipeline="+encodeURIComponent(selectedPipeline);else if(selectedDate)url+="?date="+encodeURIComponent(selectedDate);let a=await fetch(url,{cache:"no-store"}).then(r=>r.json());rows=a.applications||[];renderTabs();render()}
 pipes.addEventListener("click",async e=>{let b=e.target.closest("[data-pipeline]");if(!b)return;selectedPipeline=b.dataset.pipeline;let pr=pipelineRows.find(r=>r.cycle_id===selectedPipeline);if(pr)selectedDate=dateKey(pr.created);await load();document.getElementById("jobsSection").scrollIntoView({behavior:"smooth"})});tabs.addEventListener("click",e=>{let allBtn=e.target.closest("[data-all-dates]");if(allBtn){selectedPipeline="";selectedDate="";renderTabs();render();return}let prev=e.target.closest("[data-prev]"),next=e.target.closest("[data-next]");if(prev||next){selectedPipeline="";let base=selectedDate||dateKey(new Date()),d=new Date(base+"T12:00:00");d.setDate(d.getDate()+(next?1:-1));selectedDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");renderTabs();render();return}let b=e.target.closest("[data-date]");if(!b)return;selectedPipeline="";selectedDate=b.getAttribute("data-date");renderTabs();render()});jobs.addEventListener("click",e=>{let m=e.target.closest("[data-menu]");if(m){m.nextElementSibling.classList.toggle("open");return}let b=e.target.closest("[data-job-key]");if(b){markApplied(b.dataset.jobKey,b);return}let d=e.target.closest("[data-delete-key]");if(d)deleteRow(d.dataset.deleteKey)});datePicker.addEventListener("change",()=>{selectedPipeline="";selectedDate=datePicker.value||"";renderTabs();render()});search.oninput=render;filter.onchange=render;todayLabel.textContent=new Date().toLocaleDateString([],{weekday:"short",month:"short",day:"numeric",year:"numeric"});load();setInterval(load,10000);
 </script></body></html>""")
