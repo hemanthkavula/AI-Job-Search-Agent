@@ -113,7 +113,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Existing executable sources are excluded above so scarce network budget
         # expands coverage instead of re-enriching already-addressable employers.
         key=lambda r:(not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url")),
-                      not bool(r.get("sec_cik")),not bool(r.get("recent_h1b_lca")),
+                      not bool(r.get("recent_h1b_lca")),not bool(r.get("sec_cik")),
                       bool(r.get("domain_last_attempt_at")),r.get("domain_last_attempt_at") or "")
     )[:domain_budget]
     now=datetime.now(timezone.utc).isoformat()
