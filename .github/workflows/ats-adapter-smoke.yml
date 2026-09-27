@@ -219,6 +219,24 @@ jobs:
                           except Exception as exc:
                               manifest_results.append({"path":mp,"error":type(exc).__name__+":"+str(exc)[:200]})
                   print(f"DIAG dayforce manifests | {company} | {manifest_results}",flush=True)
+                  # Inspect concrete script assets already emitted by the live page.
+                  live_assets=[]
+                  for src in scripts[:80]:
+                      full=urljoin(url,src)
+                      try:
+                          req=DayforceProbeRequest(full,headers={"User-Agent":"Mozilla/5.0","Accept":"*/*","Referer":url})
+                          with dayforce_probe_open(req,timeout=20) as resp:
+                              js=resp.read(400000).decode("utf-8","replace")
+                          hits=[]
+                          for token in ("job-post","jobPosting","searchJobs","job-search","search-jobs","loadseekdata","site-info","jobBoardId","clientNamespace"):
+                              pos=js.lower().find(token.lower())
+                              if pos>=0: hits.append({"token":token,"context":js[max(0,pos-700):pos+1500]})
+                          if hits or any(k in src.lower() for k in ("clientnamespace","career","candidate","job")):
+                              live_assets.append({"src":src,"status":resp.status,"bytes":len(js),"hits":hits[:12]})
+                      except Exception as exc:
+                          if any(k in src.lower() for k in ("clientnamespace","career","candidate","job")):
+                              live_assets.append({"src":src,"error":type(exc).__name__+":"+str(exc)[:160]})
+                  print(f"DIAG dayforce live-assets | {company} | {live_assets[:30]}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
