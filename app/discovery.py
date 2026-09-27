@@ -55,9 +55,22 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 if key not in seen:
                     existing.append(row);seen.add(key)
         else:
-            seen={str(x) for x in existing}
+            def _unit_key(row):
+                # Static and learned rows often carry different metadata fields.
+                # Deduplicate on the executable tenant identity, not dict repr.
+                identity=(row.get("board_token") or row.get("site") or row.get("board_name")
+                          or row.get("company_identifier") or row.get("identifier"))
+                url=(row.get("base_url") or row.get("search_url") or row.get("careers_url")
+                     or row.get("url") or row.get("original_url"))
+                if url:
+                    url=str(url).rstrip("/").lower()
+                return (provider,str(identity or "").lower(),url or "",
+                        str(row.get("company") or "").strip().lower())
+            seen={_unit_key(x) for x in existing}
             for row in learned_config.get(provider,[]):
-                if str(row) not in seen:existing.append(row)
+                key=_unit_key(row)
+                if key not in seen:
+                    existing.append(row);seen.add(key)
         merged[provider]=existing
     config=merged
     jobs=[]
