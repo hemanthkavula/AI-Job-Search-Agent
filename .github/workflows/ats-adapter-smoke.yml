@@ -403,6 +403,18 @@ jobs:
               print(f"DIAG gem contract-final | docs={gql_docs[:8]} uris={uris[:30]} endpoint_ctx={endpoint_ctx[:20]}",flush=True)
           except Exception as exc:
               print(f"DIAG gem contract-final | ERROR | {type(exc).__name__}:{exc}",flush=True)
+          try:
+              from app.sources.gem import fetch_jobs as gem_fetch
+              gem_cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8")).get("gem",[])
+              gem_total=0
+              for src in gem_cfg:
+                  rows=gem_fetch(src.get("company") or "Gem",src.get("search_url") or src.get("base_url") or src.get("careers_url"))
+                  gem_total += len(rows)
+                  print(f"SMOKE gem | {src.get('company')} | {len(rows)} DE jobs",flush=True)
+              print(f"SMOKE gem total | {gem_total}",flush=True)
+          except Exception as exc:
+              failures.append(("gem","configured",f"{type(exc).__name__}:{exc}"))
+              print(f"SMOKE gem | ERROR | {type(exc).__name__}:{exc}",flush=True)
           print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} ukg={totals['ukg']} failures={len(failures)}",flush=True)
           if failures:
               raise SystemExit("ATS smoke had execution failures")
