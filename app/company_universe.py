@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
@@ -11,8 +12,8 @@ from app.career_page_resolver import resolve as resolve_career_page
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
-DOMAIN_RESOLVER_VERSION="2026-09-27-v2"
-CAREER_RESOLVER_VERSION="2026-09-27-v3"
+DOMAIN_RESOLVER_VERSION="2026-09-27-v3"
+CAREER_RESOLVER_VERSION="2026-09-27-v4"
 
 def _domain(url):
     try:
@@ -101,59 +102,73 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
                     reg[key]["domain_evidence"]=row.get("discovered_by") or ("fdic_active_institutions" if row.get("fdic_cert") else "authoritative_feeder")
     resolved_domains=0
     domain_attempts=0
-    # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days,DOMAIN_RESOLVER_VERSION)), key=lambda r: (not bool(r.get("recent_h1b_lca")), r.get("domain_last_attempt_at") or ""))
+    domain_candidates=sorted(
+        (r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r)
+         and _retry_due(r,"domain",retry_days,DOMAIN_RESOLVER_VERSION)),
+        key=lambda r:(not bool(r.get("recent_h1b_lca")),r.get("domain_last_attempt_at") or "")
+    )[:domain_budget]
+    now=datetime.now(timezone.utc).isoformat()
     for row in domain_candidates:
-        if domain_attempts>=domain_budget:break
-        row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
+        row["domain_last_attempt_at"]=now
         row["domain_resolver_version"]=DOMAIN_RESOLVER_VERSION
-        domain_attempts+=1
-        try:
-            resolved=resolve_company(row)
-            if resolved:
-                row.update({k:v for k,v in resolved.items() if v})
-                row["domain_last_success_at"]=datetime.now(timezone.utc).isoformat()
-                row.pop("domain_last_error",None)
-                resolved_domains+=1
-            else:
-                row["domain_last_error"]="NO_VERIFIED_DOMAIN_EVIDENCE_RETURNED"
-        except Exception as e:
-            row["domain_last_error"]=f"{type(e).__name__}: {e}"[:500]
-            continue
+    domain_attempts=len(domain_candidates)
+    # Network-bound resolution is deliberately bounded but concurrent. This turns
+    # the budget into useful coverage instead of serially spending minutes on a
+    # handful of throttled sites.
+    with ThreadPoolExecutor(max_workers=min(24,max(1,domain_attempts))) as pool:
+        futures={pool.submit(resolve_company,row):row for row in domain_candidates}
+        for future in as_completed(futures):
+            row=futures[future]
+            try:
+                resolved=future.result()
+                if resolved:
+                    row.update({k:v for k,v in resolved.items() if v})
+                    row["domain_last_success_at"]=datetime.now(timezone.utc).isoformat()
+                    row.pop("domain_last_error",None)
+                    resolved_domains+=1
+                else:
+                    row["domain_last_error"]="NO_VERIFIED_DOMAIN_EVIDENCE_RETURNED"
+            except Exception as e:
+                row["domain_last_error"]=f"{type(e).__name__}: {e}"[:500]
+
     resolved_careers=0
     learned_sources=0
     resolution_failures=0
     custom_career_sites=0
     source_registry=load_source_registry()
-    career_attempts=0
-    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days,CAREER_RESOLVER_VERSION)), key=lambda r: (not bool(r.get("recent_h1b_lca")), not bool(r.get("careers_url")), r.get("career_last_attempt_at") or ""))
+    career_candidates=sorted(
+        (r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider")
+         and _retry_due(r,"career",retry_days,CAREER_RESOLVER_VERSION)),
+        key=lambda r:(not bool(r.get("recent_h1b_lca")),not bool(r.get("careers_url")),r.get("career_last_attempt_at") or "")
+    )[:career_budget]
+    career_attempts=len(career_candidates)
+    now=datetime.now(timezone.utc).isoformat()
     for row in career_candidates:
-        if career_attempts>=career_budget:break
-        row["career_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
+        row["career_last_attempt_at"]=now
         row["career_resolver_version"]=CAREER_RESOLVER_VERSION
-        career_attempts+=1
-        try:
-            career=resolve_career_page(row["official_domain"])
-            if not career:
-                row["career_last_error"]="NO_CAREER_PAGE_RESOLVED"
+    with ThreadPoolExecutor(max_workers=min(24,max(1,career_attempts))) as pool:
+        futures={pool.submit(resolve_career_page,row["official_domain"]):row for row in career_candidates}
+        for future in as_completed(futures):
+            row=futures[future]
+            try:
+                career=future.result()
+                if not career:
+                    row["career_last_error"]="NO_CAREER_PAGE_RESOLVED"
+                    resolution_failures+=1
+                    continue
+                row.update({k:v for k,v in career.items() if v})
+                row["career_last_success_at"]=datetime.now(timezone.utc).isoformat()
+                row.pop("career_last_error",None)
+                resolved_careers+=1
+                if career.get("ats_provider")=="career_site":custom_career_sites+=1
+                if learn_resolved_source(
+                    career.get("ats_provider"),row.get("company"),career.get("careers_url"),
+                    source_registry,identifier=career.get("ats_identifier")
+                ):
+                    learned_sources+=1
+            except Exception as e:
+                row["career_last_error"]=f"{type(e).__name__}: {e}"[:500]
                 resolution_failures+=1
-                continue
-            row.update({k:v for k,v in career.items() if v})
-            row["career_last_success_at"]=datetime.now(timezone.utc).isoformat()
-            row.pop("career_last_error",None)
-            resolved_careers+=1
-            if career.get("ats_provider")=="career_site":custom_career_sites+=1
-            # Promote the verified career/ATS result through the same registry
-            # learner used by broad discovery, so it becomes executable config.
-            if learn_resolved_source(
-                career.get("ats_provider"), row.get("company"), career.get("careers_url"),
-                source_registry, identifier=career.get("ats_identifier")
-            ):
-                learned_sources+=1
-        except Exception as e:
-            row["career_last_error"]=f"{type(e).__name__}: {e}"[:500]
-            resolution_failures+=1
-            continue
     save_source_registry(source_registry)
     save_registry(reg) if registry_path is None else save_registry(reg,registry_path)
 
