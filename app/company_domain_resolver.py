@@ -177,6 +177,10 @@ def can_resolve_company(row, allow_name_search=False):
         or row.get("organization_url_evidence")
         or row.get("domain_candidate_url")
         or row.get("official_url")
+        # Recent certified H-1B LCA history is a strong prioritization signal for
+        # this agent. It permits *discovery* by employer name, but never bypasses
+        # first-party verification in _verified_domain_from_search().
+        or (row.get("recent_h1b_lca") and row.get("company"))
         or (allow_name_search and row.get("company"))
     )
 
@@ -201,4 +205,5 @@ def resolve_company(row, allow_name_search=False):
     if row.get("sec_cik"):
         hit=sec_company_domain(row["sec_cik"])
         if hit:return hit
-    return _verified_domain_from_search(row) if allow_name_search else None
+    priority_name_search=bool(row.get("recent_h1b_lca") and row.get("company"))
+    return _verified_domain_from_search(row) if (allow_name_search or priority_name_search) else None
