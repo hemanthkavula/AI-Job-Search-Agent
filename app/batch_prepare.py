@@ -117,6 +117,10 @@ def _retryable_resume_error(exc):
     )
     return any(marker in text for marker in transient_markers)
 
+def _should_use_master_resume(raw,coverage_plan):
+    """Master fallback is allowed only when a verified JD yields no safe tailoring targets."""
+    return int(coverage_plan.get("target_count") or 0) == 0
+
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
     if company and company.lower() not in (raw.get("company_key") or raw.get("company") or "").lower():return False
@@ -145,7 +149,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
-            use_master_resume=(coverage_plan["target_count"] == 0)
+            use_master_resume=_should_use_master_resume(raw,coverage_plan)
             if use_master_resume:
                 # A FINAL_JD_VERIFIED job with usable JD evidence must be tailored
                 # whenever the JD yields concrete coverage targets. Only a JD with
