@@ -142,7 +142,7 @@ def resolve(official_domain,timeout=15):
                 # Embedded ATS scripts prove the provider, but a CDN/static asset
                 # is not a navigable job board. Keep the verified employer career
                 # page as the executable URL in that case.
-                career_url = final if re.search(r'\\.(?:js|css|png|svg|jpg)(?:\\?|$)',u,re.I) else u
+                career_url = final if re.search(r'\.(?:js|css|png|svg|jpg)(?:\?|$)',u,re.I) else u
                 return {"careers_url":career_url,"ats_provider":p,"ats_identifier":i}
             if _jobposting_evidence(body):
                 return {"careers_url":final,"ats_provider":"career_site","ats_identifier":urlparse(final).netloc}
