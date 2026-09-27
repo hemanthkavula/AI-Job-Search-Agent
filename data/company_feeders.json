@@ -12,6 +12,12 @@
       "scope": "US public registrants"
     },
     {
+      "id": "dol_h1b_employers",
+      "enabled": true,
+      "kind": "authoritative_sponsorship_history",
+      "scope": "employers with certified FY2026 Q3 H-1B LCAs; sponsorship-history signal only"
+    },
+    {
       "id": "existing_source_companies",
       "enabled": true,
       "kind": "internal_seed",
@@ -128,6 +134,11 @@
       "id": "healthcare_provider_orgs",
       "status": "implemented",
       "scope": "health systems and provider organizations"
+    },
+    {
+      "id": "dol_oflc_h1b",
+      "status": "implemented",
+      "scope": "recent employers with certified H-1B LCA determinations"
     }
   ],
   "next_implementation_priority": [
