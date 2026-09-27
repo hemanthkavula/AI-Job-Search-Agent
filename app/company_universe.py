@@ -13,7 +13,7 @@ from app.ats_tenant_resolver import resolve as resolve_ats_tenant
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
-DOMAIN_RESOLVER_VERSION="2026-09-27-v6"
+DOMAIN_RESOLVER_VERSION="2026-09-27-v7"
 CAREER_RESOLVER_VERSION="2026-09-27-v6"
 ATS_TENANT_RESOLVER_VERSION="2026-09-27-v1"
 
@@ -112,8 +112,9 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Strong authoritative identifiers first; then recent H-1B history.
         # Existing executable sources are excluded above so scarce network budget
         # expands coverage instead of re-enriching already-addressable employers.
-        key=lambda r:(not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url")),
-                      not bool(r.get("recent_h1b_lca")),not bool(r.get("sec_cik")),
+        key=lambda r:(not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url") or r.get("official_url")),
+                      not bool(r.get("sec_cik")),
+                      not bool(r.get("recent_h1b_lca")),
                       bool(r.get("domain_last_attempt_at")),r.get("domain_last_attempt_at") or "")
     )[:domain_budget]
     now=datetime.now(timezone.utc).isoformat()
@@ -249,6 +250,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
             "companies_with_recent_h1b_lca":recent_h1b_total,
+            "identity_only_companies":len(reg)-addressable_total,
             "source_addressable_companies":addressable_total,
             "companies_with_executable_career_source":executable_total,
             "ats_by_provider":dict(sorted(ats_by_provider.items())),
