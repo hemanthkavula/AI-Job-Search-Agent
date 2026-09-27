@@ -57,7 +57,7 @@ def _hosted_search_candidates(company,timeout=6):
                 body=r.read(500000).decode("utf-8","ignore")
         except Exception:
             continue
-        raw_links=re.findall(r'href=["\\']([^"\\']+)["\\']',body,re.I)
+        raw_links=re.findall(r"""href=["']([^"']+)["']""",body,re.I)
         raw_links+=re.findall(r'https?://[^"&<>\\s]+',body,re.I)
         for raw in raw_links:
             url=_unwrap(raw)
