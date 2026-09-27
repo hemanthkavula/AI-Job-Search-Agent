@@ -429,6 +429,15 @@ jobs:
                               ctx.append(js[max(0,k-350):k+650])
                               start=k+len(token)
                       print(f"DIAG oracle contract | bytes={len(js)} ctx={ctx[:40]}",flush=True)
+                      exact=[]
+                      for token in ("/recruitingCERequisitions","searchJobs(e","requisitionList","finder=find"):
+                          start=0
+                          while len(exact)<30:
+                              k=js.find(token,start)
+                              if k<0:break
+                              exact.append(js[max(0,k-900):k+1800])
+                              start=k+len(token)
+                      print(f"DIAG oracle exact | ctx={exact[:30]}",flush=True)
           except Exception as exc:
               print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
