@@ -99,7 +99,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days)), key=lambda r: r.get("domain_last_attempt_at") or "")
+    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days)), key=lambda r: (not bool(r.get("recent_h1b_lca")), r.get("domain_last_attempt_at") or ""))
     for row in domain_candidates:
         if domain_attempts>=domain_budget:break
         row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
@@ -122,7 +122,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     custom_career_sites=0
     source_registry=load_source_registry()
     career_attempts=0
-    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days)), key=lambda r: r.get("career_last_attempt_at") or "")
+    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days)), key=lambda r: (not bool(r.get("recent_h1b_lca")), not bool(r.get("careers_url")), r.get("career_last_attempt_at") or ""))
     for row in career_candidates:
         if career_attempts>=career_budget:break
         row["career_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
@@ -179,7 +179,10 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "executable_learned_sources_by_provider":dict(sorted(executable_by_provider.items())),
             "domain_coverage_pct":round(100*domain_total/len(reg),2) if reg else 0.0,
             "career_coverage_pct":round(100*career_total/len(reg),2) if reg else 0.0,
-            "ats_coverage_pct":round(100*ats_total/len(reg),2) if reg else 0.0}
+            "ats_coverage_pct":round(100*ats_total/len(reg),2) if reg else 0.0,
+            "career_coverage_of_verified_domains_pct":round(100*career_total/domain_total,2) if domain_total else 0.0,
+            "ats_coverage_of_verified_domains_pct":round(100*ats_total/domain_total,2) if domain_total else 0.0,
+            "executable_source_coverage_of_verified_domains_pct":round(100*sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values())/domain_total,2) if domain_total else 0.0}
     print("EMPLOYER_UNIVERSE "+json.dumps(metrics,sort_keys=True),flush=True)
     return metrics
 
