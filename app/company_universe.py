@@ -12,8 +12,8 @@ from app.career_page_resolver import resolve as resolve_career_page
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
-DOMAIN_RESOLVER_VERSION="2026-09-27-v4"
-CAREER_RESOLVER_VERSION="2026-09-27-v4"
+DOMAIN_RESOLVER_VERSION="2026-09-27-v5"
+CAREER_RESOLVER_VERSION="2026-09-27-v5"
 
 def _domain(url):
     try:
@@ -110,8 +110,8 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Strong authoritative identifiers first; then recent H-1B history.
         # Existing executable sources are excluded above so scarce network budget
         # expands coverage instead of re-enriching already-addressable employers.
-        key=lambda r:(not bool(r.get("sec_cik")),not bool(r.get("recent_h1b_lca")),
-                      r.get("domain_last_attempt_at") or "")
+        key=lambda r:(not bool(r.get("recent_h1b_lca")),not bool(r.get("sec_cik")),
+                      bool(r.get("domain_last_attempt_at")),r.get("domain_last_attempt_at") or "")
     )[:domain_budget]
     now=datetime.now(timezone.utc).isoformat()
     for row in domain_candidates:
