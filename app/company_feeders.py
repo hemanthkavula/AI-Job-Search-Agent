@@ -47,7 +47,15 @@ def fdic_insured_banks(timeout=30):
     domain evidence downstream."""
     url="https://banks.data.fdic.gov/bankfind-suite/api/institutions?filters=ACTIVE%3A1&fields=NAME,CERT,WEBADDR&limit=10000&format=json"
     req=Request(url,headers=UA)
-    with urlopen(req,timeout=timeout) as r:data=json.load(r)
+    with urlopen(req,timeout=timeout) as r:
+        raw=r.read()
+        content_type=r.headers.get("Content-Type","")
+        status=getattr(r,"status",None)
+    try:
+        data=json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        preview=raw[:160].decode("utf-8","replace").replace("\\n"," ")
+        raise RuntimeError(f"FDIC institutions response was not valid JSON (status={status}, content_type={content_type}, preview={preview!r})") from e
     out=[]
     for item in data.get("data",[]):
         row=item.get("data",item) if isinstance(item,dict) else {}
@@ -130,7 +138,7 @@ def ncua_active_credit_unions(timeout=30):
     req=Request(index,headers=UA)
     with urlopen(req,timeout=timeout) as r:html=r.read().decode("utf-8","ignore")
     m=re.search(r'href=["\\\']([^"\\\']*federally-insured-credit-union-list[^"\\\']*\.zip)["\\\']',html,re.I)
-    if not m:raise RuntimeError("DOL FY2026 Q3 LCA disclosure workbook link not found")
+    if not m:raise RuntimeError("NCUA federally insured credit union ZIP link not found")
     from urllib.parse import urljoin
     zip_url=urljoin(index,m.group(1))
     with urlopen(Request(zip_url,headers=UA),timeout=timeout) as r:payload=r.read()
@@ -217,7 +225,7 @@ def dol_h1b_employers(timeout=60):
     with urlopen(Request(page,headers=UA),timeout=timeout) as r:
         html=r.read().decode("utf-8","ignore")
     m=re.search(r'href=["\\\']([^"\\\']*LCA_Disl?closure_Data_FY2026_Q3\\.xlsx[^"\\\']*)["\\\']',html,re.I)
-    if not m:return []
+    if not m:raise RuntimeError("DOL FY2026 Q3 LCA disclosure workbook link not found")
     from urllib.parse import urljoin
     payload=urlopen(Request(urljoin(page,m.group(1)),headers=UA),timeout=timeout).read()
     import openpyxl
