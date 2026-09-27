@@ -1,0 +1,71 @@
+name: Employer Universe Enrichment
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain_budget:
+        description: "Maximum evidence-backed domain resolutions"
+        required: false
+        default: "1000"
+        type: string
+      career_budget:
+        description: "Maximum official career/ATS resolutions"
+        required: false
+        default: "1000"
+        type: string
+
+concurrency:
+  group: employer-universe-enrichment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore employer/source discovery state
+        uses: actions/cache@v4
+        with:
+          path: |
+            generated/
+            state/
+          key: employer-enrichment-state-${{ github.run_id }}
+          restore-keys: |
+            employer-enrichment-state-
+            job-agent-state-
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run employer-universe enrichment only
+        env:
+          COLLEGE_SCORECARD_API_KEY: ${{ secrets.COLLEGE_SCORECARD_API_KEY }}
+          SAM_API_KEY: ${{ secrets.SAM_API_KEY }}
+        run: |
+          python -m app.company_enrichment_runner \
+            --source-config data/job_sources.json \
+            --domain-budget "${{ inputs.domain_budget }}" \
+            --career-budget "${{ inputs.career_budget }}" \
+            --retry-days 1 | tee employer-universe-enrichment.log
+      - name: Publish employer-universe metrics
+        shell: bash
+        run: |
+          echo "## Employer Universe Enrichment" >> "$GITHUB_STEP_SUMMARY"
+          grep '^EMPLOYER_UNIVERSE ' employer-universe-enrichment.log >> "$GITHUB_STEP_SUMMARY" || {
+            echo "EMPLOYER_UNIVERSE metrics were not emitted." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: employer-universe-${{ github.run_number }}
+          path: |
+            employer-universe-enrichment.log
+            generated/
+            state/
+          if-no-files-found: warn
+          retention-days: 30
