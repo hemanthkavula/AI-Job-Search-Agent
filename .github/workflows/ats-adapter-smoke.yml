@@ -198,13 +198,28 @@ jobs:
                       except Exception as exc:
                           server_model.append({"path":probe_path,"error":type(exc).__name__+":"+str(exc)[:200]})
                   print(f"DIAG dayforce server-model | {company} | {server_model}",flush=True)
+                  # Read Next.js manifests to identify the exact page chunks that issue client-side job searches.
+                  manifest_results=[]
+                  if next_data:
+                      build=next_data[0].get("buildId")
+                      for mp in (f"/_next/static/{build}/_buildManifest.js",f"/_next/static/{build}/_ssgManifest.js"):
+                          try:
+                              req=DayforceProbeRequest(base+mp,headers={"User-Agent":"Mozilla/5.0","Accept":"*/*","Referer":url})
+                              with dayforce_probe_open(req,timeout=20) as resp:
+                                  raw=resp.read(200000).decode("utf-8","replace")
+                              chunks=sorted(set(re.findall(r'[^"\\\']+\\.js',raw)))
+                              relevant=[x for x in chunks if any(k in x.lower() for k in ("clientnamespace","career","candidate","job"))]
+                              manifest_results.append({"path":mp,"status":resp.status,"bytes":len(raw),"relevant":relevant[:80],"chunks":chunks[:120]})
+                          except Exception as exc:
+                              manifest_results.append({"path":mp,"error":type(exc).__name__+":"+str(exc)[:200]})
+                  print(f"DIAG dayforce manifests | {company} | {manifest_results}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
                   go_results=[]
                   for gu in go_refs[:10]:
                       try:
-                          req=Request(gu,headers=UA)
+                          req=DayforceProbeRequest(gu,headers={"User-Agent":"Mozilla/5.0","Accept":"text/html,*/*","Referer":url})
                           with urlopen(req,timeout=25) as resp:
                               final_url=resp.geturl(); gb=resp.read().decode("utf-8","replace")
                               go_results.append({"source":gu,"final":final_url,"status":resp.status,"bytes":len(gb),"jsonld":len(dayforce_posts(gb)),"title":re.findall(r'<title[^>]*>(.*?)</title>',gb,re.I|re.S)[:1],"hints":sorted(set(x for x in re.findall(r'(?i)(?:https?:)?//[^"\\\'<> ]+|/[A-Za-z0-9_.?=&%/-]{3,}',gb) if any(k in x.lower() for k in ("api","job","career","posting","candidate"))))[:40]})
