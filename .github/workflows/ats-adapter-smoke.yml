@@ -438,6 +438,15 @@ jobs:
                               exact.append(js[max(0,k-900):k+1800])
                               start=k+len(token)
                       print(f"DIAG oracle exact | ctx={exact[:30]}",flush=True)
+                      maps=[]
+                      for token in ("mapSearchParamsToRest(e","mapSearchParamsToRest:","mapSearchParamsToRest="):
+                          start=0
+                          while len(maps)<20:
+                              k=js.find(token,start)
+                              if k<0:break
+                              maps.append(js[max(0,k-1800):k+4200])
+                              start=k+len(token)
+                      print(f"DIAG oracle mapper | ctx={maps[:20]}",flush=True)
           except Exception as exc:
               print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
