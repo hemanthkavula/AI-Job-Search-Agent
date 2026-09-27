@@ -404,6 +404,17 @@ jobs:
           except Exception as exc:
               print(f"DIAG gem contract-final | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
+              from urllib.request import Request, urlopen
+              oracle_cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8")).get("oracle",[])
+              for src in oracle_cfg:
+                  u=(src.get("base_url") or "").rstrip("/")+"/requisitions?keyword=data%20engineer&location=United%20States"
+                  body=urlopen(Request(u,headers={"User-Agent":"Mozilla/5.0"}),timeout=20).read().decode("utf-8","replace")
+                  links=re.findall(r"""href=['\"]([^'\"]*/job/[^'\"?#]+)""",body,re.I)
+                  hints=sorted(set(re.findall(r"""https?://[^'\"\\s<>]+|/[^'\"\\s<>]*(?:requisition|search|job)[^'\"\\s<>]*""",body,re.I)))
+                  print(f"DIAG oracle | {src.get('company')} | bytes={len(body)} joblinks={len(links)} hints={hints[:20]}",flush=True)
+          except Exception as exc:
+              print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
+          try:
               from app.sources.gem import fetch_jobs as gem_fetch
               gem_cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8")).get("gem",[])
               gem_total=0
