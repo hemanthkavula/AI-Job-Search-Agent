@@ -15,6 +15,11 @@ on:
         required: false
         default: "750"
         type: string
+      ats_tenant_budget:
+        description: "Maximum expensive ATS tenant probes per incremental batch"
+        required: false
+        default: "250"
+        type: string
       deep_domain_search:
         description: "Use verified company-name discovery for identity-only employers"
         required: false
@@ -57,6 +62,7 @@ jobs:
             --source-config data/job_sources.json \
             --domain-budget "${{ inputs.domain_budget }}" \
             --career-budget "${{ inputs.career_budget }}" \
+            --ats-tenant-budget "${{ inputs.ats_tenant_budget }}" \
             --retry-days 1 \
             ${{ inputs.deep_domain_search && '--deep-domain-search' || '' }} | tee employer-universe-enrichment.log
       - name: Publish employer-universe metrics
