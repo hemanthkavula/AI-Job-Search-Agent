@@ -21,7 +21,7 @@ def _urls(body,base):
             found.append(urljoin(base,link))
     # JSON/JS frequently contains escaped ATS URLs outside HTML attributes.
     scan_body=body.replace("\\/","/")
-    for link in re.findall(r"""https?://[^\\s"\'<>]+""",scan_body,re.I):
+    for link in re.findall(r"""https?://[^\s"\'<>]+""",scan_body,re.I):
         found.append(link.replace("\\/","/"))
     return list(dict.fromkeys(found))
 
