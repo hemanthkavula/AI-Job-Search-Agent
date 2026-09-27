@@ -31,19 +31,25 @@ def _page_config(base_url: str, timeout: int) -> tuple[str,str]:
 
 def _search(api_base: str, site: str, keyword: str, page: int, limit: int, timeout: int) -> dict:
     find_params={"siteNumber":site,"limit":limit,"offset":page*limit,"keyword":f'"{keyword}"'}
-    # Oracle's current CE client uses recruitingCEJobRequisitions + findReqs.
-    path="/hcmRestApi/recruitingCEJobRequisitions"
+    # Candidate Experience tenants can expose the requisition resource under
+    # the CE REST namespace or the generic HCM REST namespace.
     params={
         "onlyData":"true",
         "expand":"requisitionList.secondaryLocations",
         "finder":"findReqs;:findParams:",
         "findParams":json.dumps(find_params,separators=(",",":")),
     }
-    url=api_base.rstrip("/")+path+"?"+urlencode(params)
-    try:
-        return json.loads(_get(url,timeout))
-    except Exception as exc:
-        raise RuntimeError(f"Oracle search failed url={url}: {type(exc).__name__}:{exc}") from exc
+    errors=[]
+    for path in (
+        "/hcmRestApi/CandidateExperience/recruitingCEJobRequisitions",
+        "/hcmRestApi/recruitingCEJobRequisitions",
+    ):
+        url=api_base.rstrip("/")+path+"?"+urlencode(params)
+        try:
+            return json.loads(_get(url,timeout))
+        except Exception as exc:
+            errors.append(f"{url} => {type(exc).__name__}:{exc}")
+    raise RuntimeError("Oracle search failed paths: "+" | ".join(errors))
 
 def _job_url(base_url: str, row: dict) -> str:
     ident=str(row.get("id") or row.get("requisitionId") or row.get("requisitionNumber") or "")
