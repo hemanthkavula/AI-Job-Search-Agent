@@ -42,6 +42,14 @@ def _jobposting_evidence(body):
     low=body.lower()
     return ('"@type"' in low and "jobposting" in low) or any(x in low for x in ("job opening","open positions","search jobs","view jobs"))
 
+def _career_page_evidence(url,body):
+    """Recognize a real first-party recruiting destination without pretending it is an ATS."""
+    path=urlparse(url).path.lower()
+    low=re.sub(r"<[^>]+>"," ",body).lower()
+    path_hit=any(x in path for x in ("/careers","/career","/jobs","/employment","/opportunities","/join-us","/work-with-us"))
+    recruiting_hit=any(x in low[:120000] for x in ("careers","join our team","job openings","open positions","search jobs","view jobs","employment opportunities"))
+    return path_hit and recruiting_hit
+
 def _jsonld_urls(body,base):
     out=[]
     for raw in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',body,re.I|re.S):
@@ -145,7 +153,7 @@ def resolve(official_domain,timeout=15):
                 # page as the executable URL in that case.
                 career_url = final if re.search(r'\.(?:js|css|png|svg|jpg)(?:\?|$)',u,re.I) else u
                 return {"careers_url":career_url,"ats_provider":p,"ats_identifier":i}
-            if _jobposting_evidence(body):
+            if _jobposting_evidence(body) or _career_page_evidence(final,body):
                 return {"careers_url":final,"ats_provider":"career_site","ats_identifier":urlparse(final).netloc}
         except Exception:continue
     return None
