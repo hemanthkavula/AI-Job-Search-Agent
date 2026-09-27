@@ -32,7 +32,7 @@ def _retry_due(row, prefix, retry_days, resolver_version=None):
         return datetime.now(timezone.utc)-attempted >= timedelta(days=retry_days)
     except Exception:return True
 
-def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250, retry_days=7, deep_domain_search=False):
+def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250, retry_days=7, deep_domain_search=False, ats_tenant_budget=None):
     """Seed the open-ended employer universe from every configured company source.
 
     This is intentionally not an allowlist. Broad discovery and future resolvers
@@ -157,7 +157,12 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # Give domainless employers the same discovery budget as domain resolution.
     # This path can discover an executable ATS source directly and no longer
     # depends on a corporate-domain lookup succeeding first.
-    ats_tenant_budget=max(100,domain_budget)
+    # ATS-tenant discovery is much more expensive than domain resolution: one
+    # employer can trigger public-search plus several hosted-board verification
+    # probes. Give it an independent, bounded budget so a large domain batch does
+    # not multiply into thousands of slow ATS probes. Callers can explicitly
+    # raise the budget for a dedicated deep-enrichment run.
+    ats_tenant_budget=max(0, int(ats_tenant_budget if ats_tenant_budget is not None else min(250, max(100, domain_budget))))
     ats_tenant_candidates=sorted(
         (r for r in reg.values() if not r.get("official_domain")
          and not r.get("ats_provider") and not r.get("careers_url")
