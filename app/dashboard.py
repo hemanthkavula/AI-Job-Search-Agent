@@ -27,7 +27,11 @@ def _save_confirmed(data):
 
 def _hidden_keys():
     data=_json(HIDDEN,{"job_keys":[]})
-    return set(data.get("job_keys") or [])
+    # Recovery from the 2026-09-27 delete regression: bare job-key markers were
+    # global and could hide the same application from every historical view.
+    # Ignore those legacy markers. New deletions are cycle-scoped as
+    # "<cycle_id>::<job_key>" so one row cannot erase unrelated history.
+    return {str(key) for key in (data.get("job_keys") or []) if "::" in str(key)}
 
 def _hide_job(job_key):
     keys=_hidden_keys()
@@ -239,7 +243,6 @@ def _jobs():
     hidden=_hidden_keys()
     active={"READY_TO_APPLY","APPLICATION_IN_PROGRESS","IN_PROGRESS","RETRY_APPLICATION","RETRY_RESUME_GENERATION","SUBMISSION_ATTEMPTED","SUBMITTED","SUBMITTED_CONFIRMED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED"}
     for key,row in (ledger.get("jobs") or {}).items():
-        if key in hidden:continue
         hist=by_key.get(key)
         status=(hist or {}).get("status") or row.get("application_status") or "DISCOVERED"
         if status not in active:continue
