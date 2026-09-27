@@ -103,7 +103,7 @@ def _direct_domain_candidates(name):
     joined="".join(tokens)
     hyphen="-".join(tokens)
     slugs=list(dict.fromkeys(x for x in (joined,hyphen) if len(x)>=3))
-    return [f"https://{slug}.{tld}/" for slug in slugs for tld in ("com","org","net")]
+    return [f"https://{slug}.{tld}/" for slug in slugs for tld in ("com","org","net","io","ai","co","health","care") ]
 
 def _norm_name(value):
     return " ".join(_tokens(value))
