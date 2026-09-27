@@ -235,6 +235,9 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     addressable_total=sum(bool(r.get("official_domain") or r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
     executable_total=sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
     recent_h1b_total=sum(bool(r.get("recent_h1b_lca")) for r in reg.values())
+    h1b_domain_total=sum(bool(r.get("official_domain")) for r in reg.values() if r.get("recent_h1b_lca"))
+    h1b_career_total=sum(bool(r.get("careers_url")) for r in reg.values() if r.get("recent_h1b_lca"))
+    h1b_ats_total=sum(bool(r.get("ats_provider")) for r in reg.values() if r.get("recent_h1b_lca"))
     ats_by_provider=Counter(
         str(r.get("ats_provider")) for r in reg.values() if r.get("ats_provider")
     )
@@ -253,6 +256,12 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
             "companies_with_recent_h1b_lca":recent_h1b_total,
+            "recent_h1b_companies_with_verified_domain":h1b_domain_total,
+            "recent_h1b_companies_with_careers_url":h1b_career_total,
+            "recent_h1b_companies_with_ats_provider":h1b_ats_total,
+            "recent_h1b_domain_coverage_pct":round(100*h1b_domain_total/recent_h1b_total,2) if recent_h1b_total else 0.0,
+            "recent_h1b_career_coverage_pct":round(100*h1b_career_total/recent_h1b_total,2) if recent_h1b_total else 0.0,
+            "recent_h1b_ats_coverage_pct":round(100*h1b_ats_total/recent_h1b_total,2) if recent_h1b_total else 0.0,
             "identity_only_companies":len(reg)-addressable_total,
             "source_addressable_companies":addressable_total,
             "companies_with_executable_career_source":executable_total,
