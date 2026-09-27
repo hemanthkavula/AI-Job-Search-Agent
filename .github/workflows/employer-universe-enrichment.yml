@@ -6,12 +6,12 @@ on:
       domain_budget:
         description: "Maximum evidence-backed domain resolutions"
         required: false
-        default: "1000"
+        default: "5000"
         type: string
       career_budget:
         description: "Maximum official career/ATS resolutions"
         required: false
-        default: "1000"
+        default: "5000"
         type: string
 
 concurrency:
@@ -36,7 +36,7 @@ jobs:
           path: |
             generated/
             state/
-          key: employer-enrichment-state-${{ github.run_id }}
+          key: job-agent-state-enrichment-${{ github.run_id }}
           restore-keys: |
             employer-enrichment-state-
             job-agent-state-
