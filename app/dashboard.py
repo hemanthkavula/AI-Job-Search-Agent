@@ -337,28 +337,35 @@ def applications(pipeline: str | None = None, date: str | None = None):
 @app.delete("/api/applications/{job_key:path}")
 def delete_application(job_key:str):
     ledger=_json(LEDGER,{"jobs":{}})
-    row=(ledger.get("jobs") or {}).get(job_key)
-    if not row:
-        raise HTTPException(404,"Job not found")
+    row=(ledger.get("jobs") or {}).get(job_key) or {}
 
+    # Old pipeline snapshots can outlive their corresponding current-ledger row.
+    # A delete must still succeed for those immutable snapshot keys so the job
+    # cannot be reconstructed by Pipeline -> View Jobs after the user removes it.
     data,apps=_confirmed_map()
-    company=str(row.get("company") or "").strip().lower()
-    title=str(row.get("title") or "").strip().lower()
-    matching=[x for x in apps if x.get("job_key")==job_key or (
-        company and title
-        and str(x.get("company") or "").strip().lower()==company
-        and str(x.get("title") or "").strip().lower()==title
-    )]
+    matching=[x for x in apps if x.get("job_key")==job_key]
+    if row:
+        company=str(row.get("company") or "").strip().lower()
+        title=str(row.get("title") or "").strip().lower()
+        matching.extend(x for x in apps if x not in matching and company and title
+            and str(x.get("company") or "").strip().lower()==company
+            and str(x.get("title") or "").strip().lower()==title)
+
     deleted_files=_delete_resume_artifacts(row,matching[0] if matching else None)
     data["applications"]=[x for x in apps if x not in matching]
     if len(data["applications"])!=len(apps):
         _save_confirmed(data)
 
-    # Keep the ledger record for duplicate prevention/source history, but hide it
-    # from every dashboard view. hidden_applications.json is intentionally
-    # preserved across future GitHub -> Railway syncs.
+    # Preserve ledger/source history when present for duplicate prevention, and
+    # persist the hidden key even when this application exists only in a snapshot.
     _hide_job(job_key)
-    return {"ok":True,"deleted":True,"hidden":True,"deleted_files":deleted_files}
+    return {
+        "ok":True,
+        "deleted":True,
+        "hidden":True,
+        "snapshot_only":not bool(row),
+        "deleted_files":deleted_files,
+    }
 
 @app.post("/api/applications/{job_key:path}/confirm-submitted")
 def confirm_submitted(job_key:str):
