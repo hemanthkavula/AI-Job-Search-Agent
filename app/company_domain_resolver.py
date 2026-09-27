@@ -9,7 +9,7 @@ from urllib.parse import urlparse,quote_plus,unquote,urljoin,parse_qs
 from urllib.request import Request,urlopen
 
 UA={"User-Agent":"Mozilla/5.0 (compatible; AI-Job-Search-Agent/1.0)"}
-BLOCKED=("google.","bing.com","duckduckgo.com","linkedin.com","facebook.com","instagram.com",
+BLOCKED=("google.","bing.com","duckduckgo.com","yahoo.com","linkedin.com","facebook.com","instagram.com",
          "x.com","twitter.com","wikipedia.org","crunchbase.com","bloomberg.com","indeed.com",
          "glassdoor.com","ziprecruiter.com","dice.com","monster.com","builtin.com","wellfound.com",
          "greenhouse.io","lever.co","ashbyhq.com","workdayjobs.com","myworkdayjobs.com",
@@ -54,6 +54,7 @@ def _search_candidates(name,timeout=15):
         "https://www.google.com/search?num=10&q="+q,
         "https://html.duckduckgo.com/html/?q="+q,
         "https://www.bing.com/search?q="+q,
+        "https://search.yahoo.com/search?p="+q,
     ]
     out=[]
     for endpoint in endpoints:
@@ -149,15 +150,19 @@ def _verified_domain_from_search(row,timeout=20):
         if hit:
             hit["domain_evidence"]="wikidata_p856_plus_first_party_identity"
             return hit
-    # Deterministic guesses are discovery candidates only, never evidence.
+    # Public search results are discovery candidates only; acceptance still
+    # requires first-party identity evidence on the destination. Search before
+    # deterministic hostname candidates because it scales better across legal
+    # names, DBAs, acronyms and subsidiaries.
+    for raw,_ in _search_candidates(name,timeout=min(timeout,10)):
+        hit=_first_party_match(raw,name,timeout=min(timeout,8))
+        if hit:return hit
+    # Deterministic guesses are a bounded fallback, never evidence by themselves.
     for raw in _direct_domain_candidates(name):
         hit=_first_party_match(raw,name,timeout=min(timeout,7))
         if hit:
             hit["domain_evidence"]="verified_direct_candidate_plus_first_party_identity"
             return hit
-    for raw,_ in _search_candidates(name,timeout=min(timeout,10)):
-        hit=_first_party_match(raw,name,timeout=min(timeout,8))
-        if hit:return hit
     return None
 
 def can_resolve_company(row):
