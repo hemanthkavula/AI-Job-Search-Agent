@@ -6,7 +6,7 @@ from app.source_registry import detect_ats
 
 UA={"User-Agent":"Mozilla/5.0 (compatible; AI-Job-Search-Agent/1.0)"}
 CAREER_WORDS=("careers","career","jobs","join us","join-us","join our team","work with us","work here","opportunities","open positions","job openings")
-FALLBACK_PATHS=("careers","jobs","careers/jobs","company/careers","about/careers","about-us/careers","join-us","join-our-team","work-with-us","work-here","opportunities","open-positions","job-openings","employment")
+FALLBACK_PATHS=("careers","jobs","careers/jobs","company/careers","about/careers","about-us/careers","join-us","join-our-team","work-with-us","work-here","opportunities","open-positions","job-openings","employment","en/careers","en-us/careers","us/en/careers","search-jobs","job-search")
 URL_ATTRS=("href","src","action","data-url","data-href","data-src")
 
 def _get(url,timeout=15):
@@ -119,6 +119,12 @@ def resolve(official_domain,timeout=15):
     except Exception:pass
 
     candidates += [urljoin(root,p) for p in FALLBACK_PATHS]
+    # Common first-party career subdomains are evidence-preserving because they
+    # remain under the already verified corporate registrable domain.
+    parsed_root=urlparse(root)
+    host=parsed_root.netloc.lower()
+    base_host=host[4:] if host.startswith("www.") else host
+    candidates += [f"https://careers.{base_host}/",f"https://jobs.{base_host}/"]
     candidates += _sitemap_candidates(root,home_body,timeout)
     seen=set()
     for url in candidates:
