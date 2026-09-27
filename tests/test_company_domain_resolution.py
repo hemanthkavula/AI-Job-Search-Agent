@@ -38,9 +38,10 @@ def test_domain_budget_skips_employers_that_already_have_executable_source(monke
     monkeypatch.setattr(company_universe,"load_source_registry",lambda:{})
     monkeypatch.setattr(company_universe,"save_source_registry",lambda reg:None)
     attempted=[]
-    def fake_resolve(row):
+    def fake_resolve(row,allow_name_search=False):
         attempted.append(row["company"])
+        assert allow_name_search is True
         return None
     monkeypatch.setattr(company_universe,"resolve_company",fake_resolve)
-    company_universe.build("sources.json",registry_path=tmp_path/"registry.json",domain_budget=10,career_budget=0,retry_days=0)
+    company_universe.build("sources.json",registry_path=tmp_path/"registry.json",domain_budget=10,career_budget=0,retry_days=0,deep_domain_search=True)
     assert attempted==["Needs Source"]
