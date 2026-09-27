@@ -11,6 +11,8 @@ from app.career_page_resolver import resolve as resolve_career_page
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
+DOMAIN_RESOLVER_VERSION="2026-09-27-v2"
+CAREER_RESOLVER_VERSION="2026-09-27-v2"
 
 def _domain(url):
     try:
@@ -18,7 +20,8 @@ def _domain(url):
         return host[4:] if host.startswith("www.") else host
     except Exception:return None
 
-def _retry_due(row, prefix, retry_days):
+def _retry_due(row, prefix, retry_days, resolver_version=None):
+    if resolver_version and row.get(f"{prefix}_resolver_version") != resolver_version:return True
     last=row.get(f"{prefix}_last_attempt_at")
     if not last:return True
     try:
@@ -99,10 +102,11 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     # Resolve only evidence-backed domains. Never derive domains by company-name guessing.
-    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days)), key=lambda r: (not bool(r.get("recent_h1b_lca")), r.get("domain_last_attempt_at") or ""))
+    domain_candidates=sorted((r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r) and _retry_due(r,"domain",retry_days,DOMAIN_RESOLVER_VERSION)), key=lambda r: (not bool(r.get("recent_h1b_lca")), r.get("domain_last_attempt_at") or ""))
     for row in domain_candidates:
         if domain_attempts>=domain_budget:break
         row["domain_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
+        row["domain_resolver_version"]=DOMAIN_RESOLVER_VERSION
         domain_attempts+=1
         try:
             resolved=resolve_company(row)
@@ -122,10 +126,11 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     custom_career_sites=0
     source_registry=load_source_registry()
     career_attempts=0
-    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days)), key=lambda r: (not bool(r.get("recent_h1b_lca")), not bool(r.get("careers_url")), r.get("career_last_attempt_at") or ""))
+    career_candidates=sorted((r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider") and _retry_due(r,"career",retry_days,CAREER_RESOLVER_VERSION)), key=lambda r: (not bool(r.get("recent_h1b_lca")), not bool(r.get("careers_url")), r.get("career_last_attempt_at") or ""))
     for row in career_candidates:
         if career_attempts>=career_budget:break
         row["career_last_attempt_at"]=datetime.now(timezone.utc).isoformat()
+        row["career_resolver_version"]=CAREER_RESOLVER_VERSION
         career_attempts+=1
         try:
             career=resolve_career_page(row["official_domain"])
@@ -170,7 +175,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,
             "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
-            "resolution_failures":resolution_failures,"retry_days":retry_days,"feeder_errors":feeder_errors,
+            "resolution_failures":resolution_failures,"retry_days":retry_days,"domain_resolver_version":DOMAIN_RESOLVER_VERSION,"career_resolver_version":CAREER_RESOLVER_VERSION,"feeder_errors":feeder_errors,
             "companies_with_verified_domain":domain_total,
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
