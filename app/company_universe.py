@@ -12,7 +12,7 @@ from app.career_page_resolver import resolve as resolve_career_page
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
-DOMAIN_RESOLVER_VERSION="2026-09-27-v3"
+DOMAIN_RESOLVER_VERSION="2026-09-27-v4"
 CAREER_RESOLVER_VERSION="2026-09-27-v4"
 
 def _domain(url):
@@ -103,9 +103,15 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolved_domains=0
     domain_attempts=0
     domain_candidates=sorted(
-        (r for r in reg.values() if not r.get("official_domain") and can_resolve_company(r)
+        (r for r in reg.values() if not r.get("official_domain")
+         and not (r.get("careers_url") or r.get("ats_provider"))
+         and can_resolve_company(r)
          and _retry_due(r,"domain",retry_days,DOMAIN_RESOLVER_VERSION)),
-        key=lambda r:(not bool(r.get("recent_h1b_lca")),r.get("domain_last_attempt_at") or "")
+        # Strong authoritative identifiers first; then recent H-1B history.
+        # Existing executable sources are excluded above so scarce network budget
+        # expands coverage instead of re-enriching already-addressable employers.
+        key=lambda r:(not bool(r.get("sec_cik")),not bool(r.get("recent_h1b_lca")),
+                      r.get("domain_last_attempt_at") or "")
     )[:domain_budget]
     now=datetime.now(timezone.utc).isoformat()
     for row in domain_candidates:
