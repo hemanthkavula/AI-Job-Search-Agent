@@ -2,6 +2,7 @@ from __future__ import annotations
 import re
 from urllib import request
 from urllib.parse import urljoin, urlsplit, unquote
+import json
 from app.source_registry import detect_ats
 
 ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","myworkdaysite.com","icims.com","jobvite.com","dayforcehcm.com","dayforce.com","ultipro.com","recruiting.com","workforcenow.adp.com","jobs.adp.com","successfactors.com","successfactors.eu","oraclecloud.com","eightfold.ai","phenompeople.com","workable.com","teamtailor.com","recruitee.com","bamboohr.com","breezy.hr","rippling.com","pinpointhq.com","careerplug.com","freshteam.com","jobscore.com","personio.com","personio.de","comeet.com","neogov.com","governmentjobs.com","applicantpro.com","fountain.com","hirebridge.com","zohorecruit.com","zohorecruit.eu","zohorecruit.in","manatal.com","careers-page.com","join.com","applitrack.com","frontlineeducation.com","hireology.com","paycor.com","recruitingbypaycor.com","peopleadmin.com","isolvedhire.com","isolved.com","hibob.com","gohire.io","hiringthing.com","homerun.co","pageuppeople.com","dover.com","gem.com","polymer.co","hirehive.com","deel.com","applicantstack.com","ceipal.com","trakstar.com","taleo.net","brassring.com","paycomonline.net","bullhornstaffing.com","jobdiva.com","clearcompany.com","csod.com","applytojob.com","kula.ai","rival-hr.com","werecruit.io","werecruit.com","firststage.co","recruiterbox.com","talentbrew.com","radancy.com","paradox.ai","schooljobs.com","higheredjobs.com","talentreef.com","jobappnetwork.com","myworkchoice.com")
@@ -43,6 +44,34 @@ def _candidate_links(page,base):
   if any(host in u.lower() for host in ATS_HOST_HINTS):links.append(u)
  return list(dict.fromkeys(links))
 
+def _organization_urls(page,base):
+ """Extract structured hiring-organization identity URLs from a job page."""
+ out=[]
+ for raw in re.findall(r'<script[^>]+type=["\']application/ld\\+json["\'][^>]*>(.*?)</script>',page or "",re.I|re.S):
+  try:data=json.loads(raw)
+  except Exception:continue
+  stack=data if isinstance(data,list) else [data]
+  while stack:
+   obj=stack.pop()
+   if isinstance(obj,list):stack.extend(obj);continue
+   if not isinstance(obj,dict):continue
+   typ=str(obj.get("@type") or "").lower()
+   if "jobposting" in typ:
+    org=obj.get("hiringOrganization")
+    if isinstance(org,dict):
+     for key in ("sameAs","url"):
+      value=org.get(key)
+      values=value if isinstance(value,list) else [value]
+      for item in values:
+       if isinstance(item,str) and item.strip():
+        try:
+         u=urljoin(base,item.strip())
+         if urlsplit(u).scheme in {"http","https"}:out.append(u)
+        except Exception:continue
+   for value in obj.values():
+    if isinstance(value,(dict,list)):stack.append(value)
+ return list(dict.fromkeys(out))
+
 def resolve_original_ats(job):
  """Best-effort resolution from aggregator/detail URL to an employer ATS URL; no LLM and no application action."""
  out=dict(job);start=job.get("original_url") or job.get("url") or ""
@@ -52,6 +81,8 @@ def resolve_original_ats(job):
   out.update({"original_url":start,"ats_provider":provider,"ats_identifier":identifier,"ats_resolution":"direct"})
   return out
  page=_fetch(start)
+ org_urls=_organization_urls(page,start)
+ if org_urls:out["organization_url_evidence"]=org_urls[0]
  links=_candidate_links(page,start)
  candidates=[]
  for link in links:
