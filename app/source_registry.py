@@ -251,9 +251,14 @@ def as_discovery_config(registry):
  for x in registry.get("smartrecruiters",[]):out["smartrecruiters"].append({"company":x.get("company"),"company_identifier":x.get("identifier") or x.get("company_identifier")})
  for provider in ("icims","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","trinet","dover","gem","polymer","hirehive","kula","rival","werecruit","deel","firststage","recruiterbox","talentbrew","radancy","paradox","eightfold","successfactors","oracle","ukg","paycom","bullhorn","comeet","clearcompany","applicantpro","fountain","hirebridge","jobdiva","zoho_recruit","manatal","join","greenhouse_eu","dayforce","jobvite","ultipro","recruiting_com","adp_workforce_now","workable","recruitee","teamtailor","bamboohr","phenom","avature","taleo","cornerstone","jazzhr","breezyhr","paylocity","rippling","pinpoint","brassring","careerplug","freshteam","jobscore","personio","applicantstack","jazzhr_alt","ceipal","trakstar_hire","neogov","schooljobs","higheredjobs","talentreef","icims_alt","jobappnetwork","myworkchoice","ultipro_ukg"):
   for x in registry.get(provider,[]):
-   url=x.get("original_url") or x.get("url")
+   url=x.get("original_url") or x.get("url") or x.get("search_url") or x.get("base_url")
    url=_reusable_search_url(provider,url)
-   if url:out[provider].append({"company":x.get("company"),"search_url":url,"job_url_pattern":r".+"})
+   if not url:continue
+   row={"company":x.get("company"),"search_url":url,"job_url_pattern":r".+"}
+   # Preserve the canonical field expected by dedicated collectors while still
+   # supplying search_url for generic/public-board collectors.
+   if provider in {"oracle","icims","successfactors"}:row["base_url"]=url
+   out[provider].append(row)
  for x in registry.get("workday",[]):
   identifier=x.get("identifier") or ""
   parts=identifier.split("|",1)
