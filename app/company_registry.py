@@ -50,4 +50,18 @@ def learn_from_jobs(jobs,registry):
         if candidate and key in registry:
             registry[key]["organization_url_evidence"]=candidate
             registry[key]["organization_url_evidence_source"]="jobposting_hiring_organization"
+            # A JobPosting hiringOrganization URL is explicit employer-provided
+            # identity evidence. Promote its host immediately as a domain candidate
+            # so the enrichment queue does not depend on low-yield name web search.
+            try:
+                from urllib.parse import urlparse
+                normalized=candidate if "://" in candidate else "https://"+candidate
+                host=urlparse(normalized).netloc.lower()
+                if host.startswith("www."):host=host[4:]
+                if host and not registry[key].get("official_domain"):
+                    registry[key]["domain_candidate_url"]=normalized
+                    registry[key]["domain_candidate_host"]=host
+                    registry[key]["domain_candidate_evidence"]="jobposting_hiring_organization"
+            except Exception:
+                pass
     return registry
