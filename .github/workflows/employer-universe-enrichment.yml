@@ -13,6 +13,11 @@ on:
         required: false
         default: "5000"
         type: string
+      deep_domain_search:
+        description: "Use verified company-name discovery for identity-only employers"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: employer-universe-enrichment
