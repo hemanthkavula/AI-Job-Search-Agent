@@ -221,31 +221,46 @@ def sam_registered_entities(timeout=30):
 
 
 def dol_h1b_employers(timeout=60):
-    """Recent employers with certified H-1B LCAs from DOL OFLC disclosure data.
+    """Recent employers with certified H-1B LCAs from the latest DOL OFLC LCA disclosure.
 
     This is sponsorship-history evidence only. It never overrides current-job
     sponsorship, work-authorization, citizenship, or clearance filters.
     """
-    import io, re, zipfile
-    from urllib.request import urlopen
+    import io, re
+    from urllib.parse import urljoin, urlparse
     page="https://www.dol.gov/agencies/eta/foreign-labor/performance"
     with urlopen(Request(page,headers=UA),timeout=timeout) as r:
-        html=r.read().decode("utf-8","ignore")
-    m=re.search(r'href=["\\\']([^"\\\']*LCA_Disl?closure_Data_FY2026_Q3\\.xlsx[^"\\\']*)["\\\']',html,re.I)
-    if not m:raise RuntimeError("DOL FY2026 Q3 LCA disclosure workbook link not found")
-    from urllib.parse import urljoin
-    payload=urlopen(Request(urljoin(page,m.group(1)),headers=UA),timeout=timeout).read()
+        body=r.read().decode("utf-8","ignore")
+
+    # DOL has historically used both "Disclosure" and the live FY2026
+    # "Dislclosure" spelling. Discover candidates semantically instead of
+    # hard-coding either spelling, and select the newest FY/quarter.
+    links=[]
+    for raw in re.findall(r'href=["\\\']([^"\\\']+\\.xlsx(?:\\?[^"\\\']*)?)["\\\']',body,re.I):
+        url=urljoin(page,raw)
+        name=urlparse(url).path.rsplit("/",1)[-1]
+        low=name.lower()
+        if not low.startswith("lca_"):continue
+        if any(x in low for x in ("appendix","worksite","record_layout")):continue
+        m=re.search(r'fy(\\d{4})(?:_q(\\d))?',low,re.I)
+        if not m:continue
+        links.append((int(m.group(1)),int(m.group(2) or 4),url,name))
+    if not links:
+        raise RuntimeError("No DOL LCA disclosure workbook link found on OFLC performance page")
+    _,_,workbook_url,workbook_name=max(links,key=lambda x:(x[0],x[1]))
+
+    payload=urlopen(Request(workbook_url,headers=UA),timeout=timeout).read()
     import openpyxl
     try:
         wb=openpyxl.load_workbook(io.BytesIO(payload),read_only=True,data_only=True)
     except Exception as e:
-        raise RuntimeError(f"DOL LCA workbook could not be parsed: {e}") from e
+        raise RuntimeError(f"DOL LCA workbook could not be parsed ({workbook_name}): {e}") from e
     ws=wb.active
     rows=ws.iter_rows(values_only=True)
     try:
         header=[str(x or "").strip().upper() for x in next(rows)]
     except StopIteration as e:
-        raise RuntimeError("DOL LCA workbook is empty") from e
+        raise RuntimeError(f"DOL LCA workbook is empty: {workbook_name}") from e
     idx={name:i for i,name in enumerate(header)}
     required={"EMPLOYER_NAME","CASE_STATUS","VISA_CLASS"}
     missing=sorted(required-set(idx))
@@ -253,7 +268,7 @@ def dol_h1b_employers(timeout=60):
         raise RuntimeError("DOL LCA workbook missing required columns: "+", ".join(missing))
     seen=set();out=[]
     for vals in rows:
-        status=str(vals[idx["CASE_STATUS"]] or "").strip().upper()
+        status=re.sub(r"\\s+","-",str(vals[idx["CASE_STATUS"]] or "").strip().upper())
         visa=str(vals[idx["VISA_CLASS"]] or "").strip().upper()
         name=str(vals[idx["EMPLOYER_NAME"]] or "").strip()
         if status not in {"CERTIFIED","CERTIFIED-WITHDRAWN"} or visa!="H-1B" or not name:continue
@@ -261,9 +276,9 @@ def dol_h1b_employers(timeout=60):
         if key in seen:continue
         seen.add(key)
         out.append({"company":name,"recent_h1b_lca":True,
-                    "discovered_by":"dol_oflc_h1b_fy2026_q3"})
+                    "h1b_disclosure_file":workbook_name,
+                    "discovered_by":"dol_oflc_latest_h1b_lca"})
     return out
-
 
 FEEDERS={"sec_public_companies":sec_public_companies,"dol_h1b_employers":dol_h1b_employers,"fdic_insured_banks":fdic_insured_banks,
          "ncua_active_credit_unions":ncua_active_credit_unions,
