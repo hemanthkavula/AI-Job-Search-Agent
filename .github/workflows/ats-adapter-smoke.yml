@@ -222,7 +222,7 @@ jobs:
                   # Inspect concrete script assets already emitted by the live page.
                   live_assets=[]
                   for src in scripts[:80]:
-                      full=urljoin(url,src)
+                      full=urljoin("https://jobs.dayforcehcm.com/",src)
                       try:
                           req=DayforceProbeRequest(full,headers={"User-Agent":"Mozilla/5.0","Accept":"*/*","Referer":url})
                           with dayforce_probe_open(req,timeout=20) as resp:
