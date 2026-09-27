@@ -2,6 +2,7 @@ from __future__ import annotations
 import html,json,re
 from http.client import InvalidURL
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 from urllib import request,parse
 from app.config import load_profile
 from app.eligibility import two_category_filter
@@ -101,6 +102,21 @@ def _extract_jsonld_job_description(page):
     for node in _jsonld_jobpostings(page):
         if node.get("description"):return _clean_html(str(node["description"]))
     return ""
+
+def _official_posted_at(page,now=None):
+    """Extract the employer/ATS JobPosting publication date; aggregator dates are never authoritative."""
+    now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    for node in _jsonld_jobpostings(page):
+        value=node.get("datePosted") or node.get("datePublished")
+        if not value:continue
+        try:return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc),str(value)
+        except Exception:continue
+    plain=_clean_html(page)
+    m=re.search(r"(?i)\\bposted\\s+(today|just now|(?:an?|\\d+)\\s+hours?\\s+ago|(?:a|\\d+)\\s+days?\\s+ago)\\b",plain)
+    if not m:return None,None
+    label="Posted "+m.group(1)
+    from app.freshness import _parse_posting_value
+    return _parse_posting_value(label,now),label
 
 def _norm_identity(value):
     return re.sub(r"[^a-z0-9]+"," ",(value or "").lower()).strip()
@@ -211,7 +227,7 @@ def resolve_full_jd(job):
     out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
 
-def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
+def finalize_report(report_path,output_path="generated/finalized_jobs.json",hours=24,now=None):
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile()
     finalized=[];held=[]
     for item in report.get("results",[]):
@@ -236,6 +252,22 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json"):
         if _is_aggregator_url(application_url):
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
+        aggregator_origin=bool(raw.get("aggregator_url")) or (raw.get("source") or "").lower() in {"dice","ziprecruiter","indeed","linkedin","monster"}
+        if aggregator_origin:
+            official_page=_fetch_public_page(application_url)
+            official_posted,official_label=_official_posted_at(official_page,now=now)
+            raw["discovery_posted_at"]=raw.get("posted_at") or raw.get("posted_on") or raw.get("date_posted") or raw.get("datePosted") or raw.get("published_at")
+            raw["official_posted_at"]=official_posted.isoformat() if official_posted else None
+            raw["official_posted_label"]=official_label
+            raw["freshness_basis"]="official_employer_posting_date"
+            check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+            cutoff=check_now-timedelta(hours=hours)
+            if official_posted is None:
+                held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Aggregator discovery date is not authoritative and the official employer/ATS posting date could not be verified.","diagnostics":{"url":application_url,"discovery_source":raw.get("source")}})
+                continue
+            if official_posted<cutoff or official_posted>check_now+timedelta(minutes=10):
+                held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; aggregator repost/refresh date was ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"freshness_hours":hours,"discovery_source":raw.get("source")}})
+                continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
             held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Application page no longer exists or is explicitly closed.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
