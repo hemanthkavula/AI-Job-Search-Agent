@@ -23,6 +23,7 @@ from app.sources.paylocity import fetch_jobs as paylocity_jobs
 from app.sources.workable import fetch_jobs as workable_jobs
 from app.sources.jazzhr import fetch_jobs as jazzhr_jobs
 from app.sources.dayforce import fetch_jobs as dayforce_jobs
+from app.sources.gem import fetch_jobs as gem_jobs
 from app.sources.cornerstone import fetch_jobs as cornerstone_jobs
 from app.sources.jobvite import fetch_jobs as jobvite_jobs
 from app.sources.public_ats_board import fetch_jobs as public_ats_jobs
@@ -181,7 +182,10 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         # Long-tail ATS families use the hardened generic crawler until a provider-specific adapter exists.
         # Keep these visible as fallback coverage, but do not confuse URL recognition with a working collector.
         # This gives production coverage immediately while preserving provider identity;
-        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","neogov"):
+        for src in config.get("gem",[]) if only_source in (None,"gem") else []:
+            url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
+            if url:tasks.append((pool.submit(gem_jobs,src.get("company") or "gem",url),"gem",src.get("company") or "gem"))
+        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","neogov"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
