@@ -6,7 +6,7 @@ on:
     paths:
       - "app/sources/smartrecruiters.py"
       - "app/sources/workable.py"
-      - "app/sources/ukg.py"
+      - "app/sources/ukg.py"\n      - "app/sources/dayforce.py"
       - "app/sources/career_site.py"
       - "data/job_sources.json"
       - ".github/workflows/ats-adapter-smoke.yml"
