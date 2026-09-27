@@ -60,7 +60,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             if direct_domain:
                 key=company_key(company)
                 reg[key]["official_url"]=url
-                reg[key]["domain_evidence"]="configured_direct_career_site"
+                reg[key]["domain_evidence"]="configured_direct_career_site"\n            key=company_key(company)\n            if key in reg: reg[key]["current_hiring_signal"]=True
     # Add identity-level companies from authoritative/public universe feeders.
     # data/company_feeders.json is the control plane: only explicitly enabled
     # implemented feeder IDs are executed. Internal seed/learning entries are
@@ -112,9 +112,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Strong authoritative identifiers first; then recent H-1B history.
         # Existing executable sources are excluded above so scarce network budget
         # expands coverage instead of re-enriching already-addressable employers.
-        key=lambda r:(not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url") or r.get("official_url")),
-                      not bool(r.get("sec_cik")),
-                      not bool(r.get("recent_h1b_lca")),
+        key=lambda r:(not bool(r.get("current_hiring_signal")),\n                      not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url") or r.get("official_url")),\n                      not bool(r.get("recent_h1b_lca")),\n                      not bool(r.get("sec_cik")),
                       bool(r.get("domain_last_attempt_at")),r.get("domain_last_attempt_at") or "")
     )[:domain_budget]
     now=datetime.now(timezone.utc).isoformat()
@@ -159,8 +157,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         (r for r in reg.values() if not r.get("official_domain")
          and not r.get("ats_provider") and not r.get("careers_url")
          and _retry_due(r,"ats_tenant",retry_days,ATS_TENANT_RESOLVER_VERSION)),
-        key=lambda r:(not bool(r.get("recent_h1b_lca")),
-                      bool(r.get("ats_tenant_last_attempt_at")),
+        key=lambda r:(not bool(r.get("current_hiring_signal")),\n                      not bool(r.get("recent_h1b_lca")),\n                      bool(r.get("ats_tenant_last_attempt_at")),
                       r.get("ats_tenant_last_attempt_at") or "")
     )[:ats_tenant_budget]
     ats_tenant_attempts=len(ats_tenant_candidates)
@@ -191,7 +188,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     career_candidates=sorted(
         (r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider")
          and _retry_due(r,"career",retry_days,CAREER_RESOLVER_VERSION)),
-        key=lambda r:(not bool(r.get("recent_h1b_lca")),not bool(r.get("careers_url")),r.get("career_last_attempt_at") or "")
+        key=lambda r:(not bool(r.get("current_hiring_signal")),not bool(r.get("recent_h1b_lca")),not bool(r.get("careers_url")),r.get("career_last_attempt_at") or "")
     )[:career_budget]
     career_attempts=len(career_candidates)
     now=datetime.now(timezone.utc).isoformat()
@@ -234,7 +231,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # for which we have enough public evidence to address a hiring source.
     addressable_total=sum(bool(r.get("official_domain") or r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
     executable_total=sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
-    recent_h1b_total=sum(bool(r.get("recent_h1b_lca")) for r in reg.values())
+    recent_h1b_total=sum(bool(r.get("recent_h1b_lca")) for r in reg.values())\n    active_hiring_total=sum(bool(r.get("current_hiring_signal")) for r in reg.values())\n    active_hiring_executable=sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values() if r.get("current_hiring_signal"))
     h1b_domain_total=sum(bool(r.get("official_domain")) for r in reg.values() if r.get("recent_h1b_lca"))
     h1b_career_total=sum(bool(r.get("careers_url")) for r in reg.values() if r.get("recent_h1b_lca"))
     h1b_ats_total=sum(bool(r.get("ats_provider")) for r in reg.values() if r.get("recent_h1b_lca"))
@@ -255,7 +252,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "companies_with_verified_domain":domain_total,
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
-            "companies_with_recent_h1b_lca":recent_h1b_total,
+            "companies_with_recent_h1b_lca":recent_h1b_total,\n            "companies_with_current_hiring_signal":active_hiring_total,\n            "current_hiring_companies_with_executable_source":active_hiring_executable,\n            "current_hiring_executable_source_coverage_pct":round(100*active_hiring_executable/active_hiring_total,2) if active_hiring_total else 0.0,
             "recent_h1b_companies_with_verified_domain":h1b_domain_total,
             "recent_h1b_companies_with_careers_url":h1b_career_total,
             "recent_h1b_companies_with_ats_provider":h1b_ats_total,
