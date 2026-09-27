@@ -384,6 +384,25 @@ jobs:
                   print(f"DIAG gem asset | {asset} | bytes={len(txt)} hits={found[:28]}",flush=True)
           except Exception as exc:
               print(f"DIAG gem asset | ERROR | {type(exc).__name__}:{exc}",flush=True)
+          try:
+              with gem_urlopen(GemRequest("https://static.gem.com/scripts/ExternalJobBoardList.DwGSYjek.v2.min.js",headers={"User-Agent":"Mozilla/5.0"}),timeout=20) as rr:
+                  ext=rr.read().decode("utf-8","replace")
+              gql_docs=re.findall(r'`([^`]{20,5000})`',ext,re.S)
+              gql_docs=[x for x in gql_docs if any(k in x.lower() for k in ("query","job","board"))]
+              with gem_urlopen(GemRequest("https://static.gem.com/scripts/graphql.KZ91mKcr.v2.min.js",headers={"User-Agent":"Mozilla/5.0"}),timeout=20) as rr:
+                  gx=rr.read().decode("utf-8","replace")
+              uris=sorted(set(re.findall(r'https?://[^"\\\'` ]+',gx)))
+              uris=[u for u in uris if "gem" in u.lower() or "graphql" in u.lower() or "/api" in u.lower()]
+              endpoint_ctx=[]
+              for token in ("/graphql","graphql?", "uri:", "HttpLink", "createHttpLink"):
+                  p=0
+                  while len(endpoint_ctx)<20:
+                      p=gx.find(token,p)
+                      if p<0: break
+                      endpoint_ctx.append(gx[max(0,p-300):p+600]);p+=len(token)
+              print(f"DIAG gem contract-final | docs={gql_docs[:8]} uris={uris[:30]} endpoint_ctx={endpoint_ctx[:20]}",flush=True)
+          except Exception as exc:
+              print(f"DIAG gem contract-final | ERROR | {type(exc).__name__}:{exc}",flush=True)
           print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} ukg={totals['ukg']} failures={len(failures)}",flush=True)
           if failures:
               raise SystemExit("ATS smoke had execution failures")
