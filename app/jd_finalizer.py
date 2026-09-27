@@ -85,7 +85,7 @@ def _fetch_public_page(url):
 def _jsonld_jobpostings(page):
     """Return schema.org JobPosting nodes for identity-aware employer resolution."""
     found=[]
-    for block in re.findall(r"(?is)<script[^>]+type=['\"]application/ld\\+json['\"][^>]*>(.*?)</script>",page or ""):
+    for block in re.findall(r"(?is)<script[^>]+type=['\"]application/ld\+json['\"][^>]*>(.*?)</script>",page or ""):
         try: payload=json.loads(html.unescape(block).strip())
         except Exception: continue
         stack=payload if isinstance(payload,list) else [payload]
@@ -112,7 +112,7 @@ def _official_posted_at(page,now=None):
         try:return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc),str(value)
         except Exception:continue
     plain=_clean_html(page)
-    m=re.search(r"(?i)\\bposted\\s+(today|just now|(?:an?|\\d+)\\s+hours?\\s+ago|(?:a|\\d+)\\s+days?\\s+ago)\\b",plain)
+    m=re.search(r"(?i)\bposted\s+(today|just now|(?:an?|\d+)\s+hours?\s+ago|(?:a|\d+)\s+days?\s+ago)\b",plain)
     if not m:return None,None
     label="Posted "+m.group(1)
     from app.freshness import _parse_posting_value
