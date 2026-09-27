@@ -181,6 +181,7 @@ def can_resolve_company(row, allow_name_search=False):
         # this agent. It permits *discovery* by employer name, but never bypasses
         # first-party verification in _verified_domain_from_search().
         or (row.get("recent_h1b_lca") and row.get("company"))
+        or (row.get("current_hiring_signal") and row.get("company"))
         or (allow_name_search and row.get("company"))
     )
 
@@ -205,5 +206,5 @@ def resolve_company(row, allow_name_search=False):
     if row.get("sec_cik"):
         hit=sec_company_domain(row["sec_cik"])
         if hit:return hit
-    priority_name_search=bool(row.get("recent_h1b_lca") and row.get("company"))
+    priority_name_search=bool((row.get("recent_h1b_lca") or row.get("current_hiring_signal")) and row.get("company"))
     return _verified_domain_from_search(row) if (allow_name_search or priority_name_search) else None
