@@ -44,7 +44,7 @@ def _jobposting_evidence(body):
 
 def _jsonld_urls(body,base):
     out=[]
-    for raw in re.findall(r'<script[^>]+type=["\']application/ld\\+json["\'][^>]*>(.*?)</script>',body,re.I|re.S):
+    for raw in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',body,re.I|re.S):
         try:
             data=json.loads(raw)
         except Exception:
