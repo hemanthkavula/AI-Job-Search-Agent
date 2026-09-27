@@ -20,6 +20,35 @@ def _posts(b):
     return out
 def fetch_jobs(company:str,search_url:str,timeout:int=25)->list[dict]:
     body=_get(search_url,timeout); candidates=[(search_url,j) for j in _posts(body)]; seen_links=set()
+    # Modern Dayforce career sites load jobs client-side via this contract.
+    try:
+        m=re.search(r'<script[^>]+id=["\\\']__NEXT_DATA__["\\\'][^>]*>(.*?)</script>',body,re.I|re.S)
+        nd=json.loads(html.unescape(m.group(1).strip())) if m else {}
+        pp=(nd.get("props") or {}).get("pageProps") or {}
+        queries=((pp.get("dehydratedState") or {}).get("queries") or [])
+        site={}
+        for q in queries:
+            if isinstance(q,dict) and isinstance((q.get("state") or {}).get("data"),dict):
+                d=(q.get("state") or {}).get("data")
+                if d.get("clientNamespace") and d.get("jobBoardId") is not None: site=d;break
+        ns=site.get("clientNamespace")
+        board=site.get("jobBoardCode") or ((nd.get("query") or {}).get("careerSiteXRefCode"))
+        culture=site.get("cultureCode") or "en-US"
+        if ns and board:
+            api="https://jobs.dayforcehcm.com/api/geo/"+str(ns)+"/jobposting/search"
+            for start in range(0,500,25):
+                payload={"clientNamespace":ns,"jobBoardCode":board,"cultureCode":culture,"paginationStart":start}
+                data=_post_json(api,payload,timeout)
+                rows=data.get("jobPostings") if isinstance(data,dict) else None
+                if not isinstance(rows,list) or not rows: break
+                for j in rows:
+                    if not isinstance(j,dict): continue
+                    jid=j.get("jobPostingId")
+                    page=urljoin("https://jobs.dayforcehcm.com/",f"/{culture}/{ns}/{board}/jobs/{jid}") if jid else search_url
+                    candidates.append((page,{"@type":"JobPosting","title":j.get("jobTitle"),"description":(j.get("jobPostingContent") or {}).get("jobDescription") if isinstance(j.get("jobPostingContent"),dict) else j.get("description"),"identifier":jid,"url":page,"datePosted":j.get("postingStartTimestampUTC"),"_dayforce":j}))
+                if len(rows)<25 or (isinstance(data.get("maxCount"),int) and start+len(rows)>=data["maxCount"]): break
+    except Exception:
+        pass
     for h in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
         u=urljoin(search_url,html.unescape(h));lo=u.lower()
         if not any(x in lo for x in ("/job/","/jobs/","jobdetail","job-details","posting")) or u in seen_links:continue
