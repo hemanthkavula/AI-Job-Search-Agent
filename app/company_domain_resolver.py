@@ -95,11 +95,28 @@ def _first_party_match(url,name,timeout=12):
     return {"official_domain":host,"official_url":"https://"+host,
             "domain_evidence":"public_search_plus_first_party_identity"}
 
+def _direct_domain_candidates(name):
+    """Generate discovery candidates only; every candidate must still pass first-party verification."""
+    tokens=_tokens(name)
+    if not tokens:return []
+    joined="".join(tokens)
+    hyphen="-".join(tokens)
+    slugs=list(dict.fromkeys(x for x in (joined,hyphen) if len(x)>=3))
+    return [f"https://{slug}.{tld}/" for slug in slugs for tld in ("com","org","net")]
+
 def _verified_domain_from_search(row,timeout=20):
     name=(row.get("company") or "").strip()
     if not name:return None
-    for raw,_ in _search_candidates(name,timeout=min(timeout,15)):
-        hit=_first_party_match(raw,name,timeout=min(timeout,12))
+    # Search engines frequently throttle cloud runners. Try deterministic domain
+    # candidates first, but never trust the guess: acceptance still requires
+    # first-party identity evidence from the destination site.
+    for raw in _direct_domain_candidates(name):
+        hit=_first_party_match(raw,name,timeout=min(timeout,8))
+        if hit:
+            hit["domain_evidence"]="verified_direct_candidate_plus_first_party_identity"
+            return hit
+    for raw,_ in _search_candidates(name,timeout=min(timeout,12)):
+        hit=_first_party_match(raw,name,timeout=min(timeout,10))
         if hit:return hit
     return None
 
