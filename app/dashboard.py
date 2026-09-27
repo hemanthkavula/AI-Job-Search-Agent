@@ -281,13 +281,17 @@ def applications(pipeline: str | None = None, date: str | None = None):
     if pipeline:
         rows=_pipeline_jobs(pipeline)
     elif date:
-        rows=[]; seen=set()
-        for run in _pipeline_runs():
-            if run["ts"].astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d") != date: continue
-            for row in _pipeline_jobs(run["cycle_id"]):
-                key=row.get("key") or "|".join(str(row.get(k) or "") for k in ("company","title","url"))
-                if key in seen: continue
-                seen.add(key); rows.append(row)
+        day_runs=[run for run in _pipeline_runs() if run["ts"].astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d") == date]
+        if len(day_runs) == 1:
+            # A cycle snapshot is already identity-deduplicated. Preserve it exactly.
+            rows=_pipeline_jobs(day_runs[0]["cycle_id"])
+        else:
+            rows=[]; seen=set()
+            for run in day_runs:
+                for row in _pipeline_jobs(run["cycle_id"]):
+                    keys=identity_keys(row)
+                    if any(key in seen for key in keys): continue
+                    seen.update(keys); rows.append(row)
     else:
         rows=_jobs()
     return {"applications":rows,"counts":{
