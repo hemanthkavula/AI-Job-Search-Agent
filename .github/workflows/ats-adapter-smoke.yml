@@ -412,6 +412,11 @@ jobs:
                   links=re.findall(r"""href=['\"]([^'\"]*/job/[^'\"?#]+)""",body,re.I)
                   hints=sorted(set(re.findall(r"""https?://[^'\"\\s<>]+|/[^'\"\\s<>]*(?:requisition|search|job)[^'\"\\s<>]*""",body,re.I)))
                   print(f"DIAG oracle | {src.get('company')} | bytes={len(body)} joblinks={len(links)} hints={hints[:20]}",flush=True)
+                  scripts=re.findall(r"""<script[^>]+src=[\'\"]([^\'\"]+)""",body,re.I)
+                  cfg=[]
+                  for pat in (r"""[^\'\"\\s<>]{0,120}(?:requisition|searchJobs|CandidateExperience|restApi)[^\'\"\\s<>]{0,180}""",r"""https?://[^\'\"\\s<>]+"""):
+                      cfg.extend(re.findall(pat,body,re.I))
+                  print(f"DIAG oracle assets | {src.get('company')} | scripts={scripts[-20:]} cfg={cfg[:30]}",flush=True)
           except Exception as exc:
               print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
