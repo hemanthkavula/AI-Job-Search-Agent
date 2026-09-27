@@ -37,8 +37,17 @@ def upsert(registry, company, official_domain=None, careers_url=None, ats_provid
 
 def learn_from_jobs(jobs,registry):
     for j in jobs:
-        upsert(registry,j.get("company") or j.get("company_key"),
+        company=j.get("company") or j.get("company_key")
+        upsert(registry,company,
                careers_url=j.get("original_url") or j.get("url"),
                ats_provider=j.get("ats_provider"),ats_identifier=j.get("ats_identifier"),
                discovered_by=j.get("source"))
+        # JobPosting hiringOrganization.url/sameAs is useful identity evidence,
+        # but is not accepted as an official domain until the domain resolver
+        # verifies the employer name on the first-party destination.
+        candidate=j.get("organization_url_evidence")
+        key=company_key(company or "")
+        if candidate and key in registry:
+            registry[key]["organization_url_evidence"]=candidate
+            registry[key]["organization_url_evidence_source"]="jobposting_hiring_organization"
     return registry
