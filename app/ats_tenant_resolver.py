@@ -77,7 +77,7 @@ def _verify_hosted_page(company,url,provider,identifier,timeout=6):
         return None
     title=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
     observed=re.sub(r"<[^>]+>"," ",html.unescape(title.group(1))) if title else ""
-    meta=" ".join(re.findall(r'<meta[^>]+(?:content|value)=["\\']([^"\\']+)["\\']',body,re.I))
+    meta=" ".join(re.findall(r"<meta[^>]+(?:content|value)=[\"']([^\"']+)[\"']",body,re.I))
     if not (_matches(company,observed) or _matches(company,meta)):
         return None
     p,i=detect_ats(final)
