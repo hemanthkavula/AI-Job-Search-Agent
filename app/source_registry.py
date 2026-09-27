@@ -171,9 +171,12 @@ def learn_resolved_source(provider, company, careers_url, registry, identifier=N
   existing=(row.get("original_url") or row.get("url") or row.get("search_url") or "").rstrip("/")
   if existing==normalized and row.get("company")==company:
    return False
+ reusable=_reusable_search_url(provider,careers_url)
  row={"company":company,"identifier":identifier or urlparse(careers_url).netloc.lower(),
               "learned_from":learned_from,"original_url":careers_url,
-              "verified_official_career_site":True}
+              "search_url":reusable,"verified_official_career_site":True}
+ if provider in {"oracle","icims","successfactors"}:
+  row["base_url"]=reusable
  if provider=="workday":
   parsed=urlparse(careers_url); row["host"]=parsed.netloc.lower(); row["locale"]="en-US"
  rows.append(row)
@@ -192,7 +195,12 @@ def learn_from_jobs(jobs,registry):
   alt_company=job.get("company")
   if alt_company and str(company).lower()==str(identifier).lower():
    company=alt_company
-  row={"company":company,"identifier":identifier,"learned_from":job.get("source"),"original_url":job.get("original_url") or job.get("url")}
+  original=job.get("original_url") or job.get("url")
+  reusable=_reusable_search_url(provider,original)
+  row={"company":company,"identifier":identifier,"learned_from":job.get("source"),
+       "original_url":original,"search_url":reusable}
+  if provider in {"oracle","icims","successfactors"}:
+   row["base_url"]=reusable
   if provider=="workday":
    parsed=urlparse(job.get("original_url") or job.get("url") or "")
    row["host"]=parsed.netloc
