@@ -47,7 +47,7 @@ def _candidate_links(page,base):
 def _organization_urls(page,base):
  """Extract structured hiring-organization identity URLs from a job page."""
  out=[]
- for raw in re.findall(r'<script[^>]+type=["\']application/ld\\+json["\'][^>]*>(.*?)</script>',page or "",re.I|re.S):
+ for raw in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',page or "",re.I|re.S):
   try:data=json.loads(raw)
   except Exception:continue
   stack=data if isinstance(data,list) else [data]
