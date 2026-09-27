@@ -150,6 +150,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     domain_total=sum(bool(r.get("official_domain")) for r in reg.values())
     career_total=sum(bool(r.get("careers_url")) for r in reg.values())
     ats_total=sum(bool(r.get("ats_provider")) for r in reg.values())
+    recent_h1b_total=sum(bool(r.get("recent_h1b_lca")) for r in reg.values())
     ats_by_provider=Counter(
         str(r.get("ats_provider")) for r in reg.values() if r.get("ats_provider")
     )
@@ -165,6 +166,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "companies_with_verified_domain":domain_total,
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
+            "companies_with_recent_h1b_lca":recent_h1b_total,
             "ats_by_provider":dict(sorted(ats_by_provider.items())),
             "executable_learned_sources_by_provider":dict(sorted(executable_by_provider.items())),
             "domain_coverage_pct":round(100*domain_total/len(reg),2) if reg else 0.0,
