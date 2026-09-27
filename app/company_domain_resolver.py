@@ -1,25 +1,33 @@
 from __future__ import annotations
 """Resolve company identities to verified official corporate domains.
 
-Resolution is evidence-based: candidate URLs must come from trusted metadata
-(e.g. SEC filing metadata) or an explicitly supplied official URL. We never
-manufacture domains from company names.
+Candidates may be discovered from public search, but are accepted only after
+first-party page evidence ties the candidate site back to the employer.
 """
-import json,re
-from urllib.parse import urlparse
+import html,json,re
+from urllib.parse import urlparse,quote_plus,unquote,urljoin,parse_qs
 from urllib.request import Request,urlopen
-from urllib.parse import quote_plus
 
-UA={"User-Agent":"AI-Job-Search-Agent/1.0 contact=job-search-agent"}
+UA={"User-Agent":"Mozilla/5.0 (compatible; AI-Job-Search-Agent/1.0)"}
+BLOCKED=("google.","bing.com","duckduckgo.com","linkedin.com","facebook.com","instagram.com",
+         "x.com","twitter.com","wikipedia.org","crunchbase.com","bloomberg.com","indeed.com",
+         "glassdoor.com","ziprecruiter.com","dice.com","monster.com","builtin.com","wellfound.com",
+         "greenhouse.io","lever.co","ashbyhq.com","workdayjobs.com","myworkdayjobs.com",
+         "smartrecruiters.com","icims.com","jobvite.com",".gov")
 
 def _host(url):
     try:
-        h=urlparse(url if "://" in url else "https://"+url).netloc.lower()
+        h=urlparse(url if "://" in url else "https://"+url).netloc.lower().split("@")[-1]
+        if ":" in h:h=h.split(":",1)[0]
         return h[4:] if h.startswith("www.") else h
     except Exception:return None
 
+def _tokens(name):
+    stop={"inc","incorporated","corp","corporation","company","co","llc","ltd","limited","plc",
+          "group","holdings","holding","the","and","of","usa","us"}
+    return [x.lower() for x in re.findall(r"[A-Za-z0-9]+",name or "") if len(x)>=3 and x.lower() not in stop]
+
 def sec_company_domain(cik,timeout=20):
-    """Use SEC submissions metadata only when it actually exposes a website.\n\n    SEC documents the submissions API for filing history and filer metadata,\n    but does not guarantee a corporate website field. Missing website data is\n    therefore a normal unresolved result, not a reason to guess a domain.\n    """
     if not cik:return None
     cik=str(cik).strip().zfill(10)
     req=Request(f"https://data.sec.gov/submissions/CIK{cik}.json",headers=UA)
@@ -29,45 +37,73 @@ def sec_company_domain(cik,timeout=20):
     return {"official_domain":domain,"official_url":website or None,
             "domain_evidence":"sec_submissions"} if domain else None
 
-def _verified_domain_from_search(row,timeout=20):
-    """Resolve only when a public search result itself supplies an official-site URL.
+def _unwrap_result_url(raw):
+    raw=html.unescape(raw).replace("\\/","/")
+    if raw.startswith("//"):raw="https:"+raw
+    if raw.startswith("/url?"):
+        q=parse_qs(urlparse(raw).query)
+        raw=(q.get("q") or q.get("url") or [""])[0]
+    if "duckduckgo.com/l/?" in raw:
+        q=parse_qs(urlparse(raw).query)
+        raw=unquote((q.get("uddg") or [""])[0])
+    return raw if raw.startswith(("http://","https://")) else None
 
-    This never manufactures a domain from the company name. Candidate URLs come
-    from search-result evidence and are rejected when they are known directories,
-    social networks, job boards, ATS hosts, government sites, or aggregators.
-    """
+def _search_candidates(name,timeout=15):
+    q=quote_plus(f'"{name}" official website')
+    endpoints=[
+        "https://www.google.com/search?num=10&q="+q,
+        "https://html.duckduckgo.com/html/?q="+q,
+        "https://www.bing.com/search?q="+q,
+    ]
+    out=[]
+    for endpoint in endpoints:
+        try:
+            req=Request(endpoint,headers={"User-Agent":"Mozilla/5.0","Accept-Language":"en-US,en;q=0.9"})
+            with urlopen(req,timeout=timeout) as r:body=r.read().decode("utf-8","ignore")
+        except Exception:
+            continue
+        hrefs=re.findall(r'href=["\']([^"\']+)["\']',body,re.I)
+        # Also catch plain URLs emitted by result metadata.
+        hrefs += re.findall(r'https?://[^"&<>\s]+',body,re.I)
+        for raw in hrefs:
+            u=_unwrap_result_url(raw)
+            h=_host(u) if u else None
+            if not h or any(b in h for b in BLOCKED):continue
+            if h not in [x[1] for x in out]:out.append((u,h))
+        if len(out)>=8:break
+    return out[:12]
+
+def _first_party_match(url,name,timeout=12):
+    """Require first-party content/metadata to corroborate the employer identity."""
+    try:
+        req=Request(url,headers=UA)
+        with urlopen(req,timeout=timeout) as r:
+            final=r.geturl();body=r.read(750000).decode("utf-8","ignore")
+    except Exception:return None
+    host=_host(final)
+    if not host or any(b in host for b in BLOCKED):return None
+    tokens=_tokens(name)
+    if not tokens:return None
+    low=re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",html.unescape(body))).lower()
+    title_m=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+    title=re.sub(r"<[^>]+>"," ",html.unescape(title_m.group(1))).lower() if title_m else ""
+    # Strong structured-data evidence: Organization name or sameAs on the site.
+    structured=" ".join(re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',body,re.I|re.S)).lower()
+    needed=1 if len(tokens)==1 else 2
+    score=max(sum(t in title for t in tokens),sum(t in structured for t in tokens),sum(t in low[:12000] for t in tokens))
+    if score<min(needed,len(tokens)):return None
+    return {"official_domain":host,"official_url":"https://"+host,
+            "domain_evidence":"public_search_plus_first_party_identity"}
+
+def _verified_domain_from_search(row,timeout=20):
     name=(row.get("company") or "").strip()
     if not name:return None
-    q=quote_plus(f'"{name}" official website')
-    req=Request("https://www.google.com/search?q="+q,headers={"User-Agent":"Mozilla/5.0"})
-    try:
-        with urlopen(req,timeout=timeout) as r:body=r.read().decode("utf-8","ignore")
-    except Exception:return None
-    blocked=("google.","linkedin.com","facebook.com","instagram.com","x.com","twitter.com",
-             "wikipedia.org","crunchbase.com","bloomberg.com","indeed.com","glassdoor.com",
-             "ziprecruiter.com","dice.com","monster.com","builtin.com","wellfound.com",
-             "greenhouse.io","lever.co","ashbyhq.com","workdayjobs.com","myworkdayjobs.com",
-             "smartrecruiters.com","icims.com","jobvite.com",".gov")
-    candidates=[]
-    for raw in re.findall(r'https?://[^"&<> ]+',body):
-        raw=raw.replace("&amp;","&")
-        h=_host(raw)
-        if not h or any(b in h for b in blocked):continue
-        candidates.append((raw,h))
-    # Search evidence is intentionally conservative: require the company tokens
-    # to be visible around the candidate host in the returned result document.
-    tokens=[t.lower() for t in re.findall(r"[A-Za-z0-9]+",name) if len(t)>=4][:3]
-    low=body.lower()
-    for raw,h in candidates:
-        pos=low.find(h.lower())
-        context=low[max(0,pos-500):pos+500] if pos>=0 else ""
-        if tokens and sum(t in context for t in tokens)>=min(2,len(tokens)):
-            return {"official_domain":h,"official_url":"https://"+h,
-                    "domain_evidence":"public_search_official_site_evidence"}
+    for raw,_ in _search_candidates(name,timeout=min(timeout,15)):
+        hit=_first_party_match(raw,name,timeout=min(timeout,12))
+        if hit:return hit
     return None
 
 def can_resolve_company(row):
-    """True only when the row contains evidence that the resolver can use.\n\n    This prevents bounded enrichment batches from being consumed by identities\n    that currently have no verified domain evidence.\n    """
     return bool(row.get("official_domain") or row.get("sec_cik") or row.get("company"))
 
 def resolve_company(row):
