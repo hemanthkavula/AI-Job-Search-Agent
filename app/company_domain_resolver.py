@@ -104,19 +104,59 @@ def _direct_domain_candidates(name):
     slugs=list(dict.fromkeys(x for x in (joined,hyphen) if len(x)>=3))
     return [f"https://{slug}.{tld}/" for slug in slugs for tld in ("com","org","net")]
 
+def _norm_name(value):
+    return " ".join(_tokens(value))
+
+def _wikidata_official_candidates(name,timeout=12):
+    """Resolve public knowledge-graph P856 websites, then verify first-party identity."""
+    try:
+        api="https://www.wikidata.org/w/api.php?"+__import__("urllib.parse",fromlist=["urlencode"]).urlencode({
+            "action":"wbsearchentities","search":name,"language":"en","uselang":"en",
+            "type":"item","limit":5,"format":"json","origin":"*"
+        })
+        with urlopen(Request(api,headers=UA),timeout=timeout) as r:data=json.load(r)
+    except Exception:
+        return []
+    wanted=_norm_name(name)
+    out=[]
+    for hit in data.get("search",[]):
+        label=_norm_name(hit.get("label") or "")
+        aliases=[_norm_name(x) for x in (hit.get("aliases") or []) if isinstance(x,str)]
+        # Avoid fuzzy-name false positives. Legal suffix normalization is already
+        # handled by _tokens; accept exact normalized labels/aliases only.
+        if wanted not in [label,*aliases]:continue
+        qid=hit.get("id")
+        if not qid:continue
+        try:
+            with urlopen(Request(f"https://www.wikidata.org/wiki/Special:EntityData/{qid}.json",headers=UA),timeout=timeout) as r:
+                entity=json.load(r).get("entities",{}).get(qid,{})
+            for claim in (entity.get("claims",{}).get("P856") or []):
+                value=(((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value"))
+                if isinstance(value,str) and value.startswith(("http://","https://")):
+                    out.append(value)
+        except Exception:
+            continue
+    return list(dict.fromkeys(out))
+
 def _verified_domain_from_search(row,timeout=20):
     name=(row.get("company") or "").strip()
     if not name:return None
-    # Search engines frequently throttle cloud runners. Try deterministic domain
-    # candidates first, but never trust the guess: acceptance still requires
-    # first-party identity evidence from the destination site.
+    # Prefer structured official-website evidence over guessed domains/search
+    # scraping. Every knowledge-graph candidate still has to prove the employer
+    # identity on the first-party destination.
+    for raw in _wikidata_official_candidates(name,timeout=min(timeout,12)):
+        hit=_first_party_match(raw,name,timeout=min(timeout,10))
+        if hit:
+            hit["domain_evidence"]="wikidata_p856_plus_first_party_identity"
+            return hit
+    # Deterministic guesses are discovery candidates only, never evidence.
     for raw in _direct_domain_candidates(name):
-        hit=_first_party_match(raw,name,timeout=min(timeout,8))
+        hit=_first_party_match(raw,name,timeout=min(timeout,7))
         if hit:
             hit["domain_evidence"]="verified_direct_candidate_plus_first_party_identity"
             return hit
-    for raw,_ in _search_candidates(name,timeout=min(timeout,12)):
-        hit=_first_party_match(raw,name,timeout=min(timeout,10))
+    for raw,_ in _search_candidates(name,timeout=min(timeout,10)):
+        hit=_first_party_match(raw,name,timeout=min(timeout,8))
         if hit:return hit
     return None
 
