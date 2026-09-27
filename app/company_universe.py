@@ -45,8 +45,16 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             url=row.get("careers_url") or row.get("search_url") or row.get("base_url")
             # ATS URLs are useful as known career sources, but are not assumed to
             # be the employer's corporate domain.
-            upsert(reg,company,careers_url=url,ats_provider=None if provider=="career_site" else provider,
+            # A configured direct career_site URL is first-party corporate evidence:
+            # unlike an ATS-hosted URL, its host can safely seed the verified domain.
+            direct_domain=_domain(url) if provider=="career_site" and url else None
+            upsert(reg,company,official_domain=direct_domain,careers_url=url,
+                   ats_provider=None if provider=="career_site" else provider,
                    discovered_by="configured_source")
+            if direct_domain:
+                key=company_key(company)
+                reg[key]["official_url"]=url
+                reg[key]["domain_evidence"]="configured_direct_career_site"
     # Add identity-level companies from authoritative/public universe feeders.
     # data/company_feeders.json is the control plane: only explicitly enabled
     # implemented feeder IDs are executed. Internal seed/learning entries are
