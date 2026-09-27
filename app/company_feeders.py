@@ -185,7 +185,7 @@ def sam_registered_entities(timeout=30):
     # Bound each scheduled refresh; persistent registry accumulates identities.
     for _ in range(20):
         qs=urlencode({"api_key":key,"registrationStatus":"A","purposeOfRegistrationCode":"Z2",
-                      "includeSections":"entityRegistration","offset":offset,"limit":limit})
+                      "includeSections":"entityRegistration,coreData","offset":offset,"limit":limit})
         req=Request(base+"?"+qs,headers=UA)
         with urlopen(req,timeout=timeout) as r:data=json.load(r)
         rows=data.get("entityData") or data.get("entityDataList") or []
@@ -194,7 +194,11 @@ def sam_registered_entities(timeout=30):
             reg=item.get("entityRegistration") or item.get("entityRegistrationData") or {}
             name=(reg.get("legalBusinessName") or "").strip()
             if not name:continue
+            core=item.get("coreData") or {}
+            info=core.get("entityInformation") or {}
+            web=(info.get("entityURL") or "").strip()
             out.append({"company":name,"uei":reg.get("ueiSAM"),
+                        "official_url":web or None,
                         "discovered_by":"sam_registered_entities"})
         offset+=len(rows)
         if len(rows)<limit:break
