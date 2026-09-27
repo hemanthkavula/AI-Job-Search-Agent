@@ -15,7 +15,7 @@ from app.source_registry import load_registry as load_source_registry, save_regi
 ROOT=Path(__file__).resolve().parents[1]
 DOMAIN_RESOLVER_VERSION="2026-09-27-v7"
 CAREER_RESOLVER_VERSION="2026-09-27-v6"
-ATS_TENANT_RESOLVER_VERSION="2026-09-27-v1"
+ATS_TENANT_RESOLVER_VERSION="2026-09-27-v2"
 
 def _domain(url):
     try:
@@ -151,7 +151,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # hiring source. Probe a bounded set of unresolved employer identities
     # against public ATS-hosted boards and accept only boards whose exposed
     # organization identity matches the employer.
-    ats_tenant_budget=min(500,max(100,domain_budget//2))
+    # Give domainless employers the same discovery budget as domain resolution.\n    # This path can discover an executable ATS source directly and no longer\n    # depends on a corporate-domain lookup succeeding first.\n    ats_tenant_budget=max(100,domain_budget)
     ats_tenant_candidates=sorted(
         (r for r in reg.values() if not r.get("official_domain")
          and not r.get("ats_provider") and not r.get("careers_url")
