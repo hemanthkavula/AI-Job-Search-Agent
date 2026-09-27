@@ -20,7 +20,8 @@ def _urls(body,base):
         if link and not link.lower().startswith(("javascript:","mailto:","tel:","#")):
             found.append(urljoin(base,link))
     # JSON/JS frequently contains escaped ATS URLs outside HTML attributes.
-    for link in re.findall(r'https?:(?:\\\\/|/){2}[^\\\\"\\'<>\\s]+',body,re.I):
+    scan_body=body.replace("\\/","/")
+    for link in re.findall(r"https?://[^\\\"'<>\\s]+",scan_body,re.I):
         found.append(link.replace("\\/","/"))
     return list(dict.fromkeys(found))
 
