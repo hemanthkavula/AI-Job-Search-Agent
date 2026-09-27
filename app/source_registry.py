@@ -167,12 +167,19 @@ def learn_resolved_source(provider, company, careers_url, registry, identifier=N
   return learn_career_site(company,careers_url,registry,learned_from)
  rows=registry.setdefault(provider,[])
  normalized=careers_url.rstrip("/")
+ reusable=_reusable_search_url(provider,careers_url)
+ tenant_id=identifier or urlparse(careers_url).netloc.lower()
  for row in rows:
   existing=(row.get("original_url") or row.get("url") or row.get("search_url") or "").rstrip("/")
-  if existing==normalized and row.get("company")==company:
+  existing_reusable=_reusable_search_url(provider,existing) if existing else ""
+  existing_id=(row.get("identifier") or row.get("board_token") or row.get("site")
+               or row.get("board_name") or row.get("company_identifier"))
+  same_company=str(row.get("company") or "").strip().lower()==str(company).strip().lower()
+  if (existing==normalized and same_company) or (existing_reusable and existing_reusable==reusable and same_company):
    return False
- reusable=_reusable_search_url(provider,careers_url)
- row={"company":company,"identifier":identifier or urlparse(careers_url).netloc.lower(),
+  if tenant_id and existing_id and str(existing_id).lower()==str(tenant_id).lower():
+   return False
+ row={"company":company,"identifier":tenant_id,
               "learned_from":learned_from,"original_url":careers_url,
               "search_url":reusable,"verified_official_career_site":True}
  if provider in {"oracle","icims","successfactors"}:
