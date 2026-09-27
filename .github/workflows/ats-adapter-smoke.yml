@@ -170,6 +170,34 @@ jobs:
                           except Exception as exc:
                               server_probes.append({"path":p,"error":type(exc).__name__+":"+str(exc)[:200]})
                   print(f"DIAG dayforce server | {company} | probes={server_probes}",flush=True)
+                  # Inspect successful Next.js JSON structurally without dumping translations.
+                  server_model=[]
+                  for probe_path in paths[:2]:
+                      try:
+                          req=DayforceProbeRequest(base+probe_path,headers={"User-Agent":"Mozilla/5.0","Accept":"application/json","Referer":url})
+                          with dayforce_probe_open(req,timeout=20) as resp:
+                              obj=json.loads(resp.read().decode("utf-8","replace"))
+                          pp=obj.get("pageProps") or {}
+                          dq=((pp.get("dehydratedState") or {}).get("queries") or [])
+                          qsum=[]
+                          for item in dq:
+                              st=item.get("state") or {}; dat=st.get("data")
+                              qsum.append({"queryKey":item.get("queryKey"),"data_keys":sorted(dat.keys()) if isinstance(dat,dict) else type(dat).__name__})
+                          strings=[]
+                          def walk2(x):
+                              if isinstance(x,dict):
+                                  for k,v in x.items():
+                                      if any(t in str(k).lower() for t in ("job","search","api","posting","career","route")): strings.append("KEY:"+str(k))
+                                      walk2(v)
+                              elif isinstance(x,list):
+                                  for v in x: walk2(v)
+                              elif isinstance(x,str) and any(t in x.lower() for t in ("/api/","job-post","search-job","search job","career","posting")):
+                                  strings.append(x[:500])
+                          walk2(pp)
+                          server_model.append({"path":probe_path,"pageProps_keys":sorted(pp.keys()),"queries":qsum[:20],"strings":sorted(set(strings))[:80]})
+                      except Exception as exc:
+                          server_model.append({"path":probe_path,"error":type(exc).__name__+":"+str(exc)[:200]})
+                  print(f"DIAG dayforce server-model | {company} | {server_model}",flush=True)
                   # Follow concrete Dayforce Go?item references exposed by the rendered career page.
                   decoded_body=html.unescape(unquote(body))
                   go_refs=sorted(set(html.unescape(x).replace("&amp;","&") for x in re.findall(r'https://[^"\\\'<> ]+/CandidatePortal/[^"\\\'<> ]+/Go\\?item=[0-9a-fA-F-]{36}',decoded_body,re.I)))
