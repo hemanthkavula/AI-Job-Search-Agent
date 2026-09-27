@@ -151,7 +151,10 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # hiring source. Probe a bounded set of unresolved employer identities
     # against public ATS-hosted boards and accept only boards whose exposed
     # organization identity matches the employer.
-    # Give domainless employers the same discovery budget as domain resolution.\n    # This path can discover an executable ATS source directly and no longer\n    # depends on a corporate-domain lookup succeeding first.\n    ats_tenant_budget=max(100,domain_budget)
+    # Give domainless employers the same discovery budget as domain resolution.
+    # This path can discover an executable ATS source directly and no longer
+    # depends on a corporate-domain lookup succeeding first.
+    ats_tenant_budget=max(100,domain_budget)
     ats_tenant_candidates=sorted(
         (r for r in reg.values() if not r.get("official_domain")
          and not r.get("ats_provider") and not r.get("careers_url")
