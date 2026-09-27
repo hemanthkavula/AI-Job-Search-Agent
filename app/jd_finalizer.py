@@ -1,5 +1,6 @@
 from __future__ import annotations
 import html,json,re
+from http.client import InvalidURL
 from pathlib import Path
 from urllib import request,parse
 from app.config import load_profile
@@ -64,7 +65,7 @@ def _live_public_job_page(url):
         # Access blocks, rate limits, and transient server errors do not prove
         # that the requisition is dead. Hold until it can be verified.
         return None,f"http_{exc.code}"
-    except (URLError,TimeoutError,OSError,ValueError):
+    except (URLError,TimeoutError,OSError,ValueError,InvalidURL):
         # Network/anti-bot failures and malformed URLs are not allowed to crash
         # the whole production cycle. Hold this one job for later verification.
         return None,"unverifiable"
