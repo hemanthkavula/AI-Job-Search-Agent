@@ -161,7 +161,7 @@ def _verified_domain_from_search(row,timeout=20):
     return None
 
 def can_resolve_company(row):
-    return bool(row.get("official_domain") or row.get("sec_cik") or row.get("company"))
+    return bool(row.get("official_domain") or row.get("sec_cik") or row.get("organization_url_evidence") or row.get("company"))
 
 def resolve_company(row):
     if row.get("official_domain"):
@@ -170,4 +170,9 @@ def resolve_company(row):
     if row.get("sec_cik"):
         hit=sec_company_domain(row["sec_cik"])
         if hit:return hit
+    if row.get("organization_url_evidence"):
+        hit=_first_party_match(row["organization_url_evidence"],row.get("company") or "",timeout=12)
+        if hit:
+            hit["domain_evidence"]="jobposting_hiring_organization_plus_first_party_identity"
+            return hit
     return _verified_domain_from_search(row)
