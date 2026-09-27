@@ -42,28 +42,35 @@ def json_catalog(url, name_field="name", timeout=30):
     return out
 
 def fdic_insured_banks(timeout=30):
-    """Active FDIC-insured institutions. The FDIC institutions endpoint also
-    exposes institution website fields when available, which can become trusted
-    domain evidence downstream."""
-    url="https://banks.data.fdic.gov/bankfind-suite/api/institutions?filters=ACTIVE%3A1&fields=NAME,CERT,WEBADDR&limit=10000&format=json"
-    req=Request(url,headers=UA)
-    with urlopen(req,timeout=timeout) as r:
-        raw=r.read()
-        content_type=r.headers.get("Content-Type","")
-        status=getattr(r,"status",None)
-    try:
-        data=json.loads(raw.decode("utf-8"))
-    except Exception as e:
-        preview=raw[:160].decode("utf-8","replace").replace("\\n"," ")
-        raise RuntimeError(f"FDIC institutions response was not valid JSON (status={status}, content_type={content_type}, preview={preview!r})") from e
-    out=[]
-    for item in data.get("data",[]):
-        row=item.get("data",item) if isinstance(item,dict) else {}
-        name=(row.get("NAME") or "").strip()
-        if not name:continue
-        web=(row.get("WEBADDR") or "").strip()
-        out.append({"company":name,"fdic_cert":str(row.get("CERT") or ""),
-                    "official_url":web or None,"discovered_by":"fdic_active_institutions"})
+    """Active FDIC-insured institutions with institution-reported websites."""
+    from urllib.parse import urlencode
+    base="https://api.fdic.gov/banks/institutions"
+    out=[];offset=0;limit=1000
+    while True:
+        qs=urlencode({"filters":"ACTIVE:1","fields":"NAME,CERT,WEBADDR",
+                      "limit":limit,"offset":offset})
+        req=Request(base+"?"+qs,headers={**UA,"Accept":"application/json"})
+        with urlopen(req,timeout=timeout) as r:
+            raw=r.read()
+            content_type=r.headers.get("Content-Type","")
+            status=getattr(r,"status",None)
+        try:
+            data=json.loads(raw.decode("utf-8"))
+        except Exception as e:
+            preview=raw[:160].decode("utf-8","replace").replace("\\n"," ")
+            raise RuntimeError(f"FDIC institutions response was not valid JSON (status={status}, content_type={content_type}, preview={preview!r})") from e
+        rows=data.get("data") or []
+        if not rows:break
+        for item in rows:
+            row=item.get("data",item) if isinstance(item,dict) else {}
+            name=(row.get("NAME") or "").strip()
+            if not name:continue
+            web=(row.get("WEBADDR") or "").strip()
+            out.append({"company":name,"fdic_cert":str(row.get("CERT") or ""),
+                        "official_url":web or None,"discovered_by":"fdic_active_institutions"})
+        offset+=len(rows)
+        total=int(((data.get("meta") or data.get("metadata") or {}).get("total")) or 0)
+        if len(rows)<limit or (total and offset>=total):break
     return out
 
 def college_scorecard_institutions(timeout=30):
