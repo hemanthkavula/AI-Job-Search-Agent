@@ -6,7 +6,7 @@ from app.source_registry import detect_ats
 
 UA={"User-Agent":"Mozilla/5.0 (compatible; AI-Job-Search-Agent/1.0)"}
 CAREER_WORDS=("careers","career","jobs","join us","join-us","join our team","work with us","work here","opportunities","open positions","job openings")
-FALLBACK_PATHS=("careers","jobs","careers/jobs","company/careers","about/careers","about-us/careers","join-us","work-with-us","opportunities")
+FALLBACK_PATHS=("careers","jobs","careers/jobs","company/careers","about/careers","about-us/careers","join-us","join-our-team","work-with-us","work-here","opportunities","open-positions","job-openings","employment")
 URL_ATTRS=("href","src","action","data-url","data-href","data-src")
 
 def _get(url,timeout=15):
@@ -40,6 +40,32 @@ def _ats_from_page(final,body):
 def _jobposting_evidence(body):
     low=body.lower()
     return ('"@type"' in low and "jobposting" in low) or any(x in low for x in ("job opening","open positions","search jobs","view jobs"))
+
+def _jsonld_urls(body,base):
+    out=[]
+    for raw in re.findall(r'<script[^>]+type=["\']application/ld\\+json["\'][^>]*>(.*?)</script>',body,re.I|re.S):
+        try:
+            data=json.loads(raw)
+        except Exception:
+            continue
+        stack=data if isinstance(data,list) else [data]
+        while stack:
+            obj=stack.pop()
+            if isinstance(obj,list):stack.extend(obj);continue
+            if not isinstance(obj,dict):continue
+            typ=str(obj.get("@type") or "").lower()
+            if "jobposting" in typ:
+                for key in ("url","sameAs"):
+                    val=obj.get(key)
+                    if isinstance(val,str):out.append(urljoin(base,val))
+                org=obj.get("hiringOrganization")
+                if isinstance(org,dict):
+                    for key in ("url","sameAs"):
+                        val=org.get(key)
+                        if isinstance(val,str):out.append(urljoin(base,val))
+            for val in obj.values():
+                if isinstance(val,(dict,list)):stack.append(val)
+    return list(dict.fromkeys(out))
 
 def _sitemap_candidates(root,body,timeout):
     out=[]
@@ -85,6 +111,7 @@ def resolve(official_domain,timeout=15):
             text=re.sub("<[^>]+>"," ",label).lower()
             if any(w in text or w in href.lower() for w in CAREER_WORDS):
                 candidates.append(urljoin(final,href))
+        candidates += _jsonld_urls(home_body,final)
         hit=_ats_from_page(final,home_body)
         if hit and any(w in hit[0].lower() for w in ("job","career")):
             u,p,i=hit
@@ -99,6 +126,10 @@ def resolve(official_domain,timeout=15):
         seen.add(url)
         try:
             final,body=_get(url,timeout)
+            for structured in _jsonld_urls(body,final):
+                hit=detect_ats(structured)
+                if hit[0]:
+                    return {"careers_url":structured,"ats_provider":hit[0],"ats_identifier":hit[1]}
             hit=_ats_from_page(final,body)
             if hit:
                 u,p,i=hit
