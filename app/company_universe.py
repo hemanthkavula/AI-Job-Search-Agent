@@ -12,7 +12,7 @@ from app.source_registry import load_registry as load_source_registry, save_regi
 
 ROOT=Path(__file__).resolve().parents[1]
 DOMAIN_RESOLVER_VERSION="2026-09-27-v2"
-CAREER_RESOLVER_VERSION="2026-09-27-v2"
+CAREER_RESOLVER_VERSION="2026-09-27-v3"
 
 def _domain(url):
     try:
@@ -163,6 +163,10 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     domain_total=sum(bool(r.get("official_domain")) for r in reg.values())
     career_total=sum(bool(r.get("careers_url")) for r in reg.values())
     ats_total=sum(bool(r.get("ats_provider")) for r in reg.values())
+    # Coverage denominators must distinguish identity-only records from employers
+    # for which we have enough public evidence to address a hiring source.
+    addressable_total=sum(bool(r.get("official_domain") or r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
+    executable_total=sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values())
     recent_h1b_total=sum(bool(r.get("recent_h1b_lca")) for r in reg.values())
     ats_by_provider=Counter(
         str(r.get("ats_provider")) for r in reg.values() if r.get("ats_provider")
@@ -180,11 +184,14 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "companies_with_careers_url":career_total,
             "companies_with_ats_provider":ats_total,
             "companies_with_recent_h1b_lca":recent_h1b_total,
+            "source_addressable_companies":addressable_total,
+            "companies_with_executable_career_source":executable_total,
             "ats_by_provider":dict(sorted(ats_by_provider.items())),
             "executable_learned_sources_by_provider":dict(sorted(executable_by_provider.items())),
             "domain_coverage_pct":round(100*domain_total/len(reg),2) if reg else 0.0,
             "career_coverage_pct":round(100*career_total/len(reg),2) if reg else 0.0,
             "ats_coverage_pct":round(100*ats_total/len(reg),2) if reg else 0.0,
+            "actionable_source_coverage_pct":round(100*executable_total/addressable_total,2) if addressable_total else 0.0,
             "career_coverage_of_verified_domains_pct":round(100*career_total/domain_total,2) if domain_total else 0.0,
             "ats_coverage_of_verified_domains_pct":round(100*ats_total/domain_total,2) if domain_total else 0.0,
             "executable_source_coverage_of_verified_domains_pct":round(100*sum(bool(r.get("careers_url") or r.get("ats_provider")) for r in reg.values())/domain_total,2) if domain_total else 0.0}
