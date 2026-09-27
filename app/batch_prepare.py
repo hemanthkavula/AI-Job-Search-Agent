@@ -145,12 +145,12 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
-            use_master_resume=(raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE")
-            if use_master_resume or coverage_plan["target_count"] == 0:
-                # A good/eligible job with an incomplete JD must not drive speculative
-                # tailoring. Reuse the standard profile-backed master resume without
-                # an LLM call. FULL_JD jobs continue through normal JD tailoring.
-                reason="incomplete_jd" if use_master_resume else "zero_targets"
+            use_master_resume=(coverage_plan["target_count"] == 0)
+            if use_master_resume:
+                # A FINAL_JD_VERIFIED job with usable JD evidence must be tailored
+                # whenever the JD yields concrete coverage targets. Only a JD with
+                # zero safe tailoring targets may fall back to the profile-backed master.
+                reason="zero_targets"
                 print(f"MASTER RESUME FALLBACK | reason={reason} | skipping JD tailoring and LLM generation.",flush=True)
                 resume=_render_base_resume(job,profile)
                 audit={
