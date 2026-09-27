@@ -35,9 +35,10 @@ ET=_eastern_tz()
 ROOT=Path(__file__).resolve().parent.parent
 STATE_PATH=ROOT/"generated"/"scheduler_state.json"
 BOOTSTRAP_HOUR=7
-FINAL_HOUR=19
-RUN_HOURS={7,9,11,13,15,17,19}
-INCREMENTAL_WINDOW_HOURS=2
+FINAL_HOUR=21
+RUN_SLOTS=((7,30),(10,0),(12,30),(15,30),(18,30),(21,0))
+SLOT_RECOVERY_MINUTES=55
+INCREMENTAL_WINDOW_HOURS=2.5
 RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
 def _load_state():
@@ -83,14 +84,23 @@ def _window_for(now,state):
 
 def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
     now=datetime.now(ET)
+    window_label="Monday-Friday 07:30,10:00,12:30,15:30,18:30,21:00 America/New_York"
     if not force and now.weekday() not in RUN_WEEKDAYS:
-        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
-    if not force and (now.hour not in RUN_HOURS or now.minute >= 55):
-        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":"Monday-Friday 07:00,09:00,11:00,13:00,15:00,17:00,19:00 America/New_York"}
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":window_label}
+    now_minutes=now.hour*60+now.minute
+    active_slot=None
+    for hour,minute in RUN_SLOTS:
+        slot_start=hour*60+minute
+        if slot_start <= now_minutes < slot_start+SLOT_RECOVERY_MINUTES:
+            active_slot=(hour,minute)
+            break
+    if not force and active_slot is None:
+        return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":window_label}
     state=_load_state()
-    # A second cron opportunity runs 20 minutes after each requested slot.
-    # If the primary already completed this local slot, recovery is a no-op.
-    slot=f"{now.date().isoformat()}T{now.hour:02d}:00"
+    # Cloudflare continues to provide repeated heartbeat opportunities. Once a
+    # requested slot completes, later heartbeats inside its recovery window are no-ops.
+    slot_hour,slot_minute=active_slot if active_slot is not None else (now.hour,now.minute)
+    slot=f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
     if not force and state.get("last_completed_slot")==slot:
         return {"status":"SLOT_ALREADY_COMPLETED","local_time":now.isoformat(),"slot":slot}
     hours,mode,cutoff=_window_for(now,state)
@@ -198,7 +208,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     summary["source_unit_watermarks"]=next_unit_watermarks
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
-    summary["daily_final_cycle"]=now.hour==FINAL_HOUR
+    summary["daily_final_cycle"]=active_slot==(21,0) if not force else now.hour==FINAL_HOUR
     summary["cycle_status"]="PARTIAL" if failed_providers else "SUCCESS"
     summary["failed_providers"]=failed_providers
     return summary
@@ -209,6 +219,6 @@ if __name__=="__main__":
     p.add_argument("--ledger",default="generated/job_ledger.json")
     p.add_argument("--no-resumes",action="store_true",help="Run discovery/finalization only.")
     p.add_argument("--limit",type=int)
-    p.add_argument("--force",action="store_true",help="Allow a manual test outside the scheduled 07:00-19:00 ET run hours.")
+    p.add_argument("--force",action="store_true",help="Allow a manual test outside the scheduled 07:30-21:00 ET run slots.")
     a=p.parse_args()
     print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force),indent=2))
