@@ -24,7 +24,7 @@ def _page_config(base_url: str, timeout: int) -> tuple[str,str]:
     if not site:
         raise RuntimeError("Oracle Candidate Experience siteNumber not found")
     origin=f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
-    return site.group(1), (html.unescape(api.group(1)).rstrip("/") if api else origin)
+    api_base=html.unescape(api.group(1)).rstrip("/") if api else origin\n    # CX_CONFIG apiBaseUrl is the FA host; tolerate pages that expose an hcmRestApi suffix.\n    api_base=re.sub(r"/hcmRestApi(?:/CandidateExperience)?/?$","",api_base,flags=re.I)\n    return site.group(1), api_base
 
 def _search(api_base: str, site: str, keyword: str, page: int, limit: int, timeout: int) -> dict:
     find_params={"siteNumber":site,"limit":limit,"offset":page*limit,"keyword":f'"{keyword}"'}
@@ -37,7 +37,7 @@ def _search(api_base: str, site: str, keyword: str, page: int, limit: int, timeo
         "findParams":json.dumps(find_params,separators=(",",":")),
     }
     url=api_base.rstrip("/")+path+"?"+urlencode(params)
-    return json.loads(_get(url,timeout))
+    try:\n        return json.loads(_get(url,timeout))\n    except Exception as exc:\n        raise RuntimeError(f"Oracle search failed url={url}: {type(exc).__name__}:{exc}") from exc
 
 def _job_url(base_url: str, row: dict) -> str:
     ident=str(row.get("id") or row.get("requisitionId") or row.get("requisitionNumber") or "")
