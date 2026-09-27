@@ -204,7 +204,48 @@ def sam_registered_entities(timeout=30):
         if len(rows)<limit:break
     return out
 
-FEEDERS={"sec_public_companies":sec_public_companies,"fdic_insured_banks":fdic_insured_banks,
+
+def dol_h1b_employers(timeout=60):
+    """Recent employers with certified H-1B LCAs from DOL OFLC disclosure data.
+
+    This is sponsorship-history evidence only. It never overrides current-job
+    sponsorship, work-authorization, citizenship, or clearance filters.
+    """
+    import io, re, zipfile
+    from urllib.request import urlopen
+    page="https://www.dol.gov/agencies/eta/foreign-labor/performance"
+    with urlopen(Request(page,headers=UA),timeout=timeout) as r:
+        html=r.read().decode("utf-8","ignore")
+    m=re.search(r'href=["\\\']([^"\\\']*LCA_Disl?closure_Data_FY2026_Q3\\.xlsx[^"\\\']*)["\\\']',html,re.I)
+    if not m:return []
+    from urllib.parse import urljoin
+    payload=urlopen(Request(urljoin(page,m.group(1)),headers=UA),timeout=timeout).read()
+    try:
+        import openpyxl
+        wb=openpyxl.load_workbook(io.BytesIO(payload),read_only=True,data_only=True)
+        ws=wb.active
+        rows=ws.iter_rows(values_only=True)
+        header=[str(x or "").strip().upper() for x in next(rows)]
+        idx={name:i for i,name in enumerate(header)}
+        required={"EMPLOYER_NAME","CASE_STATUS","VISA_CLASS"}
+        if not required.issubset(idx):return []
+        seen=set();out=[]
+        for vals in rows:
+            status=str(vals[idx["CASE_STATUS"]] or "").strip().upper()
+            visa=str(vals[idx["VISA_CLASS"]] or "").strip().upper()
+            name=str(vals[idx["EMPLOYER_NAME"]] or "").strip()
+            if status not in {"CERTIFIED","CERTIFIED-WITHDRAWN"} or visa!="H-1B" or not name:continue
+            key=name.casefold()
+            if key in seen:continue
+            seen.add(key)
+            out.append({"company":name,"recent_h1b_lca":True,
+                        "discovered_by":"dol_oflc_h1b_fy2026_q3"})
+        return out
+    except Exception:
+        return []
+
+
+FEEDERS={"sec_public_companies":sec_public_companies,"dol_h1b_employers":dol_h1b_employers,"fdic_insured_banks":fdic_insured_banks,
          "ncua_active_credit_unions":ncua_active_credit_unions,
          "college_scorecard_institutions":college_scorecard_institutions,
          "cms_hospitals":cms_hospitals,"sam_registered_entities":sam_registered_entities}
