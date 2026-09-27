@@ -27,7 +27,8 @@ on:
       - "app/scheduled_runner.py"
       - "app/job_identity.py"
       - ".github/workflows/daily-discovery.yml"
-      - ".github/workflows/source-validation.yml"\n      - ".github/workflows/employer-universe-enrichment.yml"
+      - ".github/workflows/source-validation.yml"
+      - ".github/workflows/employer-universe-enrichment.yml"
   workflow_dispatch:
 
 permissions:
