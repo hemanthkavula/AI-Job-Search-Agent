@@ -2,6 +2,7 @@ from __future__ import annotations
 import argparse, json, os, io, shutil, tarfile, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 from app.job_identity import identity_keys
 from fastapi import FastAPI, HTTPException, Request
@@ -282,7 +283,7 @@ def applications(pipeline: str | None = None, date: str | None = None):
     elif date:
         rows=[]; seen=set()
         for run in _pipeline_runs():
-            if run["ts"].astimezone().strftime("%Y-%m-%d") != date: continue
+            if run["ts"].astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d") != date: continue
             for row in _pipeline_jobs(run["cycle_id"]):
                 key=row.get("key") or "|".join(str(row.get(k) or "") for k in ("company","title","url"))
                 if key in seen: continue
