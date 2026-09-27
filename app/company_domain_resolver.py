@@ -165,10 +165,22 @@ def _verified_domain_from_search(row,timeout=20):
             return hit
     return None
 
-def can_resolve_company(row):
-    return bool(row.get("official_domain") or row.get("sec_cik") or row.get("organization_url_evidence") or row.get("company"))
+def can_resolve_company(row, allow_name_search=False):
+    """Return whether this row has evidence worth spending routine network budget on.
 
-def resolve_company(row):
+    Routine production enrichment is evidence-first. Blind company-name web
+    discovery is intentionally opt-in because it is high latency and low yield.
+    """
+    return bool(
+        row.get("official_domain")
+        or row.get("sec_cik")
+        or row.get("organization_url_evidence")
+        or row.get("domain_candidate_url")
+        or row.get("official_url")
+        or (allow_name_search and row.get("company"))
+    )
+
+def resolve_company(row, allow_name_search=False):
     if row.get("official_domain"):
         return {"official_domain":row["official_domain"],"official_url":row.get("official_url"),
                 "domain_evidence":row.get("domain_evidence") or "existing_verified"}
@@ -189,4 +201,4 @@ def resolve_company(row):
     if row.get("sec_cik"):
         hit=sec_company_domain(row["sec_cik"])
         if hit:return hit
-    return _verified_domain_from_search(row)
+    return _verified_domain_from_search(row) if allow_name_search else None
