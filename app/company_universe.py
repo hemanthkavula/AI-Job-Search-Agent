@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
@@ -139,11 +140,35 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             continue
     save_source_registry(source_registry)
     save_registry(reg) if registry_path is None else save_registry(reg,registry_path)
-    return {"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
+
+    # Report cumulative conversion health, not only what changed in this run.
+    # This makes sparse ATS families visible and proves whether the open-ended
+    # employer universe is actually turning into executable career sources.
+    domain_total=sum(bool(r.get("official_domain")) for r in reg.values())
+    career_total=sum(bool(r.get("careers_url")) for r in reg.values())
+    ats_total=sum(bool(r.get("ats_provider")) for r in reg.values())
+    ats_by_provider=Counter(
+        str(r.get("ats_provider")) for r in reg.values() if r.get("ats_provider")
+    )
+    executable_by_provider={
+        provider:len(rows) for provider,rows in source_registry.items()
+        if isinstance(rows,list) and rows
+    }
+    metrics={"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
             "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,
             "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
-            "resolution_failures":resolution_failures,"retry_days":retry_days,"feeder_errors":feeder_errors}
+            "resolution_failures":resolution_failures,"retry_days":retry_days,"feeder_errors":feeder_errors,
+            "companies_with_verified_domain":domain_total,
+            "companies_with_careers_url":career_total,
+            "companies_with_ats_provider":ats_total,
+            "ats_by_provider":dict(sorted(ats_by_provider.items())),
+            "executable_learned_sources_by_provider":dict(sorted(executable_by_provider.items())),
+            "domain_coverage_pct":round(100*domain_total/len(reg),2) if reg else 0.0,
+            "career_coverage_pct":round(100*career_total/len(reg),2) if reg else 0.0,
+            "ats_coverage_pct":round(100*ats_total/len(reg),2) if reg else 0.0}
+    print("EMPLOYER_UNIVERSE "+json.dumps(metrics,sort_keys=True),flush=True)
+    return metrics
 
 if __name__=="__main__":
     print(json.dumps(build(),indent=2))
