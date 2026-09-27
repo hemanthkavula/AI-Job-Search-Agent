@@ -172,12 +172,21 @@ def resolve_company(row):
     if row.get("official_domain"):
         return {"official_domain":row["official_domain"],"official_url":row.get("official_url"),
                 "domain_evidence":row.get("domain_evidence") or "existing_verified"}
+    # Explicit employer URLs from authoritative feeders or JobPosting
+    # hiringOrganization metadata are much stronger and cheaper than name search.
+    # Always verify them first, including domain_candidate_url persisted by discovery.
+    for field,evidence in (
+        ("organization_url_evidence","jobposting_hiring_organization_plus_first_party_identity"),
+        ("domain_candidate_url","persisted_candidate_plus_first_party_identity"),
+        ("official_url","authoritative_url_plus_first_party_identity"),
+    ):
+        raw=row.get(field)
+        if raw:
+            hit=_first_party_match(raw,row.get("company") or "",timeout=12)
+            if hit:
+                hit["domain_evidence"]=evidence
+                return hit
     if row.get("sec_cik"):
         hit=sec_company_domain(row["sec_cik"])
         if hit:return hit
-    if row.get("organization_url_evidence"):
-        hit=_first_party_match(row["organization_url_evidence"],row.get("company") or "",timeout=12)
-        if hit:
-            hit["domain_evidence"]="jobposting_hiring_organization_plus_first_party_identity"
-            return hit
     return _verified_domain_from_search(row)
