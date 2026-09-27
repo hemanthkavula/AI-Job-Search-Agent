@@ -450,6 +450,19 @@ jobs:
           except Exception as exc:
               print(f"DIAG oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           try:
+              from app.sources.oracle import fetch_jobs as oracle_fetch
+              oracle_cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8")).get("oracle",[])
+              oracle_total=0
+              for src in oracle_cfg:
+                  rows=oracle_fetch(src.get("company") or "Oracle",src.get("base_url") or src.get("search_url") or src.get("careers_url"))
+                  oracle_total += len(rows)
+                  print(f"SMOKE oracle | {src.get('company')} | {len(rows)} DE jobs",flush=True)
+              print(f"SMOKE oracle total | {oracle_total}",flush=True)
+          except Exception as exc:
+              failures.append(("oracle","configured",f"{type(exc).__name__}:{exc}"))
+              print(f"SMOKE oracle | ERROR | {type(exc).__name__}:{exc}",flush=True)
+
+          try:
               from app.sources.gem import fetch_jobs as gem_fetch
               gem_cfg=json.loads(Path("data/job_sources.json").read_text(encoding="utf-8")).get("gem",[])
               gem_total=0
