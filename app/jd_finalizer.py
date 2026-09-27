@@ -64,9 +64,9 @@ def _live_public_job_page(url):
         # Access blocks, rate limits, and transient server errors do not prove
         # that the requisition is dead. Hold until it can be verified.
         return None,f"http_{exc.code}"
-    except (URLError,TimeoutError,OSError):
-        # Network/anti-bot failures are not proof that a job is dead; hold it
-        # rather than falsely treating it as a valid application.
+    except (URLError,TimeoutError,OSError,ValueError):
+        # Network/anti-bot failures and malformed URLs are not allowed to crash
+        # the whole production cycle. Hold this one job for later verification.
         return None,"unverifiable"
     plain=_clean_html(body).lower()
     if any(marker in plain for marker in DEAD_PAGE_MARKERS):
