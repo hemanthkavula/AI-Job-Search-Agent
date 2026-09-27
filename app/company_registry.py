@@ -38,10 +38,18 @@ def upsert(registry, company, official_domain=None, careers_url=None, ats_provid
 def learn_from_jobs(jobs,registry):
     for j in jobs:
         company=j.get("company") or j.get("company_key")
+        # A discovered job proves that the employer is actively hiring, but a job
+        # detail URL is not automatically a reusable career source. Keep the job
+        # evidence separately and let source_registry/career resolution promote
+        # only verified reusable boards.
         upsert(registry,company,
-               careers_url=j.get("original_url") or j.get("url"),
                ats_provider=j.get("ats_provider"),ats_identifier=j.get("ats_identifier"),
                discovered_by=j.get("source"))
+        key=company_key(company or "")
+        if key in registry:
+            registry[key]["current_hiring_signal"]=True
+            registry[key]["last_job_seen_at"]=datetime.now(timezone.utc).isoformat()
+            registry[key]["last_job_url"]=j.get("original_url") or j.get("url")
         # JobPosting hiringOrganization.url/sameAs is useful identity evidence,
         # but is not accepted as an official domain until the domain resolver
         # verifies the employer name on the first-party destination.
