@@ -333,6 +333,26 @@ jobs:
                       failures.append((family,company,str(exc)))
                       print(f"SMOKE {family} | {company} | ERROR | {exc}",flush=True)
 
+          # Gem live board diagnostic: bounded to configured tenants and page HTML only.
+          from urllib.request import Request as GemRequest, urlopen as gem_urlopen
+          gem_boards=[
+              ("Félix","https://jobs.gem.com/felix"),
+              ("Farmers Business Network","https://jobs.gem.com/farmers-business-network"),
+              ("OneSignal","https://jobs.gem.com/onesignal"),
+              ("Tessellate","https://jobs.gem.com/tessellate"),
+          ]
+          for gem_company,gem_url in gem_boards:
+              try:
+                  with gem_urlopen(GemRequest(gem_url,headers={"User-Agent":"Mozilla/5.0","Accept":"text/html,*/*"}),timeout=20) as rr:
+                      gb=rr.read().decode("utf-8","replace")
+                  links=sorted(set(re.findall(r'href=["\\\']([^"\\\']+)["\\\']',gb,re.I)))
+                  joblinks=[x for x in links if any(k in x.lower() for k in ("/job","jobs/","posting","opening"))]
+                  scripts=sorted(set(re.findall(r'<script[^>]+src=["\\\']([^"\\\']+)["\\\']',gb,re.I)))
+                  hints=sorted(set(re.findall(r'https?[^"\\\'<> ]+|/api/[^"\\\'<> ]+',gb,re.I)))
+                  hints=[html.unescape(x) for x in hints if any(k in x.lower() for k in ("api","job","posting","opening"))][:30]
+                  print(f"DIAG gem | {gem_company} | status=200 bytes={len(gb)} joblinks={joblinks[:20]} scripts={scripts[:20]} hints={hints}",flush=True)
+              except Exception as exc:
+                  print(f"DIAG gem | {gem_company} | ERROR | {type(exc).__name__}:{exc}",flush=True)
           print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} ukg={totals['ukg']} failures={len(failures)}",flush=True)
           if failures:
               raise SystemExit("ATS smoke had execution failures")
