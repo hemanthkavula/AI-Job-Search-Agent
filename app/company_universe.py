@@ -58,7 +58,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         enabled_feeders=[
             row.get("id") for row in feeder_cfg.get("feeders",[])
             if isinstance(row,dict) and row.get("enabled") and row.get("id") in {
-                "sec_public_companies","fdic_insured_banks","ncua_active_credit_unions",
+                "sec_public_companies","dol_h1b_employers","fdic_insured_banks","ncua_active_credit_unions",
                 "college_scorecard_institutions","cms_hospitals","sam_registered_entities"
             }
         ]
@@ -75,6 +75,9 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             if row.get("cms_facility_id"):reg[key]["cms_facility_id"]=row["cms_facility_id"]
             if row.get("state"):reg[key]["state"]=row["state"]
             if row.get("uei"):reg[key]["sam_uei"]=row["uei"]
+            if row.get("recent_h1b_lca"):
+                reg[key]["recent_h1b_lca"]=True
+                reg[key]["h1b_evidence_source"]=row.get("discovered_by") or "dol_oflc"
             if row.get("official_url"):
                 from urllib.parse import urlparse
                 url=row["official_url"]
