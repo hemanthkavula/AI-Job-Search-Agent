@@ -32,7 +32,7 @@ def _retry_due(row, prefix, retry_days, resolver_version=None):
         return datetime.now(timezone.utc)-attempted >= timedelta(days=retry_days)
     except Exception:return True
 
-def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250, retry_days=7):
+def build(source_path="data/job_sources.json", registry_path=None, domain_budget=250, career_budget=250, retry_days=7, deep_domain_search=False):
     """Seed the open-ended employer universe from every configured company source.
 
     This is intentionally not an allowlist. Broad discovery and future resolvers
@@ -107,7 +107,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     domain_candidates=sorted(
         (r for r in reg.values() if not r.get("official_domain")
          and not (r.get("careers_url") or r.get("ats_provider"))
-         and can_resolve_company(r)
+         and can_resolve_company(r,allow_name_search=deep_domain_search)
          and _retry_due(r,"domain",retry_days,DOMAIN_RESOLVER_VERSION)),
         # Strong authoritative identifiers first; then recent H-1B history.
         # Existing executable sources are excluded above so scarce network budget
@@ -126,7 +126,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # the budget into useful coverage instead of serially spending minutes on a
     # handful of throttled sites.
     with ThreadPoolExecutor(max_workers=min(24,max(1,domain_attempts))) as pool:
-        futures={pool.submit(resolve_company,row):row for row in domain_candidates}
+        futures={pool.submit(resolve_company,row,allow_name_search=deep_domain_search):row for row in domain_candidates}
         for future in as_completed(futures):
             row=futures[future]
             try:
@@ -243,7 +243,7 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         if isinstance(rows,list) and rows
     }
     metrics={"companies":len(reg),"added":len(reg)-before,"feeder_rows":len(feeder_rows),
-            "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,
+            "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,"deep_domain_search":deep_domain_search,
             "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
             "ats_tenant_attempts":ats_tenant_attempts,"ats_tenant_budget":ats_tenant_budget,
