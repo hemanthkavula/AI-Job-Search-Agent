@@ -85,4 +85,51 @@ def resolve(company,timeout=6):
                 return {"careers_url":url,"ats_provider":"smartrecruiters","ats_identifier":slug,
                         "ats_evidence":"smartrecruiters_hosted_board_identity"}
         except Exception:pass
+        # Workable hosted boards expose the employer identity in page metadata.
+        try:
+            url=f"https://apply.workable.com/{quote(slug)}/"
+            with urlopen(Request(url,headers=UA),timeout=timeout) as r:
+                body=r.read(250000).decode("utf-8","ignore")
+            title=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+            observed=re.sub(r"<[^>]+>"," ",title.group(1)) if title else ""
+            if _matches(company,observed):
+                return {"careers_url":url,"ats_provider":"workable","ats_identifier":slug,
+                        "ats_evidence":"workable_hosted_board_identity"}
+        except Exception:pass
+
+        # Recruitee commonly uses employer-specific subdomains.
+        try:
+            url=f"https://{quote(slug)}.recruitee.com/"
+            with urlopen(Request(url,headers=UA),timeout=timeout) as r:
+                body=r.read(250000).decode("utf-8","ignore")
+            title=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+            observed=re.sub(r"<[^>]+>"," ",title.group(1)) if title else ""
+            if _matches(company,observed):
+                return {"careers_url":url,"ats_provider":"recruitee","ats_identifier":slug,
+                        "ats_evidence":"recruitee_hosted_board_identity"}
+        except Exception:pass
+
+        # Teamtailor also uses employer-specific hosted career subdomains.
+        try:
+            url=f"https://{quote(slug)}.teamtailor.com/"
+            with urlopen(Request(url,headers=UA),timeout=timeout) as r:
+                body=r.read(250000).decode("utf-8","ignore")
+            title=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+            observed=re.sub(r"<[^>]+>"," ",title.group(1)) if title else ""
+            if _matches(company,observed):
+                return {"careers_url":url,"ats_provider":"teamtailor","ats_identifier":slug,
+                        "ats_evidence":"teamtailor_hosted_board_identity"}
+        except Exception:pass
+
+        # BambooHR tenants expose a public careers page on a tenant subdomain.
+        try:
+            url=f"https://{quote(slug)}.bamboohr.com/careers"
+            with urlopen(Request(url,headers=UA),timeout=timeout) as r:
+                body=r.read(250000).decode("utf-8","ignore")
+            title=re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+            observed=re.sub(r"<[^>]+>"," ",title.group(1)) if title else ""
+            if _matches(company,observed):
+                return {"careers_url":url,"ats_provider":"bamboohr","ats_identifier":slug,
+                        "ats_evidence":"bamboohr_hosted_board_identity"}
+        except Exception:pass
     return None
