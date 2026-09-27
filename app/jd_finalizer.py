@@ -195,7 +195,9 @@ def resolve_full_jd(job):
     job=resolve_original_ats(job)
     current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
-    lead_before_resolution=job.get("original_url") or job.get("url") or ""\n    aggregator_origin=bool(job.get("discovery_only")) or source in {"dice","ziprecruiter","indeed","linkedin","monster"} or _is_aggregator_url(lead_before_resolution)\n    if job.get("description_complete") and _looks_like_complete_jd(current,source) and not aggregator_origin:return job
+    lead_before_resolution=job.get("original_url") or job.get("url") or ""
+    aggregator_origin=bool(job.get("discovery_only")) or source in {"dice","ziprecruiter","indeed","linkedin","monster"} or _is_aggregator_url(lead_before_resolution)
+    if job.get("description_complete") and _looks_like_complete_jd(current,source) and not aggregator_origin:return job
     fetch_url=job.get("original_url") or job.get("url")
     page=_fetch_public_page(fetch_url)
     resolved=_best_resolved_description(page,source)
