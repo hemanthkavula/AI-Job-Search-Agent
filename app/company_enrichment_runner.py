@@ -2,9 +2,9 @@ from __future__ import annotations
 import argparse,json
 from app.company_universe import build
 
-def run(source_config="data/job_sources.json",registry_path=None,domain_budget=250,career_budget=250,retry_days=7,deep_domain_search=False):
+def run(source_config="data/job_sources.json",registry_path=None,domain_budget=250,career_budget=250,retry_days=7,deep_domain_search=False,ats_tenant_budget=None):
     return build(source_config,registry_path,domain_budget=domain_budget,career_budget=career_budget,
-                 retry_days=retry_days,deep_domain_search=deep_domain_search)
+                 retry_days=retry_days,deep_domain_search=deep_domain_search,ats_tenant_budget=ats_tenant_budget)
 
 if __name__=="__main__":
     p=argparse.ArgumentParser(description="Slow employer/domain/career-source enrichment")
@@ -12,9 +12,11 @@ if __name__=="__main__":
     p.add_argument("--registry",default=None)
     p.add_argument("--domain-budget",type=int,default=250)
     p.add_argument("--career-budget",type=int,default=250)
+    p.add_argument("--ats-tenant-budget",type=int,default=None,
+                   help="Independent cap for expensive ATS tenant probing; defaults to at most 250 per batch")
     p.add_argument("--retry-days",type=int,default=7)
     p.add_argument("--deep-domain-search",action="store_true",
                    help="Enable verified public discovery for employers without existing URL evidence")
     a=p.parse_args()
     print(json.dumps(run(a.source_config,a.registry,a.domain_budget,a.career_budget,a.retry_days,
-                         a.deep_domain_search),indent=2))
+                         a.deep_domain_search,a.ats_tenant_budget),indent=2))
