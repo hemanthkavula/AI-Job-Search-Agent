@@ -51,7 +51,8 @@ jobs:
             --source-config data/job_sources.json \
             --domain-budget "${{ inputs.domain_budget }}" \
             --career-budget "${{ inputs.career_budget }}" \
-            --retry-days 1 | tee employer-universe-enrichment.log
+            --retry-days 1 \
+            ${{ inputs.deep_domain_search && '--deep-domain-search' || '' }} | tee employer-universe-enrichment.log
       - name: Publish employer-universe metrics
         shell: bash
         run: |
