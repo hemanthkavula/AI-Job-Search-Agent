@@ -9,11 +9,13 @@ from app.company_registry import load as load_registry, save as save_registry, u
 from app.company_feeders import collect as collect_company_feeders
 from app.company_domain_resolver import resolve_company, can_resolve_company
 from app.career_page_resolver import resolve as resolve_career_page
+from app.ats_tenant_resolver import resolve as resolve_ats_tenant
 from app.source_registry import load_registry as load_source_registry, save_registry as save_source_registry, learn_resolved_source
 
 ROOT=Path(__file__).resolve().parents[1]
 DOMAIN_RESOLVER_VERSION="2026-09-27-v6"
 CAREER_RESOLVER_VERSION="2026-09-27-v6"
+ATS_TENANT_RESOLVER_VERSION="2026-09-27-v1"
 
 def _domain(url):
     try:
@@ -143,6 +145,45 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     resolution_failures=0
     custom_career_sites=0
     source_registry=load_source_registry()
+
+    # A corporate domain is useful but must not be a prerequisite for finding a
+    # hiring source. Probe a bounded set of unresolved employer identities
+    # against public ATS-hosted boards and accept only boards whose exposed
+    # organization identity matches the employer.
+    ats_tenant_budget=min(500,max(100,domain_budget//2))
+    ats_tenant_candidates=sorted(
+        (r for r in reg.values() if not r.get("official_domain")
+         and not r.get("ats_provider") and not r.get("careers_url")
+         and _retry_due(r,"ats_tenant",retry_days,ATS_TENANT_RESOLVER_VERSION)),
+        key=lambda r:(not bool(r.get("recent_h1b_lca")),
+                      bool(r.get("ats_tenant_last_attempt_at")),
+                      r.get("ats_tenant_last_attempt_at") or "")
+    )[:ats_tenant_budget]
+    ats_tenant_attempts=len(ats_tenant_candidates)
+    ats_tenants_resolved=0
+    now=datetime.now(timezone.utc).isoformat()
+    for row in ats_tenant_candidates:
+        row["ats_tenant_last_attempt_at"]=now
+        row["ats_tenant_resolver_version"]=ATS_TENANT_RESOLVER_VERSION
+    with ThreadPoolExecutor(max_workers=min(24,max(1,ats_tenant_attempts))) as pool:
+        futures={pool.submit(resolve_ats_tenant,row.get("company") or ""):row for row in ats_tenant_candidates}
+        for future in as_completed(futures):
+            row=futures[future]
+            try:
+                hit=future.result()
+                if not hit:
+                    row["ats_tenant_last_error"]="NO_VERIFIED_ATS_TENANT"
+                    continue
+                row.update({k:v for k,v in hit.items() if v})
+                row["ats_tenant_last_success_at"]=datetime.now(timezone.utc).isoformat()
+                row.pop("ats_tenant_last_error",None)
+                if learn_resolved_source(hit.get("ats_provider"),row.get("company"),
+                                         hit.get("careers_url"),source_registry,
+                                         identifier=hit.get("ats_identifier")):
+                    ats_tenants_resolved+=1
+            except Exception as e:
+                row["ats_tenant_last_error"]=f"{type(e).__name__}: {e}"[:500]
+
     career_candidates=sorted(
         (r for r in reg.values() if r.get("official_domain") and not r.get("ats_provider")
          and _retry_due(r,"career",retry_days,CAREER_RESOLVER_VERSION)),
@@ -201,6 +242,8 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
             "resolved_domains":resolved_domains,"domain_attempts":domain_attempts,"domain_budget":domain_budget,
             "resolved_careers":resolved_careers,"career_attempts":career_attempts,"career_budget":career_budget,
             "learned_sources":learned_sources,"custom_career_sites":custom_career_sites,
+            "ats_tenant_attempts":ats_tenant_attempts,"ats_tenant_budget":ats_tenant_budget,
+            "ats_tenants_resolved":ats_tenants_resolved,"ats_tenant_resolver_version":ATS_TENANT_RESOLVER_VERSION,
             "resolution_failures":resolution_failures,"retry_days":retry_days,"domain_resolver_version":DOMAIN_RESOLVER_VERSION,"career_resolver_version":CAREER_RESOLVER_VERSION,"feeder_errors":feeder_errors,
             "companies_with_verified_domain":domain_total,
             "companies_with_careers_url":career_total,
