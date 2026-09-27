@@ -353,6 +353,21 @@ jobs:
                   print(f"DIAG gem | {gem_company} | status=200 bytes={len(gb)} joblinks={joblinks[:20]} scripts={scripts[:20]} hints={hints}",flush=True)
               except Exception as exc:
                   print(f"DIAG gem | {gem_company} | ERROR | {type(exc).__name__}:{exc}",flush=True)
+          try:
+              gem_js_url="https://static.gem.com/scripts/jobBoards.Binadqsq.v2.min.js"
+              with gem_urlopen(GemRequest(gem_js_url,headers={"User-Agent":"Mozilla/5.0","Accept":"*/*"}),timeout=20) as rr:
+                  gjs=rr.read().decode("utf-8","replace")
+              gh=[]
+              for token in ("api","graphql","job","board","opening","posting","company"):
+                  low=gjs.lower(); pos=0; seen=0
+                  while seen < 5:
+                      pos=low.find(token,pos)
+                      if pos < 0: break
+                      gh.append({"token":token,"context":gjs[max(0,pos-240):pos+500]})
+                      pos += len(token); seen += 1
+              print(f"DIAG gem bundle | bytes={len(gjs)} hits={gh[:35]}",flush=True)
+          except Exception as exc:
+              print(f"DIAG gem bundle | ERROR | {type(exc).__name__}:{exc}",flush=True)
           print(f"SMOKE TOTAL smartrecruiters={totals['smartrecruiters']} workable={totals['workable']} ukg={totals['ukg']} failures={len(failures)}",flush=True)
           if failures:
               raise SystemExit("ATS smoke had execution failures")
