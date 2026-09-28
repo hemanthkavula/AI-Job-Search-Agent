@@ -10,6 +10,7 @@ from app.filters import passes_hard_filters
 from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
+from app.company_domain_resolver import resolve_company
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -168,7 +169,24 @@ def _resolve_employer_career_page(job):
     company=(job.get("company_key") or job.get("company") or "").strip()
     title=(job.get("title") or "").strip()
     if not company or not title:return ("","")
+    # Build several identity-rich lookup routes instead of relying on only
+    # company+title. Aggregator leads often expose a requisition ID, location, or
+    # hiringOrganization URL that is more discriminating than the title alone.
+    req_id=str(job.get("requisition_id") or job.get("job_id") or "").strip()
+    location=str(job.get("location") or "").strip()
+    domain_hit=resolve_company({
+        "company":company,
+        "organization_url_evidence":job.get("organization_url_evidence"),
+        "official_domain":job.get("official_domain"),
+        "official_url":job.get("official_url"),
+    },allow_name_search=True) or {}
+    official_domain=(domain_hit.get("official_domain") or "").strip()
     queries=[f'"{title}" "{company}" careers',f'"{title}" "{company}" jobs']
+    if req_id:queries.insert(0,f'"{req_id}" "{company}" jobs')
+    if location:queries.append(f'"{title}" "{company}" "{location}"')
+    if official_domain:
+        queries.insert(0,f'site:{official_domain} "{title}"')
+        if req_id:queries.insert(0,f'site:{official_domain} "{req_id}"')
     seen=set();ranked=[]
     for query in queries:
         page=_fetch_public_page("https://www.google.com/search?q="+parse.quote(query))
