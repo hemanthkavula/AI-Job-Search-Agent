@@ -1,10 +1,7 @@
 name: One-Time Resume Recovery
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/resume-recovery.yml"
+  workflow_dispatch:
 
 permissions:
   actions: read
