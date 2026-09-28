@@ -249,6 +249,11 @@ def _pipeline_jobs(cycle_id):
         if live:
             item=dict(live)
         else:
+            rp=_resume_path(row)
+            if not rp and key:
+                ledger_row=(_json(LEDGER,{"jobs":{}}).get("jobs") or {}).get(key)
+                if ledger_row:
+                    rp=_resume_path(ledger_row)
             item={
                 "key":key or f"{cycle_id}:{len(out)}",
                 "company":row.get("company") or row.get("company_name") or "",
@@ -259,7 +264,9 @@ def _pipeline_jobs(cycle_id):
                 "created":row.get("created") or row.get("first_seen") or row.get("created_at") or "",
                 "stage":"Ready to apply",
                 "status":row.get("next_action") or "READY_TO_APPLY",
-                "resume_available":bool(row.get("resume") or row.get("resume_path") or row.get("resume_file")),
+                "resume":rp.name if rp else None,
+                "resume_url":"/resume/"+quote(key,safe="") if rp else None,
+                "resume_available":bool(rp),
             }
         item["pipeline"]=cycle_id
         out.append(item)
