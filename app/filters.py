@@ -83,6 +83,15 @@ def title_is_target(title,description=""):
     # data-platform keywords. This prevents sales/management/solutions roles from
     # entering the resume/application pipeline merely because they discuss Spark,
     # Databricks, warehouses, governance, etc.
+    # Analytics Engineer is part of the user's target family when the JD actually
+    # describes data-engineering work. Do not require the literal "Data Engineer"
+    # phrase when pipelines/ETL/warehousing/Spark/etc. provide strong evidence.
+    if re.search(r"\banalytics engineer\b",t,re.I):
+        return jd_is_data_engineering(description)
+    # Software/Platform engineering titles can also be DE work when both the title
+    # is explicitly data-oriented and the JD has strong independent DE signals.
+    if re.search(r"\bsoftware engineer\b",t,re.I) and any(x in t for x in ("data platform","data infrastructure","data pipeline","data warehouse")):
+        return jd_is_data_engineering(description)
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
     # Keep a small adjacent DE-family set for titles that do not literally contain
     # "data engineer", such as Data Platform Engineer.
