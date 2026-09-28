@@ -118,8 +118,11 @@ def _retryable_resume_error(exc):
     return any(marker in text for marker in transient_markers)
 
 def _should_use_master_resume(raw,coverage_plan):
-    """Master fallback is allowed only when a verified JD yields no safe tailoring targets."""
-    return int(coverage_plan.get("target_count") or 0) == 0
+    """Use the unchanged master/profile resume when a verified JD yields 0-2 targets.
+
+    Three or more meaningful JD targets justify job-specific resume tailoring.
+    """
+    return int(coverage_plan.get("target_count") or 0) <= 2
 
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
