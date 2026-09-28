@@ -309,10 +309,58 @@ def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
     host=urlparse(search_url).netloc
     return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":_location(j),"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted") or j.get("validThrough")}]
 
+def _amazon_public(company: str, search_url: str, timeout: int) -> list[dict]:
+    """Enumerate Amazon Jobs search results instead of relying on one rendered page."""
+    from urllib.parse import urlencode
+    parsed=urlparse(search_url)
+    # Amazon's public search endpoint returns HTML pages whose job links remain
+    # stable even when the interactive frontend changes. Walk enough pages to
+    # cover the current result set and let downstream freshness enforce recency.
+    params={"base_query":"data engineer","loc_query":"United States"}
+    out=[];seen=set()
+    for offset in range(0,1000,10):
+        url=f"{parsed.scheme or 'https'}://{parsed.netloc or 'www.amazon.jobs'}/en/search?{urlencode({**params,'offset':offset})}"
+        try: body=_get(url,timeout)
+        except Exception:
+            if offset==0: raise
+            break
+        links=[]
+        for href in re.findall(r'href=[\'"]([^\'"]*/(?:en/)?jobs/\d+/[^\'"]+)[\'"]',body,re.I):
+            job_url=urljoin(url,html.unescape(href)).split("?")[0]
+            if job_url not in seen:
+                seen.add(job_url);links.append(job_url)
+        if not links:
+            break
+        for job_url in links:
+            try: detail=_get(job_url,timeout)
+            except Exception: continue
+            j=_jsonld(detail)
+            title=_plain(str(j.get("title") or ""))
+            if not title:
+                m=re.search(r"<h1[^>]*>(.*?)</h1>",detail,re.I|re.S)
+                title=_plain(m.group(1)) if m else ""
+            text=_plain(str(j.get("description") or detail))
+            hay=(title+" "+text[:3500]).lower()
+            if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")):
+                continue
+            m=re.search(r"/jobs/(\d+)/",job_url);job_id=m.group(1) if m else job_url
+            out.append({"external_id":f"amazon:{job_id}","source":"career_site","company_key":company,
+                        "title":title,"location":_location(j),"url":job_url,"original_url":job_url,
+                        "ats_provider":"amazon_jobs","ats_identifier":"amazon.jobs","job_id":str(job_id),
+                        "description":text,"description_complete":bool(text),"updated_at":j.get("datePosted"),
+                        "posted_on":j.get("datePosted"),"date_posted":j.get("datePosted"),
+                        "employment_type":_job_type(j)})
+        if len(links)<10:
+            break
+    return _dedupe_jobs(out)
+
 def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int = 20) -> list[dict]:
     """Crawl a public employer career search page for Data Engineering jobs."""
     if "apply.workable.com/" in search_url.lower():
         try:return _workable_public(company,search_url,timeout)
+        except Exception:pass
+    if "amazon.jobs/" in search_url.lower():
+        try:return _amazon_public(company,search_url,timeout)
         except Exception:pass
     body=_get(search_url,timeout)
     embedded=[]
