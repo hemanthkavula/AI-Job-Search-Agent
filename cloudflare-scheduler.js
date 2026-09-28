@@ -11,9 +11,17 @@ export default {
     const hour = Number(get("hour"));
     const minute = Number(get("minute"));
     const weekdays = new Set(["Mon","Tue","Wed","Thu","Fri"]);
-    const dueHours = new Set([7,9,11,13,15,17,19]);
+    // Keep Cloudflare's dispatch gate aligned with app/scheduled_runner.py and
+    // .github/workflows/daily-discovery.yml. A heartbeat may dispatch during the
+    // 55-minute recovery window following each requested production slot.
+    const dueSlots = [[7,30],[10,0],[12,30],[15,30],[18,30],[21,0]];
+    const localMinutes = hour * 60 + minute;
+    const inRecoveryWindow = dueSlots.some(([slotHour, slotMinute]) => {
+      const slotMinutes = slotHour * 60 + slotMinute;
+      return localMinutes >= slotMinutes && localMinutes <= slotMinutes + 55;
+    });
 
-    if (!weekdays.has(weekday) || !dueHours.has(hour) || minute >= 55) return;
+    if (!weekdays.has(weekday) || !inRecoveryWindow) return;
 
     const response = await fetch(
       "https://api.github.com/repos/hemanthkavula/AI-Job-Search-Agent/actions/workflows/daily-discovery.yml/dispatches",
