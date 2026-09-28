@@ -74,3 +74,40 @@ def test_caci_degree_plus_15_years_is_rejected(tmp_path, monkeypatch):
     assert result["finalized"]==0
     assert result["rejections"][0]["eligibility"]["experience"]["category"]=="EXPERIENCE_TOO_SENIOR"
     assert result["rejections"][0]["eligibility"]["experience"]["required_years"]>=12
+
+
+def test_direct_workday_relative_posting_is_rechecked_at_finalization(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"workday:R120623","source":"workday","company_key":"Samsung Austin Semiconductor","title":"Senior Data Engineer","description":"placeholder"}}]}
+    inp=tmp_path/"samsung_stale.json"; out=tmp_path/"samsung_stale_out.json"
+    inp.write_text(json.dumps(report),encoding="utf-8")
+    description="Responsibilities: build data pipelines. Requirements: Python SQL Spark. Qualifications: data engineering experience. "+"x"*1300
+    resolved={"external_id":"workday:R120623","source":"workday","company_key":"Samsung Austin Semiconductor","title":"Senior Data Engineer","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"workday","original_url":"https://sec.wd3.myworkdayjobs.com/en-US/Samsung_Careers/job/Austin-TX/Senior-Data-Engineer_R120623","posted_on":"Posted 4 Days Ago"}
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    now=datetime(2026,9,28,12,0,tzinfo=timezone.utc)
+    result=finalize_report(str(inp),str(out),hours=61,now=now)
+    assert result["finalized"]==0
+    assert result["held_or_rejected"]==1
+    rejection=result["rejections"][0]
+    assert rejection["action"]=="REJECT_STALE_OFFICIAL_POSTING"
+    assert rejection["diagnostics"]["official_posted_label"]=="Posted 4 Days Ago"
+
+
+def test_direct_workday_one_day_relative_posting_remains_fresh(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"workday:fresh","source":"workday","company_key":"Example","title":"Senior Data Engineer","description":"placeholder"}}]}
+    inp=tmp_path/"workday_fresh.json"; out=tmp_path/"workday_fresh_out.json"
+    inp.write_text(json.dumps(report),encoding="utf-8")
+    description="Responsibilities: build data pipelines. Requirements: Python SQL Spark. Qualifications: data engineering experience. "+"x"*1300
+    resolved={"external_id":"workday:fresh","source":"workday","company_key":"Example","title":"Senior Data Engineer","location":"Austin, TX, United States","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"workday","original_url":"https://example.com/job","posted_on":"Posted 1 Day Ago"}
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    now=datetime(2026,9,28,12,0,tzinfo=timezone.utc)
+    result=finalize_report(str(inp),str(out),hours=61,now=now)
+    assert result["finalized"]==1
+    assert result["held_or_rejected"]==0
