@@ -205,7 +205,12 @@ def _keep_employer_block_together(company_p,title_p,first_bullet_p=None,environm
     if environment_p is not None:
         environment_p.paragraph_format.keep_with_next=True
     if first_bullet_p is not None:
+        # LibreOffice's DOCX->PDF pagination can still orphan the employer
+        # heading when the first bullet is only keep_together. Chain the first
+        # bullet forward as well so the header/title starts only where real
+        # experience content can follow it on the same page.
         first_bullet_p.paragraph_format.keep_together=True
+        first_bullet_p.paragraph_format.keep_with_next=True
 
 def _format_experience_bullet(p):
     p.paragraph_format.left_indent=Inches(.16)
