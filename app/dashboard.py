@@ -454,11 +454,17 @@ def confirm_submitted(job_key:str):
 def resume(job_key:str):
     ledger=_json(LEDGER,{"jobs":{}})
     row=(ledger.get("jobs") or {}).get(job_key)
+    # Historical dashboard rows can outlive their current-ledger entry. Resolve
+    # those rows only by the exact immutable job identity; never by company/title.
+    if not row and CYCLES.exists():
+        for manifest_path in sorted(CYCLES.glob("*_manifest.json"),reverse=True):
+            manifest=_json(manifest_path,[])
+            rows=manifest if isinstance(manifest,list) else (manifest.get("results") or manifest.get("jobs") or manifest.get("applications") or [])
+            row=next((x for x in rows if isinstance(x,dict) and str(x.get("job_key") or x.get("key") or x.get("external_id") or x.get("job_id") or "")==job_key),None)
+            if row:break
     if not row:raise HTTPException(404,"Job not found")
     _,confirmed=_confirmed_map()
     hist=next((x for x in confirmed if x.get("job_key")==job_key),None)
-    if not hist:
-        hist=next((x for x in confirmed if str(x.get("company") or "").lower()==str(row.get("company") or "").lower() and str(x.get("title") or "").lower()==str(row.get("title") or "").lower()),None)
     p=_resume_path(row) or _resume_path_from_confirmed(hist)
     if not p:raise HTTPException(404,"Resume not available")
     return FileResponse(p,media_type="application/pdf",headers={"Content-Disposition":f'inline; filename="{p.name}"'})
