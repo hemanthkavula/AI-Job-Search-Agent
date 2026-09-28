@@ -62,3 +62,9 @@ def test_registry_patterns_do_not_contain_accidental_double_regex_escapes():
 def test_generic_career_path_is_not_misclassified_as_phenom():
     provider,identifier=detect_ats("https://careers.example.com/en/jobs")
     assert provider != "phenom"
+
+
+def test_localized_rippling_detail_becomes_reusable_tenant_board():
+    from app.source_registry import _reusable_search_url
+    url="https://ats.rippling.com/es-ES/example-company/jobs/ae82e363-1b4d-4254-9ca1-075ff6ee43e4"
+    assert _reusable_search_url("rippling",url)=="https://ats.rippling.com/example-company/jobs"
