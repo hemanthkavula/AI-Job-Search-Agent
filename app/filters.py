@@ -138,7 +138,11 @@ def employment_is_target(employment_type, description=""):
     if any(marker in employment for marker in EMPLOYMENT_ACCEPT_MARKERS):return True
     if any(marker in employment for marker in CONTRACT_MARKERS):return False
     if any(marker in text for marker in ("full-time","full time","fulltime","regular employee","permanent position")):return True
-    return not employment
+    # ATS metadata is often a department/category rather than an employment type
+    # (e.g. "Experienced", "Engineering", "New York"). Unknown metadata must not
+    # become a false rejection when the official JD contains no contract/temporary
+    # evidence. Treat it like unknown; explicit reject patterns above still win.
+    return True
 
 def work_authorization_restriction(description="",title=""):
     text=_clean(f"{title or ''} {description or ''}")
