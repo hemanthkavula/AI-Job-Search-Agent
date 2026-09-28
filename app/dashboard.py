@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, json, os, io, shutil, tarfile, tempfile
+import argparse, json, os, io, shutil, tarfile, tempfile, zipfile, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -16,6 +16,38 @@ CONFIRMED=STATE_DIR/"confirmed_applications.json"
 HIDDEN=STATE_DIR/"hidden_applications.json"
 CYCLES=STATE_DIR/"cycles"
 app=FastAPI(title="AI Job Search Agent")
+
+def _restore_resume_artifact_once():
+    """Restore only resume files from a one-time trusted recovery artifact URL."""
+    url=os.getenv("RESUME_RECOVERY_URL","").strip()
+    if not url:return
+    marker=STATE_DIR/".resume_recovery_complete"
+    if marker.exists():return
+    restored=0
+    try:
+        with urllib.request.urlopen(url,timeout=60) as response:
+            payload=response.read()
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+            for info in zf.infolist():
+                name=info.filename.replace("\\","/")
+                if info.is_dir() or not name.startswith("generated/resumes/"):continue
+                rel=Path(name).relative_to("generated")
+                if rel.suffix.lower() not in {".pdf",".docx"}:continue
+                dest=(STATE_DIR/rel).resolve()
+                resumes_root=(STATE_DIR/"resumes").resolve()
+                if resumes_root not in dest.parents:continue
+                dest.parent.mkdir(parents=True,exist_ok=True)
+                with zf.open(info) as src, dest.open("wb") as out:
+                    shutil.copyfileobj(src,out)
+                restored+=1
+        marker.write_text(json.dumps({"restored_files":restored,"at":datetime.now(timezone.utc).isoformat()}),encoding="utf-8")
+        print(f"Resume recovery restored {restored} files.")
+    except Exception as exc:
+        print(f"Resume recovery failed: {exc}")
+
+@app.on_event("startup")
+def _startup_resume_recovery():
+    _restore_resume_artifact_once()
 
 def _json(path,default):
     try:return json.loads(Path(path).read_text(encoding="utf-8"))
