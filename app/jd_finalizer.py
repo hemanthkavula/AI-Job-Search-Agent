@@ -255,21 +255,40 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
         aggregator_origin=bool(raw.get("aggregator_url")) or (raw.get("source") or "").lower() in {"dice","ziprecruiter","indeed","linkedin","monster"}
+        check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        cutoff=check_now-timedelta(hours=hours)
+        posting_fields=("posted_at","posted_on","date_posted","datePosted","published_at","publication_date")
+        raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
+        official_posted=None;official_label=None
         if aggregator_origin:
+            # Aggregator timestamps are discovery evidence only. Re-read the
+            # resolved employer/ATS page and enforce its authoritative date.
             official_page=_fetch_public_page(application_url)
-            official_posted,official_label=_official_posted_at(official_page,now=now)
-            raw["discovery_posted_at"]=raw.get("posted_at") or raw.get("posted_on") or raw.get("date_posted") or raw.get("datePosted") or raw.get("published_at")
-            raw["official_posted_at"]=official_posted.isoformat() if official_posted else None
-            raw["official_posted_label"]=official_label
-            raw["freshness_basis"]="official_employer_posting_date"
-            check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-            cutoff=check_now-timedelta(hours=hours)
+            official_posted,official_label=_official_posted_at(official_page,now=check_now)
+        else:
+            # Direct ATS jobs can gain a more authoritative posting field during
+            # detail resolution after the earlier freshness pass. Re-check that
+            # final value here so e.g. Workday "Posted 4 Days Ago" cannot bypass
+            # a ~61-hour production window.
+            from app.freshness import _parse_posting_value
+            for field in posting_fields:
+                value=raw.get(field)
+                if value in (None,""):continue
+                official_posted=_parse_posting_value(value,check_now)
+                if official_posted is not None:
+                    official_label=str(value);break
             if official_posted is None:
-                held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Aggregator discovery date is not authoritative and the official employer/ATS posting date could not be verified.","diagnostics":{"url":application_url,"discovery_source":raw.get("source")}})
-                continue
-            if official_posted<cutoff or official_posted>check_now+timedelta(minutes=10):
-                held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; aggregator repost/refresh date was ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"freshness_hours":hours,"discovery_source":raw.get("source")}})
-                continue
+                official_page=_fetch_public_page(application_url)
+                official_posted,official_label=_official_posted_at(official_page,now=check_now)
+        raw["official_posted_at"]=official_posted.isoformat() if official_posted else None
+        raw["official_posted_label"]=official_label
+        raw["freshness_basis"]="official_employer_posting_date"
+        if official_posted is None:
+            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization.","diagnostics":{"url":application_url,"discovery_source":raw.get("source")}})
+            continue
+        if official_posted<cutoff or official_posted>check_now+timedelta(minutes=10):
+            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
+            continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
             held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Application page no longer exists or is explicitly closed.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
