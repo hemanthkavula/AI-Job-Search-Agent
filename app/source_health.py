@@ -3,6 +3,7 @@ import argparse, json, re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.parse import quote
 from urllib.error import HTTPError, URLError
 from app.sources.career_site import validate_source as validate_career_site
 from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS
@@ -62,7 +63,8 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
         url=f'https://api.lever.co/v0/postings/{x["site"]}?mode=json&limit=1'
         rows.append(_row("lever",x.get("company") or x["site"],url,_probe(url,timeout)))
     for x in cfg.get("ashby",[]):
-        url=f'https://api.ashbyhq.com/posting-api/job-board/{x["board_name"]}'
+        board_name=quote(str(x["board_name"]).strip(),safe="")
+        url=f'https://api.ashbyhq.com/posting-api/job-board/{board_name}'
         rows.append(_row("ashby",x.get("company") or x["board_name"],url,_probe(url,timeout)))
     for x in cfg.get("smartrecruiters",[]):
         ident=x.get("company_identifier") or x.get("identifier")
