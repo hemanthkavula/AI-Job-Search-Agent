@@ -132,3 +132,31 @@ def test_unknown_ats_employment_metadata_does_not_false_reject_full_time_role():
 
 def test_unknown_employment_metadata_still_rejects_explicit_contract():
     assert not employment_is_target("Experienced", "This is a 6 month contract position.")
+
+
+def test_analytics_engineer_with_strong_de_jd_is_target():
+    ok,_=passes_hard_filters({
+      "title":"Senior Analytics Engineer - Data",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Build data pipelines and ETL with dbt, Spark, Snowflake, Airflow, data modeling and data warehouse systems."
+    },PROFILE)
+    assert ok
+
+def test_analytics_engineer_without_de_evidence_is_not_target():
+    ok,_=passes_hard_filters({
+      "title":"Adobe Analytics Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Own Adobe Analytics tagging, dashboards and marketing reporting."
+    },PROFILE)
+    assert not ok
+
+def test_software_engineer_data_platform_with_strong_de_jd_is_target():
+    ok,_=passes_hard_filters({
+      "title":"Software Engineer, Data Platform",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Build Spark data pipelines, Kafka ingestion, lakehouse storage, Airflow orchestration and data warehouse integrations."
+    },PROFILE)
+    assert ok
