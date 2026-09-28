@@ -24,9 +24,9 @@ jobs:
 
       - name: Package resumes only
         run: |
-          test -d recovery/generated/resumes
-          cd recovery
-          zip -qr ../resume-recovery.zip generated/resumes
+          test -d recovery/job-cycle-145/generated/resumes
+          cd recovery/job-cycle-145
+          zip -qr ../../resume-recovery.zip generated/resumes
           echo "PDF_COUNT=$(find generated/resumes -type f -iname '*.pdf' | wc -l)" >> "$GITHUB_ENV"
           echo "DOCX_COUNT=$(find generated/resumes -type f -iname '*.docx' | wc -l)" >> "$GITHUB_ENV"
 
