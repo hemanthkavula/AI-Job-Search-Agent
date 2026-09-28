@@ -1,0 +1,46 @@
+name: One-Time Resume Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/resume-recovery.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download preserved production artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36351041431
+          artifact-ids: 10942847714
+          path: recovery
+
+      - name: Package resumes only
+        run: |
+          test -d recovery/generated/resumes
+          cd recovery
+          zip -qr ../resume-recovery.zip generated/resumes
+          echo "PDF_COUNT=$(find generated/resumes -type f -iname '*.pdf' | wc -l)" >> "$GITHUB_ENV"
+          echo "DOCX_COUNT=$(find generated/resumes -type f -iname '*.docx' | wc -l)" >> "$GITHUB_ENV"
+
+      - name: Restore resumes to dashboard
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+        run: |
+          test -n "$DASHBOARD_SYNC_TOKEN"
+          RESPONSE=$(curl --fail --show-error --silent \
+            -X POST \
+            -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @resume-recovery.zip \
+            https://job-dashboard-production-7436.up.railway.app/api/recover-resumes)
+          echo "$RESPONSE"
+          export RESPONSE
+          python -c 'import json,os; d=json.loads(os.environ["RESPONSE"]); expected=int(os.environ["PDF_COUNT"])+int(os.environ["DOCX_COUNT"]); assert d.get("ok") is True and d.get("restored_files")==expected, (d,expected)'
