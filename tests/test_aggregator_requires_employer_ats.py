@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from app import jd_finalizer
 
 
@@ -47,6 +48,6 @@ def test_resolved_aggregator_job_can_use_verified_external_ats(monkeypatch, tmp_
     monkeypatch.setattr(jd_finalizer, "_live_public_job_page", lambda url: (True, "reachable"))
     monkeypatch.setattr(jd_finalizer, "two_category_filter", lambda j, p: {"eligible": True})
     monkeypatch.setattr(jd_finalizer, "passes_hard_filters", lambda j, p: (True, []))
-    result = jd_finalizer.finalize_report(str(report), str(output))
+    result = jd_finalizer.finalize_report(str(report), str(output), now=datetime(2026,9,28,11,0,tzinfo=timezone.utc))
     assert result["finalized"] == 1
     assert result["results"][0]["job"]["application_route"] == "EXTERNAL_ATS"
