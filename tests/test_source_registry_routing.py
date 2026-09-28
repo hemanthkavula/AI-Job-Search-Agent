@@ -68,3 +68,17 @@ def test_localized_rippling_detail_becomes_reusable_tenant_board():
     from app.source_registry import _reusable_search_url
     url="https://ats.rippling.com/es-ES/example-company/jobs/ae82e363-1b4d-4254-9ca1-075ff6ee43e4"
     assert _reusable_search_url("rippling",url)=="https://ats.rippling.com/example-company/jobs"
+
+
+def test_adp_detail_url_becomes_tenant_board():
+    url="https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=1eb23985-07bc-4029-abf7-ea825bdd7416&ccId=19000101_000001&jobId=23020&lang=en_US"
+    reusable=_reusable_search_url("adp_workforce_now",url)
+    assert "cid=1eb23985-07bc-4029-abf7-ea825bdd7416" in reusable
+    assert "ccId=19000101_000001" in reusable
+    assert "jobId=" not in reusable
+
+def test_taleo_detail_url_becomes_career_section_search():
+    url="https://cognizant.taleo.net/careersection/lateral/jobdetail.ftl?job=00070744381&lang=en"
+    reusable=_reusable_search_url("taleo",url)
+    assert reusable=="https://cognizant.taleo.net/careersection/lateral/search.ftl?lang=en"
+    assert "00070744381" not in reusable
