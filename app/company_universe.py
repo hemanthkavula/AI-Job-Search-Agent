@@ -15,7 +15,7 @@ from app.source_registry import load_registry as load_source_registry, save_regi
 ROOT=Path(__file__).resolve().parents[1]
 DOMAIN_RESOLVER_VERSION="2026-09-27-v7"
 CAREER_RESOLVER_VERSION="2026-09-27-v6"
-ATS_TENANT_RESOLVER_VERSION="2026-09-27-v2"
+ATS_TENANT_RESOLVER_VERSION="2026-09-28-v3"
 
 def _domain(url):
     try:
@@ -167,10 +167,14 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         (r for r in reg.values() if not r.get("official_domain")
          and not r.get("ats_provider") and not r.get("careers_url")
          and _retry_due(r,"ats_tenant",retry_days,ATS_TENANT_RESOLVER_VERSION)),
+        # Priority signals decide the tier; within a tier, never-attempted employers
+        # go first, then the oldest attempted employer. This gives a bounded batch
+        # fair forward rotation instead of repeatedly favoring recently retried rows.
         key=lambda r:(not bool(r.get("current_hiring_signal")),
                       not bool(r.get("recent_h1b_lca")),
                       bool(r.get("ats_tenant_last_attempt_at")),
-                      r.get("ats_tenant_last_attempt_at") or "")
+                      r.get("ats_tenant_last_attempt_at") or "",
+                      company_key(r.get("company") or ""))
     )[:ats_tenant_budget]
     ats_tenant_attempts=len(ats_tenant_candidates)
     ats_tenants_resolved=0
