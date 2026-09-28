@@ -125,3 +125,10 @@ def test_excluded_prior_employers_are_hard_rejected():
     for name in ("Fidelity Investments","Fidelity","Cigna Healthcare","The Cigna Group","Target Corporation","Target"):
         assert employer_is_excluded(name) is True
     assert employer_is_excluded("Capital One") is False
+
+
+def test_unknown_ats_employment_metadata_does_not_false_reject_full_time_role():
+    assert employment_is_target("Experienced", "NYC, Full-Time: Experienced. Build reliable data pipelines.")
+
+def test_unknown_employment_metadata_still_rejects_explicit_contract():
+    assert not employment_is_target("Experienced", "This is a 6 month contract position.")
