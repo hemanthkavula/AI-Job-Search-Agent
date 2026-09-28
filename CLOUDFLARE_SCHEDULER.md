@@ -3,7 +3,7 @@
 This Worker is an external clock for the existing GitHub Actions production workflow.
 
 ## Schedule
-Cloudflare wakes at :07, :22, and :42 on weekdays (UTC cron). The Worker converts the scheduled timestamp to America/New_York and only dispatches GitHub during 07:00, 09:00, 11:00, 13:00, 15:00, 17:00, and 19:00 ET.
+Cloudflare cron heartbeats wake at the configured UTC times. The Worker converts each scheduled timestamp to America/New_York and dispatches GitHub only during the 55-minute recovery windows for 07:30, 10:00, 12:30, 15:30, 18:30, and 21:00 ET.
 
 The GitHub/Python pipeline keeps its existing `last_completed_slot` protection, so recovery dispatches do not intentionally process a completed slot twice.
 
