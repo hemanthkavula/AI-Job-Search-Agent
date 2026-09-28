@@ -412,7 +412,16 @@ def applications(pipeline: str | None = None, date: str | None = None):
 @app.delete("/api/applications/{job_key:path}")
 def delete_application(job_key:str):
     ledger=_json(LEDGER,{"jobs":{}})
-    row=(ledger.get("jobs") or {}).get(job_key) or {}
+    row=(ledger.get("jobs") or {}).get(job_key)
+    # Historical rows may no longer exist in the current ledger. Resolve only
+    # the exact immutable job key so one click can never widen to another row.
+    if not row and CYCLES.exists():
+        for manifest_path in sorted(CYCLES.glob("*_manifest.json"),reverse=True):
+            manifest=_json(manifest_path,[])
+            rows=manifest if isinstance(manifest,list) else (manifest.get("results") or manifest.get("jobs") or manifest.get("applications") or [])
+            row=next((x for x in rows if isinstance(x,dict) and str(x.get("job_key") or x.get("key") or x.get("external_id") or x.get("job_id") or "")==job_key),None)
+            if row:break
+    row=row or {}
 
     # One click deletes exactly one application identity. Never infer related
     # records by company/title and never widen deletion to a date or pipeline.
