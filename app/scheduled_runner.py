@@ -82,25 +82,36 @@ def _window_for(now,state):
     seconds=max(1,(now-cutoff).total_seconds())
     return seconds/3600.0,mode,cutoff
 
-def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False):
+def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.json",generate_resumes=True,limit=None,force=False,accepted_slot=None):
     now=datetime.now(ET)
     window_label="Monday-Friday 07:30,10:00,12:30,15:30,18:30,21:00 America/New_York"
     if not force and now.weekday() not in RUN_WEEKDAYS:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":window_label}
     now_minutes=now.hour*60+now.minute
     active_slot=None
-    for hour,minute in RUN_SLOTS:
-        slot_start=hour*60+minute
-        if slot_start <= now_minutes < slot_start+SLOT_RECOVERY_MINUTES:
-            active_slot=(hour,minute)
-            break
+    accepted_slot_value=None
+    if accepted_slot:
+        try:
+            slot_date,slot_clock=accepted_slot.split("T",1)
+            slot_hour,slot_minute=(int(x) for x in slot_clock.split(":",1))
+            if slot_date==now.date().isoformat() and (slot_hour,slot_minute) in RUN_SLOTS:
+                active_slot=(slot_hour,slot_minute)
+                accepted_slot_value=accepted_slot
+        except (ValueError,TypeError):
+            accepted_slot_value=None
+    if active_slot is None:
+        for hour,minute in RUN_SLOTS:
+            slot_start=hour*60+minute
+            if slot_start <= now_minutes < slot_start+SLOT_RECOVERY_MINUTES:
+                active_slot=(hour,minute)
+                break
     if not force and active_slot is None:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":window_label}
     state=_load_state()
     # Cloudflare continues to provide repeated heartbeat opportunities. Once a
     # requested slot completes, later heartbeats inside its recovery window are no-ops.
     slot_hour,slot_minute=active_slot if active_slot is not None else (now.hour,now.minute)
-    slot=f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
+    slot=accepted_slot_value or f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
     if not force and state.get("last_completed_slot")==slot:
         return {"status":"SLOT_ALREADY_COMPLETED","local_time":now.isoformat(),"slot":slot}
     hours,mode,cutoff=_window_for(now,state)
@@ -219,6 +230,7 @@ if __name__=="__main__":
     p.add_argument("--ledger",default="generated/job_ledger.json")
     p.add_argument("--no-resumes",action="store_true",help="Run discovery/finalization only.")
     p.add_argument("--limit",type=int)
+    p.add_argument("--accepted-slot",help="Slot already accepted by the workflow guard, e.g. 2026-09-28T10:00.")
     p.add_argument("--force",action="store_true",help="Allow a manual test outside the scheduled 07:30-21:00 ET run slots.")
     a=p.parse_args()
     print(json.dumps(run_scheduled(a.sources,a.ledger,not a.no_resumes,a.limit,a.force),indent=2))
