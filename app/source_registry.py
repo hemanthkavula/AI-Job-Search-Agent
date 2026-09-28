@@ -246,7 +246,11 @@ def _reusable_search_url(provider,url):
  if provider=="freshteam":return f"{p.scheme}://{host}/jobs"
  if provider=="personio":return f"{p.scheme}://{host}/"
  if provider=="careerplug":return f"{p.scheme}://{host}/jobs"
- if provider=="rippling" and parts:return f"{p.scheme}://{host}/{parts[0]}/jobs"
+ if provider=="rippling" and parts:
+  # Rippling detail links may be localized: /es-ES/<tenant>/jobs/<uuid>.
+  # Persist the tenant board, not the locale or one job detail.
+  tenant=parts[1] if len(parts)>1 and re.fullmatch(r"[a-z]{2}-[A-Z]{2}",parts[0]) else parts[0]
+  return f"{p.scheme}://{host}/{tenant}/jobs"
  if provider=="jobscore" and len(parts)>=2:return f"{p.scheme}://{host}/careers/{parts[1]}"
  if provider=="comeet":
   m=re.search(r"/jobs/([^/?#]+)",p.path,re.I)
