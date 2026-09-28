@@ -233,9 +233,17 @@ def _reusable_search_url(provider,url):
   except ValueError:pass
  if provider=="adp_workforce_now":
   # The ADP recruitment shell is the reusable board; query cid identifies employer.
+  # Drop jobId and other detail/navigation state so one posting teaches the whole tenant.
   from urllib.parse import parse_qs,urlencode
   q=parse_qs(p.query);keep={k:q[k][0] for k in ("cid","ccId","lang") if q.get(k)}
   return f"{p.scheme}://{host}{p.path}"+(("?"+urlencode(keep)) if keep else "")
+ if provider=="taleo":
+  # Taleo detail URLs are reusable only at the career-section level. Preserve
+  # careersection + language, but remove the individual job requisition.
+  from urllib.parse import parse_qs,urlencode
+  q=parse_qs(p.query);keep={k:q[k][0] for k in ("lang","portal","location") if q.get(k)}
+  path=re.sub(r"/jobdetail\.ftl$","/search.ftl",p.path,flags=re.I)
+  return f"{p.scheme}://{host}{path}"+(("?"+urlencode(keep)) if keep else "")
  if provider=="paylocity" and len(parts)>=2:
   return f"{p.scheme}://{host}/Recruiting/Jobs/"
  if provider=="teamtailor":return f"{p.scheme}://{host}/jobs"
