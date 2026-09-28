@@ -127,7 +127,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
             FORCE_ARG="--force"
           fi
-          python -m app.scheduled_runner --sources data/job_sources.json $FORCE_ARG
+          python -m app.scheduled_runner --sources data/job_sources.json --accepted-slot "${{ steps.guard.outputs.slot }}" $FORCE_ARG
 
       - name: Generate exhaustive source execution report
         if: steps.guard.outputs.should_run == 'true'
