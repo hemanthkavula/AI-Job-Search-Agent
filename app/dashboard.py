@@ -306,6 +306,37 @@ def _jobs():
 def health():
     return {"ok":True,"ledger_exists":LEDGER.exists(),"confirmed_exists":CONFIRMED.exists()}
 
+@app.post("/api/recover-resumes")
+async def recover_resumes(request:Request):
+    expected=os.getenv("DASHBOARD_SYNC_TOKEN","")
+    supplied=request.headers.get("x-dashboard-token","")
+    if not expected or supplied != expected:
+        raise HTTPException(401,"Unauthorized")
+    body=await request.body()
+    if not body:
+        raise HTTPException(400,"Empty recovery archive")
+    restored=0
+    try:
+        with zipfile.ZipFile(io.BytesIO(body)) as zf:
+            for info in zf.infolist():
+                name=info.filename.replace("\\","/")
+                if info.is_dir() or not name.startswith("generated/resumes/"):
+                    continue
+                rel=Path(name).relative_to("generated")
+                if rel.suffix.lower() not in {".pdf",".docx"}:
+                    continue
+                dest=(STATE_DIR/rel).resolve()
+                root=(STATE_DIR/"resumes").resolve()
+                if root not in dest.parents:
+                    continue
+                dest.parent.mkdir(parents=True,exist_ok=True)
+                with zf.open(info) as src, dest.open("wb") as out:
+                    shutil.copyfileobj(src,out)
+                restored+=1
+    except zipfile.BadZipFile:
+        raise HTTPException(400,"Invalid ZIP archive")
+    return {"ok":True,"restored_files":restored}
+
 @app.post("/api/sync")
 async def sync_state(request:Request):
     expected=os.getenv("DASHBOARD_SYNC_TOKEN","")
