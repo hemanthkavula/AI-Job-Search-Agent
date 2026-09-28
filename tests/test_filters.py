@@ -1,4 +1,4 @@
-from app.filters import passes_hard_filters
+from app.filters import passes_hard_filters, employment_is_target
 
 PROFILE={
   "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},
