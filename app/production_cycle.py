@@ -106,7 +106,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  if generate_resumes and finalized.get("finalized"):
   manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
   _sync_manifest(manifest,ledger,stamp)
- queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel)) if manifest else []
+ queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel),ledger_path=ledger) if manifest else []
  # Dashboard-facing eligibility is intentionally the final application-ready
  # count. Preliminary filter matches remain available in the eligible report,
  # but are not presented as "eligible" until JD/live-route verification,
