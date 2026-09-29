@@ -329,6 +329,14 @@ async def recover_resumes(request:Request):
                 name=info.filename.replace("\\","/")
                 if info.is_dir() or not name.startswith("generated/resumes/"):
                     continue
+                # Reject ZIP symlinks and oversized entries before writing them
+                # into persistent dashboard state. Recovery is for ordinary
+                # resume artifacts only.
+                mode=(info.external_attr >> 16) & 0o170000
+                if mode==0o120000:
+                    raise HTTPException(400,"Unsafe recovery archive member type")
+                if info.file_size > 25 * 1024 * 1024:
+                    raise HTTPException(400,"Recovery archive member too large")
                 rel=Path(name).relative_to("generated")
                 if rel.suffix.lower() not in {".pdf",".docx"}:
                     continue
