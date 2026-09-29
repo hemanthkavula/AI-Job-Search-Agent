@@ -28,8 +28,11 @@ def test_generic_ats_units_use_independent_watermark_windows(monkeypatch, tmp_pa
         {"company":"HealthyCo","search_url":"https://healthy.example/careers","job_url_pattern":r".+"},
         {"company":"BrokenCo","search_url":"https://broken.example/careers","job_url_pattern":r".+"},
     ]}
-    rows=discovery.discover(cfg,registry_path=str(tmp_path/"registry.json"),health_path=str(tmp_path/"health.json"),source_unit_hours={"bamboohr:HealthyCo":1.0,"bamboohr:BrokenCo":4.0})
-    assert [r.company_key for r in rows] == ["BrokenCo"]
+    result=discovery.discover(cfg,registry_path=str(tmp_path/"registry.json"),health_path=str(tmp_path/"health.json"),source_unit_hours={"bamboohr:HealthyCo":1.0,"bamboohr:BrokenCo":4.0})
+    assert isinstance(result,tuple) and len(result) == 2
+    rows,errors=result
+    assert errors == []
+    assert [r["company_key"] for r in rows] == ["BrokenCo"]
     health=json.loads(Path(tmp_path/"health.json").read_text())
     assert health["bamboohr:HealthyCo"]["unit_window_hours"] == 1.0
     assert health["bamboohr:BrokenCo"]["unit_window_hours"] == 4.0
