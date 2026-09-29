@@ -59,7 +59,7 @@ def _scheduled_cutoff(now,state):
     """Return the exact lower bound for this scan.
 
     Normal hourly runs start at the last successful scan. The first run of a
-    weekday starts at the previous weekday's 18:00 cutoff; Monday therefore
+    weekday starts at the previous weekday's final scheduled cutoff; Monday therefore
     catches Friday 18:00 through Monday morning. If a daytime run was missed,
     the next run catches up from the last successful scan instead of losing jobs.
     """
@@ -71,7 +71,7 @@ def _scheduled_cutoff(now,state):
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
     if last is None:return prior_close,"bootstrap"
-    # The persisted watermark is authoritative. If the prior 18:00 run was
+    # The persisted watermark is authoritative. If the prior final run was
     # missed (for example the last success was 17:00), resume at 17:00 so no
     # posting interval is silently lost.
     if last.date()!=today:return last,"bootstrap"
@@ -189,7 +189,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     for key,status in unit_status.items():
         if key not in next_unit_watermarks:
             next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
-        if status=="OK":
+        # New discovery reports carry rich per-unit status dictionaries while
+        # legacy/test reports may still use bare strings. Normalize both forms
+        # before advancing the tenant watermark.
+        effective_status=status.get("status") if isinstance(status,dict) else status
+        if effective_status=="OK":
             next_unit_watermarks[key]=now.isoformat()
     # Keep the provider-level Workday watermark as the oldest tenant watermark.
     # This remains a conservative fallback for legacy code/state while actual
