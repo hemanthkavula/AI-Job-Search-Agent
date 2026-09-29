@@ -91,6 +91,7 @@ def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_pa
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
     monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    monkeypatch.setattr(jd_finalizer,"analyze_job_with_llm",lambda j:None)
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     assert result["results"][0]["action"]=="FINAL_JD_VERIFIED"
