@@ -357,11 +357,17 @@ async def sync_state(request:Request):
         tmp=Path(td)
         try:
             with tarfile.open(fileobj=io.BytesIO(body),mode="r:gz") as tf:
-                for member in tf.getmembers():
+                members=tf.getmembers()
+                for member in members:
                     target=(tmp/member.name).resolve()
                     if tmp.resolve() not in target.parents and target != tmp.resolve():
                         raise HTTPException(400,"Unsafe archive path")
-                tf.extractall(tmp)
+                    # State sync accepts only ordinary files/directories. Tar links
+                    # and device/special entries can escape an otherwise safe-looking
+                    # member path during extraction.
+                    if member.issym() or member.islnk() or not (member.isfile() or member.isdir()):
+                        raise HTTPException(400,"Unsafe archive member type")
+                tf.extractall(tmp,members=members)
         except HTTPException:
             raise
         except Exception as exc:
