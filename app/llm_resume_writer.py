@@ -51,12 +51,36 @@ def _jd_requested_extended(description):
             selected.append(tech)
     return selected
 
+def _fixed_history_profile(profile):
+    """Project the candidate profile down to immutable resume facts only.
+
+    Resume generation must not see legacy skills, environments, summaries, or
+    experience evidence. Those fields can bias a new JD-tailored resume toward
+    old resume content even when the prompt tells the model to ignore them.
+    """
+    fixed={
+      "name":profile.get("name"),
+      "contact":profile.get("contact",{}),
+      "headline":profile.get("headline"),
+      "experience":[
+        {k:row.get(k) for k in ("company","location","title","dates")}
+        for row in (profile.get("experience") or [])
+      ],
+      "education":[
+        {k:row.get(k) for k in ("degree","school","location","start","end")}
+        for row in (profile.get("education") or [])
+      ],
+    }
+    if profile.get("certifications") is not None:
+        fixed["certifications"]=profile.get("certifications")
+    return fixed
+
 def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
     jd_extended=_jd_requested_extended(job.description)
     prompt={
       "task":"Produce the strongest submission-ready, human-readable resume for this complete JD. Treat pre_generation_coverage_plan.requirements as the authoritative checklist: naturally cover every requirement whose resume_action is include, and use exact JD terminology or a clear semantic equivalent while preserving fixed factual history.",
       "job":{"company":job.company,"title":job.title,"description":job.description},
-      "candidate_fixed_facts_and_background":profile,
+      "candidate_fixed_facts_and_background":_fixed_history_profile(profile),
       "pre_generation_coverage_plan":coverage_plan or {},
       "confirmed_extended_technology_inventory":CONFIRMED_EXTENDED_TECHNOLOGIES,
       "extended_technologies_explicitly_requested_by_jd":jd_extended,
