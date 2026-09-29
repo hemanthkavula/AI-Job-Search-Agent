@@ -7,6 +7,15 @@ from urllib.error import HTTPError, URLError
 
 UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8","Accept-Language":"en-US,en;q=0.9"}
 
+def _de_candidate(title: str | None, description: str | None = None) -> bool:
+    """Broad recall-only gate. Final DE-family eligibility is decided downstream."""
+    value=re.sub(r"[^a-z0-9+#]+"," "," ".join(x for x in (title or "",description or "") if x).lower()).strip()
+    if not value:return False
+    if any(term in value for term in ("etl engineer","big data engineer","analytics engineer")):return True
+    if "data" not in value:return False
+    return any(term in value for term in ("engineer","engineering","platform","infrastructure","pipeline","integration","warehouse","lakehouse"))
+
+
 def _get(url: str, timeout: int = 20) -> str:
     with urlopen(Request(url,headers=UA),timeout=timeout) as resp:
         return resp.read().decode("utf-8","replace")
@@ -249,7 +258,7 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
         title=str(j.get("title") or "")
         desc=_plain(str(j.get("description") or j.get("full_description") or ""))
         hay=(title+" "+desc[:2500]).lower()
-        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):continue
+        if not _de_candidate(title,desc):continue
         shortcode=str(j.get("shortcode") or j.get("code") or "")
         url=j.get("url") or (f"https://apply.workable.com/{slug}/j/{shortcode}" if shortcode else search_url)
         loc=", ".join(str(x) for x in (j.get("city"),j.get("state"),j.get("country")) if x)
@@ -287,8 +296,7 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
             title=_plain(mt.group(1)) if mt else ""
         desc=_plain(str(j.get("description") or detail))
         hay=(title+" "+desc[:2500]).lower()
-        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):
-            continue
+        if not _de_candidate(title,desc):\n            continue
         ident=_identifier(j,url)
         out.append({"external_id":f"workable:{slug}:{ident}","source":"workable","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"workable",
@@ -304,7 +312,7 @@ def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
     if not title:
         m=re.search(r"<title>(.*?)</title>",body,re.I|re.S); title=_plain(m.group(1)) if m else ""
     text=_plain(str(j.get("description") or body)); hay=(title+" "+text[:3000]).lower()
-    if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")): return []
+    if not _de_candidate(title,text): return []
     ident=_identifier(j,search_url)
     host=urlparse(search_url).netloc
     return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":_location(j),"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough")}]
@@ -341,8 +349,7 @@ def _amazon_public(company: str, search_url: str, timeout: int) -> list[dict]:
                 title=_plain(m.group(1)) if m else ""
             text=_plain(str(j.get("description") or detail))
             hay=(title+" "+text[:3500]).lower()
-            if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")):
-                continue
+            if not _de_candidate(title,text):\n                continue
             m=re.search(r"/jobs/(\d+)/",job_url);job_id=m.group(1) if m else job_url
             out.append({"external_id":f"amazon:{job_id}","source":"career_site","company_key":company,
                         "title":title,"location":_location(j),"url":job_url,"original_url":job_url,
@@ -368,8 +375,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         title=_plain(str(j.get("title") or ""))
         desc=_plain(str(j.get("description") or ""))
         hay=(title+" "+desc[:2500]).lower()
-        if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")):
-            continue
+        if not _de_candidate(title,desc):\n            continue
         ident=_identifier(j,title)
         url=_direct_apply_url(j,search_url)
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
@@ -401,7 +407,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
             m=re.search(r"<title>(.*?)</title>",detail,re.I|re.S);title=_plain(m.group(1)) if m else ""
         text=_plain(str(j.get("description") or detail))
         hay=(title+" "+text[:2000]).lower()
-        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):continue
+        if not _de_candidate(title,desc):continue
         ident=_identifier(j,url)
         out.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
