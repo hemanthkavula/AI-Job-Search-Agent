@@ -68,5 +68,5 @@ def fetch_jobs(company:str,search_url:str,timeout:int=25)->list[dict]:
         loc=j.get("jobLocation");location=None
         if isinstance(loc,dict) and isinstance(loc.get("address"),dict):
             a=loc["address"];location=", ".join(str(a.get(k)) for k in ("addressLocality","addressRegion","addressCountry") if a.get(k)) or None
-        out.append({"external_id":f"dayforce:{tenant}:{ident}","source":"dayforce","company_key":company,"title":title,"location":location,"url":url,"original_url":url,"ats_provider":"dayforce","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"updated_at":j.get("datePosted") or j.get("validThrough")})
+        out.append({"external_id":f"dayforce:{tenant}:{ident}","source":"dayforce","company_key":company,"title":title,"location":location,"url":url,"original_url":url,"ats_provider":"dayforce","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return out
