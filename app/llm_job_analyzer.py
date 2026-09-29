@@ -170,7 +170,7 @@ def semantic_rejection_reasons(analysis: dict | None, profile: dict) -> list[str
         return []
     reasons=[]
     max_years=int(profile.get("preferences",{}).get("max_required_years",7))
-    min_years=int(profile.get("preferences",{}).get("min_required_years",4))
+    min_years=int(profile.get("preferences",{}).get("min_required_years",3))
     years=analysis.get("required_experience_years")
     if isinstance(years,int) and years>max_years:
         reasons.append(f"OpenAI-verified official JD requires {years}+ years, above configured maximum {max_years}")
