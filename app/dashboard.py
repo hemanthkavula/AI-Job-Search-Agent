@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
-from app.job_identity import identity_keys
+from app.job_identity import identity_keys, normalize_company, normalize_url
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
@@ -168,6 +168,21 @@ def _confirmed_map():
     apps=data.get("applications") or []
     return data,apps
 
+def _strong_identity_keys(row,key=None):
+    """Exact/authoritative aliases only; never use semantic company/title/location matching."""
+    out=set()
+    explicit=str(key or row.get("job_key") or row.get("key") or row.get("external_id") or "").strip()
+    if explicit: out.add("id:"+explicit)
+    external=str(row.get("external_id") or "").strip()
+    if external: out.add("id:"+external)
+    employer=normalize_company(row.get("company_key") or row.get("company"))
+    req=str(row.get("requisition_id") or row.get("job_id") or row.get("ats_job_id") or "").strip().lower()
+    if employer and req: out.add(f"req:{employer}:{req}")
+    for value in (row.get("original_url"),row.get("url"),row.get("aggregator_url")):
+        url=normalize_url(value)
+        if url: out.add("url:"+url)
+    return out
+
 def _resume_path_from_confirmed(hist):
     if not hist:return None
     value=hist.get("resume_path")
@@ -180,13 +195,12 @@ def _resume_path_from_confirmed(hist):
     # Never recover a resume by company/title alone. Multiple requisitions can
     # legitimately share both fields; only an exact job identity may reuse an
     # artifact.
-    hist_keys=set(identity_keys(hist))
+    hist_keys=_strong_identity_keys(hist)
     if not hist_keys:return None
     ledger=_json(LEDGER,{"jobs":{}})
     for key,row in (ledger.get("jobs") or {}).items():
         candidate=dict(row)
-        candidate.setdefault("key",key)
-        if hist_keys.intersection(identity_keys(candidate)):
+        if hist_keys.intersection(_strong_identity_keys(candidate,key)):
             p=_resume_path(candidate)
             if p:return p
     return None
@@ -247,9 +261,9 @@ def _pipeline_jobs(cycle_id):
         if key and key in hidden:continue
         live=by_key.get(key)
         if not live:
-            snapshot_keys=set(identity_keys(row))
+            snapshot_keys=_strong_identity_keys(row,key)
             if snapshot_keys:
-                live=next((x for x in current if snapshot_keys.intersection(identity_keys(x))),None)
+                live=next((x for x in current if snapshot_keys.intersection(_strong_identity_keys(x,x.get("key")))),None)
         if live:
             item=dict(live)
         else:
