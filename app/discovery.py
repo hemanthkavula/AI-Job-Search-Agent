@@ -303,7 +303,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "career_site_unique_names":len(set(_names(career_units))),
         "ats_tenant_units_attempted":len(ats_units),
         "ats_tenant_unique_names":len(set(_names(ats_units))),
-        "ats_provider_families_attempted":len({x.get("source") for x in ats_units}),
+        "ats_provider_families_attempted":len({x.get("source") for x in ats_units}),\n        "native_ats_units_attempted":sum(x.get("source") in NATIVE_ATS_PROVIDERS for x in ats_units),\n        "generic_public_ats_units_attempted":sum(x.get("source") in GENERIC_PUBLIC_ATS_PROVIDERS for x in ats_units),\n        "native_ats_provider_families_attempted":len({x.get("source") for x in ats_units if x.get("source") in NATIVE_ATS_PROVIDERS}),\n        "generic_public_ats_provider_families_attempted":len({x.get("source") for x in ats_units if x.get("source") in GENERIC_PUBLIC_ATS_PROVIDERS}),
         "job_board_or_discovery_units_attempted":len(board_units),
         "job_board_or_discovery_providers_attempted":sorted({x.get("source") for x in board_units}),
         "successful_units":sum(x.get("status")=="OK" for x in attempted),
