@@ -111,7 +111,7 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "title":title,"location":_location(j),"url":url,"original_url":url,
           "ats_provider":"ukg","ats_identifier":search_url,"job_id":ident,
           "description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     if out:return out
 
     # Some legacy UltiPro boards render ordinary opportunity links server-side.
@@ -139,5 +139,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
               "title":title,"location":_location(j),"url":url,"original_url":url,
               "ats_provider":"ukg","ats_identifier":search_url,"job_id":ident,
               "description":desc,"description_complete":bool(desc),
-              "updated_at":j.get("datePosted") or j.get("validThrough")})
+              "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return out
