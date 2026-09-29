@@ -104,6 +104,33 @@ def _extract_jsonld_job_description(page):
         if node.get("description"):return _clean_html(str(node["description"]))
     return ""
 
+def _jsonld_job_location(node):
+    """Return a normalized human-readable location from schema.org JobPosting data."""
+    locations=node.get("jobLocation") or []
+    if not isinstance(locations,list):locations=[locations]
+    values=[]
+    for location in locations:
+        if not isinstance(location,dict):continue
+        address=location.get("address") or {}
+        if not isinstance(address,dict):continue
+        parts=[address.get("streetAddress"),address.get("addressLocality"),address.get("addressRegion"),address.get("postalCode"),address.get("addressCountry")]
+        value=", ".join(str(x).strip() for x in parts if x not in (None,"") and str(x).strip())
+        if value:values.append(value)
+    return " | ".join(dict.fromkeys(values))
+
+def _official_job_location(page,job):
+    """Extract location only from the identity-matched official JobPosting node."""
+    for node in _jsonld_jobpostings(page):
+        if _jobposting_identity_matches(job,node,job.get("original_url") or job.get("url") or ""):
+            location=_jsonld_job_location(node)
+            if location:return location
+    # Direct ATS pages can omit enough organization identity metadata to prevent
+    # strict identity matching. If the page exposes exactly one JobPosting, it is
+    # the authoritative posting already selected by this job URL.
+    nodes=_jsonld_jobpostings(page)
+    if len(nodes)==1:return _jsonld_job_location(nodes[0])
+    return ""
+
 def _official_posted_at(page,now=None):
     """Extract the employer/ATS JobPosting publication date; aggregator dates are never authoritative."""
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -269,6 +296,17 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         # generation on a URL known to be dead, and never assume an unverifiable
         # application is live.
         application_url=raw.get("original_url") or raw.get("url") or ""
+        # Discovery metadata is not authoritative for geography. Re-read the
+        # official ATS JobPosting before final eligibility and replace the
+        # discovery location when the employer page provides one. This prevents
+        # foreign jobs mislabeled as US/remote upstream from reaching resumes.
+        official_page=_fetch_public_page(application_url)
+        official_location=_official_job_location(official_page,raw)
+        if official_location:
+            raw["discovery_location"]=raw.get("location")
+            raw["location"]=official_location
+            raw["official_location"]=official_location
+            raw["location_basis"]="official_employer_jobposting"
         if _is_aggregator_url(application_url):
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
@@ -281,7 +319,6 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if aggregator_origin:
             # Aggregator timestamps are discovery evidence only. Re-read the
             # resolved employer/ATS page and enforce its authoritative date.
-            official_page=_fetch_public_page(application_url)
             official_posted,official_label=_official_posted_at(official_page,now=check_now)
         else:
             # Direct ATS jobs can gain a more authoritative posting field during
