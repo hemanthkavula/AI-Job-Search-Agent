@@ -2,6 +2,7 @@ from __future__ import annotations
 import argparse, json
 from urllib.parse import urlparse
 from pathlib import Path
+from app.job_identity import identity_keys
 
 def audit(summary_path:str)->dict:
     p=Path(summary_path)
@@ -27,11 +28,16 @@ def audit(summary_path:str)->dict:
             queue=json.loads(Path(queue_path).read_text(encoding="utf-8"))
             if len(queue)!=ready:
                 failures.append(f"queue length mismatch: {len(queue)}!={ready}")
-            ids=set()
+            ids=set(); identity_seen={}
             for row in queue:
                 eid=row.get("external_id")
                 if not eid or eid in ids: failures.append(f"duplicate/missing queue external_id: {eid}")
                 ids.add(eid)
+                aliases=identity_keys(row)
+                duplicate_alias=next((key for key in aliases if key in identity_seen),None)
+                if duplicate_alias:
+                    failures.append(f"duplicate queue job identity: {eid} aliases {identity_seen[duplicate_alias]} via {duplicate_alias}")
+                for key in aliases: identity_seen.setdefault(key,eid)
                 if row.get("status")!="READY_FOR_ATS_ADAPTER": failures.append(f"invalid queue status for {eid}")
                 url=row.get("url") or ""
                 host=(urlparse(url).netloc or "").lower()
