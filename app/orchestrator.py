@@ -2,7 +2,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 from app.config import load_profile
 from app.filters import passes_hard_filters
-from app.eligibility import two_category_filter
 from app.scoring import analyze_job
 
 def process_job(raw: dict,min_score: int=65) -> dict:
@@ -15,7 +14,7 @@ def process_job(raw: dict,min_score: int=65) -> dict:
     from bypassing those gates.
     """
     profile=load_profile()
-    eligibility=two_category_filter(raw,profile)
+    eligibility={}
     ok,reasons=passes_hard_filters(raw,profile)
     if not ok:return {"status":"FILTERED","reasons":reasons,"eligibility":eligibility}
     job=SimpleNamespace(company=raw.get("company") or raw.get("company_key") or "Unknown",
