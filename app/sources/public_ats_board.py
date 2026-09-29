@@ -5,7 +5,40 @@ from app.sources.career_site import fetch_jobs as _generic, _get, _plain, _jsonl
 
 DE_TERMS=("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer","data & analytics engineer")
 
-\nJOB_DETAIL_PATTERNS={\n    "bamboohr":r"/careers/(?:\\d+|[^/?#]+)",\n    "recruitee":r"/o/[^/?#]+",\n    "teamtailor":r"/jobs/\\d+[^/?#]*",\n    "breezyhr":r"/p/[^/?#]+",\n    "pinpoint":r"/(?:postings|jobs)/[^/?#]+",\n    "careerplug":r"/jobs/\\d+",\n    "freshteam":r"/jobs/[^/?#]+",\n    "jobscore":r"/jobs?/[^/?#]+",\n    "personio":r"/job/(?:\\d+|[^/?#]+)",\n    "comeet":r"/jobs/[^/?#]+/[^/?#]+",\n    "applicantpro":r"/jobs/\\d+",\n    "hirebridge":r"JobDetails\\.aspx.*(?:jid|jobid)=",\n    "join":r"/companies/[^/?#]+/jobs/[^/?#]+",\n    "hireology":r"/jobs/\\d+",\n    "paycor":r"JobIntroduction\\.action.*(?:jobId|jobid)=",\n    "peopleadmin":r"/postings/\\d+",\n    "pageup":r"/cw/(?:en-us/)?job/\\d+",\n    "applicantstack":r"/x/detail/[^/?#]+",\n    "taleo":r"/jobdetail\\.ftl.*(?:job|jobid)=",\n    "paycom":r"web\\.php/jobs/ViewJobDetails.*(?:job|jobid)=",\n    "saashr":r"/ta/[^/?#]+\\.careers.*jobid=",\n    "njoyn":r"(?:clid|jobid)=",\n    "recruitcrm":r"/jobs?/[^/?#]+",\n}\n\ndef _job_pattern(provider: str, configured: str) -> str:\n    """Return a job-detail regex instead of crawling every navigation link."""\n    if configured and configured not in {r".+", ".+"}:\n        return configured\n    return JOB_DETAIL_PATTERNS.get(provider, r"(?:/jobs?|/positions?|/postings?|/openings?)/[^/?#]+")\n\ndef _rippling(company: str, search_url: str) -> list[dict]:
+
+JOB_DETAIL_PATTERNS={
+    "bamboohr":r"/careers/(?:\\d+|[^/?#]+)",
+    "recruitee":r"/o/[^/?#]+",
+    "teamtailor":r"/jobs/\\d+[^/?#]*",
+    "breezyhr":r"/p/[^/?#]+",
+    "pinpoint":r"/(?:postings|jobs)/[^/?#]+",
+    "careerplug":r"/jobs/\\d+",
+    "freshteam":r"/jobs/[^/?#]+",
+    "jobscore":r"/jobs?/[^/?#]+",
+    "personio":r"/job/(?:\\d+|[^/?#]+)",
+    "comeet":r"/jobs/[^/?#]+/[^/?#]+",
+    "applicantpro":r"/jobs/\\d+",
+    "hirebridge":r"JobDetails\\.aspx.*(?:jid|jobid)=",
+    "join":r"/companies/[^/?#]+/jobs/[^/?#]+",
+    "hireology":r"/jobs/\\d+",
+    "paycor":r"JobIntroduction\\.action.*(?:jobId|jobid)=",
+    "peopleadmin":r"/postings/\\d+",
+    "pageup":r"/cw/(?:en-us/)?job/\\d+",
+    "applicantstack":r"/x/detail/[^/?#]+",
+    "taleo":r"/jobdetail\\.ftl.*(?:job|jobid)=",
+    "paycom":r"web\\.php/jobs/ViewJobDetails.*(?:job|jobid)=",
+    "saashr":r"/ta/[^/?#]+\\.careers.*jobid=",
+    "njoyn":r"(?:clid|jobid)=",
+    "recruitcrm":r"/jobs?/[^/?#]+",
+}
+
+def _job_pattern(provider: str, configured: str) -> str:
+    """Return a job-detail regex instead of crawling every navigation link."""
+    if configured and configured not in {r".+", ".+"}:
+        return configured
+    return JOB_DETAIL_PATTERNS.get(provider, r"(?:/jobs?|/positions?|/postings?|/openings?)/[^/?#]+")
+
+def _rippling(company: str, search_url: str) -> list[dict]:
     """Crawl a Rippling employer board by tenant, then resolve matching job details.
 
     Rippling boards expose ordinary /<tenant>/jobs/<uuid> links in the public board
