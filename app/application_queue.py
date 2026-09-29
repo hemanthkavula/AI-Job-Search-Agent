@@ -84,6 +84,10 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         if not pdf or not resolved_pdf:continue
         if validation.get("passed") is not True:continue
         if not Path(resolved_pdf).is_file() or Path(resolved_pdf).suffix.lower()!=".pdf":continue
+        try:
+            if Path(resolved_pdf).read_bytes()[:5] != b"%PDF-":continue
+        except OSError:
+            continue
         provider=_provider(r)
         # Recovered/stale manifests must satisfy the same explicit employment proof
         # required by finalization; unknown metadata cannot become application-ready.
