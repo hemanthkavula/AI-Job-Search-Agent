@@ -105,7 +105,7 @@ def _extract_jsonld_job_description(page):
     return ""
 
 def _jsonld_job_location(node):
-    """Return a normalized human-readable location from schema.org JobPosting data."""
+    """Return authoritative physical or telecommute eligibility from JobPosting."""
     locations=node.get("jobLocation") or []
     if not isinstance(locations,list):locations=[locations]
     values=[]
@@ -116,7 +116,34 @@ def _jsonld_job_location(node):
         parts=[address.get("streetAddress"),address.get("addressLocality"),address.get("addressRegion"),address.get("postalCode"),address.get("addressCountry")]
         value=", ".join(str(x).strip() for x in parts if x not in (None,"") and str(x).strip())
         if value:values.append(value)
-    return " | ".join(dict.fromkeys(values))
+    if values:
+        return " | ".join(dict.fromkeys(values))
+
+    # Fully remote schema.org postings commonly omit jobLocation and instead
+    # express the legal work geography through applicantLocationRequirements.
+    # That field is more authoritative than an upstream board's generic "Remote".
+    location_type=str(node.get("jobLocationType") or "").upper()
+    if "TELECOMMUTE" in location_type:
+        requirements=node.get("applicantLocationRequirements") or []
+        if not isinstance(requirements,list):requirements=[requirements]
+        allowed=[]
+        for requirement in requirements:
+            if isinstance(requirement,str):
+                value=requirement.strip()
+            elif isinstance(requirement,dict):
+                value=str(
+                    requirement.get("name")
+                    or requirement.get("addressCountry")
+                    or (requirement.get("address") or {}).get("addressCountry")
+                    or ""
+                ).strip()
+            else:
+                value=""
+            if value:allowed.append(value)
+        if allowed:
+            return "Remote - " + " | ".join(dict.fromkeys(allowed))
+        return "Remote"
+    return ""
 
 def _official_job_location(page,job):
     """Extract location only from the identity-matched official JobPosting node."""
