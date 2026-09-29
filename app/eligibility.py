@@ -48,8 +48,10 @@ def experience_range(text: str):
 def required_years(text: str):
     text=_clean(text)
     rng=experience_range(text)
-    if rng:return rng[0]
-    vals=[]
+    # Do not stop at the first range. A JD can state a technology-specific
+    # "3-5 years" requirement and later require "10+ years" overall. Every
+    # explicit requirement must participate in the governing threshold.
+    vals=[rng[0]] if rng else []
     patterns=(
       # Compact recruiter notation is common in rendered JDs: "10+y", "10+ y", "10+yrs".
       r"(\d{1,2})\s*\+\s*(?:y|yr|yrs|year|years)\b(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:[a-z0-9&/+.-]+\s+){0,5}?experience",
