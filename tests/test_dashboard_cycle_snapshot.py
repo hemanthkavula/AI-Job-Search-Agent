@@ -9,6 +9,7 @@ def test_cycle_snapshot_includes_only_ready_jobs_without_duplicates(monkeypatch,
       {"external_id":"lever:1","company":"Example Inc","title":"Data Engineer","location":"US","requisition_id":"REQ-1","next_action":"READY_TO_APPLY"},
       {"external_id":"dice:99","company":"Example Inc","title":"Data Engineer","location":"US","requisition_id":"REQ-1","next_action":"READY_TO_APPLY"},
       {"external_id":"manatal:2","company":"Another Co","title":"Senior Data Engineer","location":"Remote","requisition_id":"REQ-2","next_action":"READY_TO_APPLY"},
+      {"external_id":"manual:3","company":"Manual Co","title":"Data Engineer","location":"US","requisition_id":"REQ-3","next_action":"MANUAL_READY_TO_APPLY"},
       {"external_id":"held:3","company":"Held Co","title":"Data Engineer","next_action":"HOLD_ARTIFACT_VALIDATION"},
     ]
     (tmp_path/f"{cycle}_manifest.json").write_text(json.dumps(rows),encoding="utf-8")
