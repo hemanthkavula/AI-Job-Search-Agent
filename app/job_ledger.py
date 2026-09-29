@@ -126,7 +126,14 @@ def record_seen(job,ledger,status="DISCOVERED",**extra):
     # never regress a terminal submission/manual/security state to an earlier
     # pipeline state merely because the same requisition was seen again.
     current_status=row.get("application_status")
-    protected_terminal={\n        # Processed resume/application states are monotonic under rediscovery.\n        # Explicit retry/recovery code may transition them separately, but a fresh\n        # source sighting must never send an already reviewed job backwards.\n        "HOLD_ATS_REVIEW","READY_TO_APPLY",\n        "SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED",\n        "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",\n    }
+    protected_terminal={
+        # Processed resume/application states are monotonic under rediscovery.
+        # Explicit retry/recovery code may transition them separately, but a fresh
+        # source sighting must never send an already reviewed job backwards.
+        "HOLD_ATS_REVIEW","READY_TO_APPLY",
+        "SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED",
+        "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",
+    }
     effective_status=current_status if current_status in protected_terminal and status not in protected_terminal else status
     row.update({"last_seen":now,"company":job.get("company_key") or job.get("company"),"title":job.get("title"),
                 "source":job.get("source"),"url":job.get("original_url") or job.get("url"),"application_status":effective_status})
