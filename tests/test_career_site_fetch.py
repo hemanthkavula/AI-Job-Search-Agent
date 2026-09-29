@@ -25,3 +25,13 @@ def test_amazon_search_paginates_and_extracts_data_engineer(monkeypatch):
     assert [j["job_id"] for j in jobs]==["10561032"]
     assert jobs[0]["ats_provider"]=="amazon_jobs"
     assert jobs[0]["date_posted"]=="2026-09-27"
+
+
+def test_long_tail_ats_uses_job_detail_patterns_not_all_links():
+    from app.sources.public_ats_board import _job_pattern
+    assert _job_pattern("bamboohr", r".+") != r".+"
+    assert re.search(_job_pattern("bamboohr", r".+"), "https://acme.bamboohr.com/careers/98")
+    assert not re.search(_job_pattern("bamboohr", r".+"), "https://acme.bamboohr.com/about")
+    assert re.search(_job_pattern("paycor", r".+"), "https://recruitingbypaycor.com/career/JobIntroduction.action?clientId=ABC&jobId=123")
+    assert re.search(_job_pattern("paycom", r".+"), "https://www.paycomonline.net/v4/ats/web.php/jobs/ViewJobDetails?job=123&clientkey=ABC")
+    assert re.search(_job_pattern("hirebridge", r".+"), "https://jobs.hirebridge.com/v3/Jobs/JobDetails.aspx?cid=1234&jid=5678")
