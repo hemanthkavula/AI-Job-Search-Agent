@@ -72,7 +72,13 @@ def _metric_sanitized(text):
  for pat in TECH_NUMBER_PATTERNS:s=re.sub(pat," ",s,flags=re.I)
  return s
 def _is_metric_bullet(text):return any(re.search(p,_metric_sanitized(text),re.I) for p in METRIC_TOKEN_PATTERNS)
-def _unapproved_metric_claims(by_company):\n findings=[]\n for company,bullets in by_company.items():\n  for bullet in bullets:\n   s=_metric_sanitized(bullet);tokens=[m.group(0) for p in METRIC_TOKEN_PATTERNS for m in re.finditer(p,s,re.I)]\n   if tokens:findings.append({"company":company,"metrics":list(dict.fromkeys(tokens)),"bullet":bullet})\n return findings
+def _unapproved_metric_claims(by_company):
+ findings=[]
+ for company,bullets in by_company.items():
+  for bullet in bullets:
+   s=_metric_sanitized(bullet);tokens=[m.group(0) for p in METRIC_TOKEN_PATTERNS for m in re.finditer(p,s,re.I)]
+   if tokens:findings.append({"company":company,"metrics":list(dict.fromkeys(tokens)),"bullet":bullet})
+ return findings
 def _experience_bullets(paras):
  by={k:[] for k in EXPECTED_COUNTS};current=None
  for p in paras:
