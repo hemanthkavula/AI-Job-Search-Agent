@@ -4,16 +4,11 @@ from app.models import JobInput, JobAnalysis
 from app.config import load_profile
 from app.scoring import analyze_job
 from app.tailoring import build_tailoring_plan
-from app.db import init_db, save_job
 from app.orchestrator import process_job
 from app.dashboard import dashboard_html
 
 app = FastAPI(title="AI Job Search Agent", version="0.3.0")
 profile = load_profile()
-
-@app.on_event("startup")
-def startup():
-    init_db()
 
 @app.get("/health")
 def health():
@@ -32,7 +27,6 @@ def get_profile():
 @app.post("/jobs/analyze", response_model=JobAnalysis)
 def analyze(job: JobInput):
     result = analyze_job(job, profile)
-    save_job(job, result)
     return result
 
 @app.post("/jobs/tailoring-plan")
