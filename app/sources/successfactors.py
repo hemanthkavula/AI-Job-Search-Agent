@@ -19,39 +19,38 @@ def _plain(value: str) -> str:
 
 
 def fetch_jobs(company: str, base_url: str, timeout: int = 20) -> list[dict]:
-    query = urlencode({"q": "data engineer", "locationsearch": "United States"})
-    search_url = urljoin(base_url.rstrip("/") + "/", "search/") + "?" + query
-    body = _get(search_url, timeout)
-    hrefs = re.findall('href="([^"]+/job/[^"]+)"', body, re.I)
-    out = []
-    seen = set()
-    for href in hrefs:
-        url = urljoin(base_url, html.unescape(href))
-        if url in seen:
-            continue
-        seen.add(url)
+    # SuccessFactors search is lexical. Use several broad DE-family queries for
+    # recall, then let the downstream semantic classifier make the final family
+    # decision from title + official JD.
+    queries=("data engineer","data platform","data infrastructure","data pipeline","etl","big data","analytics engineer")
+    out=[]; seen=set()
+    family_terms=("data engineer","data engineering","data platform","data infrastructure","data pipeline","etl","big data","analytics engineer")
+    for query_text in queries:
+        query=urlencode({"q":query_text,"locationsearch":"United States"})
+        search_url=urljoin(base_url.rstrip("/")+"/","search/")+"?"+query
         try:
-            detail = _get(url, timeout)
+            body=_get(search_url,timeout)
         except Exception:
             continue
-        text = _plain(detail)
-        title_match = re.search(r"<title>(.*?)</title>", detail, re.I | re.S)
-        title = _plain(title_match.group(1)) if title_match else "Data Engineer"
-        if "data engineer" not in title.lower():
-            continue
-        out.append({
-            "external_id": f"successfactors:{company}:{url}",
-            "source": "successfactors",
-            "company_key": company,
-            "title": title,
-            "location": None,
-            "url": url,
-            "original_url": url,
-            "ats_provider": "successfactors",
-            "ats_identifier": base_url,
-            "description": text,
-            "description_complete": bool(text),
-            "updated_at": None,
-        })
-    print(f"SuccessFactors / {company}: {len(out)} DE jobs", flush=True)
+        hrefs=re.findall(r'href=["\']([^"\']+/job/[^"\']+)["\']',body,re.I)
+        for href in hrefs:
+            url=urljoin(base_url,html.unescape(href))
+            if url in seen:continue
+            seen.add(url)
+            try:detail=_get(url,timeout)
+            except Exception:continue
+            text=_plain(detail)
+            title_match=re.search(r"<title>(.*?)</title>",detail,re.I|re.S)
+            title=_plain(title_match.group(1)) if title_match else ""
+            hay=(title+" "+text[:3500]).lower()
+            if not any(term in hay for term in family_terms):continue
+            out.append({
+                "external_id":f"successfactors:{company}:{url}",
+                "source":"successfactors","company_key":company,
+                "title":title or "Data Engineering role","location":None,
+                "url":url,"original_url":url,"ats_provider":"successfactors",
+                "ats_identifier":base_url,"description":text,
+                "description_complete":bool(text),"updated_at":None,
+            })
+    print(f"SuccessFactors / {company}: {len(out)} DE-family jobs",flush=True)
     return out
