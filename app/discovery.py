@@ -220,7 +220,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
                 tasks.append((pool.submit(public_ats_jobs,src.get("company") or provider,url,provider,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
-        # Every generic public ATS family above is scheduled exactly once.\n        for src in config.get("discovery_portal",[]):
+        # Every generic public ATS family above is scheduled exactly once.
+        for src in config.get("discovery_portal",[]):
             provider=src.get("provider")
             if src.get("enabled",True) and only_source in (None,"discovery_portal",provider):
                 tasks.append((pool.submit(discovery_portal_jobs,provider,src.get("search_url"),src.get("job_url_pattern",r".+"),20,_hours(provider),src.get("max_detail_pages",250)),provider,src.get("company") or provider))
