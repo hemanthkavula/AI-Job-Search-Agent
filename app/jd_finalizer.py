@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from urllib import request,parse
 from app.config import load_profile
 from app.eligibility import two_category_filter
+from app.llm_job_analyzer import analyze_job_with_llm, semantic_rejection_reasons
 from app.filters import passes_hard_filters, location_is_us
 from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
@@ -400,6 +401,20 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         # every rejection preserves the same diagnostic schema (experience,
         # sponsorship, citizenship, clearance).
         eligibility=two_category_filter(raw,profile)
+        # OpenAI is a semantic second verifier over the already-resolved official
+        # JD. It can make eligibility stricter when it finds an explicit restriction
+        # with evidence, but it can never override a deterministic rejection.
+        try:
+            semantic_analysis=analyze_job_with_llm(raw)
+        except Exception as exc:
+            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_LLM_ELIGIBILITY_UNVERIFIED","reason":"OpenAI semantic eligibility verification failed; fail closed before resume generation.","diagnostics":{"error":str(exc)[:1000],"url":application_url}})
+            continue
+        if semantic_analysis is not None:
+            raw["llm_job_analysis"]=semantic_analysis
+            semantic_reasons=semantic_rejection_reasons(semantic_analysis,profile)
+            if semantic_reasons:
+                held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reason":"; ".join(semantic_reasons),"reasons":semantic_reasons,"diagnostics":{"llm_job_analysis":semantic_analysis,"url":application_url}})
+                continue
         # Aggregator discovery geography is never authoritative after canonicalizing
         # to an employer/ATS page. If that official page exposes no structured
         # location, require explicit U.S. geography in the verified employer JD
