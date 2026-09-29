@@ -124,7 +124,9 @@ def location_is_us(location,source=None,description=""):
     raw=(location or "").strip();src=_clean(source)
     if not raw:
         if _description_has_non_us_location(description):return False
-        return src=="dice"
+        # Missing discovery geography is unresolved, not proof of a foreign job.
+        # Preserve it for authoritative employer/ATS verification in jd_finalizer.
+        return True
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
     if US_STATE_RE.search(raw):return True
