@@ -65,9 +65,10 @@ def test_partial_but_usable_jd_is_finalized_for_limited_resume(monkeypatch,tmp_p
     monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     result=jd_finalizer.finalize_report(str(report),str(output))
-    assert result["finalized"]==0
-    assert result["rejections"][0]["action"]=="HOLD_COMPLETE_JD_REQUIRED"
-    assert result["rejections"][0]["job"].get("tailoring_mode")!="FULL_JD"
+    assert result["finalized"]==1
+    assert result["results"][0]["job"]["resume_strategy"]=="LIMITED"
+    assert result["results"][0]["job"]["tailoring_mode"]=="LIMITED_JD"
+    assert result["results"][0]["job"]["coverage_target_count"]>0
 
 
 def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_path):
