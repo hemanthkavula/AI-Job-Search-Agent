@@ -167,15 +167,17 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 print(f"DONE {job.company} | strategy=BASE | canonical master resume unchanged",flush=True)
                 manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"requisition_id":raw.get("requisition_id") or raw.get("job_id") or raw.get("ats_job_id"),"job_id":raw.get("job_id"),"ats_job_id":raw.get("ats_job_id"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"resume_strategy":"BASE","description":raw.get("description"),"description_complete":raw.get("description_complete"),"description_usable":raw.get("description_usable"),"employment_type":raw.get("employment_type"),"location":raw.get("location"),"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location"),"location_basis":raw.get("location_basis"),"llm_job_analysis":raw.get("llm_job_analysis"),"eligibility":elig,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":None,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":artifact_validation,"audit_history":[],"next_action":next_action,"application_status":"NOT_STARTED"})
                 continue
-            if strategy=="LIMITED":
-                raise RuntimeError("LIMITED resume strategy requires the canonical master-resume content adapter; refusing to tailor from a partial JD alone.")
-            if raw.get("description_complete") is not True or strategy!="FULL" or raw.get("tailoring_mode")!="FULL_JD":
+            if strategy=="FULL" and (raw.get("description_complete") is not True or raw.get("tailoring_mode")!="FULL_JD"):
                 raise RuntimeError("FULL resume tailoring requires a complete finalized job description and FULL strategy.")
+            if strategy not in {"FULL","LIMITED"}:
+                raise RuntimeError(f"Unsupported tailored resume strategy: {strategy}")
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
+            if strategy=="LIMITED" and int(coverage_plan.get("target_count") or 0)<=0:
+                raise RuntimeError("LIMITED strategy requires at least one explicit trustworthy partial-JD target.")
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
-            generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
+            generated=generate_with_llm(job,profile,coverage_plan=coverage_plan,mode=strategy)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
             resume=_render_draft(job,profile,generated);audit=ats_audit(job,profile,resume)
             audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
