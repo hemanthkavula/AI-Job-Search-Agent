@@ -72,12 +72,11 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         # persisted can still be used, but only when READY_TO_APPLY has a real PDF.
         # New manifests must continue to honor an explicit failed validation.
         resolved_pdf=_artifact_path(pdf,manifest_path)
-        explicit_validation="artifact_validation" in r and r.get("artifact_validation") is not None
-        # Do not silently drop READY_TO_APPLY rows because a legacy manifest
-        # points to a stale/moved artifact. Queue them and let autofill produce a
-        # precise MANUAL_ACTION_REQUIRED diagnostic with the expected path.
+        # Production readiness is fail-closed: legacy/stale manifests do not bypass
+        # artifact validation, and the validated PDF must still exist at queue time.
         if not pdf or not resolved_pdf:continue
-        if explicit_validation and not validation.get("passed"):continue
+        if validation.get("passed") is not True:continue
+        if not Path(resolved_pdf).is_file() or Path(resolved_pdf).suffix.lower()!=".pdf":continue
         provider=_provider(r)
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
