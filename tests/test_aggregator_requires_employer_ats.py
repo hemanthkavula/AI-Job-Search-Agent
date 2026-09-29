@@ -44,7 +44,7 @@ def test_resolved_aggregator_job_can_use_verified_external_ats(monkeypatch, tmp_
     report.write_text(json.dumps({"results": [{"action": "ELIGIBLE_FOR_RESUME", "job": job}]}), encoding="utf-8")
     monkeypatch.setattr(jd_finalizer, "load_profile", lambda: {})
     monkeypatch.setattr(jd_finalizer, "resolve_full_jd", lambda j: j)
-    monkeypatch.setattr(jd_finalizer, "_fetch_public_page", lambda url: '<script type="application/ld+json">{"@type":"JobPosting","datePosted":"2026-09-27T12:00:00+00:00"}</script>')
+    monkeypatch.setattr(jd_finalizer, "_fetch_public_page", lambda url: '<script type="application/ld+json">{"@type":"JobPosting","datePosted":"2026-09-27T12:00:00+00:00","jobLocation":{"@type":"Place","address":{"@type":"PostalAddress","addressLocality":"Jersey City","addressRegion":"NJ","addressCountry":"US"}}}</script>')
     monkeypatch.setattr(jd_finalizer, "_live_public_job_page", lambda url: (True, "reachable"))
     monkeypatch.setattr(jd_finalizer, "two_category_filter", lambda j, p: {"eligible": True})
     monkeypatch.setattr(jd_finalizer, "passes_hard_filters", lambda j, p: (True, []))
