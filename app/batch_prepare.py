@@ -8,7 +8,7 @@ from app.reference_resume_formatter import render_llm_resume
 from app.llm_resume_writer import generate_with_llm
 from app.ats_audit import ats_audit
 from app.pdf_export import convert_docx_to_pdf_detailed, validate_docx_pdf_parity
-from app.jd_coverage_plan import build_coverage_plan
+from app.jd_coverage_plan import build_coverage_plan, select_resume_strategy
 
 load_dotenv()
 
@@ -157,6 +157,9 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         next_action="HOLD_RESUME_ERROR"
         try:
             strategy=raw.get("resume_strategy") or {"BASE_RESUME":"BASE","LIMITED_JD":"LIMITED","FULL_JD":"FULL"}.get(raw.get("tailoring_mode"))
+            expected_strategy=select_resume_strategy(job,profile)["strategy"]
+            if strategy!=expected_strategy:
+                raise RuntimeError(f"Resume strategy drift: finalized={strategy!r}, recomputed={expected_strategy!r}; refusing stale/inconsistent tailoring metadata.")
             if strategy=="BASE":
                 attempts=0
                 pdf_path=_prepare_base_resume(raw,job)
