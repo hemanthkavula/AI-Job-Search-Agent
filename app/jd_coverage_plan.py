@@ -96,3 +96,22 @@ def build_coverage_plan(job,profile):
             "invent certifications, employers, dates, education, numerical outcomes or specific accomplishments."
         ),
     }
+
+
+def select_resume_strategy(job,profile=None):
+    """Choose BASE, LIMITED, or FULL without inventing evidence.
+
+    FULL requires a complete JD plus extracted targets. LIMITED is reserved for
+    partial JDs that still expose trustworthy targets. BASE is used when the JD
+    yields no technical/responsibility targets at all.
+    """
+    plan=build_coverage_plan(job,profile or {})
+    target_count=int(plan.get("target_count") or 0)
+    complete=bool(getattr(job,"description_complete",False))
+    if target_count<=0:
+        strategy="BASE"
+    elif complete:
+        strategy="FULL"
+    else:
+        strategy="LIMITED"
+    return {"strategy":strategy,"coverage_plan":plan}
