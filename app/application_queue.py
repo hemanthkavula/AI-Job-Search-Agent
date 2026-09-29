@@ -85,6 +85,11 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         if validation.get("passed") is not True:continue
         if not Path(resolved_pdf).is_file() or Path(resolved_pdf).suffix.lower()!=".pdf":continue
         provider=_provider(r)
+        # Recovered/stale manifests must satisfy the same explicit employment proof
+        # required by finalization; unknown metadata cannot become application-ready.
+        employment_text=(str(r.get("employment_type") or "")+" "+str(r.get("description") or "")).lower()
+        if not re.search(r"\b(?:full[- ]?time|permanent(?:\s+(?:employee|position))?|regular\s+employee|w-?2)\b",employment_text,re.I):
+            continue
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
             continue
