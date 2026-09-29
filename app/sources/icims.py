@@ -59,6 +59,6 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int = 
             "title":j.get("title") or "","location":location or None,"url":url,"original_url":url,
             "ats_provider":"icims","ats_identifier":base_url,"job_id":ident,
             "description":re.sub(r"\s+"," ",desc).strip(),"description_complete":bool(desc.strip()),
-            "updated_at":j.get("datePosted") or j.get("validThrough"),
+            "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough"),
         })
     return out
