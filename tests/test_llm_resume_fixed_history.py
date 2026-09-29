@@ -56,3 +56,16 @@ def test_build_prompt_uses_sanitized_history_not_full_profile():
     assert "work_authorization" not in candidate
     assert "environment" not in candidate["experience"][0]
     assert "evidence" not in candidate["experience"][0]
+
+
+def test_limited_prompt_marks_partial_jd_and_forbids_inference():
+    class Job:
+        company="Example"
+        title="Data Engineer"
+        description="Build Spark pipelines in Python."
+    profile={"name":"Candidate","contact":{},"experience":[],"education":[]}
+    prompt=build_prompt(Job(),profile,coverage_plan={"target_count":2,"requirements":[]},mode="LIMITED")
+    assert prompt["tailoring_policy"]["jd_completeness"]=="PARTIAL"
+    assert prompt["tailoring_policy"]["partial_jd_evidence_boundary"] is True
+    assert prompt["tailoring_policy"]["infer_missing_jd_content"] is False
+    assert "PARTIAL JD" in prompt["task"]
