@@ -4,8 +4,6 @@ from app.config import load_profile
 from app.filters import passes_hard_filters
 from app.eligibility import two_category_filter
 from app.scoring import analyze_job
-from app.resume_generator import generate_resume
-from app.db import save_job
 
 def process_job(raw: dict,min_score: int=65) -> dict:
     """Legacy single-job analysis endpoint.
