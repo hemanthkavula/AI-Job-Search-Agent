@@ -90,3 +90,23 @@ def test_compact_ten_plus_yrs_experience_is_rejected():
     )
     assert result["required_years"] == 10
     assert result["eligible"] is False
+
+
+def test_multiple_experience_ranges_use_highest_minimum():
+    result = experience_check(
+        {"title": "Senior Data Engineer", "description": "3-5 years of relevant experience with Spark. Overall role requires 10-12 years of professional experience."},
+        _profile(),
+    )
+    assert result["required_years"] == 10
+    assert result["eligible"] is False
+    assert result["category"] == "EXPERIENCE_TOO_SENIOR"
+
+
+def test_explicit_twenty_year_requirement_is_never_discarded():
+    result = experience_check(
+        {"title": "Principal Data Engineer", "description": "Minimum 20 years of professional experience required."},
+        _profile(),
+    )
+    assert result["required_years"] == 20
+    assert result["eligible"] is False
+    assert result["category"] == "EXPERIENCE_TOO_SENIOR"
