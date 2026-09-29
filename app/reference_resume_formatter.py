@@ -69,9 +69,16 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
         p=doc.add_paragraph();_compact(p,0,.5);_run(p.add_run(str(label)+": "),9.2,True);_run(p.add_run(", ".join(str(v) for v in vals)),9.2)
     _section(doc,"PROFESSIONAL EXPERIENCE")
     expected={x["company"]:x for x in profile["experience"]};limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+    # Render canonical history order, never model-provided order. Unknown or duplicate
+    # employers are ignored, and missing employers still render with zero bullets so
+    # the downstream structural audit fails closed instead of silently changing history.
+    generated_by_company={}
     for item in generated.get("experience",[]):
-        base=expected.get(item.get("company"))
-        if not base:continue
+        company=item.get("company")
+        if company in expected and company not in generated_by_company:
+            generated_by_company[company]=item
+    for base in profile["experience"]:
+        item=generated_by_company.get(base["company"],{})
         _company_header(doc,base)
         for line in item.get("bullets",[])[:limits.get(base["company"],7)]:
             # Retain the standard Word List Bullet style so the internal auditor and
