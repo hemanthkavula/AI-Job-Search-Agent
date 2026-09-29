@@ -3,6 +3,10 @@ name: Employer Universe Enrichment
 # so slow employer/ATS probing never delays fresh-job discovery or resume generation.
 
 on:
+  schedule:
+    # Keep employer/source learning warm before the first weekday production slot.
+    # 10:45 UTC is 06:45 EDT / 05:45 EST; enrichment is independent of production.
+    - cron: "45 10 * * 1-5"
   workflow_dispatch:
     inputs:
       domain_budget:
@@ -18,7 +22,7 @@ on:
       ats_tenant_budget:
         description: "Maximum expensive ATS tenant probes per incremental batch"
         required: false
-        default: "250"
+        default: "750"
         type: string
       deep_domain_search:
         description: "Use verified company-name discovery for identity-only employers"
@@ -60,11 +64,11 @@ jobs:
         run: |
           python -m app.company_enrichment_runner \
             --source-config data/job_sources.json \
-            --domain-budget "${{ inputs.domain_budget }}" \
-            --career-budget "${{ inputs.career_budget }}" \
-            --ats-tenant-budget "${{ inputs.ats_tenant_budget }}" \
+            --domain-budget "${{ inputs.domain_budget || '750' }}" \
+            --career-budget "${{ inputs.career_budget || '750' }}" \
+            --ats-tenant-budget "${{ inputs.ats_tenant_budget || '750' }}" \
             --retry-days 1 \
-            ${{ inputs.deep_domain_search && '--deep-domain-search' || '' }} | tee employer-universe-enrichment.log
+            --deep-domain-search | tee employer-universe-enrichment.log
       - name: Publish employer-universe metrics
         shell: bash
         run: |
