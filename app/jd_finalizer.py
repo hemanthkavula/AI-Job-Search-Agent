@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from urllib import request,parse
 from app.config import load_profile
 from app.eligibility import two_category_filter
-from app.filters import passes_hard_filters
+from app.filters import passes_hard_filters, location_is_us
 from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
@@ -396,6 +396,13 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
             held.append({"job":raw,"action":"HOLD_ORIGINAL_JD_NOT_FOUND","reason":"A trustworthy complete/original job description could not be resolved safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
         raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
+        # Aggregator-specific discovery allowances (notably Dice with blank/generic
+        # Remote location) must never survive the authoritative final gate. Once
+        # an employer/ATS page has been resolved, require explicit US geography
+        # from the official/discovery location or the verified JD itself.
+        if not location_is_us(raw.get("location"),None,raw.get("description") or ""):
+            held.append({"job":raw,"action":"SKIP_FINAL_ELIGIBILITY","reasons":["location outside United States target or U.S. geography unverified at official finalization"],"diagnostics":{"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location") or raw.get("location"),"location_basis":raw.get("location_basis"),"url":application_url}})
+            continue
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
