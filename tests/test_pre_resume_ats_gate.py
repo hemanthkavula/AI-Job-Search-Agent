@@ -133,3 +133,22 @@ def test_official_ats_foreign_location_overrides_false_us_discovery_location(tmp
     assert "location outside United States target" in rejection["reasons"]
     assert rejection["job"]["official_location"].endswith("bengaluru, 560095, India")
     assert rejection["job"]["discovery_location"]=="United States"
+
+
+def test_remote_job_uses_applicant_location_requirements(monkeypatch,tmp_path):
+    inp=tmp_path/"eligible.json";out=tmp_path/"finalized.json"
+    description="Responsibilities: build data pipelines with Python SQL Spark. Requirements: data engineering experience. Qualifications: 5 years relevant experience. "+"x"*1300
+    url="https://jobs.example.com/remote-role"
+    raw={"external_id":"lever:remote","source":"lever","company_key":"Example","company":"Example","title":"Senior Data Engineer","location":"Remote","employment_type":"Full-time","description":description,"description_complete":True,"original_url":url}
+    inp.write_text(json.dumps({"results":[{"action":"ELIGIBLE_FOR_RESUME","job":raw}]}),encoding="utf-8")
+    page='''<script type="application/ld+json">{"@context":"https://schema.org","@type":"JobPosting","title":"Senior Data Engineer","hiringOrganization":{"name":"Example"},"jobLocationType":"TELECOMMUTE","applicantLocationRequirements":{"@type":"Country","name":"India"},"description":"Responsibilities requirements qualifications data pipelines Python SQL Spark"}</script>'''
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:dict(raw))
+    monkeypatch.setattr("app.jd_finalizer._fetch_public_page",lambda target:page)
+    monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda *args,**kwargs:(True,"reachable"))
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    result=finalize_report(str(inp),str(out))
+    assert result["finalized"]==0
+    assert result["held_or_rejected"]==1
+    held=result["results"][0]
+    assert held["job"]["official_location"]=="Remote - India"
+    assert "location outside United States target" in held["reason"]
