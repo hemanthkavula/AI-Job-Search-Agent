@@ -25,6 +25,8 @@ def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
 def test_base_strategy_copies_master_pdf_without_llm(monkeypatch,tmp_path):
     master=tmp_path/"master.pdf"; master.write_bytes(b"%PDF-1.4 exact-master-bytes")
     monkeypatch.setattr(batch_prepare,"MASTER_RESUME_PATH",str(master))
+    import hashlib
+    monkeypatch.setattr(batch_prepare,"MASTER_RESUME_SHA256",hashlib.sha256(master.read_bytes()).hexdigest())
     monkeypatch.setattr(batch_prepare,"FINAL_RESUME_DIR",str(tmp_path/"resumes"))
     monkeypatch.setattr(batch_prepare,"load_profile",lambda:{})
     monkeypatch.setattr(batch_prepare,"generate_with_llm",lambda *a,**k:(_ for _ in ()).throw(AssertionError("LLM must not run for BASE")))
@@ -54,3 +56,19 @@ def test_base_strategy_fails_closed_when_master_missing(monkeypatch,tmp_path):
     rows=batch_prepare.prepare(str(report),str(out))
     assert rows[0]["next_action"]=="HOLD_RESUME_ERROR"
     assert "Canonical master resume PDF is unavailable" in rows[0]["ats_audit"]["error"]
+
+
+def test_base_strategy_rejects_wrong_master_hash(monkeypatch,tmp_path):
+    master=tmp_path/"master.pdf";master.write_bytes(b"%PDF-1.4 wrong-file")
+    monkeypatch.setattr(batch_prepare,"MASTER_RESUME_PATH",str(master))
+    monkeypatch.setattr(batch_prepare,"MASTER_RESUME_SHA256","0"*64)
+    monkeypatch.setattr(batch_prepare,"load_profile",lambda:{})
+    raw={"external_id":"greenhouse:wrong-master","source":"greenhouse","company_key":"Example Co","title":"Data Engineer",
+         "location":"United States","employment_type":"Full-Time","url":"https://example.test/jobs/wrong",
+         "original_url":"https://example.test/jobs/wrong","ats_provider":"greenhouse","application_route":"EXTERNAL_ATS",
+         "tailoring_mode":"BASE_RESUME","resume_strategy":"BASE","description":"Join our team.","description_complete":False}
+    report=tmp_path/"wrong.json";out=tmp_path/"manifest.json"
+    report.write_text(json.dumps({"results":[{"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":{"experience":{},"sponsorship":{}}}]}),encoding="utf-8")
+    rows=batch_prepare.prepare(str(report),str(out))
+    assert rows[0]["next_action"]=="HOLD_RESUME_ERROR"
+    assert "SHA-256 mismatch" in rows[0]["ats_audit"]["error"]
