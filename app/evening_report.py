@@ -7,8 +7,9 @@ def build(manifest_path="generated/application_manifest.json", output="generated
     p=Path(manifest_path); rows=json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
     applied=[r for r in rows if r.get("application_status")=="SUBMITTED"]
     ready=[r for r in rows if r.get("next_action")=="READY_TO_APPLY"]
-    held=[r for r in rows if r.get("next_action")=="HOLD_ATS_REVIEW"]
-    lines=[f"# Job Automation Report — {datetime.now().strftime('%Y-%m-%d')}","",f"- Prepared: {len(rows)}",f"- Submitted: {len(applied)}",f"- Ready to apply: {len(ready)}",f"- Held for ATS review: {len(held)}","",
+    held=[r for r in rows if str(r.get("next_action") or "").startswith("HOLD_")]
+    retry=[r for r in rows if r.get("next_action")=="RETRY_RESUME_GENERATION"]
+    lines=[f"# Job Automation Report — {datetime.now().strftime('%Y-%m-%d')}","",f"- Prepared: {len(rows)}",f"- Submitted: {len(applied)}",f"- Ready to apply: {len(ready)}",f"- Held: {len(held)}",f"- Retry resume generation: {len(retry)}","",
            "| Company | Role | ATS | Sponsorship | Status | Resume |","|---|---|---:|---|---|---|"]
     for r in rows:
         a=r.get("ats_audit",{}); s=r.get("sponsorship",{}).get("category","")
