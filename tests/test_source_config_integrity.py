@@ -26,3 +26,20 @@ def test_source_config_has_no_duplicate_urls_within_provider():
             url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
             if url: urls.append(url.rstrip("/").lower())
         assert len(urls)==len(set(urls)), f"duplicate URLs configured for {provider}"
+
+
+def test_ashby_collector_url_encodes_learned_board_names(monkeypatch):
+    import json
+    from app.sources import ashby
+    captured={}
+    class Response:
+        def __enter__(self):return self
+        def __exit__(self,*args):return False
+        def read(self):return json.dumps({"jobs":[]}).encode()
+    def fake_urlopen(req,timeout=20):
+        captured["url"]=req.full_url
+        return Response()
+    monkeypatch.setattr(ashby,"urlopen",fake_urlopen)
+    assert ashby.fetch_jobs("superhuman platform inc")==[]
+    assert "superhuman%20platform%20inc" in captured["url"]
+    assert " " not in captured["url"]
