@@ -11,7 +11,6 @@ NO_SPONSOR_PATTERNS=(
  "does not provide employer support or sponsorship","do not provide employer support or sponsorship",
  "without the need for employer support or sponsorship now or in the future",
  "without the need for employer support or sponsorship","immigration support or sponsorship now or in the future",
- "immigration related employment benefit",
  "not eligible for f1 opt","not eligible for f-1 opt",
  "not eligible for f1 stem opt","not eligible for f-1 stem opt",
  "f1 opt or stem opt not eligible","f-1 opt or stem opt not eligible",
