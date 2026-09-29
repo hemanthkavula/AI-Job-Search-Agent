@@ -261,3 +261,24 @@ def test_generic_remote_with_explicit_foreign_jd_location_is_rejected():
       "description":"Remote role based in Bengaluru, India. Build Spark SQL ETL data pipelines."
     },PROFILE)
     assert not ok and any("location outside United States" in x for x in r)
+
+
+def test_positive_future_immigration_sponsorship_language_is_not_rejected():
+    ok,reasons=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"We provide immigration support or sponsorship now or in the future for qualified candidates. Build Python SQL Spark data pipelines."
+    },PROFILE)
+    assert ok, reasons
+
+
+def test_explicit_no_future_sponsorship_still_rejected_after_positive_language_fix():
+    ok,reasons=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"We cannot provide current or future sponsorship. Build Python SQL Spark data pipelines."
+    },PROFILE)
+    assert not ok
+    assert any("sponsorship" in reason.lower() for reason in reasons)
