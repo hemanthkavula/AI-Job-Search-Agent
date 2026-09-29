@@ -176,7 +176,7 @@ def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     cached=_read_cache(cache_key)
     if cached is not None:
         print(f"Resume LLM cache HIT | {cache_key[:12]} | API call skipped",flush=True)
-        return cached
+        return validate_generated_resume(cached,profile)
     print(f"Resume LLM cache MISS | {cache_key[:12]} | calling API",flush=True)
     body=json.dumps({"model":model,"instructions":SYSTEM_PROMPT,"input":json.dumps(prompt),"max_output_tokens":12000}).encode("utf-8")
     req=request.Request(endpoint,data=body,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},method="POST")
