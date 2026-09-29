@@ -148,7 +148,16 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
         job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
         print(f"START {job.company} | {job.title} | FINAL_JD_VERIFIED",flush=True)
+        # Reset all per-job artifact state before entering the try block. Without
+        # this, Python function locals from the previous iteration can survive and
+        # an early exception for the next job can delete or report the prior job's
+        # approved resume.
+        resume=None
+        pdf_path=None
+        artifact_validation={"passed":False,"reason":"Resume pipeline not completed","attempts":0}
+        audit={}
         audit_history=[]
+        next_action="HOLD_RESUME_ERROR"
         try:
             if not (raw.get("description_complete") or raw.get("description_usable") or raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE"):raise RuntimeError("Job description is not usable for safe resume tailoring; run app.jd_finalizer before resume tailoring.")
             attempts=1
@@ -246,7 +255,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 h["resume_path"]=None
             retryable=_retryable_resume_error(exc)
             print(f"RESUME PIPELINE ERROR: {exc}",flush=True);resume=None;pdf_path=None;next_action="RETRY_RESUME_GENERATION" if retryable else "HOLD_RESUME_ERROR";audit={"passed":False,"generation_source":"resume_pipeline_error","error":str(exc),"generation_attempts":0,"retryable":retryable};artifact_validation={"passed":False,"reason":str(exc)}
-        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"requisition_id":raw.get("requisition_id") or raw.get("job_id") or raw.get("ats_job_id"),"job_id":raw.get("job_id"),"ats_job_id":raw.get("ats_job_id"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"description":raw.get("description"),"description_complete":raw.get("description_complete"),"description_usable":raw.get("description_usable"),"employment_type":raw.get("employment_type"),"location":raw.get("location"),"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location"),"location_basis":raw.get("location_basis"),"eligibility":elig,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":locals().get("artifact_validation",{}),"audit_history":locals().get("audit_history",[]),"next_action":next_action,"application_status":"NOT_STARTED"})
+        manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"requisition_id":raw.get("requisition_id") or raw.get("job_id") or raw.get("ats_job_id"),"job_id":raw.get("job_id"),"ats_job_id":raw.get("ats_job_id"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"description":raw.get("description"),"description_complete":raw.get("description_complete"),"description_usable":raw.get("description_usable"),"employment_type":raw.get("employment_type"),"location":raw.get("location"),"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location"),"location_basis":raw.get("location_basis"),"eligibility":elig,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":resume,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":artifact_validation,"audit_history":audit_history,"next_action":next_action,"application_status":"NOT_STARTED"})
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(manifest,indent=2),encoding="utf-8");return manifest
 
 if __name__=="__main__":
