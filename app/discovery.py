@@ -1,6 +1,6 @@
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
 from app.sources.lever import fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
@@ -235,8 +235,25 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             key=f"{source}:{company or source}"
             started=datetime.now(timezone.utc)
             try:
-                result=future.result();jobs.extend(result)
-                health[key]={"source":source,"company":company,"status":"OK","jobs_returned":len(result),"checked_at":started.isoformat()}
+                result=future.result()
+                # Enforce the source-unit watermark even for adapters whose remote
+                # API cannot accept an hours parameter. Failed siblings can catch
+                # up from an older watermark without replaying healthy tenants.
+                unit_hours=_unit_hours(source,company or source)
+                cutoff=started-timedelta(hours=unit_hours)
+                filtered=[]
+                from app.freshness import _parse_posting_value
+                for job in result:
+                    posted=None
+                    for field in ("posted_at","posted_on","date_posted","datePosted","published_at","publication_date","updated_at"):
+                        value=job.get(field)
+                        if value in (None,""):continue
+                        posted=_parse_posting_value(value,started)
+                        if posted is not None:break
+                    if posted is None or (cutoff <= posted <= started+timedelta(minutes=10)):
+                        filtered.append(job)
+                jobs.extend(filtered)
+                health[key]={"source":source,"company":company,"status":"OK","jobs_returned":len(filtered),"jobs_fetched":len(result),"unit_window_hours":unit_hours,"checked_at":started.isoformat()}
             except Exception as e:
                 err={"source":source,"company":company,"error":str(e)};errors.append(err)
                 health[key]={"source":source,"company":company,"status":"ERROR","jobs_returned":0,"error":str(e),"checked_at":started.isoformat()}
