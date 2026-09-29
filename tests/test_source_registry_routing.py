@@ -95,3 +95,19 @@ def test_paycor_detail_becomes_reusable_client_board():
     assert "clientId=abc" in reusable
     assert "lang=en" in reusable
     assert "id=" not in reusable
+
+
+def test_bamboohr_detail_becomes_reusable_careers_board():
+    assert sr._reusable_search_url("bamboohr","https://lhw.bamboohr.com/careers/98")=="https://lhw.bamboohr.com/careers"
+
+
+def test_paycom_detail_becomes_reusable_jobs_board():
+    url=sr._reusable_search_url("paycom","https://www.paycomonline.net/v4/ats/web.php/jobs/ViewJobDetails?job=123&clientkey=ABC")
+    assert "clientkey=ABC" in url
+    assert "job=123" not in url
+
+
+def test_hirebridge_detail_drops_only_job_identifier():
+    url=sr._reusable_search_url("hirebridge","https://jobs.hirebridge.com/v3/Jobs/JobDetails.aspx?cid=1234&jid=5678")
+    assert "cid=1234" in url
+    assert "jid=5678" not in url
