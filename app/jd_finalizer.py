@@ -422,7 +422,10 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         final_location=raw.get("location")
         if aggregator_origin and not raw.get("official_location"):
             final_location=""
-        if not location_is_us(final_location,None,raw.get("description") or ""):
+        # Discovery may defer blank/remote geography, but finalization must never do so.
+        # Require explicit U.S. evidence from the official structured location or verified JD.
+        final_location_verified = bool((final_location or "").strip()) and location_is_us(final_location,None,raw.get("description") or "")
+        if not final_location_verified:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reason":"location outside United States target or U.S. geography unverified at official finalization","reasons":["location outside United States target or U.S. geography unverified at official finalization"],"diagnostics":{"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location") or raw.get("location"),"location_basis":raw.get("location_basis"),"url":application_url}})
             continue
         ok,reasons=passes_hard_filters(raw,profile)
