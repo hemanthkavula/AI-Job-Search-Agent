@@ -31,6 +31,11 @@ def _restore_resume_artifact_once():
             for info in zf.infolist():
                 name=info.filename.replace("\\","/")
                 if info.is_dir() or not name.startswith("generated/resumes/"):continue
+                mode=(info.external_attr >> 16) & 0o170000
+                if mode==0o120000:
+                    raise ValueError("Unsafe recovery archive member type")
+                if info.file_size > 25 * 1024 * 1024:
+                    raise ValueError("Recovery archive member too large")
                 rel=Path(name).relative_to("generated")
                 if rel.suffix.lower() not in {".pdf",".docx"}:continue
                 dest=(STATE_DIR/rel).resolve()
@@ -172,19 +177,19 @@ def _resume_path_from_confirmed(hist):
             p=STATE_DIR/p
         if p.suffix.lower()==".pdf" and p.exists() and p.is_file():
             return p
-    # Older applied records did not persist the resume path. Recover the
-    # validated artifact from another ledger record for the same company/title.
-    company=str(hist.get("company") or "").strip().lower()
-    title=str(hist.get("title") or "").strip().lower()
-    if not company or not title:return None
+    # Never recover a resume by company/title alone. Multiple requisitions can
+    # legitimately share both fields; only an exact job identity may reuse an
+    # artifact.
+    hist_keys=set(identity_keys(hist))
+    if not hist_keys:return None
     ledger=_json(LEDGER,{"jobs":{}})
-    for row in (ledger.get("jobs") or {}).values():
-        if str(row.get("company") or "").strip().lower()!=company:continue
-        if str(row.get("title") or "").strip().lower()!=title:continue
-        p=_resume_path(row)
-        if p:return p
+    for key,row in (ledger.get("jobs") or {}).items():
+        candidate=dict(row)
+        candidate.setdefault("key",key)
+        if hist_keys.intersection(identity_keys(candidate)):
+            p=_resume_path(candidate)
+            if p:return p
     return None
-
 def _pipeline_runs():
     runs=[]
     if CYCLES.exists():
@@ -242,10 +247,9 @@ def _pipeline_jobs(cycle_id):
         if key and key in hidden:continue
         live=by_key.get(key)
         if not live:
-            company=str(row.get("company") or row.get("company_name") or "").strip().lower()
-            title=str(row.get("title") or row.get("job_title") or "").strip().lower()
-            if company and title:
-                live=next((x for x in current if str(x.get("company") or "").strip().lower()==company and str(x.get("title") or "").strip().lower()==title),None)
+            snapshot_keys=set(identity_keys(row))
+            if snapshot_keys:
+                live=next((x for x in current if snapshot_keys.intersection(identity_keys(x))),None)
         if live:
             item=dict(live)
         else:
