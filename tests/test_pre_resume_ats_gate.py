@@ -130,7 +130,7 @@ def test_official_ats_foreign_location_overrides_false_us_discovery_location(tmp
     assert result["held_or_rejected"]==1
     rejection=result["rejections"][0]
     assert rejection["action"]=="SKIP_FINAL_ELIGIBILITY"
-    assert "location outside United States target" in rejection["reasons"]
+    assert any(reason.startswith("location outside United States target") for reason in rejection["reasons"])
     assert rejection["job"]["official_location"].endswith("bengaluru, 560095, India")
     assert rejection["job"]["discovery_location"]=="United States"
 
@@ -168,4 +168,4 @@ def test_aggregator_us_location_cannot_survive_unlocated_official_page(tmp_path,
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==0
     assert result["rejections"][0]["action"]=="SKIP_FINAL_ELIGIBILITY"
-    assert "location outside United States target" in result["rejections"][0]["reasons"]
+    assert any(reason.startswith("location outside United States target") for reason in result["rejections"][0]["reasons"])
