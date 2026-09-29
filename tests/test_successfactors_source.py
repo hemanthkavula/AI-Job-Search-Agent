@@ -7,7 +7,7 @@ def test_successfactors_searches_broad_de_family_and_deduplicates(monkeypatch):
     detail='<title>Senior Data Platform Engineer</title><main>Build Spark ETL pipelines and data infrastructure.</main>'
     def fake_get(url, timeout=20):
         calls.append(url)
-        return detail if "/job/" in url else listing
+        return detail if "/job/us/" in url else listing
     monkeypatch.setattr(successfactors,"_get",fake_get)
     rows=successfactors.fetch_jobs("Acme","https://jobs.example.com/")
     assert len(rows) == 1
