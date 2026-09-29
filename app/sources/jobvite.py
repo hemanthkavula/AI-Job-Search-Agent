@@ -35,5 +35,5 @@ def fetch_jobs(company:str,search_url:str,timeout:int=25)->list[dict]:
         ident=str(ident)
         if ident in ids:continue
         ids.add(ident);url=str(j.get("url") or page)
-        out.append({"external_id":f"jobvite:{tenant}:{ident}","source":"jobvite","company_key":company,"title":title,"location":None,"url":url,"original_url":url,"ats_provider":"jobvite","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"updated_at":j.get("datePosted") or j.get("validThrough")})
+        out.append({"external_id":f"jobvite:{tenant}:{ident}","source":"jobvite","company_key":company,"title":title,"location":None,"url":url,"original_url":url,"ats_provider":"jobvite","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return out
