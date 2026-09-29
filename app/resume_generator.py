@@ -226,7 +226,9 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
     doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience building scalable batch and real-time data platforms across financial services, healthcare, and retail. Experienced in {focus}, with a strong background in cloud data lakes, warehouses, streaming pipelines, dimensional modeling, data quality, lineage, and production reliability. Proven ability to deliver analytics-ready data products and optimize distributed data workloads for performance and scale.")
     _h(doc,"TECHNICAL SKILLS")
     jd_skills=jd_skill_terms(job.description)
-    base=all_verified(profile)
+    # Technical skills are sourced only from the current JD; the profile supplies
+    # immutable identity/history elsewhere, never reusable technical content.
+    base=[]
     # Include both literal JD technologies and supported/inferable ATS concepts.
     # This ensures exact phrases such as Batch Processing, Real-Time Data Processing
     # and Data Lineage are present naturally in Technical Skills when relevant.
