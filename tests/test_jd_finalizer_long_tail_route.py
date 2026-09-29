@@ -66,8 +66,8 @@ def test_partial_but_usable_jd_is_held_before_resume_generation(monkeypatch,tmp_
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==0
-    assert result["held"][0]["action"]=="HOLD_COMPLETE_JD_REQUIRED"
-    assert result["held"][0]["job"].get("tailoring_mode")!="FULL_JD"
+    assert result["rejections"][0]["action"]=="HOLD_COMPLETE_JD_REQUIRED"
+    assert result["rejections"][0]["job"].get("tailoring_mode")!="FULL_JD"
 
 
 def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_path):
