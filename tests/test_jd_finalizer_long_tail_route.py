@@ -47,8 +47,10 @@ def test_dice_date_cannot_replace_missing_official_post_date(monkeypatch,tmp_pat
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
     assert result["finalized"]==0
-    assert result["results"][0]["action"]=="HOLD_OFFICIAL_POST_DATE_UNVERIFIED"
-    assert result["results"][0]["job"]["discovery_posted_at"]=="2026-09-28T15:00:00+00:00"
+    assert result["held_or_rejected"]==1
+    held=json.loads(output.read_text(encoding="utf-8"))["held"]
+    assert held[0]["action"]=="HOLD_OFFICIAL_POST_DATE_UNVERIFIED"
+    assert held[0]["job"]["discovery_posted_at"]=="2026-09-28T15:00:00+00:00"
 
 
 def test_partial_but_usable_jd_is_finalized_for_limited_resume(monkeypatch,tmp_path):
