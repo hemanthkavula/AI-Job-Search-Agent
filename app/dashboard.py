@@ -219,7 +219,7 @@ def _cycle_snapshot(cycle_id):
         ready=[]
         seen=set()
         for row in rows:
-            if not isinstance(row,dict) or row.get("next_action") not in {"READY_TO_APPLY","MANUAL_READY_TO_APPLY"}:continue
+            if not isinstance(row,dict) or row.get("next_action")!="READY_TO_APPLY":continue
             keys=identity_keys(row)
             if any(key in seen for key in keys):continue
             seen.update(keys)
