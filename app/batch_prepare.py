@@ -28,8 +28,10 @@ def _prepare_base_resume(raw,job):
     safe_company=re.sub(r"[^A-Za-z0-9._-]+","_",job.company).strip("_") or "company"
     safe_title=re.sub(r"[^A-Za-z0-9._-]+","_",job.title).strip("_") or "role"
     final_dir=final_root/(safe_company+"_"+safe_title+"_BASE")
-    final_dir.mkdir(parents=True,exist_ok=False)
+    final_dir.mkdir(parents=True,exist_ok=True)
     pdf=final_dir/"master_resume.pdf"
+    if pdf.is_file() and hashlib.sha256(pdf.read_bytes()).hexdigest()==source_hash:
+        return str(pdf)
     shutil.copyfile(source,pdf)
     if source.read_bytes()!=pdf.read_bytes():
         shutil.rmtree(final_dir,ignore_errors=True)
