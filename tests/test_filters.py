@@ -228,3 +228,36 @@ def test_security_clearance_requirement_is_rejected():
       "description":"Candidate must have a Secret clearance. Build Spark and SQL pipelines."
     },PROFILE)
     assert not ok and any("clearance" in x.lower() for x in r)
+
+
+def test_generic_remote_official_ats_lead_survives_discovery_for_final_verification():
+    ok,_=passes_hard_filters({
+      "title":"Data Engineer",
+      "source":"greenhouse",
+      "location":"Remote",
+      "employment_type":"Full-Time",
+      "description":"Build Spark SQL ETL data pipelines."
+    },PROFILE)
+    assert ok
+
+
+def test_blank_location_official_ats_lead_survives_discovery_for_final_verification():
+    ok,_=passes_hard_filters({
+      "title":"Data Engineer",
+      "source":"lever",
+      "location":"",
+      "employment_type":"Full-Time",
+      "description":"Build Spark SQL ETL data pipelines."
+    },PROFILE)
+    assert ok
+
+
+def test_generic_remote_with_explicit_foreign_jd_location_is_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Data Engineer",
+      "source":"greenhouse",
+      "location":"Remote",
+      "employment_type":"Full-Time",
+      "description":"Remote role based in Bengaluru, India. Build Spark SQL ETL data pipelines."
+    },PROFILE)
+    assert not ok and any("location outside United States" in x for x in r)
