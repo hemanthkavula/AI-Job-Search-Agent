@@ -25,20 +25,19 @@ def _save_cache(company_identifier: str, payload: dict) -> None:
     tmp=path.with_suffix(".tmp");tmp.write_text(json.dumps(payload,indent=2),encoding="utf-8");tmp.replace(path)
 
 # Keep discovery cheap: only fetch full posting details for plausible Data Engineer roles.
-DE_TITLE_PATTERNS = (
-    "data engineer",
-    "data platform engineer",
-    "big data engineer",
-    "cloud data engineer",
-    "aws data engineer",
-    "azure data engineer",
-    "data analytics engineer",
-    "data integration engineer",
-    "data infrastructure engineer",
-    "data pipeline engineer",
-    "etl engineer",
-    "analytics engineer",
-)
+def _is_de_title(title: str | None) -> bool:
+    """Broad recall-first title gate; semantic eligibility is decided downstream."""
+    value=re.sub(r"[^a-z0-9+#]+"," ",(title or "").lower()).strip()
+    if not value:return False
+    if any(term in value for term in ("etl engineer","big data engineer","analytics engineer")):
+        return True
+    if "data" not in value:
+        return False
+    return any(term in value for term in (
+        "engineer","engineering","platform","infrastructure","pipeline",
+        "integration","warehouse","lakehouse",
+    ))
+
 
 
 def _get_json(url: str, timeout: int) -> dict:
@@ -60,10 +59,6 @@ def _location(loc: dict) -> str | None:
         return f"Remote | {value}" if value else "Remote"
     return value or None
 
-
-def _is_de_title(title: str | None) -> bool:
-    value = re.sub(r"\s+", " ", (title or "").lower()).strip()
-    return any(pattern in value for pattern in DE_TITLE_PATTERNS)
 
 
 def fetch_jobs(company_identifier: str, timeout: int = 12, hours: int = 24) -> list[dict]:
