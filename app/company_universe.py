@@ -164,8 +164,10 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
     # raise the budget for a dedicated deep-enrichment run.
     ats_tenant_budget=max(0, int(ats_tenant_budget if ats_tenant_budget is not None else min(250, max(100, domain_budget))))
     ats_tenant_candidates=sorted(
-        (r for r in reg.values() if not r.get("official_domain")
-         and not r.get("ats_provider") and not r.get("careers_url")
+        # Direct ATS discovery is a fallback for every employer that still lacks
+        # an executable hiring source, including employers whose corporate domain
+        # is known but whose career-page resolver has not identified a board.
+        (r for r in reg.values() if not r.get("ats_provider") and not r.get("careers_url")
          and _retry_due(r,"ats_tenant",retry_days,ATS_TENANT_RESOLVER_VERSION)),
         # Priority signals decide the tier; within a tier, never-attempted employers
         # go first, then the oldest attempted employer. This gives a bounded batch
