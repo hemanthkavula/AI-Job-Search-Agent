@@ -57,7 +57,7 @@ def test_partial_but_usable_jd_is_finalized_for_limited_resume(monkeypatch,tmp_p
     job={
         "external_id":"greenhouse:partial","source":"greenhouse","company_key":"Example Co",
         "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
-        "original_url":"https://boards.greenhouse.io/example/jobs/partial",
+        "url":"https://boards.greenhouse.io/example/jobs/partial","original_url":"https://boards.greenhouse.io/example/jobs/partial","ats_provider":"greenhouse",
         "description":"Responsibilities: build Python SQL Spark pipelines. Requirements: 5+ years data engineering.",
         "description_usable":True,"description_complete":False,"description_length":91,"jd_signal_score":3,
     }
@@ -81,7 +81,7 @@ def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_pa
     job={
         "external_id":"greenhouse:complete","source":"greenhouse","company_key":"Example Co",
         "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
-        "original_url":"https://boards.greenhouse.io/example/jobs/complete",
+        "url":"https://boards.greenhouse.io/example/jobs/complete","original_url":"https://boards.greenhouse.io/example/jobs/complete","ats_provider":"greenhouse",
         "description":description,"description_usable":True,"description_complete":True,
         "description_length":len(description),"jd_signal_score":3,
     }
