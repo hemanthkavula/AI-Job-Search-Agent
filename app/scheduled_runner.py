@@ -60,13 +60,13 @@ def _scheduled_cutoff(now,state):
 
     Normal hourly runs start at the last successful scan. The first run of a
     weekday starts at the previous weekday's final scheduled cutoff; Monday therefore
-    catches Friday 18:00 through Monday morning. If a daytime run was missed,
+    catches Friday's final scheduled cutoff through Monday morning. If a daytime run was missed,
     the next run catches up from the last successful scan instead of losing jobs.
     """
     last=_parse_state_time(state.get("last_successful_scan_at"))
     today=now.date()
     # Construct the prior scheduled close as a local wall-clock time instead of
-    # subtracting elapsed hours. This preserves 19:00 Eastern across DST changes.
+    # subtracting elapsed hours. This preserves the configured final wall-clock cutoff across DST changes.
     days_back=3 if now.weekday()==0 else 1
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
