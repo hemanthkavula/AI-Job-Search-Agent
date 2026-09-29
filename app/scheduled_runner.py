@@ -135,8 +135,8 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     for provider in providers:
         provider_cutoff=_parse_state_time(watermarks.get(provider)) or cutoff
         source_cutoffs[provider]=provider_cutoff.isoformat()
-        source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0+(5.0/60.0)
-    discovery_hours=hours+(5.0/60.0)
+        source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0
+    discovery_hours=hours
     # Workday tenants have independent failure domains. Preserve a watermark per
     # company so healthy tenants advance even when one tenant returns 5xx.
     try:
@@ -164,7 +164,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         if not unit:continue
         key=f"workday:{unit}"
         unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get("workday")) or cutoff
-        source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0+(5.0/60.0)
+        source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
                       since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours,
                       source_unit_hours=source_unit_hours)
