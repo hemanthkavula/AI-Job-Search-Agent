@@ -169,14 +169,16 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     target_fresh=sum(bool(j.get("target_company")) for j in jobs24)
     target_eligible=sum(bool((x.get("job") or {}).get("target_company")) for x in eligible)
     target_rejected=sum(bool((x.get("job") or {}).get("target_company")) for x in skipped)
+    missing_date_count=sum((j.get("freshness_rejection_reason")=="missing trustworthy posting timestamp") for j in stale)
+    stale_date_count=sum((j.get("freshness_rejection_reason")=="outside requested posting window") for j in stale)
     diagnostics={
-        "fresh_jobs_checked":len(jobs24),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
+        "fresh_jobs_checked":len(jobs24),"missing_or_unparseable_posting_date":missing_date_count,"stale_posting_date":stale_date_count,"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
         "duplicates_removed":len(duplicates),"outside_target_company":reason_counts["outside_target_company"],
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
     return {
-        "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"already_processed":len(already),
+        "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"stale_posting_date":stale_date_count,"missing_or_unparseable_posting_date":missing_date_count,"already_processed":len(already),
         "eligible":len(eligible),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"filtered_out":len(skipped)+len(duplicates),"filter_reason_counts":diagnostics,
         "action_counts":{"ELIGIBLE_FOR_RESUME":len(eligible),"SKIP":len(skipped),"SKIP_DUPLICATE":len(duplicates)},"errors":errors,"source_status":source_status,"source_errors":source_errors,"source_unit_status":source_unit_status,
         "coverage":coverage,"results":eligible,"hard_filter_rejections":skipped,"duplicate_rejections":duplicates,
@@ -184,7 +186,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
 
 def _print_diagnostics(d,hours):
     print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
-    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
+    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Stale posting date","stale_posting_date"),("Missing/unparseable posting date","missing_or_unparseable_posting_date"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
