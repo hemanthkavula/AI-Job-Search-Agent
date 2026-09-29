@@ -39,6 +39,9 @@ def audit(summary_path:str)->dict:
                 if not url or any(host==h or host.endswith("."+h) for h in aggregator_hosts):
                     failures.append(f"non-authoritative application destination for {eid}: {host or 'missing'}")
                 if not (row.get("application_gate") or {}).get("passed"): failures.append(f"application gate not passed for {eid}")
+                official_location=(row.get("official_location") or "").strip()
+                if official_location and (row.get("location") or "").strip()!=official_location:
+                    failures.append(f"official location provenance mismatch for {eid}")
                 resume=row.get("resume_path")
                 if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): failures.append(f"validated PDF missing for {eid}")
                 validation=row.get("artifact_validation")
