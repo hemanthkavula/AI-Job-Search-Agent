@@ -28,7 +28,9 @@ def save_ledger(ledger,path=DEFAULT_LEDGER):
 # Fields that must survive compaction because they can affect deduplication,
 # retries, application recovery, or the dashboard.
 _COMPACT_KEEP_FIELDS={
-    "first_seen","last_seen","company","title","source","url","application_status",
+    "first_seen","last_seen","company","title","source","url","original_url","application_status",
+    "location","official_location","discovery_location","location_basis","employment_type",
+    "ats_provider","ats_identifier","requisition_id","job_id","ats_job_id","application_route",
     "sources","external_ids","submitted_at","application_result","application_reason",
     "application_blockers","application_result_path","submission_attempted",
     "submission_attempt","resume_retry_count","resume_retry_after","resume_retry_exhausted",
