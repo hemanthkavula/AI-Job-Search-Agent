@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json,os,re,shutil,stat,time
+import argparse,hashlib,json,os,re,shutil,stat,time
 from pathlib import Path
 from types import SimpleNamespace
 from dotenv import load_dotenv
@@ -14,12 +14,16 @@ load_dotenv()
 
 MAX_RESUME_ATTEMPTS=3
 MASTER_RESUME_PATH=os.getenv("MASTER_RESUME_PATH","assets/master_resume.pdf")
+MASTER_RESUME_SHA256=os.getenv("MASTER_RESUME_SHA256","ac66a58100ad363741f78baa46b0e53ec7e37f89e4bb677a32c8dd5699bb093c")
 
 def _prepare_base_resume(raw,job):
     """Copy the canonical master PDF byte-for-byte; never regenerate BASE content."""
     source=Path(MASTER_RESUME_PATH)
     if not source.is_file():
         raise RuntimeError(f"Canonical master resume PDF is unavailable: {source}")
+    source_hash=hashlib.sha256(source.read_bytes()).hexdigest()
+    if source_hash!=MASTER_RESUME_SHA256:
+        raise RuntimeError(f"Canonical master resume SHA-256 mismatch: {source_hash}")
     final_root=Path(__file__).resolve().parents[1]/FINAL_RESUME_DIR
     safe_company=re.sub(r"[^A-Za-z0-9._-]+","_",job.company).strip("_") or "company"
     safe_title=re.sub(r"[^A-Za-z0-9._-]+","_",job.title).strip("_") or "role"
@@ -156,7 +160,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
                 pdf_path=_prepare_base_resume(raw,job)
                 resume=None
                 audit={"passed":True,"generation_attempts":0,"generation_source":"canonical_master_resume_unchanged","resume_strategy":"BASE"}
-                artifact_validation={"passed":True,"reason":"Canonical master PDF copied byte-for-byte","attempts":0,"renderer":"none","source":MASTER_RESUME_PATH}
+                artifact_validation={"passed":True,"reason":"Canonical master PDF copied byte-for-byte","attempts":0,"renderer":"none","source":MASTER_RESUME_PATH,"sha256":MASTER_RESUME_SHA256}
                 next_action="READY_TO_APPLY"
                 print(f"DONE {job.company} | strategy=BASE | canonical master resume unchanged",flush=True)
                 manifest.append({"external_id":raw.get("external_id"),"source":raw.get("source"),"company":job.company,"title":job.title,"url":job.url,"original_url":raw.get("original_url"),"requisition_id":raw.get("requisition_id") or raw.get("job_id") or raw.get("ats_job_id"),"job_id":raw.get("job_id"),"ats_job_id":raw.get("ats_job_id"),"ats_provider":raw.get("ats_provider"),"ats_identifier":raw.get("ats_identifier"),"ats_resolution":raw.get("ats_resolution"),"application_route":raw.get("application_route"),"tailoring_mode":raw.get("tailoring_mode"),"resume_strategy":"BASE","description":raw.get("description"),"description_complete":raw.get("description_complete"),"description_usable":raw.get("description_usable"),"employment_type":raw.get("employment_type"),"location":raw.get("location"),"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location"),"location_basis":raw.get("location_basis"),"llm_job_analysis":raw.get("llm_job_analysis"),"eligibility":elig,"experience":elig["experience"],"sponsorship":elig["sponsorship"],"resume_path":None,"pdf_path":pdf_path,"ats_audit":audit,"artifact_validation":artifact_validation,"audit_history":[],"next_action":next_action,"application_status":"NOT_STARTED"})
