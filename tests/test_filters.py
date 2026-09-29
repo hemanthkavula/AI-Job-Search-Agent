@@ -1,7 +1,7 @@
 from app.filters import passes_hard_filters, employment_is_target
 
 PROFILE={
-  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},
+  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":3,"max_required_years":7},
   "work_authorization":{"requires_sponsorship_future":True},
   "candidate_experience_years":5
 }
@@ -293,3 +293,34 @@ def test_sponsorship_silence_does_not_reject_eligible_job():
     },PROFILE)
     assert ok, reasons
     assert not any("sponsorship" in reason.lower() for reason in reasons)
+
+
+def test_two_plus_year_posting_is_rejected_by_hard_window():
+    ok,reasons=passes_hard_filters({
+      "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+      "description":"Requires 2+ years of professional experience building Python SQL Spark data pipelines."
+    },PROFILE)
+    assert not ok
+    assert any("experience requirement" in reason.lower() and "2" in reason for reason in reasons)
+
+def test_three_plus_year_posting_is_eligible_boundary():
+    ok,reasons=passes_hard_filters({
+      "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+      "description":"Requires 3+ years of professional experience building Python SQL Spark data pipelines."
+    },PROFILE)
+    assert ok,reasons
+
+def test_seven_plus_year_posting_is_eligible_boundary():
+    ok,reasons=passes_hard_filters({
+      "title":"Senior Data Engineer","location":"United States","employment_type":"Full-Time",
+      "description":"Requires 7+ years of professional experience building Python SQL Spark data pipelines."
+    },PROFILE)
+    assert ok,reasons
+
+def test_eight_plus_year_posting_is_rejected_by_hard_window():
+    ok,reasons=passes_hard_filters({
+      "title":"Senior Data Engineer","location":"United States","employment_type":"Full-Time",
+      "description":"Requires 8+ years of professional experience building Python SQL Spark data pipelines."
+    },PROFILE)
+    assert not ok
+    assert any("experience requirement" in reason.lower() and "8" in reason for reason in reasons)
