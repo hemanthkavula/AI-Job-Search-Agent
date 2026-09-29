@@ -114,10 +114,10 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
                 continue
             probe=_probe(url,timeout)
             if probe.get("status")=="ok":
-                coverage="DIRECT_PUBLIC_BOARD" if provider in DIRECT_PROVIDERS else "FALLBACK"
+                coverage="DIRECT_PUBLIC_BOARD" if provider in DIRECT_PROVIDERS else "GENERIC_PUBLIC_REACHABLE"
             else:
                 coverage="BLOCKED"
-            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage,collector_class=("direct_public_board" if provider in DIRECT_PROVIDERS else "fallback")))
+            rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage,collector_class=("direct_public_board" if provider in DIRECT_PROVIDERS else "generic_public_html")))
     # Surface provider families with no configured tenant instead of silently
     # omitting them from the health report. This separates collector support
     # from actual production coverage.
