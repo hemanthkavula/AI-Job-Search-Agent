@@ -45,3 +45,31 @@ def test_queue_rejects_missing_pdf_even_when_validation_says_passed(monkeypatch,
     monkeypatch.setattr(application_queue,"load_profile",lambda:{})
     monkeypatch.setattr(application_queue,"_application_gate",lambda row,profile:(True,[]))
     assert application_queue.build(str(manifest),str(output))==[]
+
+
+def test_queue_rechecks_persisted_openai_semantic_restriction(monkeypatch,tmp_path):
+    pdf=tmp_path/"resume.pdf";pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    rows=[{
+      "external_id":"lever:too-senior","source":"lever","company":"Example","title":"Senior Data Engineer",
+      "location":"United States","employment_type":"Full-time",
+      "description":"Basic qualifications: 10+ years of professional experience in data engineering.",
+      "url":"https://jobs.lever.co/example/too-senior","original_url":"https://jobs.lever.co/example/too-senior",
+      "next_action":"READY_TO_APPLY","pdf_path":str(pdf),"artifact_validation":{"passed":True},
+      "llm_job_analysis":{
+        "required_experience_years":10,
+        "required_experience_evidence":"10+ years of professional experience",
+        "employment_type":"full_time","employment_evidence":None,
+        "sponsorship":"unknown","sponsorship_evidence":None,
+        "us_citizenship_required":None,"citizenship_evidence":None,
+        "clearance_required":None,"clearance_evidence":None,
+        "role_family":"data_engineering","role_family_evidence":"data engineering"
+      }
+    }]
+    manifest=tmp_path/"manifest.json";output=tmp_path/"queue.json"
+    manifest.write_text(json.dumps(rows),encoding="utf-8")
+    monkeypatch.setattr(application_queue,"load_profile",lambda:{
+        "candidate_experience_years":5,
+        "preferences":{"min_required_years":4,"max_required_years":7}
+    })
+    monkeypatch.setattr(application_queue,"_application_gate",lambda row,profile:(True,[]))
+    assert application_queue.build(str(manifest),str(output))==[]
