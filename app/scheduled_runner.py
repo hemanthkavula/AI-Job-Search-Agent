@@ -160,12 +160,27 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             configured_workday.append(src);seen_workday.add(identity)
     unit_watermarks=state.get("source_unit_watermarks") or {}
     source_unit_hours={}
-    for src in configured_workday:
-        unit=src.get("company") or src.get("tenant")
-        if not unit:continue
-        key=f"workday:{unit}"
-        unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get("workday")) or cutoff
-        source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0
+    # Build exact windows for every configured/learned employer unit, not only
+    # Workday. Adapters that accept an hours window can consume these immediately;
+    # the persisted per-unit state also prevents one failed tenant from forcing
+    # successful siblings to replay an old provider-wide interval.
+    try:
+        learned_all=as_discovery_config(load_registry())
+    except Exception:
+        learned_all={}
+    unit_configs={}
+    for provider in ALL_ATS_PROVIDERS:
+        rows=list(source_config.get(provider,[]) or [])
+        rows.extend(list(learned_all.get(provider,[]) or []))
+        seen=set()
+        for src in rows:
+            unit=src.get("company") or src.get("tenant") or src.get("site") or src.get("board_token") or src.get("board_name") or src.get("company_identifier")
+            if not unit:continue
+            key=f"{provider}:{unit}"
+            if key in seen:continue
+            seen.add(key);unit_configs[key]=provider
+            unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get(provider)) or cutoff
+            source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
                       since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours,
                       source_unit_hours=source_unit_hours)
@@ -191,17 +206,18 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         if _status_value(status)=="OK":next_watermarks[provider]=now.isoformat()
     next_unit_watermarks=dict(unit_watermarks)
     unit_status=summary.get("source_unit_status") or {}
-    # Every Workday tenant supplied to discovery completed unless it appears in
-    # source_errors. Seed status for learned tenants too, because older reports
-    # only enumerated the static config subset.
-    failed_workday={e.get("company") for e in (summary.get("source_errors") or {}).get("workday",[]) if e.get("company")}
-    for src in configured_workday:
-        unit=src.get("company") or src.get("tenant")
-        if unit:
-            unit_status.setdefault(f"workday:{unit}","ERROR" if unit in failed_workday else "OK")
+    # Seed any configured unit missing from the discovery health report from
+    # explicit provider errors. Never assume an unreported unit succeeded.
+    source_errors=summary.get("source_errors") or {}
+    for key,provider in unit_configs.items():
+        unit=key.split(":",1)[1]
+        failed={e.get("company") for e in source_errors.get(provider,[]) if e.get("company")}
+        if unit in failed:
+            unit_status.setdefault(key,"ERROR")
     for key,status in unit_status.items():
+        provider=key.split(":",1)[0]
         if key not in next_unit_watermarks:
-            next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
+            next_unit_watermarks[key]=watermarks.get(provider) or source_cutoffs.get(provider,cutoff.isoformat())
         # New discovery reports carry rich per-unit status dictionaries while
         # legacy/test reports may still use bare strings. Normalize both forms
         # before advancing the tenant watermark.
