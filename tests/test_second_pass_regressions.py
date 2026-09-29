@@ -50,3 +50,24 @@ def test_career_site_valid_through_never_becomes_posting_freshness(monkeypatch):
     assert rows[0].get("updated_at") is None
     assert rows[0].get("posted_on") is None
     assert rows[0].get("valid_through") == "2099-12-31T23:59:59Z"
+
+
+def test_career_detail_link_preserves_structured_location_and_adjacent_de_title(monkeypatch):
+    search_html = '<html><a href="/jobs/DI-9">Open role</a></html>'
+    detail_html = """<html><script type="application/ld+json">{
+      "@type":"JobPosting",
+      "identifier":{"value":"DI-9"},
+      "title":"Data Infrastructure Engineer",
+      "description":"Build Spark data pipelines, ETL, Kafka and lakehouse infrastructure.",
+      "url":"https://careers.example.com/jobs/DI-9",
+      "datePosted":"2026-09-29",
+      "jobLocation":{"address":{"addressLocality":"Jersey City","addressRegion":"NJ","addressCountry":"US"}}
+    }</script></html>"""
+    def fake_get(url, *args, **kwargs):
+        return detail_html if url.endswith("/jobs/DI-9") else search_html
+    monkeypatch.setattr(career_site, "_get", fake_get)
+    rows = career_site.fetch_jobs("Example", "https://careers.example.com/search", r"/jobs/")
+    assert len(rows) == 1
+    assert "Jersey City" in rows[0]["location"]
+    assert rows[0]["updated_at"] == "2026-09-29"
+    assert rows[0]["posted_on"] == "2026-09-29"
