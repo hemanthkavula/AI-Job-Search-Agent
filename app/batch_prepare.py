@@ -186,7 +186,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
-                generated=generate_with_llm(job,profile,_audit_feedback(audit,audit_history),coverage_plan=coverage_plan)
+                generated=generate_with_llm(job,profile,_audit_feedback(audit,audit_history),coverage_plan=coverage_plan,mode=strategy)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 # The prior failed version is no longer needed once its audit feedback
                 # has been captured. Remove it before rendering the next temporary draft.
