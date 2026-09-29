@@ -81,7 +81,7 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
     """
     body=_get(search_url,timeout)
     out=[];seen=set()
-    terms=("data engineer","data engineering","data platform engineer","data infrastructure engineer","database engineer","data pipeline engineer","etl engineer","analytics engineer")
+    terms=("data engineer","data engineering","data platform","data infrastructure","data pipeline","data integration","data warehouse","lakehouse","big data","etl engineer","analytics engineer")
     for row in _embedded_opportunities(body):
         title=_plain(row.get("Title")); desc=_plain(row.get("BriefDescription"))
         if not any(x in (title+" "+desc[:2500]).lower() for x in terms): continue
@@ -100,7 +100,7 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
         title=_plain(j.get("title"))
         desc=_plain(j.get("description"))
         hay=(title+" "+desc[:2500]).lower()
-        if not any(x in hay for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","etl engineer","analytics engineer")):continue
+        if not any(x in hay for x in ("data engineer","data engineering","data platform","data infrastructure","data pipeline","data integration","data warehouse","lakehouse","big data","etl engineer","analytics engineer")):continue
         url=str(j.get("url") or search_url)
         ident=j.get("identifier") or url
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or url
