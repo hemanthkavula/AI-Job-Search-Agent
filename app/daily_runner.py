@@ -172,10 +172,25 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     missing_date_count=sum((j.get("freshness_rejection_reason")=="missing trustworthy posting timestamp") for j in stale)
     stale_date_count=sum((j.get("freshness_rejection_reason")=="outside requested posting window") for j in stale)
     diagnostics={
-        "fresh_jobs_checked":len(jobs24),"missing_or_unparseable_posting_date":missing_date_count,"stale_posting_date":stale_date_count,"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
-        "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],\n        "citizenship_required":reason_counts["citizenship_required"],"clearance_required":reason_counts["clearance_required"],\n        "outside_us":reason_counts["outside_us"],"non_target_employment_type":reason_counts["non_target_employment_type"],\n        "excluded_prior_employer":reason_counts["excluded_prior_employer"],
-        "duplicates_removed":len(duplicates),"outside_target_company":reason_counts["outside_target_company"],
-        "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
+        "fresh_jobs_checked":len(jobs24),
+        "missing_or_unparseable_posting_date":missing_date_count,
+        "stale_posting_date":stale_date_count,
+        "target_company_jobs":target_fresh,
+        "target_company_eligible":target_eligible,
+        "target_company_rejected":target_rejected,
+        "wrong_job_family":reason_counts["wrong_job_family"],
+        "experience_mismatch":reason_counts["experience_mismatch"],
+        "no_future_sponsorship":reason_counts["no_future_sponsorship"],
+        "citizenship_required":reason_counts["citizenship_required"],
+        "clearance_required":reason_counts["clearance_required"],
+        "outside_us":reason_counts["outside_us"],
+        "non_target_employment_type":reason_counts["non_target_employment_type"],
+        "excluded_prior_employer":reason_counts["excluded_prior_employer"],
+        "duplicates_removed":len(duplicates),
+        "outside_target_company":reason_counts["outside_target_company"],
+        "other_hard_filter":reason_counts["other_hard_filter"],
+        "already_processed_ledger":reason_counts["already_processed_ledger"],
+        "eligible_for_resume":len(eligible),
     }
     return {
         "discovered":len(jobs),"fresh_verified_within_hours":len(jobs24),"older_or_unverified":len(stale),"stale_posting_date":stale_date_count,"missing_or_unparseable_posting_date":missing_date_count,"already_processed":len(already),
