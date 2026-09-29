@@ -9,12 +9,21 @@ DEFAULT_LEDGER=Path("generated/job_ledger.json")
 def load_ledger(path=DEFAULT_LEDGER):
     p=Path(path)
     if not p.exists():return {"jobs":{}}
-    try:return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:return {"jobs":{}}
+    try:
+        data=json.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:
+        # An existing ledger is safety-critical dedup/application history.
+        # Treating corruption as an empty ledger can replay already-processed jobs.
+        raise RuntimeError(f"Job ledger is unreadable or corrupt: {p}") from exc
+    if not isinstance(data,dict) or not isinstance(data.get("jobs",{}),dict):
+        raise RuntimeError(f"Job ledger has invalid structure: {p}")
+    return data
 
 def save_ledger(ledger,path=DEFAULT_LEDGER):
     p=Path(path);p.parent.mkdir(parents=True,exist_ok=True)
-    p.write_text(json.dumps(ledger,indent=2),encoding="utf-8")
+    tmp=p.with_name(p.name+".tmp")
+    tmp.write_text(json.dumps(ledger,indent=2),encoding="utf-8")
+    tmp.replace(p)
 
 # Fields that must survive compaction because they can affect deduplication,
 # retries, application recovery, or the dashboard.
