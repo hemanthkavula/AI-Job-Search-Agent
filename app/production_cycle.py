@@ -41,7 +41,9 @@ def _retry_items_from_ledger(ledger_path):
 def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
-  job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
+  job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
+       "location":row.get("location"),"original_url":row.get("original_url"),"url":row.get("url"),
+       "requisition_id":row.get("requisition_id") or row.get("job_id") or row.get("ats_job_id")}
   extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id}
   status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="READY_TO_APPLY":
