@@ -53,3 +53,23 @@ def test_manifest_sync_preserves_authoritative_identity_fields(monkeypatch,tmp_p
     assert job["location"]=="Jersey City, NJ"
     assert job["original_url"]=="https://jobs.smartrecruiters.com/Example/123"
     assert job["requisition_id"]=="REQ-123"
+
+
+def test_ready_row_without_validation_is_held(monkeypatch,tmp_path):
+    pdf=tmp_path/"resume.pdf";pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    status,extra,_=_capture_sync(monkeypatch,tmp_path,{
+      "external_id":"x5","source":"lever","company":"Example","title":"Data Engineer",
+      "next_action":"READY_TO_APPLY","pdf_path":str(pdf)
+    })
+    assert status=="HOLD_ARTIFACT_VALIDATION"
+    assert extra.get("queue_item") is None
+
+
+def test_ready_row_with_missing_pdf_is_held(monkeypatch,tmp_path):
+    status,extra,_=_capture_sync(monkeypatch,tmp_path,{
+      "external_id":"x6","source":"lever","company":"Example","title":"Data Engineer",
+      "next_action":"READY_TO_APPLY","pdf_path":str(tmp_path/"missing.pdf"),
+      "artifact_validation":{"passed":True}
+    })
+    assert status=="HOLD_ARTIFACT_VALIDATION"
+    assert extra.get("queue_item") is None
