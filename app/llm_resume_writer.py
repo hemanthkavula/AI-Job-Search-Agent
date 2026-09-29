@@ -75,7 +75,9 @@ def _fixed_history_profile(profile):
         fixed["certifications"]=profile.get("certifications")
     return fixed
 
-def build_prompt(job,profile,audit_feedback=None,coverage_plan=None,mode="FULL"):\n    limited = str(mode).upper() == "LIMITED"\n    jd_extended=_jd_requested_extended(job.description)
+def build_prompt(job,profile,audit_feedback=None,coverage_plan=None,mode="FULL"):
+    limited = str(mode).upper() == "LIMITED"
+    jd_extended=_jd_requested_extended(job.description)
     prompt={
       "task":("Produce a conservative submission-ready resume using only the trustworthy requirements explicitly present in this PARTIAL JD. Do not infer missing requirements, technologies, responsibilities, architecture, or preferences. Treat pre_generation_coverage_plan.requirements as the complete evidence boundary for tailoring." if limited else "Produce the strongest submission-ready, human-readable resume for this complete JD. Treat pre_generation_coverage_plan.requirements as the authoritative checklist: naturally cover every requirement whose resume_action is include, and use exact JD terminology or a clear semantic equivalent while preserving fixed factual history."),
       "job":{"company":job.company,"title":job.title,"description":job.description},
