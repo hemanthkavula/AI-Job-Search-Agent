@@ -77,3 +77,23 @@ def test_dst_weekend_uses_friday_21_eastern_wall_clock():
     assert cutoff.hour==21
     assert cutoff.date().isoformat()=="2026-10-30"
     assert cutoff.utcoffset()!=now.replace(day=30,month=10,hour=21).utcoffset() or cutoff.hour==21
+
+
+def test_corrupt_scheduler_state_fails_closed(tmp_path, monkeypatch):
+    import pytest
+    from app import scheduled_runner
+    state=tmp_path/"scheduler_state.json"
+    state.write_text("{not-json",encoding="utf-8")
+    monkeypatch.setattr(scheduled_runner,"STATE_PATH",state)
+    with pytest.raises(RuntimeError,match="corrupt"):
+        scheduled_runner._load_state()
+
+
+def test_invalid_scheduler_state_structure_fails_closed(tmp_path, monkeypatch):
+    import pytest
+    from app import scheduled_runner
+    state=tmp_path/"scheduler_state.json"
+    state.write_text("[]",encoding="utf-8")
+    monkeypatch.setattr(scheduled_runner,"STATE_PATH",state)
+    with pytest.raises(RuntimeError,match="invalid structure"):
+        scheduled_runner._load_state()
