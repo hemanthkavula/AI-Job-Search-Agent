@@ -14,17 +14,6 @@ load_dotenv()
 
 MAX_RESUME_ATTEMPTS=3
 
-def _base_resume_payload(profile):
-    """Build the standard resume strictly from the candidate profile; no JD tailoring or LLM."""
-    return {
-        "summary": " ".join(profile.get("summary_source") or []),
-        "skills": profile.get("skill_categories") or {},
-        "experience": [
-            {"company": row.get("company"), "bullets": list(row.get("evidence") or [])}
-            for row in (profile.get("experience") or [])
-        ],
-    }
-
 def _discard_resume_artifact(resume_path):
     """Remove an unapproved resume and its job folder; failed candidates leave no DOCX/PDF artifacts."""
     if not resume_path:return
@@ -61,11 +50,6 @@ def _promote_approved_resume(draft_path):
     try:draft.parent.rmdir()
     except OSError:pass
     return str(final_path)
-
-def _render_base_resume(job,profile):
-    """Render the unchanged master/profile resume as an audit-only draft."""
-    return _render_draft(job,profile,_base_resume_payload(profile))
-
 
 def _audit_failure_summary(audit):
     failed=[k for k,v in audit.get("quality_gates",{}).items() if not v]
@@ -117,14 +101,6 @@ def _retryable_resume_error(exc):
     )
     return any(marker in text for marker in transient_markers)
 
-def _should_use_master_resume(raw,coverage_plan):
-    """Never submit legacy profile technical content as a fallback.
-
-    FINAL_JD_VERIFIED resumes are JD-tailored or held. A zero-target JD is not a
-    reason to resurrect old summary/skills/evidence from the candidate profile.
-    """
-    return False
-
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
     if company and company.lower() not in (raw.get("company_key") or raw.get("company") or "").lower():return False
@@ -162,9 +138,6 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
-            use_master_resume=_should_use_master_resume(raw,coverage_plan)
-            if use_master_resume:
-                raise RuntimeError("Legacy master-resume fallback is disabled; verified jobs must use JD-tailored content.")
             print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
             generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
             if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
