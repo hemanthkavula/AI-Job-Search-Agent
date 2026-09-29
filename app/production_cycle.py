@@ -134,7 +134,10 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "queued_for_application":queued_ready_count,
           "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
           "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),
-          "coverage":discovery.get("coverage",{})}
+          "coverage":discovery.get("coverage",{}),
+          "funnel":{"discovered":discovery.get("discovered",0),"fresh_verified":discovery.get("fresh_verified_within_hours",0),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"prepared":len(manifest),"artifact_ready":manifest_ready_count,"queued_ready":queued_ready_count},
+          "resume_strategy_counts":{"BASE":sum((x.get("resume_strategy") or "")=="BASE" for x in manifest),"LIMITED":sum((x.get("resume_strategy") or "")=="LIMITED" for x in manifest),"FULL":sum((x.get("resume_strategy") or "")=="FULL" for x in manifest)},
+          "unique_employers_ready":len({(x.get("company") or "").strip().lower() for x in manifest if x.get("next_action")=="READY_TO_APPLY" and (x.get("company") or "").strip()})}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
