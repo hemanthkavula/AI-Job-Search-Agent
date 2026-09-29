@@ -48,7 +48,9 @@ def _load_state():
 
 def _save_state(state):
     STATE_PATH.parent.mkdir(parents=True,exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state,indent=2),encoding="utf-8")
+    tmp=STATE_PATH.with_name(STATE_PATH.name+".tmp")
+    tmp.write_text(json.dumps(state,indent=2),encoding="utf-8")
+    tmp.replace(STATE_PATH)
 
 def _parse_state_time(value):
     if not value:return None
