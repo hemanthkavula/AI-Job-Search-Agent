@@ -84,15 +84,13 @@ def experience_check(job: dict, profile: dict) -> dict:
     full=f"{job.get('title','')} {job.get('description','')}"
     rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
-    min_req=profile.get("preferences",{}).get("min_required_years",4)
+    min_req=profile.get("preferences",{}).get("min_required_years",3)
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    # User policy is a hard posting-requirement window: only explicit minimum
-    # requirements from min_req through max_req are eligible. A 1+/2+ posting is
-    # intentionally rejected even though the candidate could satisfy it; an 8+
-    # posting is too senior. Unstated experience remains eligible for later
-    # official-JD/semantic verification rather than being guessed.
+    # User policy is a hard posting-requirement window: explicit minimums below
+    # min_req are too junior and requirements above max_req are too senior.
+    # Unstated experience remains eligible for official-JD/semantic verification.
     eligible=min_req <= req <= max_req
     category="EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR")
     return {
