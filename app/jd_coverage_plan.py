@@ -66,8 +66,13 @@ def _classify(term,description):
     return "material"
 
 def build_coverage_plan(job,profile):
-    """Build a deterministic JD-first keyword coverage plan before any paid LLM call."""
-    raw=list(dict.fromkeys(jd_keywords(job.description,profile)+inferable_terms(job.description)+jd_skill_terms(job.description)))
+    """Build a deterministic JD-only coverage plan before any paid LLM call.
+
+    The candidate profile is accepted for API compatibility, but technical targets
+    must come only from the current job description. Employment history is a factual
+    rendering constraint, never a source of keywords for a new tailored resume.
+    """
+    raw=list(dict.fromkeys(jd_keywords(job.description,{})+inferable_terms(job.description)+jd_skill_terms(job.description)))
     targets=[]
     for term in raw:
         term=_canonical(term)
