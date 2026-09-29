@@ -5,7 +5,7 @@ from app.sources.career_site import fetch_jobs as _generic, _get, _plain, _jsonl
 
 DE_TERMS=("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer","data & analytics engineer")
 
-def _rippling(company: str, search_url: str) -> list[dict]:
+\nJOB_DETAIL_PATTERNS={\n    "bamboohr":r"/careers/(?:\\d+|[^/?#]+)",\n    "recruitee":r"/o/[^/?#]+",\n    "teamtailor":r"/jobs/\\d+[^/?#]*",\n    "breezyhr":r"/p/[^/?#]+",\n    "pinpoint":r"/(?:postings|jobs)/[^/?#]+",\n    "careerplug":r"/jobs/\\d+",\n    "freshteam":r"/jobs/[^/?#]+",\n    "jobscore":r"/jobs?/[^/?#]+",\n    "personio":r"/job/(?:\\d+|[^/?#]+)",\n    "comeet":r"/jobs/[^/?#]+/[^/?#]+",\n    "applicantpro":r"/jobs/\\d+",\n    "hirebridge":r"JobDetails\\.aspx.*(?:jid|jobid)=",\n    "join":r"/companies/[^/?#]+/jobs/[^/?#]+",\n    "hireology":r"/jobs/\\d+",\n    "paycor":r"JobIntroduction\\.action.*(?:jobId|jobid)=",\n    "peopleadmin":r"/postings/\\d+",\n    "pageup":r"/cw/(?:en-us/)?job/\\d+",\n    "applicantstack":r"/x/detail/[^/?#]+",\n    "taleo":r"/jobdetail\\.ftl.*(?:job|jobid)=",\n    "paycom":r"web\\.php/jobs/ViewJobDetails.*(?:job|jobid)=",\n    "saashr":r"/ta/[^/?#]+\\.careers.*jobid=",\n    "njoyn":r"(?:clid|jobid)=",\n    "recruitcrm":r"/jobs?/[^/?#]+",\n}\n\ndef _job_pattern(provider: str, configured: str) -> str:\n    """Return a job-detail regex instead of crawling every navigation link."""\n    if configured and configured not in {r".+", ".+"}:\n        return configured\n    return JOB_DETAIL_PATTERNS.get(provider, r"(?:/jobs?|/positions?|/postings?|/openings?)/[^/?#]+")\n\ndef _rippling(company: str, search_url: str) -> list[dict]:
     """Crawl a Rippling employer board by tenant, then resolve matching job details.
 
     Rippling boards expose ordinary /<tenant>/jobs/<uuid> links in the public board
@@ -54,7 +54,7 @@ def fetch_jobs(company: str, search_url: str, provider: str, job_url_pattern: st
     if provider=="rippling" and "ats.rippling.com/" in (search_url or "").lower():
         rows=_rippling(company,search_url)
     else:
-        rows=_generic(company,search_url,job_url_pattern)
+        rows=_generic(company,search_url,_job_pattern(provider,job_url_pattern))
     for row in rows:
         row["source"]=provider
         row["source_family"]="direct_ats_public_board"
