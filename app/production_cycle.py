@@ -112,6 +112,12 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  manifest_ready_count=sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest)
  queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
  summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
+          "fresh_verified_within_hours":discovery.get("fresh_verified_within_hours",0),
+          "stale_posting_date":discovery.get("stale_posting_date",0),
+          "missing_or_unparseable_posting_date":discovery.get("missing_or_unparseable_posting_date",0),
+          "already_processed":discovery.get("already_processed",0),
+          "filtered_out":discovery.get("filtered_out",0),
+          "filter_reason_counts":discovery.get("filter_reason_counts",{}),
           "preliminary_eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
