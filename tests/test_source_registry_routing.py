@@ -28,7 +28,7 @@ CASES=[
 ("https://jobs.deel.com/acme/123","deel"),
 ("https://jobs.ceipal.com/acme/123","ceipal"),
 ("https://apply.talentreef.com/acme/jobs/123","talentreef"),
-("https://jobs.myworkchoice.com/acme/123","myworkchoice"),
+("https://jobs.myworkchoice.com/acme/123","myworkchoice"),\n("https://secure7.saashr.com/ta/6148957.careers?ShowJob=638026758&lang=en-US","saashr"),\n("https://cgi.njoyn.com/corp/xweb/xweb.asp?clid=21001&page=jobdetails&jobid=J0926-1634","njoyn"),\n("https://recruitcrm.io/apply/17906227606230064013FlD","recruitcrm"),\n("https://www.paycomonline.net/v4/ats/web.php/portal/3223DB71F7BE5AF066B37A016B13E1C1/jobs/102716","paycom"),\n("https://recruit.hirebridge.com/v3/Jobs/JobDetails.aspx?cid=6875&jid=609468","hirebridge"),
 ]
 
 def test_detect_promoted_public_ats_variants():
@@ -82,3 +82,4 @@ def test_taleo_detail_url_becomes_career_section_search():
     reusable=_reusable_search_url("taleo",url)
     assert reusable=="https://cognizant.taleo.net/careersection/lateral/search.ftl?lang=en"
     assert "00070744381" not in reusable
+\n\ndef test_paycor_detail_becomes_reusable_client_board():\n    url="https://recruitingbypaycor.com/career/JobIntroduction.action?clientId=abc&id=job123&source=&lang=en"\n    reusable=_reusable_search_url("paycor",url)\n    assert "clientId=abc" in reusable\n    assert "lang=en" in reusable\n    assert "id=" not in reusable\n
