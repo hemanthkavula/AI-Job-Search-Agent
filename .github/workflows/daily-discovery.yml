@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: production-job-cycle
-  cancel-in-progress: false
+  # Fresh scheduled discovery must not queue behind a stale/hung cycle.\n  # Interrupted source units retain their previous successful watermark and\n  # are caught up by the replacement cycle.\n  cancel-in-progress: true
 
 permissions:
   contents: read
