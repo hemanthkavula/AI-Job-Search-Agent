@@ -49,3 +49,44 @@ def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_p
     result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
     assert result["finalized"]==1
     assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_after_official_ats_resolution"
+
+
+def test_partial_but_usable_jd_is_held_before_resume_generation(monkeypatch,tmp_path):
+    report=tmp_path/"partial.json"; output=tmp_path/"partial_out.json"
+    job={
+        "external_id":"greenhouse:partial","source":"greenhouse","company_key":"Example Co",
+        "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+        "original_url":"https://boards.greenhouse.io/example/jobs/partial",
+        "description":"Responsibilities: build Python SQL Spark pipelines. Requirements: 5+ years data engineering.",
+        "description_usable":True,"description_complete":False,"description_length":91,"jd_signal_score":3,
+    }
+    report.write_text(json.dumps({"results":[{"action":"ELIGIBLE_FOR_RESUME","job":job}]}),encoding="utf-8")
+    monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
+    monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
+    monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
+    result=jd_finalizer.finalize_report(str(report),str(output))
+    assert result["finalized"]==0
+    assert result["held"][0]["action"]=="HOLD_COMPLETE_JD_REQUIRED"
+    assert result["held"][0]["job"].get("tailoring_mode")!="FULL_JD"
+
+
+def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_path):
+    report=tmp_path/"complete.json"; output=tmp_path/"complete_out.json"
+    description="Responsibilities: build Python SQL Spark pipelines. Requirements: 5+ years data engineering. Qualifications: cloud data platforms. "+("data engineering pipelines warehouse orchestration. "*35)
+    job={
+        "external_id":"greenhouse:complete","source":"greenhouse","company_key":"Example Co",
+        "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+        "original_url":"https://boards.greenhouse.io/example/jobs/complete",
+        "description":description,"description_usable":True,"description_complete":True,
+        "description_length":len(description),"jd_signal_score":3,
+    }
+    report.write_text(json.dumps({"results":[{"action":"ELIGIBLE_FOR_RESUME","job":job}]}),encoding="utf-8")
+    monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
+    monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
+    monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
+    monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
+    monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    result=jd_finalizer.finalize_report(str(report),str(output))
+    assert result["finalized"]==1
+    assert result["results"][0]["action"]=="FINAL_JD_VERIFIED"
+    assert result["results"][0]["job"]["tailoring_mode"]=="FULL_JD"
