@@ -18,6 +18,7 @@ def test_verified_long_tail_ats_is_finalized_for_external_handoff(monkeypatch,tm
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
     monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    monkeypatch.setattr(jd_finalizer,"analyze_job_with_llm",lambda j:None)
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     raw=result["results"][0]["job"]
@@ -64,6 +65,9 @@ def test_partial_but_usable_jd_is_finalized_for_limited_resume(monkeypatch,tmp_p
     monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
     monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
+    monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
+    monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    monkeypatch.setattr(jd_finalizer,"analyze_job_with_llm",lambda j:None)
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     assert result["results"][0]["job"]["resume_strategy"]=="LIMITED"
