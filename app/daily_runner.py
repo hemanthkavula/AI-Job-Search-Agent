@@ -173,7 +173,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     stale_date_count=sum((j.get("freshness_rejection_reason")=="outside requested posting window") for j in stale)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"missing_or_unparseable_posting_date":missing_date_count,"stale_posting_date":stale_date_count,"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
-        "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
+        "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],\n        "citizenship_required":reason_counts["citizenship_required"],"clearance_required":reason_counts["clearance_required"],\n        "outside_us":reason_counts["outside_us"],"non_target_employment_type":reason_counts["non_target_employment_type"],\n        "excluded_prior_employer":reason_counts["excluded_prior_employer"],
         "duplicates_removed":len(duplicates),"outside_target_company":reason_counts["outside_target_company"],
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
@@ -186,7 +186,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
 
 def _print_diagnostics(d,hours):
     print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
-    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Stale posting date","stale_posting_date"),("Missing/unparseable posting date","missing_or_unparseable_posting_date"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
+    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Stale posting date","stale_posting_date"),("Missing/unparseable posting date","missing_or_unparseable_posting_date"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Citizenship required","citizenship_required"),("Clearance required","clearance_required"),("Outside United States","outside_us"),("Non-target employment type","non_target_employment_type"),("Excluded prior employer","excluded_prior_employer"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):
