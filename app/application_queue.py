@@ -6,6 +6,7 @@ from app.config import load_profile
 from app.filters import passes_hard_filters
 from app.job_identity import identity_keys
 from app.job_ledger import load_ledger, _lookup
+from app.llm_job_analyzer import semantic_rejection_reasons
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -87,6 +88,12 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
             continue
+        # Re-evaluate persisted semantic evidence at the final queue boundary.
+        # This prevents a recovered/stale manifest from bypassing a restriction
+        # that the official-JD OpenAI verifier already established.
+        semantic_reasons=semantic_rejection_reasons(r.get("llm_job_analysis"),profile)
+        if semantic_reasons:
+            continue
         # A direct official ATS job may retain its original discovery location when
         # the official page exposes no structured location. But whenever finalization
         # extracted an official location, require the manifest value to be exactly
@@ -100,7 +107,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
-          "location":r.get("location"),"official_location":r.get("official_location"),"location_basis":r.get("location_basis"),"employment_type":r.get("employment_type"),"description":r.get("description"),
+          "location":r.get("location"),"official_location":r.get("official_location"),"location_basis":r.get("location_basis"),"employment_type":r.get("employment_type"),"description":r.get("description"),"llm_job_analysis":r.get("llm_job_analysis"),
           "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
