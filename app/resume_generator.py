@@ -43,15 +43,13 @@ def concise_target_title(title):
     value=re.sub(r"\s*\((?:[^)]*(?:AWS|Azure|GCP|Databricks|Snowflake|Spark|Python|SQL|ETL|ELT)[^)]*)\)\s*$","",value,flags=re.I).strip()
     return value or "Senior Data Engineer"
 
-def all_verified(profile):
-    out=[]
-    for xs in profile.get("skill_categories",{}).values():out.extend(xs)
-    return list(dict.fromkeys(out))
-def jd_keywords(jd,profile):
+def jd_keywords(jd,profile=None):
+    """Return resume keywords from the current JD only; profile is compatibility-only."""
     low=(jd or "").lower();out=[]
-    for s in all_verified(profile):
-        if any(v in low for v in ALIASES.get(s,[s.lower()])):out.append(s)
-    return out
+    for canonical,variants in ALIASES.items():
+        candidates=tuple(variants or ())+(canonical.lower(),)
+        if any(v.lower() in low for v in candidates):out.append(canonical)
+    return list(dict.fromkeys(out))
 
 def jd_skill_terms(jd):
     """Extract ATS-friendly technologies and material DE/application-integration concepts directly from the complete JD."""
