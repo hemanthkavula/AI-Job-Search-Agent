@@ -72,3 +72,20 @@ def test_base_strategy_rejects_wrong_master_hash(monkeypatch,tmp_path):
     rows=batch_prepare.prepare(str(report),str(out))
     assert rows[0]["next_action"]=="HOLD_RESUME_ERROR"
     assert "SHA-256 mismatch" in rows[0]["ats_audit"]["error"]
+
+
+def test_base_strategy_is_idempotent_for_same_job(monkeypatch,tmp_path):
+    master=tmp_path/"master.pdf"; master.write_bytes(b"%PDF-1.4 exact-master-bytes")
+    monkeypatch.setattr(batch_prepare,"MASTER_RESUME_PATH",str(master))
+    import hashlib
+    monkeypatch.setattr(batch_prepare,"MASTER_RESUME_SHA256",hashlib.sha256(master.read_bytes()).hexdigest())
+    monkeypatch.setattr(batch_prepare,"FINAL_RESUME_DIR",str(tmp_path/"resumes"))
+    monkeypatch.setattr(batch_prepare,"load_profile",lambda:{})
+    raw={"external_id":"greenhouse:base-repeat","source":"greenhouse","company_key":"Example Co","title":"Data Engineer","location":"United States","employment_type":"Full-Time","url":"https://example.test/jobs/base-repeat","original_url":"https://example.test/jobs/base-repeat","ats_provider":"greenhouse","application_route":"EXTERNAL_ATS","tailoring_mode":"BASE_RESUME","resume_strategy":"BASE","description":"Join our team.","description_usable":False,"description_complete":False}
+    report=tmp_path/"repeat.json"; out=tmp_path/"manifest.json"
+    report.write_text(json.dumps({"results":[{"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":{"experience":{},"sponsorship":{}}}]}),encoding="utf-8")
+    first=batch_prepare.prepare(str(report),str(out)); second=batch_prepare.prepare(str(report),str(out))
+    assert first[0]["next_action"]=="READY_TO_APPLY"
+    assert second[0]["next_action"]=="READY_TO_APPLY"
+    assert first[0]["pdf_path"]==second[0]["pdf_path"]
+    assert open(second[0]["pdf_path"],"rb").read()==master.read_bytes()
