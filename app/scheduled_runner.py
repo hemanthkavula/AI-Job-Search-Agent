@@ -174,8 +174,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # success timestamp on the next run.
     next_watermarks={provider:source_cutoffs[provider] for provider in providers}
     next_watermarks.update(watermarks)
+    def _status_value(status):
+        return status.get("status") if isinstance(status,dict) else status
+
     for provider,status in source_status.items():
-        if status=="OK":next_watermarks[provider]=now.isoformat()
+        if _status_value(status)=="OK":next_watermarks[provider]=now.isoformat()
     next_unit_watermarks=dict(unit_watermarks)
     unit_status=summary.get("source_unit_status") or {}
     # Every Workday tenant supplied to discovery completed unless it appears in
@@ -203,9 +206,9 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     # If the whole Workday provider failed, keep its prior provider-level watermark.
     # Tenant watermarks may still exist from earlier successful runs, but they must
     # not make a failed provider appear to have advanced.
-    if source_status.get("workday")!="ERROR" and workday_values:
+    if _status_value(source_status.get("workday"))!="ERROR" and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
-    failed_providers=sorted(provider for provider,status in source_status.items() if status=="ERROR")
+    failed_providers=sorted(provider for provider,status in source_status.items() if _status_value(status)=="ERROR")
     state_update={"last_run_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
                   "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
                   "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
