@@ -44,8 +44,8 @@ def audit(summary_path:str)->dict:
                     failures.append(f"official location provenance mismatch for {eid}")
                 resume=row.get("resume_path")
                 if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): failures.append(f"validated PDF missing for {eid}")
-                validation=row.get("artifact_validation")
-                if validation and not validation.get("passed"): failures.append(f"artifact validation failed for {eid}")
+                validation=row.get("artifact_validation") or {}
+                if validation.get("passed") is not True: failures.append(f"artifact validation missing or failed for {eid}")
     result={"passed":not failures,"cycle_id":summary.get("cycle_id"),"ready_to_apply":ready,"failures":failures}
     out=p.with_name(p.stem+"_acceptance.json")
     out.write_text(json.dumps(result,indent=2),encoding="utf-8")
