@@ -60,3 +60,35 @@ def test_source_window_uses_provider_watermark(monkeypatch, tmp_path):
         assert captured["source_hours"]["workday"] > captured["source_hours"]["dice"]
     finally:
         scheduled_runner.STATE_PATH = old_state
+
+
+def test_structured_provider_status_advances_and_reports_failures(monkeypatch, tmp_path):
+    old_state = scheduled_runner.STATE_PATH
+    scheduled_runner.STATE_PATH = tmp_path / "state.json"
+    try:
+        now = datetime(2026, 9, 21, 10, 0, tzinfo=scheduled_runner.ET)
+        prior = datetime(2026, 9, 21, 9, 0, tzinfo=scheduled_runner.ET)
+        scheduled_runner._save_state({
+            "last_successful_scan_at": prior.isoformat(),
+            "source_watermarks": {"dice": prior.isoformat(), "ziprecruiter": prior.isoformat()},
+        })
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now
+        monkeypatch.setattr(scheduled_runner, "datetime", Clock)
+        monkeypatch.setattr(scheduled_runner, "run_cycle", lambda **kwargs: {
+            "cycle_id": "structured-status", "source_status": {
+                "dice": {"status": "OK", "jobs": 5},
+                "ziprecruiter": {"status": "ERROR", "error": "upstream"},
+            },
+        })
+
+        result = scheduled_runner.run_scheduled(generate_resumes=False, force=True)
+
+        assert result["source_watermarks"]["dice"] == now.isoformat()
+        assert result["source_watermarks"]["ziprecruiter"] == prior.isoformat()
+        assert result["failed_providers"] == ["ziprecruiter"]
+        assert result["cycle_status"] == "PARTIAL"
+    finally:
+        scheduled_runner.STATE_PATH = old_state
