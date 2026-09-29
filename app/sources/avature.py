@@ -69,5 +69,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "title":title,"location":_location(j),"url":url,"original_url":url,
           "ats_provider":"avature","ats_identifier":tenant,"job_id":ident,
           "description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return out
