@@ -6,7 +6,7 @@ from urllib.request import Request, urlopen
 from urllib.parse import quote
 from urllib.error import HTTPError, URLError
 from app.sources.career_site import validate_source as validate_career_site
-from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS
+from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS, NATIVE_ATS_PROVIDERS, GENERIC_PUBLIC_ATS_PROVIDERS
 from app.source_registry import load_registry, as_discovery_config
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -139,7 +139,7 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     for r in rows:
         k=r.get("coverage_status") or ("DIRECT" if (r.get("effective_status") or r.get("status"))=="ok" else "UNKNOWN")
         coverage_counts[k]=coverage_counts.get(k,0)+1
-    return {"counts":counts,"coverage_counts":coverage_counts,"provider_classes":{"direct":list(DIRECT_PROVIDERS),"fallback":list(FALLBACK_ATS_PROVIDERS)},"sources":rows}
+    return {"counts":counts,"coverage_counts":coverage_counts,"provider_classes":{"native":list(NATIVE_ATS_PROVIDERS),"generic_public":list(GENERIC_PUBLIC_ATS_PROVIDERS),"direct":list(DIRECT_PROVIDERS),"fallback":list(FALLBACK_ATS_PROVIDERS)},"sources":rows}
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
