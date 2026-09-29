@@ -111,7 +111,14 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  # count. Preliminary filter matches remain available in the eligible report,
  # but are not presented as "eligible" until JD/live-route verification,
  # resume generation, and artifact validation have all succeeded.
- manifest_ready_count=sum(\n  x.get("next_action")=="READY_TO_APPLY"\n  and bool(x.get("pdf_path"))\n  and Path(x.get("pdf_path")).suffix.lower()==".pdf"\n  and Path(x.get("pdf_path")).is_file()\n  and (x.get("artifact_validation") or {}).get("passed") is True\n  for x in manifest\n )
+ manifest_ready_count=sum(
+  x.get("next_action")=="READY_TO_APPLY"
+  and bool(x.get("pdf_path"))
+  and Path(x.get("pdf_path")).suffix.lower()==".pdf"
+  and Path(x.get("pdf_path")).is_file()
+  and (x.get("artifact_validation") or {}).get("passed") is True
+  for x in manifest
+ )
  queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
  summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
           "fresh_verified_within_hours":discovery.get("fresh_verified_within_hours",0),
