@@ -21,7 +21,8 @@ def process_job(raw: dict,min_score: int=65) -> dict:
       title=raw.get("title") or "",description=raw.get("description") or "",
       location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
     analysis=analyze_job(job,profile)
-    if analysis["score"]<min_score:
-        return {"status":"LOW_SCORE","analysis":analysis,"eligibility":eligibility}
+    # Legacy profile-skill scoring is informational only. A job that passes the
+    # governing hard filters must not be suppressed before the canonical production
+    # pipeline performs official-JD and semantic eligibility verification.
     return {"status":"REQUIRES_PRODUCTION_PIPELINE","analysis":analysis,"eligibility":eligibility,
       "job_url":job.url,"reason":"Official ATS, freshness, final-JD, resume-audit and artifact gates are required before readiness."}
