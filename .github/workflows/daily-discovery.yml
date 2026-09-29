@@ -121,6 +121,8 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          JOB_ANALYSIS_LLM_ENABLED: "true"
+          JOB_ANALYSIS_LLM_MODEL: gpt-5.6-luna
           RESUME_LLM_MODEL: gpt-5.6
         run: |
           FORCE_ARG=""
