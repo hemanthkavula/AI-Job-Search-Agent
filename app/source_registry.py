@@ -246,6 +246,10 @@ def _reusable_search_url(provider,url):
   return f"{p.scheme}://{host}{path}"+(("?"+urlencode(keep)) if keep else "")
  if provider=="paylocity" and len(parts)>=2:
   return f"{p.scheme}://{host}/Recruiting/Jobs/"
+ if provider=="paycor":
+  from urllib.parse import parse_qs,urlencode
+  q=parse_qs(p.query);keep={k:q[k][0] for k in ("clientId","lang") if q.get(k)}
+  return f"{p.scheme}://{host}/career/JobIntroduction.action"+(("?"+urlencode(keep)) if keep else "")
  if provider=="teamtailor":return f"{p.scheme}://{host}/jobs"
  if provider=="recruitee":return f"{p.scheme}://{host}/"
  if provider=="bamboohr":return f"{p.scheme}://{host}/careers"
