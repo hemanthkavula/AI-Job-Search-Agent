@@ -27,8 +27,8 @@ def test_workday_tenant_watermarks_advance_independently(monkeypatch, tmp_path):
     monkeypatch.setattr(scheduled_runner, "_save_state", lambda value: saved.update(value))
 
     def fake_cycle(**kwargs):
-        assert kwargs["source_unit_hours"]["workday:Adobe"] > 1
-        assert kwargs["source_unit_hours"]["workday:Workday"] > 1
+        assert kwargs["source_unit_hours"]["workday:Adobe"] == 1.0
+        assert kwargs["source_unit_hours"]["workday:Workday"] == 1.0
         return {
             "cycle_id": "tenant-watermark-test",
             "application_queue": None,
