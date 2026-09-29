@@ -282,3 +282,14 @@ def test_explicit_no_future_sponsorship_still_rejected_after_positive_language_f
     },PROFILE)
     assert not ok
     assert any("sponsorship" in reason.lower() for reason in reasons)
+
+
+def test_sponsorship_silence_does_not_reject_eligible_job():
+    ok,reasons=passes_hard_filters({
+      "title":"Senior Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Design and build Python, SQL, Spark, Kafka and cloud data pipelines. Requires 5+ years of data engineering experience."
+    },PROFILE)
+    assert ok, reasons
+    assert not any("sponsorship" in reason.lower() for reason in reasons)
