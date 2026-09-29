@@ -214,65 +214,14 @@ def _format_experience_bullet(p):
     p.paragraph_format.left_indent=Inches(.16)
     p.paragraph_format.first_line_indent=Inches(-.10)
     p.paragraph_format.keep_together=True
-def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
-    keys=jd_keywords(job.description,profile); inferred=inferable_terms(job.description); doc=Document();s=doc.sections[0]
-    s.top_margin=Inches(.45);s.bottom_margin=Inches(.45);s.left_margin=Inches(.55);s.right_margin=Inches(.55)
-    doc.styles["Normal"].font.name="Arial";doc.styles["Normal"].font.size=Pt(9.3)
-    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(profile["name"]);r.bold=True;r.font.size=Pt(15)
-    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;r=p.add_run(concise_target_title(job.title or profile.get("headline","Senior Data Engineer")) );r.bold=True;r.font.size=Pt(10.5)
-    c=profile.get("contact",{});p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;p.add_run(" | ".join(x for x in [c.get("phone"),c.get("email"),c.get("linkedin")] if x))
-    _h(doc,"PROFESSIONAL SUMMARY")
-    focus=", ".join((keys+inferred)[:7]) or "Python, SQL, PySpark, Apache Spark, cloud data engineering"
-    doc.add_paragraph(f"Senior Data Engineer with 5+ years of experience building scalable batch and real-time data platforms across financial services, healthcare, and retail. Experienced in {focus}, with a strong background in cloud data lakes, warehouses, streaming pipelines, dimensional modeling, data quality, lineage, and production reliability. Proven ability to deliver analytics-ready data products and optimize distributed data workloads for performance and scale.")
-    _h(doc,"TECHNICAL SKILLS")
-    jd_skills=jd_skill_terms(job.description)
-    # Technical skills are sourced only from the current JD; the profile supplies
-    # immutable identity/history elsewhere, never reusable technical content.
-    base=[]
-    # Include both literal JD technologies and supported/inferable ATS concepts.
-    # This ensures exact phrases such as Batch Processing, Real-Time Data Processing
-    # and Data Lineage are present naturally in Technical Skills when relevant.
-    verified=set(base)
-    safe_jd=[x for x in jd_skills if x in verified]
-    skills=list(dict.fromkeys(safe_jd+keys+inferred+base))
-    groups={
-      "Programming Languages":["Python","SQL","Scala","Java","Go","Rust"],
-      "Data Engineering & Processing":["PySpark","Apache Spark","Apache Kafka","Apache Flink","Databricks","Batch Processing","Real-Time Data Processing","ETL","ELT","ETL/ELT"],
-      "Workflow Orchestration":["Dagster","Airflow","Apache Airflow","dbt","Fivetran","Airbyte"],
-      "Cloud & Data Platforms":["Snowflake","BigQuery","GCP","Delta Lake","Apache Iceberg","Hudi"],
-      "AWS Services":["AWS Glue","Amazon S3","Amazon EMR","Amazon Redshift","AWS Lambda","AWS Kinesis"],
-      "Azure Services":["Azure Data Factory","Azure Synapse","Azure Synapse Analytics","ADLS Gen2","Azure Event Hubs","Event Hub"],
-      "Infrastructure & DevOps":["Kubernetes","Docker","Terraform","Jenkins","GitHub Actions","CI/CD","CI/CD Best Practices","Git"],
-      "Data Quality & Governance":["Great Expectations","Data Quality","Data Lineage","Data Governance","AWS Glue Data Catalog","Azure Purview"],
-      "Databases":["PostgreSQL","MySQL","MongoDB","Oracle","SQL Server","DynamoDB"],
-      "Data Modeling":["Dimensional Modeling","Star Schema","Snowflake Schema","Slowly Changing Dimensions"]
-    }
-    used=set()
-    for label,wanted in groups.items():
-        vals=[x for x in wanted if x in skills and x not in used]
-        if vals:
-            used.update(vals);p=doc.add_paragraph();r=p.add_run(label+": ");r.bold=True;p.add_run(", ".join(vals))
-    _h(doc,"PROFESSIONAL EXPERIENCE")
-    for exp in profile["experience"]:
-        company_p=doc.add_paragraph();r=company_p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=company_p.add_run(f"    {exp['dates']}");r.bold=True
-        title_p=doc.add_paragraph();r=title_p.add_run(exp["title"]);r.bold=True
-        environment_p=doc.add_paragraph();r=environment_p.add_run("Environment: ");r.bold=True;environment_p.add_run(exp.get("environment",""))
-        limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
-        ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
-        first_bullet=None
-        for line in ranked:
-            p=doc.add_paragraph(style="List Bullet");_format_experience_bullet(p);p.add_run(line.strip())
-            if first_bullet is None:first_bullet=p
-        _keep_employer_block_together(company_p,title_p,first_bullet,environment_p)
-    _h(doc,"EDUCATION")
-    for e in profile["education"]:
-        p=doc.add_paragraph();r=p.add_run(e["degree"]);r.bold=True;doc.add_paragraph(f"{e['school']} | {e['location']}    {e['start']} – {e['end']}")
-    root=ROOT/output_dir;root.mkdir(parents=True,exist_ok=True);pattern=profile.get("output",{}).get("resume_filename_pattern","Hemanth_Kavula_{Company}_{JobTitle}")
-    stem=pattern.replace("{Company}",safe_name(clean_company_name(job.company))).replace("{JobTitle}",safe_name(job.title))
-    timestamp=datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d_%H%M%S")
-    job_dir=root/f"{safe_name(job.company)}_{safe_name(job.title)}_{timestamp}";job_dir.mkdir(parents=True,exist_ok=True)
-    path=job_dir/f"{stem}.docx";doc.save(path)
-    return str(path)
+def generate_resume(*args,**kwargs):
+    """Disabled legacy tailoring path.
+
+    Production tailoring must flow through the evidence-bounded LLM payload and
+    render_llm_resume(); profile experience evidence is fixed factual history,
+    not a reusable source of technical resume content.
+    """
+    raise RuntimeError("Legacy generate_resume is disabled; use evidence-bounded render_llm_resume via batch_prepare.")
 
 
 def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
