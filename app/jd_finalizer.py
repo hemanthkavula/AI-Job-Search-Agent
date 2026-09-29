@@ -426,6 +426,14 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if not final_location_verified:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reason":"location outside United States target or U.S. geography unverified at official finalization","reasons":["location outside United States target or U.S. geography unverified at official finalization"],"diagnostics":{"official_location":raw.get("official_location"),"discovery_location":raw.get("discovery_location") or raw.get("location"),"location_basis":raw.get("location_basis"),"url":application_url}})
             continue
+        # Discovery may defer missing employment metadata, but Ready-to-Apply may not.
+        # Require explicit full-time/permanent/W-2 evidence from official ATS metadata
+        # or the verified employer JD before resume generation.
+        employment_text=(str(raw.get("employment_type") or "")+" "+str(raw.get("description") or "")).lower()
+        target_employment_evidence=bool(re.search(r"\b(?:full[- ]?time|permanent(?:\s+(?:employee|position))?|regular\s+employee|w-?2)\b",employment_text,re.I))
+        if not target_employment_evidence:
+            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_EMPLOYMENT_TYPE_UNVERIFIED","reason":"Official ATS/JD does not explicitly verify Full-Time, permanent employee, or W-2 employment.","diagnostics":{"employment_type":raw.get("employment_type"),"url":application_url}})
+            continue
         ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
