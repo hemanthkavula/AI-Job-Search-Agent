@@ -44,7 +44,9 @@ def test_early_failure_on_second_job_never_deletes_first_jobs_resume(monkeypatch
     first_pdf = tmp_path / "approved-first.pdf"
     first_docx.write_bytes(b"docx")
     first_pdf.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr(batch_prepare, "generate_with_llm", lambda job, profile, audit_feedback=None, coverage_plan=None: {"summary":"x","skills":{"Languages":["Python"]},"experience":[]})\n    monkeypatch.setattr(batch_prepare, "_render_draft", lambda job, profile, payload: str(tmp_path / "draft.docx"))\n    monkeypatch.setattr(batch_prepare, "ats_audit", lambda job, profile, resume: {"passed":True,"quality_gates":{}})
+    monkeypatch.setattr(batch_prepare, "generate_with_llm", lambda job, profile, audit_feedback=None, coverage_plan=None: {"summary":"x","skills":{"Languages":["Python"]},"experience":[]})
+    monkeypatch.setattr(batch_prepare, "_render_draft", lambda job, profile, payload: str(tmp_path / "draft.docx"))
+    monkeypatch.setattr(batch_prepare, "ats_audit", lambda job, profile, resume: {"passed":True,"quality_gates":{}})
     monkeypatch.setattr(batch_prepare, "_promote_approved_resume", lambda path: str(first_docx))
     monkeypatch.setattr(batch_prepare, "convert_docx_to_pdf_detailed", lambda path, attempts=2: {
         "pdf_path": str(first_pdf), "attempts": 1, "reason": "ok", "renderer": "test"
