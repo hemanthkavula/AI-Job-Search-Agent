@@ -10,8 +10,8 @@ def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
     report=tmp_path/"finalized.json";out=tmp_path/"manifest.json"
     report.write_text(json.dumps({"results":[{"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":{"experience":{},"sponsorship":{}}}]}),encoding="utf-8")
     monkeypatch.setattr(batch_prepare,"load_profile",lambda:{"summary_source":[],"skill_categories":{},"experience":[]})
-    monkeypatch.setattr(batch_prepare,"build_coverage_plan",lambda job,profile:{"target_count":0,"must_cover_terms":[],"preferred_terms":[]})
-    monkeypatch.setattr(batch_prepare,"_render_base_resume",lambda job,profile:str(tmp_path/"draft.docx"))
+    monkeypatch.setattr(batch_prepare,"build_coverage_plan",lambda job,profile:{"target_count":2,"must_cover_terms":["data pipelines"],"preferred_terms":[]})
+    monkeypatch.setattr(batch_prepare,"generate_with_llm",lambda job,profile,audit_feedback=None,coverage_plan=None:{"summary":"x","skills":{"Data Engineering":["data pipelines"]},"experience":[]})\n    monkeypatch.setattr(batch_prepare,"_render_draft",lambda job,profile,payload:str(tmp_path/"draft.docx"))\n    monkeypatch.setattr(batch_prepare,"ats_audit",lambda job,profile,resume:{"passed":True,"quality_gates":{}})
     monkeypatch.setattr(batch_prepare,"_promote_approved_resume",lambda path:str(tmp_path/"approved.docx"))
     monkeypatch.setattr(batch_prepare,"convert_docx_to_pdf_detailed",lambda path,attempts=2:{"pdf_path":str(tmp_path/"approved.pdf"),"attempts":1,"reason":"ok","renderer":"test"})
     monkeypatch.setattr(batch_prepare,"validate_docx_pdf_parity",lambda docx,pdf:{"passed":True})
