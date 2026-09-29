@@ -22,15 +22,18 @@ def normalize_url(value):
         return urlunsplit((p.scheme.lower(),p.netloc.lower(),p.path.rstrip("/"),"", ""))
     except Exception:return value
 
-def semantic_job_key(job):
-    """Cross-provider identity when an authoritative requisition ID is unavailable."""
+def _semantic_job_key_for_location(job,location):
     employer=normalize_company(job.get("company_key") or job.get("company"))
     title=normalize_title(job.get("title"))
-    loc=_norm(job.get("location"))
+    loc=_norm(location)
     # Remote/provider-scoped postings often vary in location wording, so omit generic remote text.
     if loc in {"remote","united states","us","usa","remote united states","united states remote"}:loc=""
     raw="|".join((employer,title,loc))
     return "semantic:"+hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+def semantic_job_key(job):
+    """Cross-provider identity when an authoritative requisition ID is unavailable."""
+    return _semantic_job_key_for_location(job,job.get("location"))
 
 def identity_keys(job):
     """Return authoritative and semantic aliases used to collapse the same requisition across providers."""
@@ -38,9 +41,16 @@ def identity_keys(job):
     employer=normalize_company(job.get("company_key") or job.get("company"))
     req=str(job.get("requisition_id") or job.get("job_id") or job.get("ats_job_id") or "").strip().lower()
     if employer and req:keys.append(f"req:{employer}:{req}")
-    url=normalize_url(job.get("original_url") or job.get("url"))
-    if url:keys.append("url:"+hashlib.sha256(url.encode("utf-8")).hexdigest()[:24])
+    # Keep both canonical employer/ATS and discovery-lead URL aliases. Final JD
+    # resolution can replace an aggregator URL with the authoritative employer URL;
+    # retaining both prevents the same requisition from becoming a new ledger job.
+    for raw_url in (job.get("original_url"),job.get("url"),job.get("aggregator_url")):
+        url=normalize_url(raw_url)
+        if url:keys.append("url:"+hashlib.sha256(url.encode("utf-8")).hexdigest()[:24])
     keys.append(semantic_job_key(job))
+    discovery_location=job.get("discovery_location")
+    if discovery_location and _norm(discovery_location)!=_norm(job.get("location")):
+        keys.append(_semantic_job_key_for_location(job,discovery_location))
     return list(dict.fromkeys(keys))
 
 def canonical_job_key(job):
