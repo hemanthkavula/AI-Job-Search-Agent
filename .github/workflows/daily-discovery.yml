@@ -36,6 +36,16 @@ jobs:
           key: job-agent-state-${{ github.run_id }}
           restore-keys: job-agent-state-
 
+      - name: Restore latest learned employer and ATS registries
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            generated/company_registry.json
+            generated/discovered_sources.json
+          key: job-agent-enrichment-${{ github.run_id }}
+          restore-keys: |
+            job-agent-enrichment-
+
       - name: Decide whether a production slot is due
         id: guard
         shell: bash
