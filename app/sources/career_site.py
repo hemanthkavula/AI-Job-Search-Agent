@@ -293,7 +293,7 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
         out.append({"external_id":f"workable:{slug}:{ident}","source":"workable","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"workable",
           "ats_identifier":slug,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return _dedupe_jobs(out)
 
 def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
@@ -307,7 +307,7 @@ def _detail_fallback(company: str, search_url: str, timeout: int) -> list[dict]:
     if not any(t in hay for t in ("data engineer","data engineering","data platform engineer","big data engineer","etl engineer","analytics engineer")): return []
     ident=_identifier(j,search_url)
     host=urlparse(search_url).netloc
-    return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":_location(j),"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted") or j.get("validThrough")}]
+    return [{"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,"title":title,"location":_location(j),"url":search_url,"original_url":search_url,"ats_provider":host,"ats_identifier":host,"job_id":str(ident),"description":text,"description_complete":bool(text),"updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough")}]
 
 def _amazon_public(company: str, search_url: str, timeout: int) -> list[dict]:
     """Enumerate Amazon Jobs search results instead of relying on one rendered page."""
@@ -375,7 +375,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":str(ident),"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j),"remote":_remote_flag(j),"salary":_salary(j),"structured_skills":_skills(j),"language":_language(j),"industry":_industry(j),"job_benefits":_benefits(j),"structured_responsibilities":_responsibilities(j),"work_hours":_work_hours(j),"occupational_category":_occupational_category(j),**_education_experience(j),**_source_evidence(j,url)})
+          "updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough"),"date_posted":_dates(j)[0],"valid_through":_dates(j)[1],"employment_type":_job_type(j),"hiring_organization":_organization(j),"remote":_remote_flag(j),"salary":_salary(j),"structured_skills":_skills(j),"language":_language(j),"industry":_industry(j),"job_benefits":_benefits(j),"structured_responsibilities":_responsibilities(j),"work_hours":_work_hours(j),"occupational_category":_occupational_category(j),**_education_experience(j),**_source_evidence(j,url)})
     hrefs=re.findall(r"href=['\\\"]([^'\\\"]+)['\\\"]",body,re.I)
     # Older source configs may contain regexes double-escaped for JSON.
     # Normalize one escaping layer so valid static job links remain discoverable.
@@ -406,7 +406,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         out.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":None,"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":ident,"description":text,"description_complete":bool(text),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough")})
     out=_dedupe_jobs(out)
     print(f"CareerSite / {company}: {len(out)} DE jobs",flush=True)
     return out
