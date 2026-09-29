@@ -60,3 +60,27 @@ def test_next_cycle_uses_exact_prior_success_without_overlap(monkeypatch,tmp_pat
     assert captured["source_since"]["greenhouse"].startswith("2026-09-29T07:30:00")
     assert abs(captured["hours"]-2.5)<0.0001
     assert abs(captured["source_hours"]["greenhouse"]-2.5)<0.0001
+
+
+def test_generic_ats_units_advance_independently(monkeypatch,tmp_path):
+    import json
+    monkeypatch.setattr(scheduled_runner,"STATE_PATH",tmp_path/"scheduler_state.json")
+    monkeypatch.setattr(scheduled_runner,"ROOT",tmp_path)
+    (tmp_path/"sources.json").write_text(json.dumps({"bamboohr":[{"company":"HealthyCo","search_url":"https://healthy.bamboohr.com/careers"},{"company":"BrokenCo","search_url":"https://broken.bamboohr.com/careers"}]}),encoding="utf-8")
+    (tmp_path/"scheduler_state.json").write_text(json.dumps({"last_successful_scan_at":"2026-09-29T07:30:00-04:00","source_watermarks":{"bamboohr":"2026-09-29T07:30:00-04:00"}}),encoding="utf-8")
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls,tz=None): return cls(2026,9,29,10,0,tzinfo=tz)
+    monkeypatch.setattr(scheduled_runner,"datetime",FixedDateTime)
+    monkeypatch.setattr(scheduled_runner,"load_registry",lambda:{})
+    monkeypatch.setattr(scheduled_runner,"as_discovery_config",lambda registry:{})
+    def fake_cycle(**kwargs):
+        assert kwargs["source_unit_hours"]["bamboohr:HealthyCo"]==2.5
+        assert kwargs["source_unit_hours"]["bamboohr:BrokenCo"]==2.5
+        return {"cycle_id":"unit-test","source_status":{"bamboohr":"PARTIAL"},"source_errors":{"bamboohr":[{"company":"BrokenCo","error":"503"}]},"source_unit_status":{"bamboohr:HealthyCo":{"status":"OK"},"bamboohr:BrokenCo":{"status":"ERROR"}}}
+    monkeypatch.setattr(scheduled_runner,"run_cycle",fake_cycle)
+    report=scheduled_runner.run_scheduled("sources.json",generate_resumes=False,force=True)
+    assert report["source_unit_watermarks"]["bamboohr:HealthyCo"]==report["scheduler_local_time"]
+    assert report["source_unit_watermarks"]["bamboohr:BrokenCo"].startswith("2026-09-29T07:30:00")
+    assert report["source_watermarks"]["bamboohr"].startswith("2026-09-29T07:30:00")
+    assert report["cycle_status"]=="PARTIAL"
