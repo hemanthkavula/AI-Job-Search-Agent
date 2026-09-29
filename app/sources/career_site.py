@@ -296,7 +296,8 @@ def _workable_public(company: str, search_url: str, timeout: int) -> list[dict]:
             title=_plain(mt.group(1)) if mt else ""
         desc=_plain(str(j.get("description") or detail))
         hay=(title+" "+desc[:2500]).lower()
-        if not _de_candidate(title,desc):\n            continue
+        if not _de_candidate(title,desc):
+            continue
         ident=_identifier(j,url)
         out.append({"external_id":f"workable:{slug}:{ident}","source":"workable","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"workable",
@@ -349,7 +350,8 @@ def _amazon_public(company: str, search_url: str, timeout: int) -> list[dict]:
                 title=_plain(m.group(1)) if m else ""
             text=_plain(str(j.get("description") or detail))
             hay=(title+" "+text[:3500]).lower()
-            if not _de_candidate(title,text):\n                continue
+            if not _de_candidate(title,text):
+                continue
             m=re.search(r"/jobs/(\d+)/",job_url);job_id=m.group(1) if m else job_url
             out.append({"external_id":f"amazon:{job_id}","source":"career_site","company_key":company,
                         "title":title,"location":_location(j),"url":job_url,"original_url":job_url,
@@ -375,7 +377,8 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
         title=_plain(str(j.get("title") or ""))
         desc=_plain(str(j.get("description") or ""))
         hay=(title+" "+desc[:2500]).lower()
-        if not _de_candidate(title,desc):\n            continue
+        if not _de_candidate(title,desc):
+            continue
         ident=_identifier(j,title)
         url=_direct_apply_url(j,search_url)
         embedded.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
