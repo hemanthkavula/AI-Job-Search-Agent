@@ -42,6 +42,7 @@ def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_p
     monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
     monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
     monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"<html><body>Job open, no posted date</body></html>")
+    monkeypatch.setattr(jd_finalizer,"_official_job_location",lambda page,job:"Jersey City, NJ, US")
     monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
     monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
     monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
