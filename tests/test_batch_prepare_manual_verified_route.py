@@ -6,7 +6,7 @@ def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
     raw={"external_id":"manatal:1","source":"manatal","company_key":"Example Staffing","title":"Data Engineer",
          "location":"United States","employment_type":"Full-Time","url":"https://example.test/jobs/1",
          "original_url":"https://example.test/jobs/1","ats_provider":"manatal","application_route":"EXTERNAL_ATS",
-         "tailoring_mode":"BASE_RESUME_CONSERVATIVE","description":"Responsibilities build data pipelines","description_usable":True}
+         "tailoring_mode":"FULL_JD","description":"Responsibilities build data pipelines","description_usable":True,"description_complete":True}
     report=tmp_path/"finalized.json";out=tmp_path/"manifest.json"
     report.write_text(json.dumps({"results":[{"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":{"experience":{},"sponsorship":{}}}]}),encoding="utf-8")
     monkeypatch.setattr(batch_prepare,"load_profile",lambda:{"summary_source":[],"skill_categories":{},"experience":[]})
