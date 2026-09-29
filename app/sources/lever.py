@@ -23,7 +23,9 @@ def fetch_jobs(site: str, timeout: int = 20) -> list[dict]:
             "title":j.get("text",""),
             "location":cats.get("location"),
             "url":j.get("hostedUrl") or j.get("applyUrl"),
-            "description":description,
+            "original_url":j.get("hostedUrl") or j.get("applyUrl"),
+            "ats_provider":"lever","ats_identifier":site,"job_id":j.get("id"),"requisition_id":j.get("id"),
+            "description":description,"description_complete":bool(description.strip()),
             "updated_at":None,
         })
     return out
