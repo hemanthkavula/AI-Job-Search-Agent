@@ -88,7 +88,7 @@ def _audit_failure_summary(audit):
     if audit.get("unapproved_metric_claims"): reasons.append(f"unapproved_metric_claims={len(audit['unapproved_metric_claims'])}")
     return " | ".join(reasons) or "unspecified audit failure"
 
-def _audit_feedback(audit, prior_audits=None):
+def _audit_feedback(audit, prior_audits=None, mode="FULL"):
     prior_audits=prior_audits or []
     preserved=[]
     for prior in prior_audits:
@@ -114,7 +114,7 @@ def _audit_feedback(audit, prior_audits=None):
         "quality_gates":audit.get("quality_gates",{}),
         "experience_depth_coverage":audit.get("experience_depth_coverage"),
         "experience_depth_gaps":audit.get("experience_depth_gaps",[]),
-        "retry_instruction":"Correct every failed audit gate without regressing gates or JD requirements that passed in any prior attempt. Preserve every term in previously_demonstrated_experience_terms_to_preserve in coherent Professional Experience bullets while fixing the current failure. Prioritize missing JD keywords and exact JD terminology. If experience_depth fails, move the strongest required capabilities into Professional Experience rather than leaving them only in Summary/Skills. If metrics fail, remove or rewrite only the unapproved metric claim while retaining previously demonstrated JD technologies and responsibilities. Then fix structure, repetition and readability without dropping prior coverage. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, or numerical outcomes."
+        "retry_instruction":("Correct only audit gaps supported by the explicit PARTIAL JD evidence boundary. Do not infer missing requirements, technologies, responsibilities, architecture, preferences, or accomplishments. Preserve fixed factual history and do not invent certifications, employers, dates, education, or numerical outcomes." if mode=="LIMITED" else "Correct every failed audit gate without regressing gates or JD requirements that passed in any prior attempt. Preserve every term in previously_demonstrated_experience_terms_to_preserve in coherent Professional Experience bullets while fixing the current failure. Prioritize missing JD keywords and exact JD terminology. If experience_depth fails, move the strongest required capabilities into Professional Experience rather than leaving them only in Summary/Skills. If metrics fail, remove or rewrite only the unapproved metric claim while retaining previously demonstrated JD technologies and responsibilities. Then fix structure, repetition and readability without dropping prior coverage. The complete JD is the technical tailoring source; the master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not invent certifications, employers, dates, education, or numerical outcomes.")
     }
 
 def _retryable_resume_error(exc):
@@ -189,7 +189,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
                 attempts+=1
                 print(f"Audit failed; correcting only identified quality gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",flush=True)
-                generated=generate_with_llm(job,profile,_audit_feedback(audit,audit_history),coverage_plan=coverage_plan,mode=strategy)
+                generated=generate_with_llm(job,profile,_audit_feedback(audit,audit_history,mode=strategy),coverage_plan=coverage_plan,mode=strategy)
                 if not generated:raise RuntimeError("LLM regeneration returned no resume content")
                 # The prior failed version is no longer needed once its audit feedback
                 # has been captured. Remove it before rendering the next temporary draft.
