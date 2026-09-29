@@ -105,7 +105,10 @@ PATTERNS={
  "talentreef":[r"https?://[^/]*talentreef\.com/",r"https?://apply\.talentreef\.com/"],
  "icims_alt":[r"https?://[^/]*icims\.com/jobs/"],
  "jobappnetwork":[r"https?://[^/]*jobappnetwork\.com/",r"https?://apply\.jobappnetwork\.com/"],
- "myworkchoice":[r"https?://[^/]*myworkchoice\.com/",r"https?://jobs\.myworkchoice\.com/"],
+ "myworkchoice":[r"https?://[^/]*myworkchoice\\.com/",r"https?://jobs\\.myworkchoice\\.com/"],
+ "saashr":[r"https?://[^/]*saashr\\.com/"],
+ "njoyn":[r"https?://cgi\\.njoyn\\.com/"],
+ "recruitcrm":[r"https?://(?:www\\.)?recruitcrm\\.io/"],
  "ultipro_ukg":[r"https?://[^/]*ultipro\.com/"],
 }
 
