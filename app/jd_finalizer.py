@@ -367,24 +367,10 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["official_posted_label"]=official_label
             raw["freshness_basis"]="official_employer_posting_date"
         if aggregator_origin and official_posted is None:
-            # The official employer/ATS page is always the primary freshness source.
-            # For a Dice-origin lead only, once that lead has been identity-resolved
-            # to an official employer/ATS application page, allow Dice's posting date
-            # as a fallback when the official page exposes no usable date.
-            # This never permits an unresolved Dice URL to become the application URL.
-            from app.freshness import _parse_posting_value
-            discovery_source=(raw.get("source") or "").lower()
-            fallback_value=raw.get("discovery_posted_at")
-            fallback_posted=_parse_posting_value(fallback_value,check_now) if discovery_source=="dice" and raw.get("aggregator_url") and fallback_value else None
-            if fallback_posted is not None:
-                official_posted=fallback_posted
-                official_label=str(fallback_value)
-                raw["official_posted_at"]=fallback_posted.isoformat()
-                raw["official_posted_label"]=official_label
-                raw["freshness_basis"]="dice_date_fallback_after_official_ats_resolution"
-            else:
-                held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization and no permitted Dice fallback date was available.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
-                continue
+            # Aggregator/repost dates are discovery evidence only. The user's
+            # freshness contract requires the employer/ATS posting date.
+            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization; aggregator/repost dates are not accepted as freshness evidence.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"discovery_posted_at":raw.get("discovery_posted_at"),"ats_resolution":raw.get("ats_resolution")}})
+            continue
         if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):
             held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
             continue
