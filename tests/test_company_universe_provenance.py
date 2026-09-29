@@ -46,3 +46,24 @@ def test_company_universe_uses_enabled_feeder_control_plane(monkeypatch,tmp_path
     monkeypatch.setattr(company_universe,"save_source_registry",lambda reg:None)
     company_universe.build("sources.json",registry_path=tmp_path/"registry.json",domain_budget=0,career_budget=0)
     assert captured["enabled"]==["sec_public_companies"]
+
+
+def test_known_domain_without_career_source_still_gets_ats_probe(monkeypatch,tmp_path):
+    sources=tmp_path/"sources.json"
+    sources.write_text(json.dumps({"career_site":[]}),encoding="utf-8")
+    monkeypatch.setattr(company_universe,"ROOT",tmp_path)
+    monkeypatch.setattr(company_universe,"collect_company_feeders",lambda enabled=None:([],[]))
+    reg={"known employer":{"company":"Known Employer","official_domain":"known.test","current_hiring_signal":True}}
+    monkeypatch.setattr(company_universe,"load_registry",lambda *a,**k:reg)
+    monkeypatch.setattr(company_universe,"save_registry",lambda *a,**k:None)
+    learned={}
+    monkeypatch.setattr(company_universe,"load_source_registry",lambda:learned)
+    monkeypatch.setattr(company_universe,"save_source_registry",lambda value:None)
+    monkeypatch.setattr(company_universe,"resolve_career_page",lambda domain:None)
+    calls=[]
+    def fake_ats(company):
+        calls.append(company)
+        return None
+    monkeypatch.setattr(company_universe,"resolve_ats_tenant",fake_ats)
+    company_universe.build("sources.json",registry_path=tmp_path/"registry.json",domain_budget=0,career_budget=0,ats_tenant_budget=1)
+    assert calls==["Known Employer"]
