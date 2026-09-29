@@ -91,7 +91,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
             continue
         seen_keys.update(keys)
         queue.append({
-          "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
+          "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),"requisition_id":r.get("requisition_id") or r.get("job_id") or r.get("ats_job_id"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
