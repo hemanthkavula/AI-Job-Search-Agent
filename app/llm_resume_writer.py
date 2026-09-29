@@ -75,10 +75,10 @@ def _fixed_history_profile(profile):
         fixed["certifications"]=profile.get("certifications")
     return fixed
 
-def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
+def build_prompt(job,profile,audit_feedback=None,coverage_plan=None,mode="FULL"):\n    limited=str(mode).upper()=="LIMITED"
     jd_extended=_jd_requested_extended(job.description)
     prompt={
-      "task":"Produce the strongest submission-ready, human-readable resume for this complete JD. Treat pre_generation_coverage_plan.requirements as the authoritative checklist: naturally cover every requirement whose resume_action is include, and use exact JD terminology or a clear semantic equivalent while preserving fixed factual history.",
+      "task":("Produce a conservative submission-ready resume using only the trustworthy requirements explicitly present in this PARTIAL JD. Do not infer missing requirements, technologies, responsibilities, architecture, or preferences. Treat pre_generation_coverage_plan.requirements as the complete evidence boundary for tailoring." if limited else "Produce the strongest submission-ready, human-readable resume for this complete JD. Treat pre_generation_coverage_plan.requirements as the authoritative checklist: naturally cover every requirement whose resume_action is include, and use exact JD terminology or a clear semantic equivalent while preserving fixed factual history."),
       "job":{"company":job.company,"title":job.title,"description":job.description},
       "candidate_fixed_facts_and_background":_fixed_history_profile(profile),
       "pre_generation_coverage_plan":coverage_plan or {},
@@ -92,7 +92,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None):
         "do_not_create_projects_or_tool_chains_to_place_keywords":True
       },
       "tailoring_policy":{
-        "jd_is_primary_target":True,"first_draft_must_be_final_quality":True,
+        "jd_is_primary_target":True,"jd_completeness":("PARTIAL" if limited else "COMPLETE"),"infer_missing_jd_content":False,"partial_jd_evidence_boundary":limited,"first_draft_must_be_final_quality":True,
         "prioritize_required_before_preferred":True,"coverage_plan_is_authoritative_checklist":True,"use_exact_jd_terminology_when_truthful":True,
         "technical_skills_should_include_jd_required_technologies_and_tools":True,"technical_skills_categories_must_be_functionally_correct_and_consistent":True,"technical_skills_category_names_must_be_market_standard":True,"do_not_place_a_skill_under_an_unrelated_category":True,"professional_experience_must_be_materially_rewritten_for_each_jd":True,"minimum_jd_specific_experience_bullets":6,"skills_only_tailoring_is_forbidden":True,"material_jd_technologies_should_be_demonstrated_in_experience":True,"jd_may_drive_new_experience_content_beyond_master_resume":True,"master_resume_is_fixed_facts_only":True,"ignore_master_summary_skills_and_bullets":True,"specialized_role_experience_must_not_be_skills_only":True,"preserve_employer_domain_context":True,"cloud_strategy":{"Fidelity Investments":"ADAPT_TO_JD_PRIMARY_CLOUD_AWS_AZURE_OR_GCP","Cigna Healthcare":"AZURE_FIXED","Target Corporation":"AWS_FIXED"},"master_resume_is_reference_not_bullet_template":True,
         "do_not_invent_metrics_certifications_business_results_or_architectures":True
@@ -167,11 +167,11 @@ def validate_generated_resume(result,profile):
                 raise RuntimeError(f"Generated resume attempted to change immutable {company} {field}")
     return result
 
-def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
+def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None,mode="FULL"):
     key=os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:return None
     endpoint=os.getenv("RESUME_LLM_ENDPOINT","https://api.openai.com/v1/responses");model=os.getenv("RESUME_LLM_MODEL","gpt-5.6")
-    prompt=build_prompt(job,profile,audit_feedback,coverage_plan)
+    prompt=build_prompt(job,profile,audit_feedback,coverage_plan,mode=mode)
     cache_key=_cache_key(model,prompt)
     cached=_read_cache(cache_key)
     if cached is not None:
