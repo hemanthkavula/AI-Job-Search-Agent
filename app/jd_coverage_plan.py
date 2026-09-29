@@ -42,12 +42,7 @@ def _aliases(term): return ALIASES.get(term,(term.lower(),))
 def _mentioned(line,term):
     low=line.lower()
     return any(re.search(r"(?<![a-z0-9])"+re.escape(a.lower())+r"(?![a-z0-9])",low) for a in _aliases(term))
-def _profile_terms(profile):
-    out=set(profile.get("skills",[]))
-    for values in profile.get("skill_categories",{}).values(): out.update(values)
-    for exp in profile.get("experience",[]):
-        out.update(x.strip() for x in re.split(r"[,()]|\bAWS\b|\bAzure\b",exp.get("environment","")) if x.strip())
-    return {_canonical(x) for x in out}
+
 def _classify(term,description):
     lines=[x.strip() for x in re.split(r"[\n\r]+|(?<=[.!?])\s+",description or "") if _mentioned(x,term)]
     if not lines:return "mentioned"
