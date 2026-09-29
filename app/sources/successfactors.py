@@ -32,7 +32,7 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20) -> list[dict]:
             body=_get(search_url,timeout)
         except Exception:
             continue
-        hrefs=re.findall(r'href=["\']([^"\']+/job/[^"\']+)["\']',body,re.I)
+        hrefs=re.findall(r'href=["\']([^"\']*(?:/job/)[^"\']+)["\']',body,re.I)
         for href in hrefs:
             url=urljoin(base_url,html.unescape(href))
             if url in seen:continue
