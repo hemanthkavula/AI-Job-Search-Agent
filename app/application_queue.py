@@ -82,13 +82,20 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         gate_ok,gate_reasons=_application_gate(r,profile)
         if not gate_ok:
             continue
+        # A direct official ATS job may retain its original discovery location when
+        # the official page exposes no structured location. But whenever finalization
+        # extracted an official location, require the manifest value to be exactly
+        # that authoritative value before application queueing.
+        official_location=(r.get("official_location") or "").strip()
+        if official_location and (r.get("location") or "").strip()!=official_location:
+            continue
         seen_keys.update(keys)
         queue.append({
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
           "artifact_validation":validation,"known_answers":_known_answers(),
-          "location":r.get("location"),"employment_type":r.get("employment_type"),"description":r.get("description"),
+          "location":r.get("location"),"official_location":r.get("official_location"),"location_basis":r.get("location_basis"),"employment_type":r.get("employment_type"),"description":r.get("description"),
           "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
           "blocker_policy":"MANUAL_ACTION_REQUIRED",
