@@ -188,3 +188,43 @@ def test_excess_years_building_data_platforms_rejected():
       "description":"8+ years building enterprise data platforms, pipelines, and distributed data systems."
     },PROFILE)
     assert not ok and any("8" in x for x in r)
+
+
+def test_neutral_immigration_benefit_language_does_not_imply_no_sponsorship():
+    ok,_=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Questions about an immigration related employment benefit may be directed to Human Resources. Build Python SQL Spark pipelines."
+    },PROFILE)
+    assert ok
+
+
+def test_explicit_no_future_employer_support_remains_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Applicants must be authorized to work without the need for employer support or sponsorship now or in the future."
+    },PROFILE)
+    assert not ok and any("sponsorship" in x.lower() for x in r)
+
+
+def test_us_citizenship_requirement_is_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"U.S. citizenship is required. Build Spark and SQL pipelines."
+    },PROFILE)
+    assert not ok and any("citizenship" in x.lower() for x in r)
+
+
+def test_security_clearance_requirement_is_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Candidate must have a Secret clearance. Build Spark and SQL pipelines."
+    },PROFILE)
+    assert not ok and any("clearance" in x.lower() for x in r)
