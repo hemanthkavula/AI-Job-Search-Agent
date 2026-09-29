@@ -258,7 +258,20 @@ def _reusable_search_url(provider,url):
   return f"{p.scheme}://{host}{path}"+(("?"+urlencode(keep)) if keep else "")
  if provider=="teamtailor":return f"{p.scheme}://{host}/jobs"
  if provider=="recruitee":return f"{p.scheme}://{host}/"
- if provider=="bamboohr":return f"{p.scheme}://{host}/careers"\n if provider=="paycom":\n  # Keep the employer portal root; /job/<id> is one posting only.\n  m=re.search(r"^(.*?/jobs?)(?:/|$)",p.path,re.I)\n  return f"{p.scheme}://{host}{m.group(1) if m else '/'}"\n if provider=="hirebridge":\n  # Hirebridge tenant/account parameters identify the reusable board; strip a\n  # single requisition id from the query when present.\n  from urllib.parse import parse_qsl,urlencode\n  keep=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=False) if k.lower() not in {"jid","jobid","job_id","id"}]\n  return f"{p.scheme}://{host}{p.path}"+(("?"+urlencode(keep)) if keep else "")
+ if provider=="bamboohr":return f"{p.scheme}://{host}/careers"
+ if provider=="paycom":
+  # Keep the employer portal root; detail query parameters identify one posting.
+  from urllib.parse import parse_qsl,urlencode
+  keep=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=False) if k.lower() not in {"job","jobid","job_id","id"}]
+  m=re.search(r"^(.*?/jobs?)(?:/|$)",p.path,re.I)
+  board_path=m.group(1) if m else p.path
+  return f"{p.scheme}://{host}{board_path}"+(("?"+urlencode(keep)) if keep else "")
+ if provider=="hirebridge":
+  # Hirebridge tenant/account parameters identify the reusable board; strip a
+  # single requisition id from the query when present.
+  from urllib.parse import parse_qsl,urlencode
+  keep=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=False) if k.lower() not in {"jid","jobid","job_id","id"}]
+  return f"{p.scheme}://{host}{p.path}"+(("?"+urlencode(keep)) if keep else "")
  if provider=="breezyhr":return f"{p.scheme}://{host}/"
  if provider=="pinpoint":return f"{p.scheme}://{host}/jobs"
  if provider=="freshteam":return f"{p.scheme}://{host}/jobs"
