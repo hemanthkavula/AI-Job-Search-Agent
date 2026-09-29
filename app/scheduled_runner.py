@@ -43,8 +43,15 @@ RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
 
 def _load_state():
     if not STATE_PATH.exists(): return {}
-    try: return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-    except Exception: return {}
+    try:
+        state=json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        # Scheduler watermarks and completed-slot history are safety-critical.
+        # Treating corruption as first boot can replay large historical windows.
+        raise RuntimeError(f"Scheduler state is unreadable or corrupt: {STATE_PATH}") from exc
+    if not isinstance(state,dict):
+        raise RuntimeError(f"Scheduler state has invalid structure: {STATE_PATH}")
+    return state
 
 def _save_state(state):
     STATE_PATH.parent.mkdir(parents=True,exist_ok=True)
