@@ -89,9 +89,7 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    eligible=min_req <= req <= max_req
-    return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),
+    # A lower employer minimum is not a disqualifier: a candidate with more\n    # experience still satisfies a 2+/3+ year requirement. The hard safety gate\n    # is the configured maximum requirement, which prevents 8+/10+ year roles\n    # from slipping through.\n    eligible=req <= max_req\n    return {\n      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
       "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
