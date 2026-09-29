@@ -110,9 +110,7 @@ def _matches(raw,company=None,title=None,external_id=None):
 def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None,debug_title=None,external_id=None,limit=None):
     """Generate resumes only from FINAL_JD_VERIFIED jobs; retry only when audit fails."""
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[];matched=0
-    # Spend paid resume-generation calls on the strongest application candidates first:
-    # full JD + direct ATS, full JD + Dice, short usable JD + direct ATS, then short usable JD + Dice.
-    priority={("FULL_JD","EXTERNAL_ATS"):0,("FULL_JD","DICE"):1,("BASE_RESUME_CONSERVATIVE","EXTERNAL_ATS"):2,("BASE_RESUME_CONSERVATIVE","DICE"):3}
+    # Spend paid resume-generation calls only on complete, finalized JDs.\n    priority={("FULL_JD","EXTERNAL_ATS"):0,("FULL_JD","DICE"):1}
     results=sorted(report.get("results",[]),key=lambda item:priority.get((item.get("job",{}).get("tailoring_mode"),item.get("job",{}).get("application_route")),9))
     for item in results:
         if item.get("action") not in ("FINAL_JD_VERIFIED",):continue
@@ -134,7 +132,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         audit_history=[]
         next_action="HOLD_RESUME_ERROR"
         try:
-            if not (raw.get("description_complete") or raw.get("description_usable") or raw.get("tailoring_mode")=="BASE_RESUME_CONSERVATIVE"):raise RuntimeError("Job description is not usable for safe resume tailoring; run app.jd_finalizer before resume tailoring.")
+            if raw.get("description_complete") is not True or raw.get("tailoring_mode")!="FULL_JD":raise RuntimeError("Complete finalized job description is required for safe resume tailoring; run app.jd_finalizer before resume generation.")
             attempts=1
             coverage_plan=build_coverage_plan(job,profile)
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
