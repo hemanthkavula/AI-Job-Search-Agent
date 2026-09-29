@@ -149,6 +149,6 @@ def test_remote_job_uses_applicant_location_requirements(monkeypatch,tmp_path):
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==0
     assert result["held_or_rejected"]==1
-    held=result["results"][0]
+    held=result["rejections"][0]
     assert held["job"]["official_location"]=="Remote - India"
     assert "location outside United States target" in held["reason"]
