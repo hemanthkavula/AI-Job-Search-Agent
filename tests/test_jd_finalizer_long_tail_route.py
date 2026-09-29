@@ -51,7 +51,7 @@ def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_p
     assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_after_official_ats_resolution"
 
 
-def test_partial_but_usable_jd_is_held_before_resume_generation(monkeypatch,tmp_path):
+def test_partial_but_usable_jd_is_finalized_for_limited_resume(monkeypatch,tmp_path):
     report=tmp_path/"partial.json"; output=tmp_path/"partial_out.json"
     job={
         "external_id":"greenhouse:partial","source":"greenhouse","company_key":"Example Co",
@@ -89,4 +89,4 @@ def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_pa
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     assert result["results"][0]["action"]=="FINAL_JD_VERIFIED"
-    assert result["results"][0]["job"]["tailoring_mode"]=="FULL_JD"
+    assert result["results"][0]["job"]["resume_strategy"]=="FULL"\n    assert result["results"][0]["job"]["tailoring_mode"]=="FULL_JD"
