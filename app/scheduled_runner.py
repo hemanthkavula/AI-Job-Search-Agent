@@ -137,8 +137,9 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         source_cutoffs[provider]=provider_cutoff.isoformat()
         source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0
     discovery_hours=hours
-    # Workday tenants have independent failure domains. Preserve a watermark per
-    # company so healthy tenants advance even when one tenant returns 5xx.
+    # Every configured source unit has its own failure domain. Provider-level
+    # watermarks remain the conservative fallback, while unit watermarks let
+    # healthy employers advance without replaying because a sibling tenant failed.
     try:
         source_config=json.loads((ROOT/sources).read_text(encoding="utf-8"))
     except Exception:
