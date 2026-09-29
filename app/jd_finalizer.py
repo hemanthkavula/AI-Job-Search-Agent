@@ -12,6 +12,7 @@ from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
+from app.jd_coverage_plan import select_resume_strategy
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -394,9 +395,6 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if live_status is None:
             held.append({"job":raw,"action":"HOLD_LIVE_STATUS_UNVERIFIED","reason":"Application page could not be verified as live before resume generation.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
             continue
-        if not raw.get("description_complete"):
-            held.append({"job":raw,"action":"HOLD_COMPLETE_JD_REQUIRED","reason":"Resume generation requires a trustworthy complete current job description; short/partial excerpts are discovery evidence only.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"description_usable":raw.get("description_usable"),"url":raw.get("original_url") or raw.get("url")}});continue
-        raw["tailoring_mode"]="FULL_JD"
         # Compute the governing eligibility record before any final-location hold so
         # every rejection preserves the same diagnostic schema (experience,
         # sponsorship, citizenship, clearance).
@@ -443,8 +441,14 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["application_route"]="DICE"
             raw["ats_provider"]="dice"
         else:
-            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
+            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before resume selection.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue
+        strategy_job=type("StrategyJob",(),{"description":raw.get("description") or "","description_complete":bool(raw.get("description_complete"))})()
+        strategy_result=select_resume_strategy(strategy_job,profile)
+        strategy=strategy_result["strategy"]
+        raw["resume_strategy"]=strategy
+        raw["tailoring_mode"]={"BASE":"BASE_RESUME","LIMITED":"LIMITED_JD","FULL":"FULL_JD"}[strategy]
+        raw["coverage_target_count"]=strategy_result["coverage_plan"].get("target_count",0)
         finalized.append({"job":raw,"eligibility":eligibility,"action":"FINAL_JD_VERIFIED"})
     result={"finalized":len(finalized),"held_or_rejected":len(held),"results":finalized,"rejections":held}
     out=Path(output_path);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(result,indent=2),encoding="utf-8")
