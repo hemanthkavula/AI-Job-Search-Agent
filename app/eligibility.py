@@ -62,6 +62,12 @@ def required_years(text: str):
       r"(?:experience\s+)?min(?:imum)?\.?\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:software\s+engineering\s+)?experience",
       r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)\s*\+?\s*(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?experience",
       r"(?:bachelor(?:'s|’s)?\s+degree|master(?:'s|’s)?\s+degree|degree)[^.;\n]{0,80}?(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:[a-z0-9&/, .\-]+\s+){0,8}?experience",
+      # Senior JDs often express the threshold as tenure in the discipline rather
+      # than ending the phrase with the word "experience": "10+ years working in
+      # data engineering", "10+ years in data engineering", "8 years building
+      # data platforms". These are still explicit minimum-experience requirements.
+      r"(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:working\s+in|in)\s+(?:data\s+engineering|software\s+engineering|data\s+platform|data\s+infrastructure|data\s+warehouse|etl|analytics\s+engineering)\b",
+      r"(\d{1,2})\s*\+?\s*(?:years?|yrs?)\s+(?:building|developing|designing|architecting|implementing|leading)\s+(?:[a-z0-9&/+.,()\-]+\s+){0,8}?(?:data\s+pipelines?|data\s+platforms?|data\s+warehouses?|lakehouses?|etl|elt|distributed\s+data\s+systems)\b",
     )
     for pattern in patterns:
         vals.extend(int(x) for x in re.findall(pattern,text))
