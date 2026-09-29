@@ -152,3 +152,20 @@ def test_remote_job_uses_applicant_location_requirements(monkeypatch,tmp_path):
     held=result["rejections"][0]
     assert held["job"]["official_location"]=="Remote - India"
     assert "location outside United States target" in held["reason"]
+
+
+def test_aggregator_us_location_cannot_survive_unlocated_official_page(tmp_path, monkeypatch):
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"dice:foreign","source":"dice","company_key":"Example Corp","title":"Data Engineer","location":"United States","description":"placeholder"}}]}
+    inp=tmp_path/"aggregator_location.json"; out=tmp_path/"aggregator_location_out.json"
+    inp.write_text(json.dumps(report),encoding="utf-8")
+    description=("Responsibilities: build data pipelines with Python SQL Spark. Requirements: data engineering experience. Qualifications: 5 years relevant experience. "+"x"*1300)
+    resolved={"external_id":"dice:foreign","source":"dice","company_key":"Example Corp","company":"Example Corp","title":"Data Engineer","location":"United States","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"greenhouse","original_url":"https://boards.greenhouse.io/example/jobs/123","aggregator_url":"https://www.dice.com/job-detail/abc","posted_at":"2026-09-29T12:00:00Z"}
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer._fetch_public_page",lambda target:"<html><body>Responsibilities requirements qualifications data pipelines Python SQL Spark</body></html>")
+    monkeypatch.setattr("app.jd_finalizer._official_posted_at",lambda page,now=None:(now,"today"))
+    monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda target:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    result=finalize_report(str(inp),str(out))
+    assert result["finalized"]==0
+    assert result["rejections"][0]["action"]=="SKIP_FINAL_ELIGIBILITY"
+    assert "location outside United States target" in result["rejections"][0]["reasons"]
