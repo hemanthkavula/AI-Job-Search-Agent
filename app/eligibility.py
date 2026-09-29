@@ -88,13 +88,15 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    # A lower employer minimum is not a disqualifier: a candidate with more
-    # experience still satisfies a 2+/3+ year requirement. The hard safety gate
-    # is the configured maximum requirement, which prevents 8+/10+ year roles
-    # from slipping through.
-    eligible=req <= max_req
+    # User policy is a hard posting-requirement window: only explicit minimum
+    # requirements from min_req through max_req are eligible. A 1+/2+ posting is
+    # intentionally rejected even though the candidate could satisfy it; an 8+
+    # posting is too senior. Unstated experience remains eligible for later
+    # official-JD/semantic verification rather than being guessed.
+    eligible=min_req <= req <= max_req
+    category="EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR")
     return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else "EXPERIENCE_TOO_SENIOR",
+      "category":category,
       "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
     }
 
