@@ -49,8 +49,8 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
   if row.get("next_action")=="READY_TO_APPLY":
    pdf_path=row.get("pdf_path")
    validation=row.get("artifact_validation") or {}
-   explicit_validation="artifact_validation" in row and row.get("artifact_validation") is not None
-   if pdf_path and Path(pdf_path).suffix.lower()==".pdf" and (not explicit_validation or validation.get("passed")):
+   pdf=Path(pdf_path) if pdf_path else None
+   if pdf and pdf.suffix.lower()==".pdf" and pdf.is_file() and validation.get("passed") is True:
     queue_payload={
      "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
      "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
