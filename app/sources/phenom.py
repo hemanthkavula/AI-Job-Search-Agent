@@ -65,5 +65,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
         out.append({"external_id":f"phenom:{tenant}:{ident}","source":"phenom","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"phenom",
           "ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),
-          "updated_at":j.get("datePosted") or j.get("validThrough")})
+          "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     return out
