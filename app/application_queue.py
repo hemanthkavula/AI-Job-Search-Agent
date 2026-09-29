@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from app.config import load_profile
 from app.filters import passes_hard_filters
 from app.job_identity import identity_keys
+from app.job_ledger import load_ledger, _lookup
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -59,13 +60,18 @@ def _queue_identity_keys(row):
     # company or company_key. Preserve all requisition/URL aliases when present.
     return identity_keys(job)
 
-def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
+def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json",ledger_path="generated/job_ledger.json"):
     """Queue only fully validated, still-eligible artifacts; never trust an earlier gate alone."""
-    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile();seen_keys=set()
+    rows=json.loads(Path(manifest_path).read_text(encoding="utf-8"));queue=[];profile=load_profile();seen_keys=set();ledger=load_ledger(ledger_path)
+    submission_terminal={"SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED","MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP"}
     for r in rows:
         if r.get("next_action")!="READY_TO_APPLY":continue
         keys=_queue_identity_keys(r)
         if any(key in seen_keys for key in keys):continue
+        # A stale/recovered READY_TO_APPLY manifest must never replay a job whose
+        # persistent identity already reached a submission/manual/security terminal state.
+        _,ledger_row=_lookup(r,ledger)
+        if ledger_row and ledger_row.get("application_status") in submission_terminal:continue
         validation=r.get("artifact_validation") or {}
         pdf=r.get("pdf_path")
         # Backward compatibility: manifests created before artifact_validation was
