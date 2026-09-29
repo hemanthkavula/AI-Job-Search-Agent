@@ -394,9 +394,9 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if live_status is None:
             held.append({"job":raw,"action":"HOLD_LIVE_STATUS_UNVERIFIED","reason":"Application page could not be verified as live before resume generation.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
             continue
-        if not (raw.get("description_complete") or raw.get("description_usable") or _looks_like_usable_jd(raw.get("description"),raw.get("source"))):
-            held.append({"job":raw,"action":"HOLD_ORIGINAL_JD_NOT_FOUND","reason":"A trustworthy complete/original job description could not be resolved safely.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"url":raw.get("original_url") or raw.get("url")}});continue
-        raw["tailoring_mode"]="FULL_JD" if raw.get("description_complete") else "BASE_RESUME_CONSERVATIVE"
+        if not raw.get("description_complete"):
+            held.append({"job":raw,"action":"HOLD_COMPLETE_JD_REQUIRED","reason":"Resume generation requires a trustworthy complete current job description; short/partial excerpts are discovery evidence only.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"description_usable":raw.get("description_usable"),"url":raw.get("original_url") or raw.get("url")}});continue
+        raw["tailoring_mode"]="FULL_JD"
         # Compute the governing eligibility record before any final-location hold so
         # every rejection preserves the same diagnostic schema (experience,
         # sponsorship, citizenship, clearance).
