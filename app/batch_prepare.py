@@ -110,8 +110,7 @@ def _matches(raw,company=None,title=None,external_id=None):
 def prepare(report_path,output_path="generated/application_manifest.json",debug_company=None,debug_title=None,external_id=None,limit=None):
     """Generate resumes only from FINAL_JD_VERIFIED jobs; retry only when audit fails."""
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile();manifest=[];matched=0
-    # Spend paid resume-generation calls only on complete, finalized JDs.\n    priority={("FULL_JD","EXTERNAL_ATS"):0,("FULL_JD","DICE"):1}
-    results=sorted(report.get("results",[]),key=lambda item:priority.get((item.get("job",{}).get("tailoring_mode"),item.get("job",{}).get("application_route")),9))
+    results=sorted(report.get("results",[]),key=lambda item:{("FULL_JD","EXTERNAL_ATS"):0,("FULL_JD","DICE"):1}.get((item.get("job",{}).get("tailoring_mode"),item.get("job",{}).get("application_route")),9))
     for item in results:
         if item.get("action") not in ("FINAL_JD_VERIFIED",):continue
         raw=item["job"]
