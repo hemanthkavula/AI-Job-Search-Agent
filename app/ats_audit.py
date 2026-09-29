@@ -63,8 +63,7 @@ def _domain_coherence_violations(by_company):
      findings.append({"company":company,"expected_domain":expected,"conflicting_domain":domain,"terms":hits,"bullet":bullet})
  return findings
 
-def document_text(path):d=Document(path);return "
-".join(p.text for p in d.paragraphs)
+def document_text(path):d=Document(path);return "\\n".join(p.text for p in d.paragraphs)
 def _norm(s):return re.sub(r"\s+"," ",(s or "").lower()).strip()
 def _literal_contains(text,term):return bool(re.search(r"(?<![a-z0-9])"+re.escape(_norm(term))+r"(?![a-z0-9])",_norm(text)))
 def _contains(text,term):return any(_literal_contains(text,a) for a in TERM_ALIASES.get(term,[term]))
@@ -106,11 +105,9 @@ def _technical_skills_text(paras):
   if t.upper()=="TECHNICAL SKILLS":collecting=True;continue
   if collecting and t.upper()=="PROFESSIONAL EXPERIENCE":break
   if collecting and t:rows.append(t)
- return "
-".join(rows)
+ return "\\n".join(rows)
 def _evidence_coverage(jd_terms,skills_text,bullets):
- exp="
-".join(bullets);listed=[t for t in jd_terms if _contains(skills_text,t)];evidenced=[t for t in listed if _contains(exp,t)];gaps=[t for t in listed if t not in evidenced]
+ exp="\\n".join(bullets);listed=[t for t in jd_terms if _contains(skills_text,t)];evidenced=[t for t in listed if _contains(exp,t)];gaps=[t for t in listed if t not in evidenced]
  return listed,evidenced,gaps,round(100*len(evidenced)/max(1,len(listed)))
 def _readability_score(bullets,repetition_score):
  if not bullets:return 0
@@ -145,8 +142,7 @@ def _required_target_terms(targeted,text):
 def ats_audit(job,profile,resume_path):
  text=document_text(resume_path);low=_norm(text);plan=build_coverage_plan(job,profile);must_cover_terms=plan.get("must_cover_terms",[]);preferred_terms=plan.get("preferred_terms",[]);alternative_terms=plan.get("alternative_terms",[]);targeted=_required_target_terms(must_cover_terms,low);present=[k for k in targeted if _contains(low,k)];missing=[k for k in targeted if not _contains(low,k)];keyword_coverage=100 if not targeted else 100*len(present)/len(targeted);optional_present=[k for k in preferred_terms+alternative_terms if _contains(low,k)];optional_total=len(preferred_terms)+len(alternative_terms);optional_coverage=100*len(optional_present)/max(1,optional_total) if optional_total else 100
  title_tokens=[x for x in re.findall(r"[a-z]+",_norm(job.title)) if x not in {"senior","lead","ii","iii"}];title_alignment=100 if all(x in low for x in title_tokens) else 70;sections={"professional summary","technical skills","professional experience","education"};section_score=100*sum(x in low for x in sections)/len(sections)
- paras=Document(resume_path).paragraphs;by_company=_experience_bullets(paras);bullets=[b for xs in by_company.values() for b in xs];experience_text="
-".join(bullets);plan=build_coverage_plan(job,profile);must_cover_terms=plan.get("must_cover_terms",[]);experience_covered=[t for t in must_cover_terms if _contains(experience_text,t)];experience_gaps=[t for t in must_cover_terms if not _contains(experience_text,t)];experience_coverage=100 if not must_cover_terms else 100*len(experience_covered)/len(must_cover_terms);counts={k:len(v) for k,v in by_company.items()};bullet_count_score=100 if counts==EXPECTED_COUNTS else 60;metric_counts={c:sum(_is_metric_bullet(b) for b in xs) for c,xs in by_company.items()};metric_lines=sum(metric_counts.values());unapproved_metrics=_unapproved_metric_claims(by_company);domain_violations=_domain_coherence_violations(by_company)
+ paras=Document(resume_path).paragraphs;by_company=_experience_bullets(paras);bullets=[b for xs in by_company.values() for b in xs];experience_text="\\n".join(bullets);plan=build_coverage_plan(job,profile);must_cover_terms=plan.get("must_cover_terms",[]);experience_covered=[t for t in must_cover_terms if _contains(experience_text,t)];experience_gaps=[t for t in must_cover_terms if not _contains(experience_text,t)];experience_coverage=100 if not must_cover_terms else 100*len(experience_covered)/len(must_cover_terms);counts={k:len(v) for k,v in by_company.items()};bullet_count_score=100 if counts==EXPECTED_COUNTS else 60;metric_counts={c:sum(_is_metric_bullet(b) for b in xs) for c,xs in by_company.items()};metric_lines=sum(metric_counts.values());unapproved_metrics=_unapproved_metric_claims(by_company);domain_violations=_domain_coherence_violations(by_company)
  # Numeric accomplishments are not a quality proxy. Resume generation is JD-first
  # and has no independently verified metric store, so reward concrete technical
  # ownership/readability instead of incentivizing fabricated legacy numbers.
