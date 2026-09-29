@@ -51,6 +51,8 @@ def required_years(text: str):
     if rng:return rng[0]
     vals=[]
     patterns=(
+      # Compact recruiter notation is common in rendered JDs: "10+y", "10+ y", "10+yrs".
+      r"(\\d{1,2})\\s*\\+\\s*(?:y|yr|yrs|year|years)\\b(?:['’]s?)?\\s+(?:of\\s+)?(?:relevant\\s+|professional\\s+|industry\\s+|hands[- ]on\\s+)?(?:[a-z0-9&/+.-]+\\s+){0,5}?experience",
       r"(?:minimum(?: of)?|min\.?|at least)\s+(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
       r"(?:requires?|required|requirement:?|qualifications?:?)\s+(?:a\s+)?(?:minimum(?: of)?\s+)?(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
       r"(\d{1,2})\s*\+\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?(?:[a-z0-9&/+.\-]+\s+){0,5}?experience",
