@@ -38,6 +38,13 @@ def _retry_items_from_ledger(ledger_path):
   items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
  return items
 
+def _is_real_pdf(path_value):
+ try:
+  p=Path(path_value) if path_value else None
+  return bool(p and p.suffix.lower()==".pdf" and p.is_file() and p.read_bytes()[:5]==b"%PDF-")
+ except OSError:
+  return False
+
 def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
@@ -50,7 +57,7 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
    pdf_path=row.get("pdf_path")
    validation=row.get("artifact_validation") or {}
    pdf=Path(pdf_path) if pdf_path else None
-   if pdf and pdf.suffix.lower()==".pdf" and pdf.is_file() and validation.get("passed") is True:
+   if _is_real_pdf(pdf_path) and validation.get("passed") is True:
     queue_payload={
      "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
      "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
@@ -113,9 +120,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  # resume generation, and artifact validation have all succeeded.
  manifest_ready_count=sum(
   x.get("next_action")=="READY_TO_APPLY"
-  and bool(x.get("pdf_path"))
-  and Path(x.get("pdf_path")).suffix.lower()==".pdf"
-  and Path(x.get("pdf_path")).is_file()
+  and _is_real_pdf(x.get("pdf_path"))
   and (x.get("artifact_validation") or {}).get("passed") is True
   for x in manifest
  )
