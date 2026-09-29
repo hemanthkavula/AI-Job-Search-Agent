@@ -111,3 +111,25 @@ def test_direct_workday_one_day_relative_posting_remains_fresh(tmp_path, monkeyp
     result=finalize_report(str(inp),str(out),hours=61,now=now)
     assert result["finalized"]==1
     assert result["held_or_rejected"]==0
+
+
+def test_official_ats_foreign_location_overrides_false_us_discovery_location(tmp_path, monkeypatch):
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"smartrecruiters:bosch","source":"smartrecruiters","company_key":"Bosch Group","title":"Sr.Data Engineering","location":"United States","description":"placeholder"}}]}
+    inp=tmp_path/"bosch_location.json"; out=tmp_path/"bosch_location_out.json"
+    inp.write_text(json.dumps(report),encoding="utf-8")
+    description="Responsibilities: build data pipelines with Python SQL Spark. Requirements: data engineering experience. Qualifications: 6-8 years relevant experience. "+"x"*1300
+    url="https://jobs.smartrecruiters.com/BoschGroup/example"
+    resolved={"external_id":"smartrecruiters:bosch","source":"smartrecruiters","company_key":"Bosch Group","company":"Bosch Group","title":"Sr.Data Engineering","location":"United States","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"smartrecruiters","original_url":url}
+    page='''<script type="application/ld+json">{"@context":"https://schema.org","@type":"JobPosting","title":"Sr.Data Engineering","hiringOrganization":{"@type":"Organization","name":"Bosch Group"},"jobLocation":{"@type":"Place","address":{"@type":"PostalAddress","streetAddress":"no.123 industrial layout hosur road koramangala","addressLocality":"bengaluru","postalCode":"560095","addressCountry":"India"}},"description":"Responsibilities requirements qualifications data pipelines Python SQL Spark"}</script>'''
+    monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
+    monkeypatch.setattr("app.jd_finalizer._fetch_public_page",lambda target:page)
+    monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda target:(True,"test_live"))
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":6})
+    result=finalize_report(str(inp),str(out))
+    assert result["finalized"]==0
+    assert result["held_or_rejected"]==1
+    rejection=result["rejections"][0]
+    assert rejection["action"]=="SKIP_FINAL_ELIGIBILITY"
+    assert "location outside United States target" in rejection["reasons"]
+    assert rejection["job"]["official_location"].endswith("bengaluru, 560095, India")
+    assert rejection["job"]["discovery_location"]=="United States"
