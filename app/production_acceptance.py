@@ -49,7 +49,14 @@ def audit(summary_path:str)->dict:
                 if official_location and (row.get("location") or "").strip()!=official_location:
                     failures.append(f"official location provenance mismatch for {eid}")
                 resume=row.get("resume_path")
-                if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): failures.append(f"validated PDF missing for {eid}")
+                resume_file=Path(resume) if resume else None
+                if not resume_file or resume_file.suffix.lower()!=".pdf" or not resume_file.is_file():
+                    failures.append(f"validated PDF missing for {eid}")
+                else:
+                    try:
+                        if resume_file.read_bytes()[:5] != b"%PDF-": failures.append(f"invalid PDF signature for {eid}")
+                    except OSError:
+                        failures.append(f"validated PDF unreadable for {eid}")
                 validation=row.get("artifact_validation") or {}
                 if validation.get("passed") is not True: failures.append(f"artifact validation missing or failed for {eid}")
     result={"passed":not failures,"cycle_id":summary.get("cycle_id"),"ready_to_apply":ready,"failures":failures}
