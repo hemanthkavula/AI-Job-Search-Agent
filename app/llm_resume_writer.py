@@ -113,7 +113,7 @@ def build_prompt(job,profile,audit_feedback=None,coverage_plan=None,mode="FULL")
     }
     if audit_feedback:
         prompt["revision_mode"]=True;prompt["audit_feedback"]=audit_feedback
-        prompt["task"]="Regenerate for the same complete JD and correct every legitimate audit gap. Preserve fixed factual history, cover missing material JD terminology naturally, and do not invent specific accomplishments, metrics, certifications, projects, employers, dates, or education."
+        prompt["task"]=("Regenerate for the same PARTIAL JD and correct only legitimate audit gaps supported by its explicit evidence boundary. Do not infer or fill missing JD content. Preserve fixed factual history and do not invent specific accomplishments, metrics, certifications, projects, employers, dates, education, technologies, responsibilities, or architectures." if limited else "Regenerate for the same complete JD and correct every legitimate audit gap. Preserve fixed factual history, cover missing material JD terminology naturally, and do not invent specific accomplishments, metrics, certifications, projects, employers, dates, or education.")
     return prompt
 
 def _extract_output_text(payload):
