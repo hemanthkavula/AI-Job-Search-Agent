@@ -401,10 +401,10 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
             m=re.search(r"<title>(.*?)</title>",detail,re.I|re.S);title=_plain(m.group(1)) if m else ""
         text=_plain(str(j.get("description") or detail))
         hay=(title+" "+text[:2000]).lower()
-        if not any(term in hay for term in ("data engineer","data platform engineer","big data engineer","etl engineer")):continue
+        if not any(term in hay for term in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","big data engineer","etl engineer","analytics engineer")):continue
         ident=_identifier(j,url)
         out.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
-          "title":title,"location":None,"url":url,"original_url":url,"ats_provider":"career_site",
+          "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
           "ats_identifier":search_url,"job_id":ident,"description":text,"description_complete":bool(text),
           "updated_at":j.get("datePosted"),"posted_on":j.get("datePosted"),"valid_through":j.get("validThrough")})
     out=_dedupe_jobs(out)
