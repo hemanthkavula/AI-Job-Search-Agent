@@ -160,3 +160,31 @@ def test_software_engineer_data_platform_with_strong_de_jd_is_target():
       "description":"Build Spark data pipelines, Kafka ingestion, lakehouse storage, Airflow orchestration and data warehouse integrations."
     },PROFILE)
     assert ok
+
+
+def test_excess_years_working_in_data_engineering_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Lead Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"10+ years working in data engineering, including at least 3 years in a leadership role."
+    },PROFILE)
+    assert not ok and any("10" in x for x in r)
+
+def test_excess_years_in_data_engineering_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Lead Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"Minimum qualifications include 10+ years in data engineering and strong SQL skills."
+    },PROFILE)
+    assert not ok and any("10" in x for x in r)
+
+def test_excess_years_building_data_platforms_rejected():
+    ok,r=passes_hard_filters({
+      "title":"Lead Data Engineer",
+      "location":"United States",
+      "employment_type":"Full-Time",
+      "description":"8+ years building enterprise data platforms, pipelines, and distributed data systems."
+    },PROFILE)
+    assert not ok and any("8" in x for x in r)
