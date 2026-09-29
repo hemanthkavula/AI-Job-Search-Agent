@@ -200,7 +200,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         for src in config.get("gem",[]) if only_source in (None,"gem") else []:
             url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
             if url:tasks.append((pool.submit(gem_jobs,src.get("company") or "gem",url),"gem",src.get("company") or "gem"))
-        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","neogov"):
+        for provider in ("recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","neogov","saashr","njoyn","recruitcrm"):
             for src in config.get(provider,[]) if only_source in (None,provider) else []:
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
@@ -220,13 +220,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 url=src.get("search_url") or src.get("base_url") or src.get("careers_url") or src.get("original_url")
                 if not url: continue
                 tasks.append((pool.submit(public_ats_jobs,src.get("company") or provider,url,provider,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
-        # Reserved fallback path for newly recognized ATS families until promoted.
-        for provider in FALLBACK_ATS_PROVIDERS:
-            for src in config.get(provider,[]) if only_source in (None,provider) else []:
-                url=src.get("search_url")
-                if not url:continue
-                tasks.append((pool.submit(career_site_jobs,src.get("company") or provider,url,src.get("job_url_pattern",r".+")),provider,src.get("company") or provider))
-        for src in config.get("discovery_portal",[]):
+        # Every generic public ATS family above is scheduled exactly once.\n        for src in config.get("discovery_portal",[]):
             provider=src.get("provider")
             if src.get("enabled",True) and only_source in (None,"discovery_portal",provider):
                 tasks.append((pool.submit(discovery_portal_jobs,provider,src.get("search_url"),src.get("job_url_pattern",r".+"),20,_hours(provider),src.get("max_detail_pages",250)),provider,src.get("company") or provider))
