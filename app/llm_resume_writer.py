@@ -145,6 +145,28 @@ def _write_cache(cache_key,value):
     tmp.write_text(json.dumps(value,ensure_ascii=False),encoding="utf-8")
     tmp.replace(path)
 
+def validate_generated_resume(result,profile):
+    """Fail closed when model output violates the immutable-history contract."""
+    if not isinstance(result,dict):raise RuntimeError("Generated resume payload must be a JSON object")
+    if not isinstance(result.get("summary"),str) or not result["summary"].strip():raise RuntimeError("Generated resume is missing summary")
+    if not isinstance(result.get("skills"),dict) or not result["skills"]:raise RuntimeError("Generated resume is missing technical skills")
+    rows=result.get("experience")
+    if not isinstance(rows,list):raise RuntimeError("Generated resume experience must be a list")
+    expected=[row.get("company") for row in (profile.get("experience") or [])]
+    actual=[row.get("company") for row in rows if isinstance(row,dict)]
+    if actual != expected:raise RuntimeError(f"Generated resume employer sequence mismatch: expected {expected}, got {actual}")
+    limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+    for row in rows:
+        company=row["company"];bullets=row.get("bullets")
+        expected_count=limits.get(company)
+        if expected_count is not None and (not isinstance(bullets,list) or len(bullets)!=expected_count):
+            raise RuntimeError(f"Generated resume bullet count mismatch for {company}: expected {expected_count}, got {len(bullets) if isinstance(bullets,list) else 'non-list'}")
+        canonical=next(x for x in profile["experience"] if x.get("company")==company)
+        for field in ("title","dates","location"):
+            if field in row and row.get(field) not in (None,"",canonical.get(field)):
+                raise RuntimeError(f"Generated resume attempted to change immutable {company} {field}")
+    return result
+
 def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     key=os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:return None
@@ -168,5 +190,6 @@ def generate_with_llm(job,profile,audit_feedback=None,coverage_plan=None):
     try:result=json.loads(text)
     except json.JSONDecodeError as exc:raise RuntimeError(f"OpenAI returned non-JSON resume output: {text[:1200]}") from exc
     if not isinstance(result,dict):raise RuntimeError("OpenAI returned a resume payload that is not a JSON object")
+    result=validate_generated_resume(result,profile)
     _write_cache(cache_key,result)
     return result
