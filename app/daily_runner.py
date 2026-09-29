@@ -19,7 +19,7 @@ def load_sources(path):return json.loads(Path(path).read_text(encoding="utf-8"))
 
 def _reason_key(reason):
     r=(reason or "").lower()
-    if "title outside" in r:return "wrong_job_family"
+    if "title outside" in r or "outside data-engineering job family" in r:return "wrong_job_family"
     if "experience requirement" in r:return "experience_mismatch"
     if "sponsorship unavailable" in r:return "no_future_sponsorship"
     return "other_hard_filter"
