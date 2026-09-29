@@ -25,3 +25,25 @@ def test_coverage_plan_is_invariant_to_profile_technical_content():
         "experience":[{"environment":"Azure Data Factory, Synapse, Terraform"}],
     })
     assert noisy == clean
+
+
+def test_resume_strategy_base_when_no_targets():
+    from app.jd_coverage_plan import select_resume_strategy
+    job=SimpleNamespace(description="Join our growing team.",description_complete=False)
+    assert select_resume_strategy(job,{})["strategy"]=="BASE"
+
+
+def test_resume_strategy_limited_when_partial_jd_has_targets():
+    from app.jd_coverage_plan import select_resume_strategy
+    job=SimpleNamespace(description="Build Python SQL Spark data pipelines.",description_complete=False)
+    result=select_resume_strategy(job,{})
+    assert result["coverage_plan"]["target_count"]>0
+    assert result["strategy"]=="LIMITED"
+
+
+def test_resume_strategy_full_when_complete_jd_has_targets():
+    from app.jd_coverage_plan import select_resume_strategy
+    job=SimpleNamespace(description="Build Python SQL Spark data pipelines.",description_complete=True)
+    result=select_resume_strategy(job,{})
+    assert result["coverage_plan"]["target_count"]>0
+    assert result["strategy"]=="FULL"
