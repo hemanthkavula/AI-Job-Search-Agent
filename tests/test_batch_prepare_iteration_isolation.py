@@ -17,7 +17,7 @@ def test_early_failure_on_second_job_never_deletes_first_jobs_resume(monkeypatch
             "url": f"https://jobs.example.com/{idx}",
             "original_url": f"https://jobs.example.com/{idx}",
             "description": "Responsibilities: build data pipelines with Spark and SQL.",
-            "description_usable": True,
+            "description_usable": True,\n            "description_complete": True,\n            "tailoring_mode": "FULL_JD",\n            "application_route": "EXTERNAL_ATS",
             "employment_type": "Full-time",
             "location": "United States",
         }
