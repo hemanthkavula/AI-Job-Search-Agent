@@ -134,7 +134,10 @@ def location_is_us(location,source=None,description=""):
     if any(city in parts for city in US_CITY_MARKERS):return True
     if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
     if any(marker in loc for marker in NON_US_MARKERS):return False
-    if loc in {"remote","remote - remote","multiple locations"}:\n        # Generic remote/multi-location metadata is unresolved at discovery. The\n        # finalizer must replace it with official U.S. geography or fail closed.\n        return not _description_has_non_us_location(description)
+    if loc in {"remote","remote - remote","multiple locations"}:
+        # Generic remote/multi-location metadata is unresolved at discovery. The
+        # finalizer must replace it with official U.S. geography or fail closed.
+        return not _description_has_non_us_location(description)
     return False
 
 def employment_is_target(employment_type, description=""):
