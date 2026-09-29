@@ -410,7 +410,7 @@ def fetch_jobs(company: str, search_url: str, job_url_pattern: str, timeout: int
             m=re.search(r"<title>(.*?)</title>",detail,re.I|re.S);title=_plain(m.group(1)) if m else ""
         text=_plain(str(j.get("description") or detail))
         hay=(title+" "+text[:2000]).lower()
-        if not _de_candidate(title,desc):continue
+        if not _de_candidate(title,text):continue
         ident=_identifier(j,url)
         out.append({"external_id":f"career_site:{company}:{ident}","source":"career_site","company_key":company,
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"career_site",
