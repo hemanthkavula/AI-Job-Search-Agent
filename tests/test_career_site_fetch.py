@@ -1,3 +1,4 @@
+import re
 from app.sources import career_site
 
 def test_fetch_jobs_initializes_regex_and_links(monkeypatch):
