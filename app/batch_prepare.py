@@ -118,13 +118,12 @@ def _retryable_resume_error(exc):
     return any(marker in text for marker in transient_markers)
 
 def _should_use_master_resume(raw,coverage_plan):
-    """Use the unchanged master/profile resume only when the verified JD has no safe tailoring targets.
+    """Never submit legacy profile technical content as a fallback.
 
-    Any concrete JD target should be reflected in the submitted resume. Returning
-    the generic master for one or two requirements silently discards verified
-    job-specific evidence and weakens both recruiter fit and ATS alignment.
+    FINAL_JD_VERIFIED resumes are JD-tailored or held. A zero-target JD is not a
+    reason to resurrect old summary/skills/evidence from the candidate profile.
     """
-    return int(coverage_plan.get("target_count") or 0) == 0
+    return False
 
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
@@ -165,33 +164,12 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
             print("V1 coverage plan | targets={} | must_cover={} | preferred={}".format(coverage_plan["target_count"],coverage_plan["must_cover_terms"],coverage_plan["preferred_terms"]),flush=True)
             use_master_resume=_should_use_master_resume(raw,coverage_plan)
             if use_master_resume:
-                # A FINAL_JD_VERIFIED job with usable JD evidence must be tailored
-                # whenever the JD yields concrete coverage targets. Only a JD with
-                # zero safe tailoring targets may fall back to the profile-backed master.
-                reason="zero_targets"
-                print(f"MASTER RESUME FALLBACK | reason={reason} | skipping JD tailoring and LLM generation.",flush=True)
-                resume=_render_base_resume(job,profile)
-                audit={
-                    "passed":True,
-                    "generation_source":"master_resume_"+reason,
-                    "generation_attempts":0,
-                    "target_count":coverage_plan["target_count"],
-                    "minimum_target_count":0,
-                    "internal_ats_score":None,
-                    "keyword_coverage":None,
-                    "experience_depth_coverage":None,
-                    "recruiter_fit_score":None,
-                    "human_quality_score":None,
-                    "quality_gates":{},
-                }
-                audit_history=[{"version":"MASTER","resume_path":str(resume),"audit":audit}]
-                attempts=0
-            else:
-                print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
-                generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
-                if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
-                resume=_render_draft(job,profile,generated);audit=ats_audit(job,profile,resume)
-                audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
+                raise RuntimeError("Legacy master-resume fallback is disabled; verified jobs must use JD-tailored content.")
+            print("Generating strongest submission-ready JD-tailored resume (V1)...",flush=True)
+            generated=generate_with_llm(job,profile,coverage_plan=coverage_plan)
+            if not generated:raise RuntimeError("LLM resume generation is unavailable. Check OPENAI_API_KEY and RESUME_LLM_MODEL in .env.")
+            resume=_render_draft(job,profile,generated);audit=ats_audit(job,profile,resume)
+            audit_history=[{"version":1,"resume_path":str(resume),"audit":audit}]
             print(f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",flush=True)
             if not audit["passed"]: print("V1 failure | "+_audit_failure_summary(audit),flush=True)
             while not audit["passed"] and attempts<MAX_RESUME_ATTEMPTS:
