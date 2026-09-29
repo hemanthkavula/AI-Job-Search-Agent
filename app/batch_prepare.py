@@ -143,7 +143,7 @@ def prepare(report_path,output_path="generated/application_manifest.json",debug_
         if limit is not None and matched>=limit:break
         matched+=1
         elig=item["eligibility"];company=(raw.get("company_key") or raw.get("company") or "Unknown")
-        job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
+        job=SimpleNamespace(company=company,title=raw.get("title") or "",description=raw.get("description") or "",description_complete=bool(raw.get("description_complete")),description_usable=bool(raw.get("description_usable")),description_length=raw.get("description_length"),jd_signal_score=raw.get("jd_signal_score"),location=raw.get("location"),employment_type=raw.get("employment_type"),url=raw.get("url"))
         print(f"START {job.company} | {job.title} | FINAL_JD_VERIFIED",flush=True)
         # Reset all per-job artifact state before entering the try block. Without
         # this, Python function locals from the previous iteration can survive and
