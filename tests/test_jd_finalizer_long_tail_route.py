@@ -90,4 +90,5 @@ def test_complete_jd_is_finalized_with_full_jd_tailoring_mode(monkeypatch,tmp_pa
     result=jd_finalizer.finalize_report(str(report),str(output))
     assert result["finalized"]==1
     assert result["results"][0]["action"]=="FINAL_JD_VERIFIED"
-    assert result["results"][0]["job"]["resume_strategy"]=="FULL"\n    assert result["results"][0]["job"]["tailoring_mode"]=="FULL_JD"
+    assert result["results"][0]["job"]["resume_strategy"]=="FULL"
+    assert result["results"][0]["job"]["tailoring_mode"]=="FULL_JD"
