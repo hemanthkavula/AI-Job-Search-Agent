@@ -20,3 +20,46 @@ def test_later_higher_overall_requirement_cannot_be_hidden_by_earlier_range():
     assert result["required_years"] == 10
     assert result["category"] == "EXPERIENCE_TOO_SENIOR"
     assert result["eligible"] is False
+
+
+def _profile():
+    return {"candidate_experience_years": 5, "preferences": {"min_required_years": 4, "max_required_years": 7}}
+
+
+def test_lower_employer_minimum_is_not_a_hard_rejection():
+    result = experience_check(
+        {"title": "Data Engineer", "description": "3+ years of professional experience required."},
+        _profile(),
+    )
+    assert result["required_years"] == 3
+    assert result["category"] == "EXPERIENCE_ELIGIBLE"
+    assert result["eligible"] is True
+
+
+def test_configured_maximum_is_inclusive():
+    result = experience_check(
+        {"title": "Senior Data Engineer", "description": "7+ years of professional experience required."},
+        _profile(),
+    )
+    assert result["required_years"] == 7
+    assert result["eligible"] is True
+
+
+def test_above_configured_maximum_is_rejected():
+    result = experience_check(
+        {"title": "Senior Data Engineer", "description": "8+ years of professional experience required."},
+        _profile(),
+    )
+    assert result["required_years"] == 8
+    assert result["category"] == "EXPERIENCE_TOO_SENIOR"
+    assert result["eligible"] is False
+
+
+def test_unstated_experience_remains_eligible_for_later_verification():
+    result = experience_check(
+        {"title": "Data Engineer", "description": "Build reliable Spark and SQL data pipelines."},
+        _profile(),
+    )
+    assert result["required_years"] is None
+    assert result["category"] == "EXPERIENCE_NOT_STATED"
+    assert result["eligible"] is True
