@@ -118,11 +118,13 @@ def _retryable_resume_error(exc):
     return any(marker in text for marker in transient_markers)
 
 def _should_use_master_resume(raw,coverage_plan):
-    """Use the unchanged master/profile resume when a verified JD yields 0-2 targets.
+    """Use the unchanged master/profile resume only when the verified JD has no safe tailoring targets.
 
-    Three or more meaningful JD targets justify job-specific resume tailoring.
+    Any concrete JD target should be reflected in the submitted resume. Returning
+    the generic master for one or two requirements silently discards verified
+    job-specific evidence and weakens both recruiter fit and ATS alignment.
     """
-    return int(coverage_plan.get("target_count") or 0) <= 2
+    return int(coverage_plan.get("target_count") or 0) == 0
 
 def _matches(raw,company=None,title=None,external_id=None):
     if external_id and raw.get("external_id") != external_id:return False
