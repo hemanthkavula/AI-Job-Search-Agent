@@ -120,8 +120,17 @@ def record_seen(job,ledger,status="DISCOVERED",**extra):
     jobs=ledger.setdefault("jobs",{});row=existing or jobs.setdefault(key,{"first_seen":now})
     aliases=ledger.setdefault("aliases",{})
     for alias in identity_keys(job):aliases[alias]=key
+    # Application history is monotonic. Rediscovery/finalization/recovery must
+    # never regress a terminal submission/manual/security state to an earlier
+    # pipeline state merely because the same requisition was seen again.
+    current_status=row.get("application_status")
+    protected_terminal={
+        "SUBMITTED","SUBMITTED_CONFIRMED","SUBMISSION_ATTEMPTED",
+        "MANUAL_ACTION_REQUIRED","SECURITY_BLOCKED","PERMANENT_SKIP",
+    }
+    effective_status=current_status if current_status in protected_terminal and status not in protected_terminal else status
     row.update({"last_seen":now,"company":job.get("company_key") or job.get("company"),"title":job.get("title"),
-                "source":job.get("source"),"url":job.get("original_url") or job.get("url"),"application_status":status})
+                "source":job.get("source"),"url":job.get("original_url") or job.get("url"),"application_status":effective_status})
     sources=set(row.get("sources") or []);sources.add(job.get("source") or "unknown");row["sources"]=sorted(sources)
     external_ids=set(row.get("external_ids") or []);external_ids.add(job.get("external_id") or "");row["external_ids"]=sorted(x for x in external_ids if x)
     row.update(extra);return key
