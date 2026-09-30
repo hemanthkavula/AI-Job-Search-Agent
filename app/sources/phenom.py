@@ -37,12 +37,12 @@ def _location(j: dict) -> str|None:
             if x:vals.append(x)
     return "; ".join(vals) or None
 
-def _is_de(t,d):
-    h=(t+" "+d[:3000]).lower()
-    return any(x in h for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data integration engineer","etl engineer","analytics engineer","big data engineer"))
-
 def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
-    """Collect public Phenom-hosted jobs using structured postings and detail links."""
+    """Collect every public Phenom posting exposed by the board/detail pages.
+
+    Phenom discovery is intentionally high-recall. Job-family and eligibility
+    decisions are deferred to the shared downstream classifier.
+    """
     body=_get(search_url,timeout); candidates=[(search_url,j) for j in _postings(body)]
     seen_links=set()
     for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
@@ -52,11 +52,9 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
         try:detail=_get(url,timeout)
         except Exception:continue
         candidates.extend((url,j) for j in _postings(detail))
-        if len(seen_links)>=300:break
     tenant=urlparse(search_url).netloc;out=[];seen=set()
     for page,j in candidates:
         title=_plain(j.get("title"));desc=_plain(j.get("description"))
-        if not _is_de(title,desc):continue
         url=str(j.get("url") or page);ident=j.get("identifier") or url
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or url
         ident=str(ident)
@@ -66,4 +64,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"phenom",
           "ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),
           "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"Phenom / {company}: {len(out)} jobs discovered from {len(seen_links)} detail link(s)",flush=True)
     return out
