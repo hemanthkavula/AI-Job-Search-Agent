@@ -25,10 +25,12 @@ def _has_skill(skill: str, text: str) -> bool:
 
 def analyze_job(job, profile: dict) -> dict:
     text=_norm(f"{job.title} {job.description}")
-    title=_norm(job.title)
-    target_roles=[_norm(r) for r in profile["preferences"]["target_roles"]]
     from app.filters import title_is_target
-    role_match=title_is_target(job.title)
+    # Keep scoring aligned with the central recall-first classifier. Some broad or
+    # unusually worded engineering titles need JD evidence to establish that they
+    # are genuinely Data Engineering work; title-only scoring used to downgrade
+    # those jobs even after the hard filter correctly retained them.
+    role_match=title_is_target(job.title, job.description or "")
 
     skills=profile["skills"]
     matched=[s for s in skills if _has_skill(s,text)]
@@ -36,7 +38,6 @@ def analyze_job(job, profile: dict) -> dict:
     matched_priority=[s for s in priority if _has_skill(s,text)]
     missing=[s for s in priority if s not in matched_priority]
 
-    # Score against skills the JD actually asks for, with extra weight on core DE skills.
     skill_score=min(50, len(matched)*4 + len(matched_priority)*3)
     role_score=25 if role_match else 5
 
