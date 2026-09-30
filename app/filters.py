@@ -2,22 +2,33 @@ from __future__ import annotations
 import re
 from app.eligibility import two_category_filter
 
-ALLOWED_TITLE_PATTERNS=[
- r"\bdata engineer(?:ing)?\b",
- r"\bdata platform engineer\b", r"\bdata infrastructure engineer\b",
- r"\bdata pipeline engineer\b", r"\bdata warehouse engineer\b",
- r"\bdata integration engineer\b", r"\banalytics engineer\b",
- r"\betl engineer\b", r"\bbig data engineer\b",
-]
+# Target-title vocabulary is intentionally recall-first. Long/specialized titles are
+# accepted when their title itself clearly describes data engineering/platform work.
+DIRECT_TARGET_TITLE_PATTERNS=(
+ r"\bdata engineer(?:ing)?\b", r"\banalytics engineer(?:ing)?\b",
+ r"\bdata platform engineer(?:ing)?\b", r"\bdata infrastructure engineer(?:ing)?\b",
+ r"\bdata pipeline engineer(?:ing)?\b", r"\bdata warehouse engineer(?:ing)?\b",
+ r"\bdata integration engineer(?:ing)?\b", r"\bdata systems? engineer(?:ing)?\b",
+ r"\bdata lake(?:house)? engineer(?:ing)?\b", r"\bdata reliability engineer(?:ing)?\b",
+ r"\bdata operations? engineer(?:ing)?\b", r"\bdata ops engineer(?:ing)?\b",
+ r"\bdata quality engineer(?:ing)?\b", r"\bdata ingestion engineer(?:ing)?\b",
+ r"\bdata transformation engineer(?:ing)?\b", r"\bdata processing engineer(?:ing)?\b",
+ r"\bdata streaming engineer(?:ing)?\b", r"\bstreaming data engineer(?:ing)?\b",
+ r"\bbig data engineer(?:ing)?\b", r"\bcloud data engineer(?:ing)?\b",
+ r"\betl engineer(?:ing)?\b", r"\belt engineer(?:ing)?\b",
+ r"\bspark engineer(?:ing)?\b", r"\bpyspark engineer(?:ing)?\b",
+ r"\bdatabricks engineer(?:ing)?\b", r"\bsnowflake engineer(?:ing)?\b",
+ r"\bwarehouse engineer(?:ing)?\b", r"\bpipeline engineer(?:ing)?\b",
+)
+# Terms that identify clearly different role families. They are evaluated only when
+# the title did not already match an explicit DE-family phrase above.
 EXCLUDED_TITLE_TERMS={
- "analyst","scientist","frontend","front end","qa engineer","business intelligence","power bi developer","tableau developer",
- "machine learning engineer","devops engineer","site reliability","database administrator","data architect","solutions architect",
- "product manager","program manager","platform manager","account executive","solutions engineer","solution engineer","sales engineer",
- "customer engineer","consulting engineer","solutions consultant","solution consultant","technical account manager","customer success",
- "full-stack","full stack","dot net",".net","java developer","siem","security data engineer","marketing technology developer",
- "data governance lead","summer internship","internship","career accelerator program","junior data engineer"
+ "data analyst","business analyst","data scientist","research scientist","frontend","front end","qa engineer","business intelligence","power bi developer","tableau developer",
+ "machine learning engineer","ml engineer","devops engineer","site reliability","database administrator","data architect","solutions architect",
+ "product manager","program manager","account executive","solutions engineer","solution engineer","sales engineer","customer engineer","consulting engineer",
+ "solutions consultant","solution consultant","technical account manager","customer success","full-stack","full stack","dot net",".net","java developer","siem",
+ "security data engineer","marketing technology developer","data governance lead","summer internship","internship","career accelerator program"
 }
-
 US_MARKERS={"united states","united states of america","usa","u.s.","u.s.a.","us remote","remote - us","remote, us","remote us"}
 US_STATE_NAMES={"alabama","alaska","arizona","arkansas","california","colorado","connecticut","delaware","florida","georgia","hawaii","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new hampshire","new jersey","new mexico","new york","north carolina","north dakota","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","vermont","virginia","washington","west virginia","wisconsin","wyoming","district of columbia"}
 NON_US_MARKERS={"romania","bucharest","canada","toronto","vancouver","india","bangalore","bengaluru","hyderabad","pune","chennai","mumbai","delhi","united kingdom","london","ireland","dublin","germany","berlin","munich","france","paris","spain","madrid","netherlands","amsterdam","poland","warsaw","portugal","lisbon","italy","milan","australia","sydney","melbourne","singapore","japan","tokyo","mexico","brazil"}
@@ -36,35 +47,29 @@ def employer_is_excluded(company):
 def _clean(v):return re.sub(r"\s+"," ",(v or "").lower()).strip()
 def _title_for_match(title):
     t=_clean(title);t=re.sub(r"\s*\((?:remote|hybrid|on[- ]?site|onsite)(?:[^)]*)\)\s*$","",t);return t.strip()
-DATA_ENGINEERING_JD_SIGNALS=("data pipeline","data pipelines","etl","elt","data warehouse","data lake","lakehouse","spark","pyspark","databricks","snowflake","bigquery","redshift","airflow","dbt","kafka","data modeling","data ingestion","data transformation","data integration")
+DATA_ENGINEERING_JD_SIGNALS=("data pipeline","data pipelines","etl","elt","data warehouse","data lake","lakehouse","spark","pyspark","databricks","snowflake","bigquery","redshift","airflow","dbt","kafka","data modeling","data ingestion","data transformation","data integration","batch processing","stream processing","distributed data","data platform","data infrastructure")
 
 def jd_is_data_engineering(description):
-    text=_clean(description);hits={signal for signal in DATA_ENGINEERING_JD_SIGNALS if signal in text};return len(hits)>=3
+    text=_clean(description);hits={signal for signal in DATA_ENGINEERING_JD_SIGNALS if signal in text};return len(hits)>=2
 
 def title_is_target(title,description=""):
     t=_title_for_match(title)
     if not t:return False
-    # Governing rule: the literal phrase Data Engineer/Data Engineering anywhere in
-    # a title is sufficient, regardless of prefixes/suffixes/specialty wording.
-    if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
-    # Explicit target-family titles are accepted directly. Their names already
-    # identify Data Engineering work; requiring three JD keywords was suppressing
-    # valid Analytics Engineer and Data Platform/Infrastructure postings when job
-    # boards supplied only a short description.
-    if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
-    # Management/architecture/consulting roles without the literal Data Engineer
-    # phrase remain outside the individual-contributor target family.
-    if re.search(r"\b(manager|director|architect|consultant)\b",t,re.I):return False
-    # Software Engineer is not globally excluded: explicitly data-oriented software
-    # engineering titles can represent the same pipeline/platform work and are kept
-    # when the JD independently confirms the family.
-    if re.search(r"\bsoftware engineer\b",t,re.I):
-        if any(x in t for x in ("data platform","data infrastructure","data pipeline","data warehouse","data systems")):
-            return jd_is_data_engineering(description)
-        return False
+    # Any long/specialized title containing an explicit DE-family phrase qualifies.
+    # Examples: "Staff Research Data Engineering - Platform", "Senior Data Engineer,
+    # Risk & Research", "Principal Cloud Data Platform Engineering".
+    if any(re.search(p,t,re.I) for p in DIRECT_TARGET_TITLE_PATTERNS):return True
+    # Also accept titles where data/research/analytics/platform/infrastructure/pipeline
+    # wording and engineering are separated by modifiers, e.g. "Research Data & ML
+    # Platform Engineering" or "Data Products and Analytics Engineering". The JD
+    # must carry independent DE evidence for these looser constructions.
+    has_engineering=bool(re.search(r"\bengineer(?:ing)?\b",t,re.I))
+    has_data_context=any(x in t for x in ("data","analytics","warehouse","pipeline","etl","elt","lakehouse","platform","infrastructure","research data","data products"))
+    if has_engineering and has_data_context:
+        if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
+        return jd_is_data_engineering(description)
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    adjacent_engineering_title=("engineer" in t and any(marker in t for marker in ("data","analytics","etl","warehouse","pipeline","integration")))
-    return adjacent_engineering_title and jd_is_data_engineering(description)
+    return False
 
 def _description_has_us_location(description):
     text=_clean(description)
