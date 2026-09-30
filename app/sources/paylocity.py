@@ -37,27 +37,23 @@ def _location(j: dict) -> str|None:
             if x:vals.append(x)
     return "; ".join(vals) or None
 
-def _is_de(t,d):
-    h=(t+" "+d[:3000]).lower()
-    return any(x in h for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data integration engineer","etl engineer","analytics engineer","big data engineer"))
-
 def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
-    """Collect public Paylocity Recruiting postings and detail pages."""
+    """Collect every public Paylocity posting; qualify job family downstream."""
     body=_get(search_url,timeout);candidates=[(search_url,j) for j in _postings(body)]
     links=[];seen_links=set()
     for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
         url=urljoin(search_url,html.unescape(href));low=url.lower()
         if not any(x in low for x in ("/details/","/job/","/jobs/","jobid=")) or url in seen_links:continue
         seen_links.add(url);links.append(url)
-    for url in links[:300]:
+    for url in links:
         try:detail=_get(url,timeout)
         except Exception:continue
         candidates.extend((url,j) for j in _postings(detail))
-    tenant=urlparse(search_url).netloc+urlparse(search_url).path.split("/")[1] if len(urlparse(search_url).path.split("/"))>1 else urlparse(search_url).netloc
+    parts=urlparse(search_url).path.split("/")
+    tenant=urlparse(search_url).netloc+(parts[1] if len(parts)>1 else "")
     out=[];seen=set()
     for page,j in candidates:
         title=_plain(j.get("title"));desc=_plain(j.get("description"))
-        if not _is_de(title,desc):continue
         url=str(j.get("url") or page);ident=j.get("identifier") or url
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or url
         ident=str(ident)
@@ -67,4 +63,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "title":title,"location":_location(j),"url":url,"original_url":url,"ats_provider":"paylocity",
           "ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),
           "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"Paylocity / {company}: {len(out)} jobs discovered",flush=True)
     return out
