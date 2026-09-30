@@ -1,4 +1,4 @@
-from app.filters import passes_hard_filters, employment_is_target
+from app.filters import passes_hard_filters, employment_is_target, title_is_target
 
 PROFILE={
   "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":3,"max_required_years":7},
@@ -9,6 +9,20 @@ PROFILE={
 def test_data_engineer_passes():
     ok,_=passes_hard_filters({"title":"Senior Data Engineer","location":"Jersey City, NJ, United States","description":"Python AWS"},PROFILE)
     assert ok
+
+def test_data_engineer_phrase_anywhere_in_long_title_is_target():
+    titles=(
+      "Senior Cloud Data Engineer - AWS / Spark / Databricks",
+      "Vice President, Enterprise Risk Lead Data Engineer II - Regulatory Platform",
+      "2026 Technology - Data Engineer, Global Markets Data Platform (Hybrid)",
+      "Principal Engineer - Data Engineer / Snowflake / Kafka",
+      "Data Engineer III - Finance, Risk, Compliance and Market Data",
+    )
+    for title in titles:
+        assert title_is_target(title, ""), title
+
+def test_data_engineering_phrase_anywhere_in_long_title_is_target():
+    assert title_is_target("Senior Engineer - Data Engineering, Cloud Lakehouse", "")
 
 def test_no_sponsorship_rejected():
     ok,r=passes_hard_filters({"title":"Senior Data Engineer","description":"Candidates must be eligible to work in the US without visa sponsorship."},PROFILE)
