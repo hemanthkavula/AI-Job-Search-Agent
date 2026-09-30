@@ -25,9 +25,11 @@ def _posts(b):
     return out
 
 def fetch_jobs(company:str,search_url:str,timeout:int=25,max_api_pages:int|None=None,max_fallback_links:int|None=None)->list[dict]:
-    """Fetch Dayforce postings with exhaustion-based API pagination.
+    """Fetch all public Dayforce postings visible from API/page frontiers.
 
-    Optional ceilings are emergency safeguards only and are surfaced as TRUNCATED.
+    Source discovery maximizes recall. Job-family and candidate eligibility are
+    evaluated centrally downstream. Optional ceilings are emergency safeguards
+    only and are surfaced as TRUNCATED.
     """
     body=_get(search_url,timeout);candidates=[(search_url,j) for j in _posts(body)];seen_links=set();api_pages=0;truncated=[]
     try:
@@ -62,8 +64,7 @@ def fetch_jobs(company:str,search_url:str,timeout:int=25,max_api_pages:int|None=
         except Exception:pass
     tenant=urlparse(search_url).netloc;out=[];ids=set()
     for page,j in candidates:
-        title=_plain(j.get("title"));desc=_plain(j.get("description"));hay=(title+" "+desc[:3000]).lower()
-        if not any(x in hay for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data integration engineer","etl engineer","analytics engineer","big data engineer")):continue
+        title=_plain(j.get("title"));desc=_plain(j.get("description"))
         ident=j.get("identifier") or page
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or page
         ident=str(ident)
@@ -73,5 +74,5 @@ def fetch_jobs(company:str,search_url:str,timeout:int=25,max_api_pages:int|None=
             a=loc["address"];location=", ".join(str(a.get(k)) for k in ("addressLocality","addressRegion","addressCountry") if a.get(k)) or None
         out.append({"external_id":f"dayforce:{tenant}:{ident}","source":"dayforce","company_key":company,"title":title,"location":location,"url":url,"original_url":url,"ats_provider":"dayforce","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
     state="TRUNCATED" if truncated else "EXHAUSTED_OR_PAGE_LINK_FRONTIER"
-    print(f"Dayforce / {company}: {len(out)} DE jobs, {api_pages} API pages, {len(seen_links)} fallback links, pagination={state}"+(f", reasons={','.join(sorted(set(truncated)))}" if truncated else ""),flush=True)
+    print(f"Dayforce / {company}: {len(out)} jobs discovered, {api_pages} API pages, {len(seen_links)} fallback links, pagination={state}"+(f", reasons={','.join(sorted(set(truncated)))}" if truncated else ""),flush=True)
     return out
