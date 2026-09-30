@@ -18,39 +18,51 @@ def _plain(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def fetch_jobs(company: str, base_url: str, timeout: int = 20) -> list[dict]:
-    # SuccessFactors search is lexical. Use several broad DE-family queries for
-    # recall, then let the downstream semantic classifier make the final family
-    # decision from title + official JD.
-    queries=("data engineer","data platform","data infrastructure","data pipeline","etl","big data","analytics engineer")
-    out=[]; seen=set()
-    family_terms=("data engineer","data engineering","data platform","data infrastructure","data pipeline","etl","big data","analytics engineer")
-    for query_text in queries:
-        query=urlencode({"q":query_text,"locationsearch":"United States"})
-        search_url=urljoin(base_url.rstrip("/")+"/","search/")+"?"+query
-        try:
-            body=_get(search_url,timeout)
-        except Exception:
-            continue
-        hrefs=re.findall(r'href=["\']([^"\']*(?:/job/)[^"\']+)["\']',body,re.I)
-        for href in hrefs:
-            url=urljoin(base_url,html.unescape(href))
-            if url in seen:continue
-            seen.add(url)
+def _extract_job_links(base_url: str, body: str) -> list[str]:
+    out=[];seen=set()
+    for href in re.findall(r'href=["\']([^"\']*(?:/job/)[^"\']+)["\']',body,re.I):
+        url=urljoin(base_url,html.unescape(href))
+        if url not in seen:
+            seen.add(url);out.append(url)
+    return out
+
+
+def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int | None = None) -> list[dict]:
+    """Traverse public SuccessFactors search pages broadly.
+
+    Discovery intentionally does not decide whether a posting is Data
+    Engineering-family. That decision belongs to the shared downstream
+    classifier after the official detail page has been collected.
+    """
+    out=[];seen_jobs=set();seen_pages=set();queue=[];truncated=False;pages=0
+    # Start with an unrestricted search. Keep United States as a discovery hint
+    # because this project only targets U.S. jobs; pagination links discovered
+    # from the provider are followed as returned.
+    first=urljoin(base_url.rstrip("/")+"/","search/")+"?"+urlencode({"locationsearch":"United States"})
+    queue.append(first)
+    while queue:
+        if max_pages is not None and pages>=max_pages:
+            truncated=True;break
+        search_url=queue.pop(0)
+        if search_url in seen_pages:continue
+        seen_pages.add(search_url)
+        try:body=_get(search_url,timeout)
+        except Exception:continue
+        pages+=1
+        for url in _extract_job_links(base_url,body):
+            if url in seen_jobs:continue
+            seen_jobs.add(url)
             try:detail=_get(url,timeout)
             except Exception:continue
             text=_plain(detail)
             title_match=re.search(r"<title>(.*?)</title>",detail,re.I|re.S)
             title=_plain(title_match.group(1)) if title_match else ""
-            hay=(title+" "+text[:3500]).lower()
-            if not any(term in hay for term in family_terms):continue
-            out.append({
-                "external_id":f"successfactors:{company}:{url}",
-                "source":"successfactors","company_key":company,
-                "title":title or "Data Engineering role","location":None,
-                "url":url,"original_url":url,"ats_provider":"successfactors",
-                "ats_identifier":base_url,"description":text,
-                "description_complete":bool(text),"updated_at":None,
-            })
-    print(f"SuccessFactors / {company}: {len(out)} DE-family jobs",flush=True)
+            out.append({"external_id":f"successfactors:{company}:{url}","source":"successfactors","company_key":company,"title":title,"location":None,"url":url,"original_url":url,"ats_provider":"successfactors","ats_identifier":base_url,"description":text,"description_complete":bool(text),"updated_at":None})
+        # Follow provider search/pagination links instead of assuming one page.
+        for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
+            u=urljoin(search_url,html.unescape(href));lo=u.lower()
+            if "/search/" in lo and u not in seen_pages and u not in queue:
+                queue.append(u)
+    state="TRUNCATED" if truncated else "EXHAUSTED_OR_LINK_FRONTIER"
+    print(f"SuccessFactors / {company}: {len(out)} jobs from {pages} search pages, pagination={state}",flush=True)
     return out
