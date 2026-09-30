@@ -27,8 +27,6 @@ def _row(provider, company, target, result, **extra):
 
 def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
     cfg=json.loads((ROOT/path).read_text(encoding="utf-8"))
-    # Health must audit the same effective universe discovery can execute:
-    # configured seeds plus persistent sources learned from employer enrichment.
     learned=as_discovery_config(load_registry())
     for provider, units in learned.items():
         if not isinstance(units,list):
@@ -43,9 +41,6 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
                 existing.append(unit);seen.add(key)
         cfg[provider]=existing
     rows=[]
-    # Career-site validation is network-bound and independent per employer.
-    # Validate in parallel so a few slow/blocked sites do not serialize the
-    # entire production health gate.
     career_units=list(cfg.get("career_site",[]))
     def _validate_career(x):
         r=validate_career_site(x["company"],x["search_url"],x["job_url_pattern"],timeout)
@@ -78,81 +73,63 @@ def run(path: str="data/job_sources.json", timeout: int=12) -> dict:
         for x in cfg.get(provider,[]):
             url=x.get("base_url") or x.get("search_url") or x.get("careers_url") or x.get("original_url")
             if not url:
-                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
-                continue
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"));continue
             rows.append(_row(provider,x.get("company") or provider,url,_probe(url,timeout)))
     for x in cfg.get("eightfold",[]):
         url=x.get("careers_url") or x.get("search_url") or x.get("base_url") or x.get("original_url")
         if not url:
-            rows.append(_row("eightfold",x.get("company") or "eightfold","",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
-            continue
+            rows.append(_row("eightfold",x.get("company") or "eightfold","",{"status":"configured","http_status":None},coverage_status="CONFIGURED"));continue
         rows.append(_row("eightfold",x.get("company") or "eightfold",url,_probe(url,timeout)))
-    # Dedicated collectors beyond the original API-backed set still need a
-    # board-level health row for every configured tenant.
     for provider in ("ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite"):
         for x in cfg.get(provider,[]):
             url=x.get("search_url") or x.get("base_url") or x.get("careers_url") or x.get("original_url")
             if not url:
-                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
-                continue
-            probe=_probe(url,timeout)
-            coverage="DIRECT" if probe.get("status")=="ok" else "BLOCKED"
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"));continue
+            probe=_probe(url,timeout);coverage="DIRECT" if probe.get("status")=="ok" else "BLOCKED"
             rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage))
-    # Every configured ATS family must appear in source health.  For providers
-    # without a dedicated API probe yet, probe the configured public board and
-    # label it fallback/configured rather than silently omitting it.
     dedicated={"career_site","greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","dice","ziprecruiter"}
     for provider, units in cfg.items():
-        if provider in dedicated or not isinstance(units,list):
-            continue
+        if provider in dedicated or not isinstance(units,list):continue
         for x in units:
-            if not isinstance(x,dict):
-                continue
+            if not isinstance(x,dict):continue
             url=x.get("search_url") or x.get("base_url") or x.get("careers_url") or x.get("original_url")
             if not url:
-                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"))
-                continue
+                rows.append(_row(provider,x.get("company") or provider,"",{"status":"configured","http_status":None},coverage_status="CONFIGURED"));continue
             probe=_probe(url,timeout)
-            if probe.get("status")=="ok":
-                coverage="DIRECT_PUBLIC_BOARD" if provider in DIRECT_PROVIDERS else "GENERIC_PUBLIC_REACHABLE"
-            else:
-                coverage="BLOCKED"
+            coverage=("DIRECT_PUBLIC_BOARD" if provider in DIRECT_PROVIDERS else "GENERIC_PUBLIC_REACHABLE") if probe.get("status")=="ok" else "BLOCKED"
             rows.append(_row(provider,x.get("company") or provider,url,probe,coverage_status=coverage,collector_class=("direct_public_board" if provider in DIRECT_PROVIDERS else "generic_public_html")))
-    # Surface provider families with no configured tenant instead of silently
-    # omitting them from the health report. This separates collector support
-    # from actual production coverage.
     for provider in DIRECT_PROVIDERS:
         units=cfg.get(provider,[])
         if isinstance(units,list) and not units:
             collector_class="native_client_scoped" if provider in {"talentreef","jobappnetwork"} else "unseeded"
-            rows.append(_row(
-                provider, provider, "",
-                {"status":"unseeded","http_status":None},
-                coverage_status="UNSEEDED",
-                collector_class=collector_class,
-            ))
+            rows.append(_row(provider,provider,"",{"status":"unseeded","http_status":None},coverage_status="UNSEEDED",collector_class=collector_class))
+
+    # IMPORTANT: health probing is advisory. A failed health probe must not become
+    # a 24-hour production exclusion. discovery.py historically suppresses rows
+    # whose effective_status is broken/unreachable/blocked/etc.; map those observations
+    # to probe_required while preserving the raw status for diagnostics. This makes
+    # every configured tenant eligible for a recovery attempt on every production run.
+    suppressing_statuses={"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern","ERROR","SKIPPED_UNHEALTHY"}
+    for r in rows:
+        observed=r.get("effective_status") or r.get("status")
+        r["observed_status"]=observed
+        if observed in suppressing_statuses:
+            r["effective_status"]="probe_required"
+            r["recovery_probe_required"]=True
+
     counts={}
     for r in rows:
-        s=r.get("effective_status") or r["status"]
-        counts[s]=counts.get(s,0)+1
+        s=r.get("effective_status") or r["status"];counts[s]=counts.get(s,0)+1
     coverage_counts={}
     for r in rows:
-        k=r.get("coverage_status") or ("DIRECT" if (r.get("effective_status") or r.get("status"))=="ok" else "UNKNOWN")
-        coverage_counts[k]=coverage_counts.get(k,0)+1
+        k=r.get("coverage_status") or ("DIRECT" if (r.get("effective_status") or r.get("status"))=="ok" else "UNKNOWN");coverage_counts[k]=coverage_counts.get(k,0)+1
     return {"counts":counts,"coverage_counts":coverage_counts,"provider_classes":{"native":list(NATIVE_ATS_PROVIDERS),"generic_public":list(GENERIC_PUBLIC_ATS_PROVIDERS),"direct":list(DIRECT_PROVIDERS),"fallback":list(FALLBACK_ATS_PROVIDERS)},"sources":rows}
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser()
-    p.add_argument("--sources",default="data/job_sources.json")
-    p.add_argument("--timeout",type=int,default=12)
-    p.add_argument("--output",default="state/source_health.json")
-    a=p.parse_args()
-    report=run(a.sources,a.timeout)
-    out=ROOT/a.output; out.parent.mkdir(parents=True,exist_ok=True)
-    out.write_text(json.dumps(report,indent=2),encoding="utf-8")
+    p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--timeout",type=int,default=12);p.add_argument("--output",default="state/source_health.json");a=p.parse_args()
+    report=run(a.sources,a.timeout);out=ROOT/a.output;out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2),encoding="utf-8")
     print(json.dumps(report["counts"],indent=2))
     for r in report["sources"]:
         status=r.get("effective_status") or r["status"]
-        if status!="ok":
-            print(f'{status:22} [{r["provider"]}] {r["company"]}: {r["target"]} http={r.get("http_status")} links={r.get("matching_job_links","")}')
+        if status!="ok":print(f'{status:22} [{r["provider"]}] {r["company"]}: {r["target"]} http={r.get("http_status")} links={r.get("matching_job_links","")} observed={r.get("observed_status","")}')
     print(f"Saved report to {out}")
