@@ -5,10 +5,10 @@ from urllib.request import Request,urlopen
 UA={"User-Agent":"Mozilla/5.0","Accept":"text/html,application/json,*/*"}
 def _get(u,t=25):
     with urlopen(Request(u,headers=UA),timeout=t) as r:return r.read().decode("utf-8","replace")
-def _plain(v):return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",html.unescape(str(v or "")))).strip()
+def _plain(v):return re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",html.unescape(str(v or "")))).strip()
 def _jp(b):
     out=[]
-    for raw in re.findall(r'<script[^>]*type=["\\\']application/ld\\+json["\\\'][^>]*>(.*?)</script>',b,re.I|re.S):
+    for raw in re.findall(r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',b,re.I|re.S):
         try:d=json.loads(html.unescape(raw.strip()))
         except Exception:continue
         stack=d if isinstance(d,list) else [d]
@@ -19,22 +19,23 @@ def _jp(b):
                 if isinstance(n.get("@graph"),list):stack.extend(n["@graph"])
     return out
 def fetch_jobs(company: str,search_url: str,timeout: int=25)->list[dict]:
+    """Collect all public JazzHR postings and defer job-family decisions downstream."""
     body=_get(search_url,timeout);links=[];seen=set()
-    for h in re.findall(r'href=["\\\']([^"\\\']+)["\\\']',body,re.I):
+    for h in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
         u=urljoin(search_url,html.unescape(h));lo=u.lower()
         if any(x in lo for x in ("/jobs/","/apply/")) and u not in seen:seen.add(u);links.append(u)
     candidates=[(search_url,j) for j in _jp(body)]
-    for u in links[:300]:
+    for u in links:
         try:candidates.extend((u,j) for j in _jp(_get(u,timeout)))
         except Exception:pass
     tenant=urlparse(search_url).netloc;out=[];ids=set()
     for page,j in candidates:
-        title=_plain(j.get("title"));desc=_plain(j.get("description"));hay=(title+" "+desc[:3000]).lower()
-        if not any(x in hay for x in ("data engineer","data engineering","data platform engineer","data integration engineer","etl engineer","analytics engineer")):continue
+        title=_plain(j.get("title"));desc=_plain(j.get("description"))
         ident=j.get("identifier") or page
         if isinstance(ident,dict):ident=ident.get("value") or page
         ident=str(ident)
         if ident in ids:continue
         ids.add(ident);url=str(j.get("url") or page)
         out.append({"external_id":f"jazzhr:{tenant}:{ident}","source":"jazzhr","company_key":company,"title":title,"location":None,"url":url,"original_url":url,"ats_provider":"jazzhr","ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),"posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"JazzHR / {company}: {len(out)} jobs discovered",flush=True)
     return out
