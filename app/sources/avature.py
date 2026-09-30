@@ -38,12 +38,8 @@ def _location(j: dict) -> str|None:
             if text:vals.append(text)
     return "; ".join(vals) or None
 
-def _is_de(title: str, desc: str) -> bool:
-    hay=(title+" "+desc[:3000]).lower()
-    return any(x in hay for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data integration engineer","etl engineer","analytics engineer","big data engineer"))
-
 def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
-    """Collect public Avature postings from board/detail pages."""
+    """Collect every public Avature posting exposed by board/detail pages."""
     body=_get(search_url,timeout);out=[];seen=set()
     candidates=[(search_url,j) for j in _jobpostings(body)]
     hrefs=re.findall(r'href=["\']([^"\']+)["\']',body,re.I)
@@ -52,14 +48,13 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
         url=urljoin(search_url,html.unescape(href));low=url.lower()
         if any(x in low for x in ("/jobdetail/","/job/","jobdetail")) and url not in seen_links:
             seen_links.add(url);links.append(url)
-    for url in links[:300]:
+    for url in links:
         try:detail=_get(url,timeout)
         except Exception:continue
         for j in _jobpostings(detail):candidates.append((url,j))
     tenant=urlparse(search_url).netloc
     for page_url,j in candidates:
         title=_plain(j.get("title"));desc=_plain(j.get("description"))
-        if not _is_de(title,desc):continue
         url=str(j.get("url") or page_url);ident=j.get("identifier") or url
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or url
         ident=str(ident)
@@ -70,4 +65,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "ats_provider":"avature","ats_identifier":tenant,"job_id":ident,
           "description":desc,"description_complete":bool(desc),
           "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"Avature / {company}: {len(out)} jobs discovered",flush=True)
     return out
