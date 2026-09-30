@@ -5,7 +5,6 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 UA={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8","Accept-Language":"en-US,en;q=0.9"}
-DE_TERMS=("data engineer","data engineering","data platform engineer","data infrastructure engineer","data pipeline engineer","data integration engineer","analytics engineer","big data engineer","etl engineer")
 
 def _get(url:str,timeout:int=20)->str:
     with urlopen(Request(url,headers=UA),timeout=timeout) as r:return r.read().decode("utf-8","replace")
@@ -42,7 +41,6 @@ def _parse_posted(value):
 def _normalize(provider,j,page_url,hours=None):
     title=_plain(j.get("title"));desc=_plain(j.get("description"));posted=_parse_posted(j.get("datePosted"))
     if hours is not None and posted is not None and posted<datetime.now(timezone.utc)-timedelta(hours=float(hours)):return None
-    if not any(t in (title+" "+desc[:2500]).lower() for t in DE_TERMS):return None
     org=j.get("hiringOrganization");company=_plain(org.get("name")) if isinstance(org,dict) else _plain(org);url=urljoin(page_url,str(j.get("url") or page_url));ident=j.get("identifier")
     if isinstance(ident,dict):ident=ident.get("value") or ident.get("name")
     sid=hashlib.sha1(str(ident or url or company+":"+title).encode()).hexdigest()[:20]
@@ -50,7 +48,6 @@ def _normalize(provider,j,page_url,hours=None):
 
 def _page_fallback(provider,body,page_url):
     tm=re.search(r"<h1[^>]*>(.*?)</h1>",body,re.I|re.S) or re.search(r"<title[^>]*>(.*?)</title>",body,re.I|re.S);title=_plain(tm.group(1)) if tm else "";text=_plain(body)
-    if not any(t in (title+" "+text[:5000]).lower() for t in DE_TERMS):return None
     company=""
     for pat in (r'"hiringOrganization"\s*:\s*\{[^{}]*"name"\s*:\s*"([^"]+)"',r'"company"\s*:\s*\{[^{}]*"name"\s*:\s*"([^"]+)"'):
         m=re.search(pat,body,re.I|re.S)
@@ -72,14 +69,14 @@ def _numbered_page_url(url,page):
     p=urlsplit(url);q=dict(parse_qsl(p.query,keep_blank_values=True));q["page"]=str(page);return urlunsplit((p.scheme,p.netloc,p.path,urlencode(q),p.fragment))
 
 def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,hours:float|None=None,max_detail_pages:int|None=None,max_search_pages:int|None=None)->list[dict]:
-    """Crawl a public portal to exhaustion when pagination is discoverable.
+    """Crawl a public discovery portal to its visible pagination/link frontier.
 
-    Optional limits are explicit emergency safeguards. If reached, telemetry prints
-    TRUNCATED so production health can distinguish a cap from true exhaustion.
+    The portal adapter performs discovery and optional authoritative freshness only.
+    It does not decide job family. Central downstream qualification owns Data
+    Engineering relevance, U.S. eligibility, experience and sponsorship rules.
+    Optional limits are emergency safeguards and are reported as TRUNCATED.
     """
     out=[];seen=set();rx=re.compile(job_url_pattern,re.I);links=[];queue=[search_url];visited_pages=set();truncated=[]
-    # For Wellfound, discover numbered pages incrementally until an empty/no-new-link
-    # frontier rather than pre-seeding an arbitrary ten-page ceiling.
     wellfound=provider.lower()=="wellfound";next_wellfound_page=2;wellfound_empty_streak=0
     while queue or (wellfound and wellfound_empty_streak<2):
         if max_search_pages is not None and len(visited_pages)>=max_search_pages:truncated.append("search_pages");break
@@ -118,5 +115,5 @@ def fetch_jobs(provider:str,search_url:str,job_url_pattern:str,timeout:int=20,ho
             row=_page_fallback(provider,detail,u)
             if row and row["external_id"] not in seen:seen.add(row["external_id"]);out.append(row)
     state="TRUNCATED:"+",".join(sorted(set(truncated))) if truncated else "EXHAUSTED_OR_FRONTIER"
-    print(f"DiscoveryPortal / {provider}: {len(out)} DE jobs from {len(visited_pages)} search page(s), {len(links)} detail link(s), pagination={state}",flush=True)
+    print(f"DiscoveryPortal / {provider}: {len(out)} discovered jobs from {len(visited_pages)} search page(s), {len(links)} detail link(s), pagination={state}; job-family filtering deferred downstream",flush=True)
     return out
