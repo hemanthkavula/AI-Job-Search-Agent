@@ -38,17 +38,12 @@ def _location(j: dict) -> str|None:
             if text:vals.append(text)
     return "; ".join(vals) or None
 
-def _is_de(title: str, desc: str) -> bool:
-    hay=(title+" "+desc[:3000]).lower()
-    return any(x in hay for x in ("data engineer","data engineering","data platform engineer","data infrastructure engineer","data integration engineer","etl engineer","analytics engineer","big data engineer"))
-
 def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
-    """Collect public ADP Workforce Now job postings.
+    """Collect every public ADP Workforce Now posting exposed by the board.
 
-    ADP tenants commonly expose a recruitment shell identified by cid/ccId.
-    The adapter follows server-rendered job links and consumes structured
-    JobPosting data when available. Unsupported JS-only tenants remain visible
-    in source health instead of being silently treated as successful.
+    Source adapters maximize recall. Job-family, experience, work-authorization,
+    location and other eligibility decisions belong to the shared downstream
+    classifier, so this adapter must not discard jobs before that stage.
     """
     body=_get(search_url,timeout);out=[];seen=set()
     candidates=[(search_url,j) for j in _jobpostings(body)]
@@ -60,7 +55,9 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
         low=url.lower()
         if any(x in low for x in ("jobdetail","job-details","jobdetails","recruitment.html")) and url not in seen_links:
             seen_links.add(url);links.append(url)
-    for url in links[:250]:
+    # Do not impose an arbitrary per-board detail-link ceiling. Large employers
+    # can legitimately expose hundreds or thousands of openings.
+    for url in links:
         try:detail=_get(url,timeout)
         except Exception:continue
         for j in _jobpostings(detail):candidates.append((url,j))
@@ -69,7 +66,6 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
     tenant=(q.get("cid") or q.get("ccId") or [parsed.netloc])[0]
     for page_url,j in candidates:
         title=_plain(j.get("title"));desc=_plain(j.get("description"))
-        if not _is_de(title,desc):continue
         url=str(j.get("url") or page_url)
         ident=j.get("identifier") or url
         if isinstance(ident,dict):ident=ident.get("value") or ident.get("name") or url
@@ -81,4 +77,5 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "ats_provider":"adp_workforce_now","ats_identifier":tenant,"job_id":ident,
           "description":desc,"description_complete":bool(desc),
           "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"ADP / {company}: {len(out)} jobs discovered",flush=True)
     return out
