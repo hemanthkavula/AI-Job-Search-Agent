@@ -6,16 +6,13 @@ from urllib.request import Request, urlopen
 UA={"User-Agent":"AI-Job-Search-Agent/0.2","Accept":"text/html,application/xhtml+xml"}
 
 def _get(url: str, timeout: int) -> str:
-    with urlopen(Request(url,headers=UA),timeout=timeout) as resp:
-        return resp.read().decode("utf-8","replace")
+    with urlopen(Request(url,headers=UA),timeout=timeout) as resp:return resp.read().decode("utf-8","replace")
 
 def _job_links(base_url: str, text: str) -> list[str]:
-    links=re.findall(r"href=[\"']([^\"']*/jobs/\d+[^\"']*)",text,re.I)
-    out=[];seen=set()
+    links=re.findall(r"href=[\"']([^\"']*/jobs/\d+[^\"']*)",text,re.I);out=[];seen=set()
     for href in links:
         url=urljoin(base_url,html.unescape(href))
-        if url not in seen:
-            seen.add(url);out.append(url)
+        if url not in seen:seen.add(url);out.append(url)
     return out
 
 def _jsonld_job(text: str) -> dict:
@@ -28,19 +25,18 @@ def _jsonld_job(text: str) -> dict:
             if isinstance(row,dict) and row.get("@type")=="JobPosting":return row
     return {}
 
-def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int = 3) -> list[dict]:
-    """Fetch public iCIMS postings by crawling search results and JobPosting JSON-LD."""
-    base=base_url.rstrip("/")+"/"
-    links=[];seen=set()
-    for page in range(1,max_pages+1):
-        query=urlencode({"ss":"1","searchKeyword":"data engineer","pr":page})
-        text=_get(urljoin(base,"jobs/search?")+query,timeout)
-        page_links=_job_links(base,text)
+def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int|None = None) -> list[dict]:
+    """Fetch public iCIMS postings to exhaustion; optional max_pages is an explicit safety override."""
+    base=base_url.rstrip("/")+"/";links=[];seen=set();page=1;truncated=False
+    while True:
+        if max_pages is not None and page>max_pages:truncated=True;break
+        query=urlencode({"ss":"1","searchKeyword":"data engineer","pr":page});text=_get(urljoin(base,"jobs/search?")+query,timeout);page_links=_job_links(base,text)
         if not page_links:break
         added=0
         for link in page_links:
             if link not in seen:seen.add(link);links.append(link);added+=1
         if not added:break
+        page+=1
     out=[]
     for url in links:
         text=_get(url,timeout);j=_jsonld_job(text)
@@ -51,14 +47,7 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int = 
             m=re.search(r"/jobs/(\d+)",url);ident=m.group(1) if m else url
         loc=j.get("jobLocation") or {}
         if isinstance(loc,list):loc=loc[0] if loc else {}
-        addr=loc.get("address") or {} if isinstance(loc,dict) else {}
-        location=", ".join(str(addr.get(k) or "") for k in ("addressLocality","addressRegion","addressCountry") if addr.get(k))
-        desc=re.sub(r"<[^>]+>"," ",html.unescape(j.get("description") or ""))
-        out.append({
-            "external_id":f"icims:{company}:{ident}","source":"icims","company_key":company,
-            "title":j.get("title") or "","location":location or None,"url":url,"original_url":url,
-            "ats_provider":"icims","ats_identifier":base_url,"job_id":ident,
-            "description":re.sub(r"\s+"," ",desc).strip(),"description_complete":bool(desc.strip()),
-            "posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough"),
-        })
+        addr=loc.get("address") or {} if isinstance(loc,dict) else {};location=", ".join(str(addr.get(k) or "") for k in ("addressLocality","addressRegion","addressCountry") if addr.get(k));desc=re.sub(r"<[^>]+>"," ",html.unescape(j.get("description") or ""))
+        out.append({"external_id":f"icims:{company}:{ident}","source":"icims","company_key":company,"title":j.get("title") or "","location":location or None,"url":url,"original_url":url,"ats_provider":"icims","ats_identifier":base_url,"job_id":ident,"description":re.sub(r"\s+"," ",desc).strip(),"description_complete":bool(desc.strip()),"posted_on":j.get("datePosted"),"updated_at":j.get("datePosted"),"valid_through":j.get("validThrough")})
+    print(f"iCIMS / {company}: {len(links)} job links, {len(out)} detailed jobs, pagination={'TRUNCATED' if truncated else 'EXHAUSTED'}",flush=True)
     return out
