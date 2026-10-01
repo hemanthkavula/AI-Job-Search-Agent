@@ -37,5 +37,13 @@ def test_discovery_report_groups_provider_errors(monkeypatch, tmp_path):
     assert report["source_errors"]["workday"][0]["error"] == "request timeout"
     assert report["source_errors"]["ziprecruiter"][0]["error"] == "HTTP 403"
 
-    assert report["source_unit_status"]["workday:Example"] == "ERROR"
-    assert report["source_unit_status"]["workday:Other"] == "ERROR"
+    # Unit-level diagnostics intentionally retain more context than the
+    # provider-level status so production reports can identify the exact tenant.
+    example = report["source_unit_status"]["workday:Example"]
+    other = report["source_unit_status"]["workday:Other"]
+    assert example["status"] == "ERROR"
+    assert example["source"] == "workday"
+    assert example["company"] == "Example"
+    assert example["error"] == "request timeout"
+    assert other["status"] == "ERROR"
+    assert other["error"] == "HTTP 503"
