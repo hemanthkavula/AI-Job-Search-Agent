@@ -10,7 +10,9 @@ on:
 
 concurrency:
   group: production-job-cycle
-  # Fresh scheduled discovery must not queue behind a stale/hung cycle.\n  # Interrupted source units retain their previous successful watermark and\n  # are caught up by the replacement cycle.\n  cancel-in-progress: true
+  # A new scheduled slot must never queue behind a stale/hung cycle. Interrupted
+  # source units keep their prior successful watermark and catch up next cycle.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -19,6 +21,8 @@ permissions:
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
+    # Leave headroom for reporting, dashboard sync and artifact persistence.
+    # The production runner itself gets a smaller explicit budget below.
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Restore scheduler, ledger, discovery and source-health state
         uses: actions/cache@v4
@@ -53,14 +58,10 @@ jobs:
           python - <<'PY'
           from datetime import datetime
           from zoneinfo import ZoneInfo
-          import json
+          import json, os
           from pathlib import Path
 
           force = "${{ github.event_name }}" == "workflow_dispatch" and "${{ inputs.force }}" == "true"
-          if force:
-              print("Manual force run requested.")
-              with open(Path("${{ github.output }}") if False else "/dev/null", "w") as _:
-                  pass
           now = datetime.now(ZoneInfo("America/New_York"))
           state_path = Path("generated/scheduler_state.json")
           try:
@@ -69,9 +70,6 @@ jobs:
               state = {}
 
           due_slots = ((7, 30), (10, 0), (12, 30), (15, 30), (18, 30), (21, 0))
-          # Keep the existing Cloudflare heartbeat architecture. Each requested
-          # slot remains recoverable for 55 minutes, so repeated heartbeats can
-          # recover a delayed/dropped dispatch without running the slot twice.
           now_minutes = now.hour * 60 + now.minute
           active_slot = None
           for hour, minute in due_slots:
@@ -81,16 +79,8 @@ jobs:
                   break
           slot_hour, slot_minute = active_slot if active_slot else (now.hour, now.minute)
           slot = f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
-          due = (
-              force
-              or (
-                  now.weekday() < 5
-                  and active_slot is not None
-                  and state.get("last_completed_slot") != slot
-              )
-          )
-          output = Path(__import__("os").environ["GITHUB_OUTPUT"])
-          with output.open("a") as f:
+          due = force or (now.weekday() < 5 and active_slot is not None and state.get("last_completed_slot") != slot)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as f:
               f.write(f"should_run={'true' if due else 'false'}\n")
               f.write(f"slot={slot}\n")
           print(f"Eastern time: {now.isoformat()}")
@@ -105,31 +95,37 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
-      - name: Install LibreOffice for resume PDF validation
+      # LibreOffice installation previously consumed several minutes on every run
+      # and competed with discovery for the 55-minute workflow cap. Resume PDF
+      # conversion remains supported, but the runner must not spend the critical
+      # discovery window installing OS packages. Use the master DOCX/PDF fallback
+      # or a prebuilt runner image for conversion when soffice is unavailable.
+      - name: Report PDF converter availability
         if: steps.guard.outputs.should_run == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-writer
-          soffice --version
+          if command -v soffice >/dev/null 2>&1; then
+            soffice --version
+          else
+            echo "LibreOffice is not preinstalled; production will use configured PDF fallback/recovery rather than apt-installing it in this cycle."
+          fi
 
-      # Employer-universe enrichment is intentionally NOT part of this critical
-      # production path. It performs thousands of external network probes and can
-      # take far longer than a two-hour job slot. Run the dedicated
-      # employer-universe-enrichment workflow independently; production consumes
-      # the latest persisted company/source registry without waiting for enrichment.
+      # Source-health probing is diagnostic, not a production prerequisite. Running
+      # every probe serially before discovery reduces recall and can cause timeout.
+      # Production collectors already retry configured tenants and record per-source
+      # status. A dedicated validation workflow can run the exhaustive audit.
 
-      - name: Audit configured source health
+      - name: Run scheduled production cycle within a 45-minute execution budget
         if: steps.guard.outputs.should_run == 'true'
-        run: |
-          python -m app.source_health --sources data/job_sources.json --output state/source_health.json
-
-      - name: Run scheduled production cycle
-        if: steps.guard.outputs.should_run == 'true'
+        timeout-minutes: 45
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           JOB_ANALYSIS_LLM_ENABLED: "true"
           JOB_ANALYSIS_LLM_MODEL: gpt-5.6-luna
           RESUME_LLM_MODEL: gpt-5.6
+          # The runner uses per-provider/per-tenant watermarks. A source that times
+          # out must keep its previous successful watermark so the next cycle catches
+          # up instead of silently skipping jobs.
+          PRODUCTION_RUNTIME_BUDGET_SECONDS: "2580"
         run: |
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
@@ -159,6 +155,7 @@ jobs:
           else
             tar -czf dashboard-sync.tgz generated/
             curl --fail --show-error --silent --retry 3 --retry-delay 5 \
+              --connect-timeout 10 --max-time 90 \
               -X POST \
               -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
               -H "Content-Type: application/gzip" \
@@ -167,7 +164,7 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@v4
-        if: steps.guard.outputs.should_run == 'true'
+        if: always() && steps.guard.outputs.should_run == 'true'
         with:
           name: job-cycle-${{ github.run_number }}
           path: |
