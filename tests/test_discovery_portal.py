@@ -12,10 +12,14 @@ def test_discovery_portal_marks_rows_non_authoritative(monkeypatch):
     assert job["authoritative_source"] is False
     assert job["company_key"]=="Startup Co"
 
-def test_discovery_portal_filters_non_data_roles(monkeypatch):
+def test_discovery_portal_preserves_non_data_roles_for_downstream_filtering(monkeypatch):
     page='<script type="application/ld+json">{"@type":"JobPosting","title":"Account Executive","description":"sales revenue accounts","hiringOrganization":{"name":"Startup Co"}}</script>'
     monkeypatch.setattr(discovery_portal,"_get",lambda url,timeout=20: page)
-    assert discovery_portal.fetch_jobs("startup_feed","https://feed.example/jobs",r"/jobs/")==[]
+    rows=discovery_portal.fetch_jobs("startup_feed","https://feed.example/jobs",r"/jobs/")
+    assert len(rows)==1
+    assert rows[0]["title"]=="Account Executive"
+    assert rows[0]["discovery_only"] is True
+    assert rows[0]["authoritative_source"] is False
 
 
 def test_discovery_portal_applies_freshness_window(monkeypatch):
