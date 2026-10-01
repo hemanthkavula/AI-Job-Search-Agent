@@ -21,8 +21,8 @@ permissions:
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
-    # Leave headroom for reporting, dashboard sync and artifact persistence.
-    # The production runner itself gets a smaller explicit budget below.
+    # Hard workflow cap. The production runner is deliberately stopped much
+    # earlier so state/reporting/dashboard/artifact work always gets headroom.
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
@@ -95,11 +95,6 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
-      # LibreOffice installation previously consumed several minutes on every run
-      # and competed with discovery for the 55-minute workflow cap. Resume PDF
-      # conversion remains supported, but the runner must not spend the critical
-      # discovery window installing OS packages. Use the master DOCX/PDF fallback
-      # or a prebuilt runner image for conversion when soffice is unavailable.
       - name: Report PDF converter availability
         if: steps.guard.outputs.should_run == 'true'
         run: |
@@ -109,23 +104,19 @@ jobs:
             echo "LibreOffice is not preinstalled; production will use configured PDF fallback/recovery rather than apt-installing it in this cycle."
           fi
 
-      # Source-health probing is diagnostic, not a production prerequisite. Running
-      # every probe serially before discovery reduces recall and can cause timeout.
-      # Production collectors already retry configured tenants and record per-source
-      # status. A dedicated validation workflow can run the exhaustive audit.
-
-      - name: Run scheduled production cycle within a 45-minute execution budget
+      # The application must stop discovery/finalization itself before GitHub's
+      # wrapper can kill it. 35 minutes is the internal work budget; 40 minutes
+      # is the outer step guard. This leaves at least ~15 minutes of the workflow
+      # cap for state persistence, reporting, acceptance, dashboard sync and upload.
+      - name: Run scheduled production cycle within protected execution budget
         if: steps.guard.outputs.should_run == 'true'
-        timeout-minutes: 45
+        timeout-minutes: 40
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           JOB_ANALYSIS_LLM_ENABLED: "true"
           JOB_ANALYSIS_LLM_MODEL: gpt-5.6-luna
           RESUME_LLM_MODEL: gpt-5.6
-          # The runner uses per-provider/per-tenant watermarks. A source that times
-          # out must keep its previous successful watermark so the next cycle catches
-          # up instead of silently skipping jobs.
-          PRODUCTION_RUNTIME_BUDGET_SECONDS: "2580"
+          PRODUCTION_RUNTIME_BUDGET_SECONDS: "2100"
         run: |
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
@@ -134,18 +125,18 @@ jobs:
           python -m app.scheduled_runner --sources data/job_sources.json --accepted-slot "${{ steps.guard.outputs.slot }}" $FORCE_ARG
 
       - name: Generate exhaustive source execution report
-        if: steps.guard.outputs.should_run == 'true'
+        if: always() && steps.guard.outputs.should_run == 'true'
         run: |
           REPORT_PATH=$(python -m app.run_report)
           echo "Source report: $REPORT_PATH"
           cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify production acceptance invariants
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         run: python -m app.production_acceptance
 
       - name: Sync application queue to hosted dashboard
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         env:
           DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
           DASHBOARD_SYNC_URL: https://job-dashboard-production-7436.up.railway.app/api/sync
