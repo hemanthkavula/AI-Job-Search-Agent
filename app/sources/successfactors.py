@@ -27,19 +27,32 @@ def _extract_job_links(base_url: str, body: str) -> list[str]:
     return out
 
 
-def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int | None = None) -> list[dict]:
-    """Traverse public SuccessFactors search pages broadly.
+# SuccessFactors tenants frequently expose only a subset of jobs for a generic
+# location search. Seed multiple broad DE-family terms, then deduplicate detail
+# URLs. These are discovery hints only: the shared downstream classifier still
+# makes the authoritative role-family decision from the collected JD.
+SEARCH_TERMS=(
+    "",
+    "data engineer",
+    "data engineering",
+    "analytics engineer",
+    "data platform",
+    "data infrastructure",
+    "etl",
+    "spark",
+    "databricks",
+    "data warehouse",
+)
 
-    Discovery intentionally does not decide whether a posting is Data
-    Engineering-family. That decision belongs to the shared downstream
-    classifier after the official detail page has been collected.
-    """
+
+def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int | None = None) -> list[dict]:
+    """Traverse public SuccessFactors search pages broadly for U.S. jobs."""
     out=[];seen_jobs=set();seen_pages=set();queue=[];truncated=False;pages=0
-    # Start with an unrestricted search. Keep United States as a discovery hint
-    # because this project only targets U.S. jobs; pagination links discovered
-    # from the provider are followed as returned.
-    first=urljoin(base_url.rstrip("/")+"/","search/")+"?"+urlencode({"locationsearch":"United States"})
-    queue.append(first)
+    search_root=urljoin(base_url.rstrip("/")+"/","search/")
+    for term in SEARCH_TERMS:
+        params={"locationsearch":"United States"}
+        if term: params["q"]=term
+        queue.append(search_root+"?"+urlencode(params))
     while queue:
         if max_pages is not None and pages>=max_pages:
             truncated=True;break
@@ -58,7 +71,6 @@ def fetch_jobs(company: str, base_url: str, timeout: int = 20, max_pages: int | 
             title_match=re.search(r"<title>(.*?)</title>",detail,re.I|re.S)
             title=_plain(title_match.group(1)) if title_match else ""
             out.append({"external_id":f"successfactors:{company}:{url}","source":"successfactors","company_key":company,"title":title,"location":None,"url":url,"original_url":url,"ats_provider":"successfactors","ats_identifier":base_url,"description":text,"description_complete":bool(text),"updated_at":None})
-        # Follow provider search/pagination links instead of assuming one page.
         for href in re.findall(r'href=["\']([^"\']+)["\']',body,re.I):
             u=urljoin(search_url,html.unescape(href));lo=u.lower()
             if "/search/" in lo and u not in seen_pages and u not in queue:
