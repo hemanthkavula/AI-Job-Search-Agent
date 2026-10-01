@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse,json
+import argparse,json,os,time
 from datetime import datetime,timezone
 from pathlib import Path
 from app.daily_runner import run as discover_and_filter
@@ -19,145 +19,67 @@ def _sync_finalized(rows,ledger_path,cycle_id=None):
   raw=row.get("job") or row.get("raw") or row
   status=row.get("action") or raw.get("action")
   if not status:continue
-  record_seen(raw,ledger,status,
-              original_url=raw.get("original_url"),
-              ats_provider=raw.get("ats_provider"),
-              ats_identifier=raw.get("ats_identifier"),
-              requisition_id=raw.get("requisition_id") or raw.get("job_id"),
-              jd_hash=raw.get("jd_hash"),
-              description_complete=raw.get("description_complete"),
-              cycle_id=cycle_id)
+  record_seen(raw,ledger,status,original_url=raw.get("original_url"),ats_provider=raw.get("ats_provider"),ats_identifier=raw.get("ats_identifier"),requisition_id=raw.get("requisition_id") or raw.get("job_id"),jd_hash=raw.get("jd_hash"),description_complete=raw.get("description_complete"),cycle_id=cycle_id)
  save_ledger(ledger,ledger_path)
 
 def _retry_items_from_ledger(ledger_path):
- ledger_data=load_ledger(ledger_path)
- items=[]
+ ledger_data=load_ledger(ledger_path);items=[]
  for raw in retryable_jobs(ledger_data):
   elig=raw.get("eligibility")
-  if not isinstance(elig,dict):continue
-  items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
+  if isinstance(elig,dict):items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
  return items
 
 def _is_real_pdf(path_value):
  try:
   p=Path(path_value) if path_value else None
   return bool(p and p.suffix.lower()==".pdf" and p.is_file() and p.read_bytes()[:5]==b"%PDF-")
- except OSError:
-  return False
+ except OSError:return False
 
 def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
-  job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
-       "location":row.get("location"),"original_url":row.get("original_url"),"url":row.get("url"),
-       "requisition_id":row.get("requisition_id") or row.get("job_id") or row.get("ats_job_id")}
-  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id}
-  status=row.get("next_action") or "PREPARED"
+  job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"location":row.get("location"),"original_url":row.get("original_url"),"url":row.get("url"),"requisition_id":row.get("requisition_id") or row.get("job_id") or row.get("ats_job_id")}
+  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id};status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="READY_TO_APPLY":
-   pdf_path=row.get("pdf_path")
-   validation=row.get("artifact_validation") or {}
-   pdf=Path(pdf_path) if pdf_path else None
+   pdf_path=row.get("pdf_path");validation=row.get("artifact_validation") or {}
    if _is_real_pdf(pdf_path) and validation.get("passed") is True:
-    queue_payload={
-     "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
-     "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
-     "resume_path":pdf_path,"artifact_validation":row.get("artifact_validation"),
-     "status":"READY_FOR_ATS_ADAPTER",
-    }
-    if queue_payload.get("external_id"):extra["queue_item"]=queue_payload
-   else:
-    status="HOLD_ARTIFACT_VALIDATION"
-    extra["queue_item"]=None
-    extra["application_reason"]="Validated PDF resume is required before application."
+    q={"external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),"url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),"resume_path":pdf_path,"artifact_validation":row.get("artifact_validation"),"status":"READY_FOR_ATS_ADAPTER"}
+    if q.get("external_id"):extra["queue_item"]=q
+   else:status="HOLD_ARTIFACT_VALIDATION";extra["queue_item"]=None;extra["application_reason"]="Validated PDF resume is required before application."
   if row.get("next_action")=="RETRY_RESUME_GENERATION":
-   _,existing=_lookup(job,ledger)
-   meta=retry_metadata(existing or {},"resume")
-   extra.update(meta)
-   if meta["resume_retry_exhausted"]:
-    status="MANUAL_ACTION_REQUIRED"
-    extra["retry_job"]=None
-    extra["retry_exhausted_reason"]="Resume generation retry limit reached"
-   else:
-    extra["retry_job"]={
-    "external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),
-    "url":row.get("url"),"original_url":row.get("original_url"),"ats_provider":row.get("ats_provider"),"ats_identifier":row.get("ats_identifier"),
-    "ats_resolution":row.get("ats_resolution"),"application_route":row.get("application_route"),"tailoring_mode":row.get("tailoring_mode"),
-    "description":row.get("description"),"description_complete":row.get("description_complete"),"description_usable":row.get("description_usable"),
-    "employment_type":row.get("employment_type"),"location":row.get("location"),"eligibility":row.get("eligibility")
-    }
+   _,existing=_lookup(job,ledger);meta=retry_metadata(existing or {},"resume");extra.update(meta)
+   if meta["resume_retry_exhausted"]:status="MANUAL_ACTION_REQUIRED";extra["retry_job"]=None;extra["retry_exhausted_reason"]="Resume generation retry limit reached"
+   else:extra["retry_job"]={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url"),"original_url":row.get("original_url"),"ats_provider":row.get("ats_provider"),"ats_identifier":row.get("ats_identifier"),"ats_resolution":row.get("ats_resolution"),"application_route":row.get("application_route"),"tailoring_mode":row.get("tailoring_mode"),"description":row.get("description"),"description_complete":row.get("description_complete"),"description_usable":row.get("description_usable"),"employment_type":row.get("employment_type"),"location":row.get("location"),"eligibility":row.get("eligibility")}
   record_seen(job,ledger,status,**extra)
  save_ledger(ledger,ledger_path)
 
 def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_ledger.json",generate_resumes=False,limit=None,external_id=None,since=None,scan_now=None,source_since=None,source_hours=None,source_unit_hours=None):
- stamp=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
- eligible_rel=f"generated/cycles/{stamp}_eligible.json"
- finalized_rel=f"generated/cycles/{stamp}_finalized.json"
- manifest_rel=f"generated/cycles/{stamp}_manifest.json"
- queue_rel=f"generated/cycles/{stamp}_application_queue.json"
- discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours)
- _write(eligible_rel,discovery)
- finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now)
- _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
- retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
- finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
- retry_ids={x["job"].get("external_id") for x in retry_items}
- existing_ids={(x.get("job") or {}).get("external_id") for x in finalized_results}
+ started=time.monotonic();budget=max(300,int(os.getenv("PRODUCTION_RUNTIME_BUDGET_SECONDS","2580")));reserve=max(60,int(os.getenv("PRODUCTION_FINALIZATION_RESERVE_SECONDS","180")))
+ def elapsed():return round(time.monotonic()-started,2)
+ def remaining():return budget-(time.monotonic()-started)
+ def can_start(min_seconds):return remaining()>reserve+min_seconds
+ stamp=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ");eligible_rel=f"generated/cycles/{stamp}_eligible.json";finalized_rel=f"generated/cycles/{stamp}_finalized.json";manifest_rel=f"generated/cycles/{stamp}_manifest.json";queue_rel=f"generated/cycles/{stamp}_application_queue.json"
+ phase_runtime={};deferred=[]
+ t=time.monotonic();discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours);phase_runtime["discovery_filter_seconds"]=round(time.monotonic()-t,2);_write(eligible_rel,discovery)
+ finalized={"finalized":0,"held_or_rejected":0,"results":[]}
+ if can_start(60):
+  t=time.monotonic();finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now);phase_runtime["official_jd_finalization_seconds"]=round(time.monotonic()-t,2);_sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
+ else:deferred.append("official_jd_finalization_runtime_budget");_write(finalized_rel,finalized)
+ retry_items=_retry_items_from_ledger(ledger) if generate_resumes else [];finalized_results=list(finalized.get("results") or finalized.get("jobs") or []);existing_ids={(x.get("job") or {}).get("external_id") for x in finalized_results}
  for item in retry_items:
-  if item["job"].get("external_id") not in existing_ids:
-   finalized_results.append(item)
- if retry_items:
-  finalized["results"]=finalized_results
-  finalized["finalized"]=sum(1 for x in finalized_results if x.get("action")=="FINAL_JD_VERIFIED")
-  _write(finalized_rel,finalized)
+  if item["job"].get("external_id") not in existing_ids:finalized_results.append(item)
+ if retry_items:finalized["results"]=finalized_results;finalized["finalized"]=sum(1 for x in finalized_results if x.get("action")=="FINAL_JD_VERIFIED");_write(finalized_rel,finalized)
  manifest=[]
  if generate_resumes and finalized.get("finalized"):
-  manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit)
-  _sync_manifest(manifest,ledger,stamp)
- queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel),ledger_path=ledger) if manifest else []
- # Dashboard-facing eligibility is intentionally the final application-ready
- # count. Preliminary filter matches remain available in the eligible report,
- # but are not presented as "eligible" until JD/live-route verification,
- # resume generation, and artifact validation have all succeeded.
- manifest_ready_count=sum(
-  x.get("next_action")=="READY_TO_APPLY"
-  and _is_real_pdf(x.get("pdf_path"))
-  and (x.get("artifact_validation") or {}).get("passed") is True
-  for x in manifest
- )
- queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
- summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
-          "fresh_verified_within_hours":discovery.get("fresh_verified_within_hours",0),
-          "stale_posting_date":discovery.get("stale_posting_date",0),
-          "missing_or_unparseable_posting_date":discovery.get("missing_or_unparseable_posting_date",0),
-          "already_processed":discovery.get("already_processed",0),
-          "filtered_out":discovery.get("filtered_out",0),
-          "filter_reason_counts":discovery.get("filter_reason_counts",{}),
-          "preliminary_eligible":discovery.get("eligible",0),
-          "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
-          "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
-          "manifest_ready_to_apply":manifest_ready_count,
-          "ready_to_apply":queued_ready_count,
-          "hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),
-          "hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),
-          "retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),
-          "eligible_report":eligible_rel,"finalized_report":finalized_rel,
-          "manifest":manifest_rel if generate_resumes else None,
-          "application_queue":queue_rel if manifest else None,
-          "queued_for_application":queued_ready_count,
-          "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
-          "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),
-          "coverage":discovery.get("coverage",{}),
-          "funnel":{"discovered":discovery.get("discovered",0),"fresh_verified":discovery.get("fresh_verified_within_hours",0),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"prepared":len(manifest),"artifact_ready":manifest_ready_count,"queued_ready":queued_ready_count},
-          "resume_strategy_counts":{"BASE":sum((x.get("resume_strategy") or "")=="BASE" for x in manifest),"LIMITED":sum((x.get("resume_strategy") or "")=="LIMITED" for x in manifest),"FULL":sum((x.get("resume_strategy") or "")=="FULL" for x in manifest)},
-          "unique_employers_ready":len({(x.get("company") or "").strip().lower() for x in manifest if x.get("next_action")=="READY_TO_APPLY" and (x.get("company") or "").strip()})}
- _write(f"generated/cycles/{stamp}_summary.json",summary)
- return summary
+  if can_start(120):
+   t=time.monotonic();manifest=prepare(str(ROOT/finalized_rel),str(ROOT/manifest_rel),external_id=external_id,limit=limit);phase_runtime["resume_prepare_seconds"]=round(time.monotonic()-t,2);_sync_manifest(manifest,ledger,stamp)
+  else:deferred.append("resume_generation_runtime_budget")
+ queue=[]
+ if manifest:
+  t=time.monotonic();queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel),ledger_path=ledger);phase_runtime["queue_seconds"]=round(time.monotonic()-t,2)
+ manifest_ready_count=sum(x.get("next_action")=="READY_TO_APPLY" and _is_real_pdf(x.get("pdf_path")) and (x.get("artifact_validation") or {}).get("passed") is True for x in manifest);queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
+ summary={"cycle_id":stamp,"scan_window_hours":hours,"runtime_budget_seconds":budget,"runtime_elapsed_seconds":elapsed(),"runtime_remaining_seconds":round(remaining(),2),"runtime_phase_seconds":phase_runtime,"runtime_deferred_phases":deferred,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,"fresh_verified_within_hours":discovery.get("fresh_verified_within_hours",0),"stale_posting_date":discovery.get("stale_posting_date",0),"missing_or_unparseable_posting_date":discovery.get("missing_or_unparseable_posting_date",0),"already_processed":discovery.get("already_processed",0),"filtered_out":discovery.get("filtered_out",0),"filter_reason_counts":discovery.get("filter_reason_counts",{}),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),"resume_generation_enabled":generate_resumes,"prepared":len(manifest),"manifest_ready_to_apply":manifest_ready_count,"ready_to_apply":queued_ready_count,"hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),"hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),"retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),"eligible_report":eligible_rel,"finalized_report":finalized_rel,"manifest":manifest_rel if generate_resumes else None,"application_queue":queue_rel if manifest else None,"queued_for_application":queued_ready_count,"manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),"source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),"coverage":discovery.get("coverage",{}),"funnel":{"discovered":discovery.get("discovered",0),"fresh_verified":discovery.get("fresh_verified_within_hours",0),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"prepared":len(manifest),"artifact_ready":manifest_ready_count,"queued_ready":queued_ready_count},"resume_strategy_counts":{"BASE":sum((x.get("resume_strategy") or "")=="BASE" for x in manifest),"LIMITED":sum((x.get("resume_strategy") or "")=="LIMITED" for x in manifest),"FULL":sum((x.get("resume_strategy") or "")=="FULL" for x in manifest)},"unique_employers_ready":len({(x.get("company") or "").strip().lower() for x in manifest if x.get("next_action")=="READY_TO_APPLY" and (x.get("company") or "").strip()})}
+ summary["runtime_elapsed_seconds"]=elapsed();summary["runtime_remaining_seconds"]=round(remaining(),2);_write(f"generated/cycles/{stamp}_summary.json",summary);return summary
 
 if __name__=="__main__":
- p=argparse.ArgumentParser()
- p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24)
- p.add_argument("--ledger",default="generated/job_ledger.json")
- p.add_argument("--generate-resumes",action="store_true",help="Enable paid LLM resume generation. Omit for free discovery/finalization dry runs.")
- p.add_argument("--limit",type=int,help="Optional resume-generation cap for controlled validation.")
- p.add_argument("--external-id",help="Generate a resume only for the matching finalized job external_id.")
- a=p.parse_args();print(json.dumps(run_cycle(a.sources,a.hours,a.ledger,a.generate_resumes,a.limit,a.external_id),indent=2))
+ p=argparse.ArgumentParser();p.add_argument("--sources",default="data/job_sources.json");p.add_argument("--hours",type=int,default=24);p.add_argument("--ledger",default="generated/job_ledger.json");p.add_argument("--generate-resumes",action="store_true");p.add_argument("--limit",type=int);p.add_argument("--external-id");a=p.parse_args();print(json.dumps(run_cycle(a.sources,a.hours,a.ledger,a.generate_resumes,a.limit,a.external_id),indent=2))
