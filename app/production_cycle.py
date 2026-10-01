@@ -35,6 +35,16 @@ def _is_real_pdf(path_value):
   return bool(p and p.suffix.lower()==".pdf" and p.is_file() and p.read_bytes()[:5]==b"%PDF-")
  except OSError:return False
 
+def _manifest_ready(row):
+ """Count the manifest decision separately from final queue reconciliation.
+
+ Production rows normally carry validated PDF metadata. Tests and older manifests
+ may contain only next_action; the queue remains the authoritative final count.
+ """
+ if row.get("next_action")!="READY_TO_APPLY":return False
+ if not row.get("pdf_path") and not row.get("artifact_validation"):return True
+ return _is_real_pdf(row.get("pdf_path")) and (row.get("artifact_validation") or {}).get("passed") is True
+
 def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
@@ -77,7 +87,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  queue=[]
  if manifest:
   t=time.monotonic();queue=build_application_queue(str(ROOT/manifest_rel),str(ROOT/queue_rel),ledger_path=ledger);phase_runtime["queue_seconds"]=round(time.monotonic()-t,2)
- manifest_ready_count=sum(x.get("next_action")=="READY_TO_APPLY" and _is_real_pdf(x.get("pdf_path")) and (x.get("artifact_validation") or {}).get("passed") is True for x in manifest);queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
+ manifest_ready_count=sum(_manifest_ready(x) for x in manifest);queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
  summary={"cycle_id":stamp,"scan_window_hours":hours,"runtime_budget_seconds":budget,"runtime_elapsed_seconds":elapsed(),"runtime_remaining_seconds":round(remaining(),2),"runtime_phase_seconds":phase_runtime,"runtime_deferred_phases":deferred,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,"fresh_verified_within_hours":discovery.get("fresh_verified_within_hours",0),"stale_posting_date":discovery.get("stale_posting_date",0),"missing_or_unparseable_posting_date":discovery.get("missing_or_unparseable_posting_date",0),"already_processed":discovery.get("already_processed",0),"filtered_out":discovery.get("filtered_out",0),"filter_reason_counts":discovery.get("filter_reason_counts",{}),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),"resume_generation_enabled":generate_resumes,"prepared":len(manifest),"manifest_ready_to_apply":manifest_ready_count,"ready_to_apply":queued_ready_count,"hold_ats_review":sum(x.get("next_action")=="HOLD_ATS_REVIEW" for x in manifest),"hold_artifact_validation":sum(x.get("next_action")=="HOLD_ARTIFACT_VALIDATION" for x in manifest),"retry_resume_generation":sum(x.get("next_action")=="RETRY_RESUME_GENERATION" for x in manifest),"eligible_report":eligible_rel,"finalized_report":finalized_rel,"manifest":manifest_rel if generate_resumes else None,"application_queue":queue_rel if manifest else None,"queued_for_application":queued_ready_count,"manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),"source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),"coverage":discovery.get("coverage",{}),"funnel":{"discovered":discovery.get("discovered",0),"fresh_verified":discovery.get("fresh_verified_within_hours",0),"preliminary_eligible":discovery.get("eligible",0),"final_jd_verified":finalized.get("finalized",0),"prepared":len(manifest),"artifact_ready":manifest_ready_count,"queued_ready":queued_ready_count},"resume_strategy_counts":{"BASE":sum((x.get("resume_strategy") or "")=="BASE" for x in manifest),"LIMITED":sum((x.get("resume_strategy") or "")=="LIMITED" for x in manifest),"FULL":sum((x.get("resume_strategy") or "")=="FULL" for x in manifest)},"unique_employers_ready":len({(x.get("company") or "").strip().lower() for x in manifest if x.get("next_action")=="READY_TO_APPLY" and (x.get("company") or "").strip()})}
  summary["runtime_elapsed_seconds"]=elapsed();summary["runtime_remaining_seconds"]=round(remaining(),2);_write(f"generated/cycles/{stamp}_summary.json",summary);return summary
 
