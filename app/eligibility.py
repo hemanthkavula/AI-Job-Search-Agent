@@ -3,6 +3,7 @@ import re
 
 NO_SPONSOR_PATTERNS=(
  "without visa sponsorship","without sponsorship","no visa sponsorship",
+ "visa sponsorship is not available","visa sponsorship not available","sponsorship is not available","sponsorship not available",
  "not provide visa sponsorship","does not provide visa sponsorship","do not provide visa sponsorship",
  "unable to sponsor","cannot sponsor","not eligible for sponsorship","must not require sponsorship",
  "will not sponsor","no sponsorship available","not offer sponsorship","does not intend to provide sponsorship","do not intend to provide sponsorship",
@@ -17,6 +18,13 @@ NO_SPONSOR_PATTERNS=(
  "f1 opt or stem opt not eligible","f-1 opt or stem opt not eligible",
  "no immigration support","does not provide immigration support","do not provide immigration support",
  "must not require employer support","cannot require employer support"
+)
+NO_SPONSOR_REGEX_PATTERNS=(
+ r"\b(?:visa|employment visa|immigration)\s+sponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)\b",
+ r"\b(?:we|the company|this employer|employer)\s+(?:does|do|will)\s+not\s+(?:offer|provide)\s+(?:visa\s+|employment\s+)?sponsorship\b",
+ r"\b(?:cannot|unable to|will not)\s+(?:provide\s+)?(?:visa\s+|employment\s+)?sponsor(?:ship)?\b",
+ r"\b(?:must|should)\s+(?:be\s+)?(?:authorized|eligible)\s+to\s+work\s+[^.;]{0,100}\bwithout\s+(?:current\s+or\s+future\s+)?(?:visa\s+)?sponsorship\b",
+ r"\b(?:now\s+or\s+in\s+the\s+future|current\s+or\s+future)[^.;]{0,100}\bsponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)\b",
 )
 SPONSOR_POSITIVE_PATTERNS=(
  "visa sponsorship is available","sponsorship is available","we sponsor","will sponsor",
@@ -34,8 +42,6 @@ def _clean(v): return re.sub(r"\s+"," ",(v or "").lower()).strip()
 
 def experience_range(text: str):
     text=_clean(text)
-    # Require explicit experience context so unrelated values such as "50 years in business"
-    # cannot become a candidate experience requirement.
     patterns=(
         r"(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)(?:['’]s?)?\s+(?:of\s+)?(?:relevant\s+|professional\s+|industry\s+|hands[- ]on\s+)?experience",
         r"(?:experience|experienced)\s+(?:of\s+)?(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:years?|yrs?)",
@@ -61,8 +67,6 @@ def required_years(text: str):
     )
     for pattern in patterns:
         vals.extend(int(x) for x in re.findall(pattern,text))
-    # Sanity guard: normal DE requirements are single/two-digit, but unrelated company
-    # history/age values should never drive eligibility. 15+ is treated as untrusted.
     vals=[x for x in vals if 0 < x <= 15]
     return max(vals) if vals else None
 
@@ -75,15 +79,13 @@ def experience_check(job: dict, profile: dict) -> dict:
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
     eligible=min_req <= req < max_req
-    return {
-      "category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),
-      "eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]
-    }
+    return {"category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
     needs_future=profile.get("work_authorization",{}).get("requires_sponsorship_future",False)
-    if needs_future and any(x in text for x in NO_SPONSOR_PATTERNS):
+    explicit_no_sponsorship=any(x in text for x in NO_SPONSOR_PATTERNS) or any(re.search(p,text,re.I) for p in NO_SPONSOR_REGEX_PATTERNS)
+    if needs_future and explicit_no_sponsorship:
         return {"category":"NO_SPONSORSHIP","eligible":False,"evidence":"Posting states sponsorship is unavailable."}
     if any(x in text for x in SPONSOR_POSITIVE_PATTERNS):
         return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
@@ -114,15 +116,13 @@ CLEARANCE_REGEX_PATTERNS=(
 def citizenship_check(job: dict, profile: dict) -> dict:
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
     if any(x in text for x in CITIZENSHIP_PATTERNS):
-        return {"category":"US_CITIZENSHIP_REQUIRED","eligible":False,
-                "evidence":"Posting explicitly requires U.S. citizenship."}
+        return {"category":"US_CITIZENSHIP_REQUIRED","eligible":False,"evidence":"Posting explicitly requires U.S. citizenship."}
     return {"category":"CITIZENSHIP_NOT_REQUIRED","eligible":True,"evidence":None}
 
 def clearance_check(job: dict, profile: dict) -> dict:
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
     if any(x in text for x in CLEARANCE_PATTERNS) or any(re.search(p,text,re.I) for p in CLEARANCE_REGEX_PATTERNS):
-        return {"category":"CLEARANCE_REQUIRED","eligible":False,
-                "evidence":"Posting explicitly requires a security/public-trust clearance."}
+        return {"category":"CLEARANCE_REQUIRED","eligible":False,"evidence":"Posting explicitly requires a security/public-trust clearance."}
     return {"category":"CLEARANCE_NOT_REQUIRED","eligible":True,"evidence":None}
 
 def two_category_filter(job: dict, profile: dict) -> dict:
