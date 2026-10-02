@@ -3,6 +3,7 @@ import re
 
 NO_SPONSOR_PATTERNS=(
  "without visa sponsorship","without sponsorship","no visa sponsorship",
+ "without current or future visa sponsorship","without current or future sponsorship",
  "visa sponsorship is not available","visa sponsorship not available","sponsorship is not available","sponsorship not available",
  "not provide visa sponsorship","does not provide visa sponsorship","do not provide visa sponsorship",
  "unable to sponsor","cannot sponsor","not eligible for sponsorship","must not require sponsorship",
@@ -24,6 +25,7 @@ NO_SPONSOR_REGEX_PATTERNS=(
  r"\b(?:we|the company|this employer|employer)\s+(?:does|do|will)\s+not\s+(?:offer|provide)\s+(?:(?:employment\s+)?visa\s+|employment\s+|immigration\s+)?sponsorship\b",
  r"\b(?:cannot|unable to|will not)\s+(?:provide\s+)?(?:visa\s+|employment\s+)?sponsor(?:ship)?\b",
  r"\b(?:must|should)\s+(?:be\s+)?(?:authorized|eligible)\s+to\s+work\s+[^.;]{0,100}\bwithout\s+(?:current\s+or\s+future\s+)?(?:visa\s+)?sponsorship\b",
+ r"\bwithout\s+(?:the\s+need\s+for\s+)?(?:current\s+or\s+future\s+|now\s+or\s+in\s+the\s+future\s+)?(?:employment\s+|visa\s+|immigration\s+)?sponsorship\b",
  r"\b(?:now\s+or\s+in\s+the\s+future|current\s+or\s+future)[^.;]{0,100}\bsponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)\b",
 )
 SPONSOR_POSITIVE_PATTERNS=(
