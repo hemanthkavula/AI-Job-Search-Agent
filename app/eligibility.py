@@ -21,7 +21,7 @@ NO_SPONSOR_PATTERNS=(
 )
 NO_SPONSOR_REGEX_PATTERNS=(
  r"\b(?:visa|employment visa|immigration)\s+sponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)\b",
- r"\b(?:we|the company|this employer|employer)\s+(?:does|do|will)\s+not\s+(?:offer|provide)\s+(?:visa\s+|employment\s+)?sponsorship\b",
+ r"\b(?:we|the company|this employer|employer)\s+(?:does|do|will)\s+not\s+(?:offer|provide)\s+(?:(?:employment\s+)?visa\s+|employment\s+|immigration\s+)?sponsorship\b",
  r"\b(?:cannot|unable to|will not)\s+(?:provide\s+)?(?:visa\s+|employment\s+)?sponsor(?:ship)?\b",
  r"\b(?:must|should)\s+(?:be\s+)?(?:authorized|eligible)\s+to\s+work\s+[^.;]{0,100}\bwithout\s+(?:current\s+or\s+future\s+)?(?:visa\s+)?sponsorship\b",
  r"\b(?:now\s+or\s+in\s+the\s+future|current\s+or\s+future)[^.;]{0,100}\bsponsorship\s+(?:is\s+)?not\s+(?:available|offered|provided)\b",
