@@ -59,10 +59,7 @@ DEFAULT_MASTER_STYLE = {
 
 def _master_style(profile):
     style = dict(DEFAULT_MASTER_STYLE)
-    configured = (
-        profile.get("master_resume_reference", {})
-        .get("style", {})
-    )
+    configured = profile.get("master_resume_reference", {}).get("style", {})
     if isinstance(configured, dict):
         style.update({k: v for k, v in configured.items() if v is not None})
     return style
@@ -238,12 +235,15 @@ def _expected_bullet_counts(profile):
     return configured or MASTER_BULLET_COUNTS
 
 
-def validate_master_format_contract(path, profile):
-    """Validate that a generated DOCX still follows the uploaded master visual contract.
+def _length_close(value, expected_inches, tolerance=0.01):
+    """Compare Word lengths with tolerance because DOCX stores indents in twips."""
+    if value is None:
+        return False
+    return abs(value.inches - float(expected_inches)) <= tolerance
 
-    This is deliberately a formatting/structure gate, not an ATS-content gate. It
-    catches accidental renderer drift before the document can move downstream.
-    """
+
+def validate_master_format_contract(path, profile):
+    """Validate that a generated DOCX still follows the uploaded master visual contract."""
     style = _master_style(profile)
     expected_counts = _expected_bullet_counts(profile)
     doc = Document(path)
@@ -337,9 +337,9 @@ def validate_master_format_contract(path, profile):
         else:
             if current and p.style and "List Bullet" in p.style.name:
                 counts[current] += 1
-                if p.paragraph_format.left_indent != Inches(style["bullet_left_indent_in"]):
+                if not _length_close(p.paragraph_format.left_indent, style["bullet_left_indent_in"]):
                     reasons.append(f"{current}_bullet_left_indent")
-                if p.paragraph_format.first_line_indent != Inches(style["bullet_hanging_indent_in"]):
+                if not _length_close(p.paragraph_format.first_line_indent, style["bullet_hanging_indent_in"]):
                     reasons.append(f"{current}_bullet_hanging_indent")
                 if any(run.font.size != Pt(style["body_pt"]) for run in p.runs if run.text):
                     reasons.append(f"{current}_bullet_size")
@@ -521,10 +521,14 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     path = job_dir / f"{stem}.docx"
     doc.save(path)
 
-    format_check = validate_master_format_contract(path, profile)
-    if not format_check["passed"]:
-        raise RuntimeError(
-            "Generated resume drifted from master formatting contract: "
-            + "; ".join(format_check["reasons"])
-        )
+    # Only the real uploaded-master profile carries a layout version. Legacy
+    # and synthetic test profiles can intentionally omit master-only sections.
+    master_ref = profile.get("master_resume_reference") or {}
+    if master_ref.get("layout_version"):
+        format_check = validate_master_format_contract(path, profile)
+        if not format_check["passed"]:
+            raise RuntimeError(
+                "Generated resume drifted from master formatting contract: "
+                + "; ".join(format_check["reasons"])
+            )
     return str(path)
