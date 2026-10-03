@@ -17,7 +17,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,3 +38,12 @@ jobs:
           PY
       - name: Run test suite
         run: python -m pytest -q
+      - name: Smoke test application browser runtime
+        run: |
+          pip install -r requirements-application.txt
+          python - <<'PY'
+          from browser_use import Agent, Browser, ChatOpenAI
+          assert Agent and Browser and ChatOpenAI
+          print("Browser Use application runtime imports successfully.")
+          PY
+          browser-use --help >/dev/null
