@@ -95,10 +95,6 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
-      - name: Run tests
-        if: steps.guard.outputs.should_run == 'true'
-        run: python -m pytest -q
-
       - name: Install LibreOffice for resume PDF validation
         if: steps.guard.outputs.should_run == 'true'
         run: |
@@ -106,16 +102,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends libreoffice-writer
           soffice --version
 
-      # Employer-universe enrichment is intentionally NOT part of this critical
-      # production path. It performs thousands of external network probes and can
-      # take far longer than a two-hour job slot. Run the dedicated
-      # employer-universe-enrichment workflow independently; production consumes
-      # the latest persisted company/source registry without waiting for enrichment.
-
-      - name: Audit configured source health
-        if: steps.guard.outputs.should_run == 'true'
-        run: |
-          python -m app.source_health --sources data/job_sources.json --output state/source_health.json
+      # Full regression tests run in source-validation when code changes. Source
+      # health is a cached advisory input with its own TTL and is not re-crawled
+      # before every production slot, so fresh job discovery starts promptly.
+      # Employer-universe enrichment remains a separate bounded workflow.
 
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
