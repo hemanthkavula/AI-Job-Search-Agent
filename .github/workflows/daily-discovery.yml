@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      application_limit:
+        description: "Manual runs only: maximum READY applications to attempt (0 = normal/unlimited)"
+        required: false
+        default: "0"
+        type: string
 
 concurrency:
   group: production-job-cycle
@@ -185,8 +190,29 @@ jobs:
           APPLICATION_AGENT_MODEL: gpt-5.6-luna
           APPLICATION_AGENT_MAX_STEPS: "80"
           APPLICATION_AGENT_TIMEOUT_SECONDS: "600"
+          APPLICATION_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.application_limit || '0' }}
+          APPLICATION_QUEUE: ${{ steps.appqueue.outputs.queue }}
+        shell: bash
         run: |
-          python -m app.application_stage --submit
+          APP_ARGS=(--submit)
+          if [[ "${APPLICATION_LIMIT:-0}" =~ ^[1-9][0-9]*$ ]]; then
+            TEST_QUEUE="generated/manual_application_queue.json"
+            python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          source = Path(os.environ["APPLICATION_QUEUE"])
+          limit = int(os.environ["APPLICATION_LIMIT"])
+          rows = json.loads(source.read_text(encoding="utf-8")) if source.exists() else []
+          ready = [row for row in rows if row.get("status") == "READY_FOR_ATS_ADAPTER"][:limit]
+          out = Path("generated/manual_application_queue.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(ready, indent=2), encoding="utf-8")
+          print(f"Controlled manual application queue: {len(ready)} of requested limit {limit}")
+          PY
+            APP_ARGS+=(--queue "$TEST_QUEUE" --limit "$APPLICATION_LIMIT")
+          fi
+          python -m app.application_stage "${APP_ARGS[@]}"
 
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'
