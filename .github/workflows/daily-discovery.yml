@@ -10,7 +10,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "state/manual-production-trigger.txt"
+      - ".github/workflows/daily-discovery.yml"
 
 concurrency:
   group: production-job-cycle
