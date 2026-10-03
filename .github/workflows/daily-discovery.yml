@@ -106,6 +106,10 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
+      - name: Normalize state and verify production requirements
+        if: steps.guard.outputs.should_run == 'true'
+        run: python -m app.production_preflight --strict
+
       - name: Install LibreOffice for resume PDF validation
         if: steps.guard.outputs.should_run == 'true'
         run: |
@@ -114,9 +118,11 @@ jobs:
           soffice --version
 
       # Full regression tests run in source-validation when code changes. Source
-      # health is a cached advisory input with its own TTL and is not re-crawled
-      # before every production slot, so fresh job discovery starts promptly.
-      # Employer-universe enrichment remains a separate bounded workflow.
+      # health is a cached advisory input with its own TTL and is normalized by
+      # production_preflight before discovery so persistent failures are actually
+      # quarantined and periodically retried instead of being silently ignored.
+      # Employer-universe enrichment remains a separate bounded workflow that runs
+      # before the first production slot.
 
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
