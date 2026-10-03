@@ -142,7 +142,25 @@ def _provider_statuses(config,coverage,errors,current_health_rows):
             source_status[name]="PARTIAL" if failed_units and len(failed_units)<count else "ERROR"
     return source_status
 
-def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None,source_unit_hours=None):
+def _freshness_groups(source,rows,provider_cutoff,source_unit_since):
+    """Group rows by the exact cutoff that must govern final posting freshness.
+
+    Workday tenants are independent failure domains. Discovery already scans each
+    tenant with its own hours window, so finalization must retain that same tenant
+    cutoff instead of inheriting the provider-wide oldest watermark.
+    """
+    groups={}
+    unit_since=source_unit_since or {}
+    for job in rows:
+        cutoff=provider_cutoff
+        if source=="workday":
+            company=job.get("company_key") or job.get("company")
+            if company:
+                cutoff=unit_since.get(f"workday:{company}",provider_cutoff)
+        groups.setdefault(cutoff,[]).append(job)
+    return groups
+
+def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_path="generated/job_ledger.json",since=None,scan_now=None,source_since=None,source_hours=None,source_unit_hours=None,source_unit_since=None):
     """Discover and eligibility-filter jobs only; no JD/resume score is used."""
     profile=load_profile();ledger=load_ledger(ledger_path)
     config=load_sources(source_config)
@@ -156,17 +174,21 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     company_registry=load_company_registry()
     learn_companies_from_jobs(jobs,company_registry);save_company_registry(company_registry)
     source_since=source_since or {}
+    source_unit_since=source_unit_since or {}
     if source_since:
         jobs24=[];stale=[];already=[]
         by_source={}
         for job in jobs:by_source.setdefault(job.get("source"),[]).append(job)
         for source,rows in by_source.items():
             source_cutoff=source_since.get(source,since)
-            if source_cutoff:
-                for job in rows:job["freshness_cutoff"]=source_cutoff
-            fresh,old,seen=fresh_jobs(rows,hours,since=source_cutoff,now=scan_now)
-            jobs24.extend(fresh);stale.extend(old);already.extend(seen)
+            for cutoff,group in _freshness_groups(source,rows,source_cutoff,source_unit_since).items():
+                if cutoff:
+                    for job in group:job["freshness_cutoff"]=cutoff
+                fresh,old,seen=fresh_jobs(group,hours,since=cutoff,now=scan_now)
+                jobs24.extend(fresh);stale.extend(old);already.extend(seen)
     else:
+        # A unit cutoff is useful only when a provider cutoff map is also active;
+        # standalone/manual runs continue to use the caller's global window.
         if since:
             for job in jobs:job["freshness_cutoff"]=since
         jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
