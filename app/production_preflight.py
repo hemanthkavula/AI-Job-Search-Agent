@@ -90,8 +90,6 @@ def _effective_status(row: dict) -> str:
         return "broken"
     if any(token in error for token in ("timeout", "timed out", "unreachable", "connection reset", "connection refused", "dns")):
         return "unreachable"
-    # Unknown adapter failures remain retryable every production recovery attempt;
-    # only well-understood persistent failures are quarantined for the bounded TTL.
     if status == "ERROR":
         return "transient_error"
     if status == "SKIPPED_UNHEALTHY":
@@ -109,8 +107,6 @@ def _health_rows(payload) -> list[dict]:
     embedded = payload.get("sources")
     if isinstance(embedded, list):
         rows.extend(x for x in embedded if isinstance(x, dict))
-    # Discovery persists runtime health as a keyed dictionary. Keep supporting
-    # that format and convert it into the report shape discovery reads.
     for key, value in payload.items():
         if key == "sources" or not isinstance(value, dict):
             continue
@@ -143,9 +139,6 @@ def normalize_source_health(path=DEFAULT_HEALTH_PATH) -> dict:
         candidate_time = _parse_time(row.get("checked_at")) or datetime.min.replace(tzinfo=timezone.utc)
         previous_time = (_parse_time(previous.get("checked_at")) if previous else None) or datetime.min.replace(tzinfo=timezone.utc)
 
-        # A SKIPPED_UNHEALTHY row is evidence that quarantine was honored, not
-        # evidence that the underlying source recovered. Preserve the prior known
-        # persistent failure classification until a later real adapter attempt is OK.
         if previous and candidate_effective == "skipped_unhealthy" and previous.get("effective_status") in BAD_EFFECTIVE_STATUSES:
             row["effective_status"] = previous["effective_status"]
         else:
@@ -274,9 +267,25 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
         "Build Python SQL Spark data pipelines, ETL, data warehouse and data modeling. Full-time. "
         "Candidates must be authorized to work without current or future visa sponsorship.",
     )
-    ok, _ = passes_hard_filters(no_sponsor, profile)
+    ok, reasons = passes_hard_filters(no_sponsor, profile)
+    if not ok:
+        failures.append(f"explicit no-sponsorship job was incorrectly rejected: {reasons}")
+
+    citizenship_only = _synthetic_job(
+        "Senior Data Engineer",
+        "Build Python SQL Spark data pipelines and ETL. Full-time. U.S. citizenship is required.",
+    )
+    ok, _ = passes_hard_filters(citizenship_only, profile)
     if ok:
-        failures.append("explicit no-future-sponsorship job passed hard filters")
+        failures.append("explicit U.S.-citizenship-only job passed hard filters")
+
+    clearance_required = _synthetic_job(
+        "Senior Data Engineer",
+        "Build Python SQL Spark data pipelines and ETL. Full-time. Security clearance required.",
+    )
+    ok, _ = passes_hard_filters(clearance_required, profile)
+    if ok:
+        failures.append("explicit clearance-required job passed hard filters")
 
     for company in EXPECTED_EXCLUDED_EMPLOYERS:
         prior_employer = _synthetic_job("Senior Data Engineer")
@@ -288,6 +297,8 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
     hard_filter_source = inspect.getsource(passes_hard_filters)
     if "target_company" in hard_filter_source or "target company" in hard_filter_source.lower():
         failures.append("target-company annotation leaked into hard eligibility filtering")
+    if "sponsorship unavailable" in hard_filter_source.lower() or "sponsorship"]["eligible"] is false" in hard_filter_source.lower():
+        failures.append("sponsorship leaked back into hard eligibility filtering")
 
     supported = set(ALL_ATS_PROVIDERS)
     missing_families = sorted(REQUIRED_ATS_FAMILIES - supported)
