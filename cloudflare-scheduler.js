@@ -45,7 +45,8 @@ export default {
         domain_budget: "750",
         career_budget: "750",
         ats_tenant_budget: "250",
-        deep_domain_search: "true"
+        deep_domain_search: "true",
+        scheduled_dispatch: "true"
       });
       return;
     }
