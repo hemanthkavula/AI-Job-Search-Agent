@@ -31,6 +31,9 @@ on:
       - ".github/workflows/daily-discovery.yml"
       - ".github/workflows/source-validation.yml"
       - ".github/workflows/employer-universe-enrichment.yml"
+      - "cloudflare-scheduler.js"
+      - "wrangler.toml"
+      - "CLOUDFLARE_SCHEDULER.md"
   workflow_dispatch:
 
 permissions:
