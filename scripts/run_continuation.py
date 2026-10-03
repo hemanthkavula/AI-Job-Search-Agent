@@ -16,3 +16,19 @@ source = source.replace(
 )
 
 exec(compile(source, str(source_path), "exec"), {"__name__": "__main__"})
+
+# python-docx rebuilds Paragraph wrapper objects each time doc.paragraphs is read,
+# so object-identity list.index() is not stable. Locate the employer paragraph by
+# its text position instead and then inspect the following title/first-bullet nodes.
+test_path = Path("tests/test_reference_resume_formatter_layout.py")
+test_text = test_path.read_text(encoding="utf-8")
+old = '''    company=next(p for p in doc.paragraphs if p.text.startswith("Fidelity Investments"))
+    idx=doc.paragraphs.index(company); title=doc.paragraphs[idx+1]; first=doc.paragraphs[idx+2]
+'''
+new = '''    paragraphs=doc.paragraphs
+    idx=next(i for i,p in enumerate(paragraphs) if p.text.startswith("Fidelity Investments"))
+    company=paragraphs[idx]; title=paragraphs[idx+1]; first=paragraphs[idx+2]
+'''
+if old not in test_text:
+    raise RuntimeError("layout regression anchor not found")
+test_path.write_text(test_text.replace(old, new, 1), encoding="utf-8")
