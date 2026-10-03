@@ -60,7 +60,7 @@ Hard filtering includes:
 - Generic `Remote` requires U.S. evidence from the posting unless the discovery source itself is explicitly U.S.-scoped.
 - Data Engineering role family only.
 - Full-Time / W-2 focus.
-- Configured experience bounds are inclusive.
+- The established required-experience window uses an inclusive minimum and exclusive configured upper boundary; with the current `3–7` configuration, 3–6 years qualifies and 7+ does not.
 - Reject when the posting explicitly says current or future employment sponsorship is unavailable.
 - Reject explicit U.S.-citizenship requirements.
 - Reject roles requiring a security/public-trust clearance.
