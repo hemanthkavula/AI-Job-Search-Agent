@@ -1,0 +1,400 @@
+name: Continue Latest Commit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/continue-latest-commit.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: continue-latest-commit
+  cancel-in-progress: false
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply continuation fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text(encoding="utf-8")
+              count=text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{path}: expected one match, found {count}: {old[:100]!r}")
+              p.write_text(text.replace(old,new,1),encoding="utf-8")
+
+          def replace_between(path, start_marker, end_marker, replacement):
+              p=Path(path); text=p.read_text(encoding="utf-8")
+              start=text.find(start_marker)
+              if start < 0: raise RuntimeError(f"{path}: start marker not found: {start_marker!r}")
+              end=text.find(end_marker,start)
+              if end < 0: raise RuntimeError(f"{path}: end marker not found: {end_marker!r}")
+              p.write_text(text[:start]+replacement+text[end:],encoding="utf-8")
+
+          # 1) Experience policy: eligible minimum is 3 years; 7+ remains excluded.
+          replace_once("data/candidate_profile.json", '"min_required_years": 4', '"min_required_years": 3')
+          replace_once("app/eligibility.py", 'min_req=profile.get("preferences",{}).get("min_required_years",4)', 'min_req=profile.get("preferences",{}).get("min_required_years",3)')
+
+          # 2) Company identity normalization: the old raw regexes were double-escaped,
+          # so legal suffixes/whitespace were not actually normalized.
+          replace_once("app/company_registry.py",
+              r'''s=re.sub(r"\\b"+suffixes+r"\\b"," ",s)''',
+              r'''s=re.sub(r"\b"+suffixes+r"\b"," ",s)''')
+          replace_once("app/company_registry.py",
+              r'''return re.sub(r"\\s+"," ",s).strip()''',
+              r'''return re.sub(r"\s+"," ",s).strip()''')
+
+          # 3) Learned, verified custom career sites must round-trip into production discovery.
+          replace_once("app/source_registry.py",
+              'def as_discovery_config(registry):\n out={k:[] for k in PATTERNS}\n',
+              'def as_discovery_config(registry):\n out={k:[] for k in PATTERNS}\n out["career_site"]=[]\n')
+          replace_once("app/source_registry.py",
+              ' for x in registry.get("workday",[]):\n',
+              ''' for x in registry.get("career_site",[]):
+  url=x.get("search_url") or x.get("careers_url") or x.get("original_url") or x.get("url")
+  if not url:continue
+  out["career_site"].append({
+   "company":x.get("company"),"search_url":url,
+   "job_url_pattern":x.get("job_url_pattern") or r"(?:/jobs?/|/careers?/|/positions?/|/openings?/|jobId=|job_id=)"
+  })
+ for x in registry.get("workday",[]):
+''')
+          replace_once("app/discovery.py",
+              '        merged[provider]=existing\n    config=merged\n',
+              '''        merged[provider]=existing
+    # Verified first-party career pages learned by employer enrichment are executable
+    # production sources too. Previously they were persisted but never merged back
+    # into discovery, so enrichment coverage did not translate into discovered jobs.
+    existing_career=list(config.get("career_site",[]) or [])
+    seen_career={(str(x.get("company") or "").strip().lower(),str(x.get("search_url") or x.get("careers_url") or "").rstrip("/").lower()) for x in existing_career}
+    for row in learned_config.get("career_site",[]) or []:
+        key=(str(row.get("company") or "").strip().lower(),str(row.get("search_url") or row.get("careers_url") or "").rstrip("/").lower())
+        if key not in seen_career and key[1]:
+            existing_career.append(row);seen_career.add(key)
+    merged["career_site"]=existing_career
+    config=merged
+''')
+
+          # Fix HTML text cleanup used by direct employer career pages.
+          replace_once("app/sources/career_site.py",
+              r'''    value=re.sub(r"<script[\\s\\S]*?</script>"," ",value,flags=re.I)
+    value=re.sub(r"<style[\\s\\S]*?</style>"," ",value,flags=re.I)
+    return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()''',
+              r'''    value=re.sub(r"<script[\s\S]*?</script>"," ",value,flags=re.I)
+    value=re.sub(r"<style[\s\S]*?</style>"," ",value,flags=re.I)
+    return re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()''')
+
+          # 4) Aggregators are discovery only. Once an employer page is found, its JD,
+          # posting date, live status and application URL are authoritative.
+          replace_once("app/jd_finalizer.py",
+              'from app.company_domain_resolver import resolve_company\n',
+              'from app.company_domain_resolver import resolve_company\nfrom app.source_registry import detect_ats\n')
+          replace_once("app/jd_finalizer.py",
+              '''        employer_url,employer_desc=_resolve_employer_career_page(out)
+        if len(employer_desc)>len(resolved):resolved=employer_desc
+        if employer_url:
+            out["aggregator_url"]=out.get("original_url") or out.get("url")
+            out["original_url"]=employer_url
+            out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
+    if len(resolved)>len(current):out["description"]=resolved
+    final=(out.get("description") or "").strip()
+    out["description_length"]=len(final)
+    out["description_complete"]=_looks_like_complete_jd(final,source)
+    out["description_usable"]=_looks_like_usable_jd(final,source)
+''',
+              '''        employer_url,employer_desc=_resolve_employer_career_page(out)
+        if employer_url:
+            # Employer/ATS content is authoritative even when a board copied a
+            # longer description. Never keep the aggregator copy because it is longer.
+            resolved=employer_desc or resolved
+            provider,identifier=detect_ats(employer_url)
+            out["aggregator_url"]=out.get("original_url") or out.get("url")
+            out["original_url"]=employer_url
+            out["ats_provider"]=provider or "career_site"
+            out["ats_identifier"]=identifier or parse.urlsplit(employer_url).netloc.lower()
+            out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
+    if employer_url:
+        out["description"]=resolved
+    elif len(resolved)>len(current):out["description"]=resolved
+    final=(out.get("description") or "").strip()
+    quality_source="" if employer_url else source
+    out["description_length"]=len(final)
+    out["description_complete"]=_looks_like_complete_jd(final,quality_source)
+    out["description_usable"]=_looks_like_usable_jd(final,quality_source)
+''')
+          replace_between("app/jd_finalizer.py",
+              '        if aggregator_origin and official_posted is None:\n',
+              '        if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):\n',
+              '''        if aggregator_origin and official_posted is None:
+            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization. Aggregator/repost dates are discovery evidence only and are never used as freshness authority.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
+            continue
+''')
+          replace_between("app/jd_finalizer.py",
+              '        source_supported=set(ALL_ATS_PROVIDERS)\n',
+              '        finalized.append({"job":raw,"eligibility":eligibility,"action":"FINAL_JD_VERIFIED"})\n',
+              '''        source_supported=set(ALL_ATS_PROVIDERS)|{"career_site"}
+        if raw.get("ats_provider") in source_supported:
+            raw["application_route"]="EXTERNAL_ATS"
+        else:
+            held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
+            continue
+''')
+
+          # 5) Recovery heartbeats should retry a PARTIAL slot. Mark a slot completed
+          # only after all reported providers succeed; preserve per-provider watermarks.
+          replace_once("app/scheduled_runner.py",
+              '''    state_update={"last_run_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
+                  "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
+                  "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
+                  "last_failed_providers":failed_providers}
+    # Keep last_successful_scan_at reserved for a cycle where every reported
+    # provider completed. Partial cycles are still slot-complete because failed
+    # providers retain their own older watermarks and catch up next slot.
+    if not failed_providers:
+        state_update["last_successful_scan_at"]=now.isoformat()
+''',
+              '''    state_update={"last_run_at":now.isoformat(),"last_attempted_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
+                  "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
+                  "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
+                  "last_failed_providers":failed_providers}
+    # A recovery heartbeat inside the same window must be able to retry a partial
+    # cycle. Only a fully successful cycle closes the slot.
+    if not failed_providers:
+        state_update["last_completed_slot"]=slot
+        state_update["last_successful_scan_at"]=now.isoformat()
+''')
+
+          # 6) Resume output: use the reference-style formatter with Calibri, blue
+          # section rules, right-aligned dates, and non-orphaned employer blocks.
+          replace_once("app/reference_resume_formatter.py",
+              '    r.font.name="Arial";r.font.size=Pt(size);r.bold=bold;r.underline=underline\n',
+              '    r.font.name="Calibri";r.font.size=Pt(size);r.bold=bold;r.underline=underline\n')
+          replace_once("app/reference_resume_formatter.py",
+              '''def _section(doc,text):
+    p=doc.add_paragraph();_compact(p,7,5);_run(p.add_run(text),10.5,True,ACCENT)
+''',
+              '''def _section(doc,text):
+    p=doc.add_paragraph();_compact(p,8,5);p.paragraph_format.keep_with_next=True;_run(p.add_run(text),11,True,ACCENT)
+''')
+          replace_once("app/reference_resume_formatter.py",
+              '''def _company_header(doc,base):
+    # Keep employer/date information in a normal paragraph so ATS/text parsers can
+    # see the employer boundary. A right-aligned tab preserves the reference look
+    # without using a table, text box, column, or other ATS-hostile structure.
+    p=doc.add_paragraph();_compact(p,2,0)
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(7.45),WD_TAB_ALIGNMENT.RIGHT)
+    _run(p.add_run(base["company"]),10,True)
+    if base.get("location"):_run(p.add_run(" | "+base["location"]),9.2)
+    _run(p.add_run("\\t"+base["dates"]),9,False,GRAY)
+    p=doc.add_paragraph();_compact(p,0,2);_run(p.add_run(base["title"]),9.5,True,ACCENT)
+''',
+              '''def _company_header(doc,base):
+    # Keep employer/date information in a normal paragraph so ATS/text parsers can
+    # see the employer boundary. A right-aligned tab preserves the reference look
+    # without using a table, text box, column, or other ATS-hostile structure.
+    company_p=doc.add_paragraph();_compact(company_p,3,0);company_p.paragraph_format.keep_with_next=True
+    company_p.paragraph_format.tab_stops.add_tab_stop(Inches(7.45),WD_TAB_ALIGNMENT.RIGHT)
+    _run(company_p.add_run(base["company"]),10.25,True)
+    if base.get("location"):_run(company_p.add_run(" | "+base["location"]),9.5)
+    _run(company_p.add_run("\\t"+base["dates"]),9.25,False,GRAY)
+    title_p=doc.add_paragraph();_compact(title_p,0,2.5);title_p.paragraph_format.keep_with_next=True;_run(title_p.add_run(base["title"]),9.75,True,ACCENT)
+    return company_p,title_p
+''')
+          replace_once("app/reference_resume_formatter.py",
+              '    doc.styles["Normal"].font.name="Arial";doc.styles["Normal"].font.size=Pt(9.2);doc.styles["Normal"].paragraph_format.space_after=Pt(0)\n',
+              '    doc.styles["Normal"].font.name="Calibri";doc.styles["Normal"].font.size=Pt(9.5);doc.styles["Normal"].paragraph_format.space_after=Pt(0)\n')
+          replace_once("app/reference_resume_formatter.py",
+              '    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,2);_run(p.add_run(profile["name"]),16,True,ACCENT)\n',
+              '    p=doc.add_paragraph();p.alignment=WD_ALIGN_PARAGRAPH.CENTER;_compact(p,0,2.5);_run(p.add_run(profile["name"]),16.5,True,ACCENT)\n')
+          replace_once("app/reference_resume_formatter.py",
+              '''        _company_header(doc,base)
+        for line in item.get("bullets",[])[:limits.get(base["company"],7)]:
+            # Retain the standard Word List Bullet style so the internal auditor and
+            # external ATS parsers identify these as experience bullets.
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.28);p.paragraph_format.first_line_indent=Inches(-.16);_compact(p,0,2,1.03);_run(p.add_run(str(line).strip()),9.15)
+''',
+              '''        company_p,title_p=_company_header(doc,base)
+        first_bullet=None
+        for line in item.get("bullets",[])[:limits.get(base["company"],7)]:
+            # Retain the standard Word List Bullet style so the internal auditor and
+            # external ATS parsers identify these as experience bullets.
+            p=doc.add_paragraph(style="List Bullet");p.paragraph_format.left_indent=Inches(.28);p.paragraph_format.first_line_indent=Inches(-.16);p.paragraph_format.keep_together=True;_compact(p,0,2.5,1.05);_run(p.add_run(str(line).strip()),9.5)
+            if first_bullet is None:first_bullet=p
+        # company -> title -> first bullet is one pagination chain. The first bullet
+        # itself is kept intact but is NOT chained to bullet two, so one full bullet
+        # (not two) is the minimum content required beneath an employer heading.
+        if first_bullet is None:
+            title_p.paragraph_format.keep_with_next=False
+''')
+
+          # 7) Scheduled production should discover jobs immediately after setup.
+          # Regression tests already run on source-validation pushes; the 24h source
+          # health cache is advisory and must not be fully re-crawled before every slot.
+          replace_once(".github/workflows/daily-discovery.yml",
+              '''      - name: Run tests
+        if: steps.guard.outputs.should_run == 'true'
+        run: python -m pytest -q
+
+''','')
+          replace_once(".github/workflows/daily-discovery.yml",
+              '''      - name: Audit configured source health
+        if: steps.guard.outputs.should_run == 'true'
+        run: |
+          python -m app.source_health --sources data/job_sources.json --output state/source_health.json
+
+''','')
+
+          # 8) Regressions for every policy repaired above.
+          replace_once("tests/test_filters.py",
+              '"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},',
+              '"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":3,"max_required_years":7},')
+          p=Path("tests/test_filters.py"); text=p.read_text(encoding="utf-8")
+          text += '''\n\ndef test_three_year_requirement_is_in_target_range():
+    ok,_=passes_hard_filters({"title":"Data Engineer","location":"United States","employment_type":"Full-Time","description":"3+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert ok
+
+
+def test_two_year_requirement_is_below_target_range():
+    ok,reasons=passes_hard_filters({"title":"Data Engineer","location":"United States","employment_type":"Full-Time","description":"2+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert not ok and any("experience" in x.lower() for x in reasons)
+
+
+def test_seven_year_requirement_is_excluded():
+    ok,reasons=passes_hard_filters({"title":"Senior Data Engineer","location":"United States","employment_type":"Full-Time","description":"7+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert not ok and any("7" in x for x in reasons)
+'''
+          p.write_text(text,encoding="utf-8")
+
+          p=Path("tests/test_resolved_source_learning.py"); text=p.read_text(encoding="utf-8")
+          text += '''\n\ndef test_verified_custom_career_site_round_trips_into_discovery_config():
+    registry={}
+    assert learn_resolved_source("career_site","Example Health","https://examplehealth.com/careers",registry)
+    cfg=as_discovery_config(registry)
+    assert cfg["career_site"][0]["company"]=="Example Health"
+    assert cfg["career_site"][0]["search_url"]=="https://examplehealth.com/careers"
+    assert cfg["career_site"][0]["job_url_pattern"]
+'''
+          p.write_text(text,encoding="utf-8")
+
+          p=Path("tests/test_company_registry_normalization.py")
+          p.write_text('''from app.company_registry import company_key\n\n\ndef test_company_key_removes_legal_suffixes_and_collapses_whitespace():\n    assert company_key("  Example   Holdings, Inc.  ")=="example"\n    assert company_key("Example Corporation")=="example"\n''',encoding="utf-8")
+
+          # Replace the old Dice-fallback test with the strict employer-date rule.
+          p=Path("tests/test_jd_finalizer_long_tail_route.py"); text=p.read_text(encoding="utf-8")
+          old='''def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_path):
+    from datetime import datetime, timezone
+    report=tmp_path/"eligible_dice.json"; output=tmp_path/"finalized_dice.json"
+    job={
+        "external_id":"dice:1","source":"dice","company_key":"Example Co",
+        "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+        "url":"https://www.dice.com/job-detail/1","original_url":"https://jobs.example.com/data-engineer",
+        "aggregator_url":"https://www.dice.com/job-detail/1",
+        "ats_resolution":"employer_career_page_canonical","ats_provider":"greenhouse",
+        "posted_at":"2026-09-28T15:00:00+00:00",
+        "description":"Responsibilities " + ("build data pipelines Python SQL Spark. "*80),
+        "description_complete":True,
+    }
+    report.write_text(json.dumps({"results":[{"action":"ELIGIBLE_FOR_RESUME","job":job}]}),encoding="utf-8")
+    monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
+    monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
+    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"<html><body>Job open, no posted date</body></html>")
+    monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
+    monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
+    monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
+    assert result["finalized"]==1
+    assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_after_official_ats_resolution"
+'''
+          new='''def test_dice_discovery_date_never_replaces_missing_official_employer_date(monkeypatch,tmp_path):
+    from datetime import datetime, timezone
+    report=tmp_path/"eligible_dice.json"; output=tmp_path/"finalized_dice.json"
+    job={
+        "external_id":"dice:1","source":"dice","company_key":"Example Co",
+        "title":"Data Engineer","location":"United States","employment_type":"Full-Time",
+        "url":"https://www.dice.com/job-detail/1","original_url":"https://jobs.example.com/data-engineer",
+        "aggregator_url":"https://www.dice.com/job-detail/1",
+        "ats_resolution":"employer_career_page_canonical","ats_provider":"greenhouse",
+        "posted_at":"2026-09-28T15:00:00+00:00",
+        "description":"Responsibilities " + ("build data pipelines Python SQL Spark. "*80),
+        "description_complete":True,
+    }
+    report.write_text(json.dumps({"results":[{"action":"ELIGIBLE_FOR_RESUME","job":job}]}),encoding="utf-8")
+    monkeypatch.setattr(jd_finalizer,"load_profile",lambda:{})
+    monkeypatch.setattr(jd_finalizer,"resolve_full_jd",lambda j:j)
+    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"<html><body>Job open, no posted date</body></html>")
+    monkeypatch.setattr(jd_finalizer,"_live_public_job_page",lambda url:(True,"reachable"))
+    monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
+    monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
+    result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
+    assert result["finalized"]==0
+    assert result["held_or_rejected"]==1
+    assert result["rejections"][0]["action"]=="HOLD_OFFICIAL_POST_DATE_UNVERIFIED"
+'''
+          if old not in text:raise RuntimeError("old Dice fallback regression not found")
+          p.write_text(text.replace(old,new,1),encoding="utf-8")
+
+          p=Path("tests/test_aggregator_requires_employer_ats.py"); text=p.read_text(encoding="utf-8")
+          text += '''\n\ndef test_employer_description_is_authoritative_even_when_board_copy_is_longer(monkeypatch):
+    board_desc="Requirements: Python SQL Spark. "*100
+    employer_desc="Responsibilities: build production data pipelines. Requirements: Python SQL Spark Airflow. Qualifications: 3+ years experience."
+    job={"external_id":"dice:desc","source":"dice","company_key":"Example Health","company":"Example Health","title":"Data Engineer","location":"United States","original_url":"https://www.dice.com/job-detail/desc","url":"https://www.dice.com/job-detail/desc","description":board_desc}
+    monkeypatch.setattr(jd_finalizer,"resolve_original_ats",lambda j:j)
+    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"<html></html>")
+    monkeypatch.setattr(jd_finalizer,"_resolve_employer_career_page",lambda j:("https://careers.examplehealth.com/jobs/123",employer_desc))
+    resolved=jd_finalizer.resolve_full_jd(job)
+    assert resolved["description"]==employer_desc
+    assert resolved["original_url"]=="https://careers.examplehealth.com/jobs/123"
+    assert resolved["ats_provider"]=="career_site"
+'''
+          p.write_text(text,encoding="utf-8")
+
+          p=Path("tests/test_scheduled_runner_partial_cycle.py"); text=p.read_text(encoding="utf-8")
+          needle='''    assert state["source_watermarks"]["greenhouse"]==report["scheduler_local_time"]
+    assert state["source_watermarks"]["lever"]!=report["scheduler_local_time"]
+'''
+          replacement=needle+'''    assert state["last_attempted_slot"]==report.get("slot",state["last_attempted_slot"])
+    assert "last_completed_slot" not in state
+'''
+          if needle not in text:raise RuntimeError("partial scheduler assertion anchor not found")
+          p.write_text(text.replace(needle,replacement,1),encoding="utf-8")
+
+          Path("tests/test_reference_resume_formatter_layout.py").write_text('''from types import SimpleNamespace\nfrom docx import Document\nfrom docx.enum.text import WD_TAB_ALIGNMENT\nfrom app.reference_resume_formatter import render_llm_resume\n\n\ndef test_reference_layout_uses_calibri_and_keeps_first_bullet_with_employer(tmp_path):\n    profile={\n      "name":"Candidate","contact":{},\n      "experience":[{"company":"Fidelity Investments","location":"Jersey City, NJ","dates":"Jan 2025 – Present","title":"Senior Data Engineer"}],\n      "education":[{"degree":"MS Computer Science","school":"Rowan University","location":"Glassboro, NJ","start":"2024","end":"2025"}],\n      "output":{"resume_filename_pattern":"Candidate_{Company}_{JobTitle}"}\n    }\n    generated={"summary":"Data engineer.","skills":{"Programming":["Python","SQL"]},"experience":[{"company":"Fidelity Investments","bullets":["Built reliable data pipelines with Python and SQL.","Optimized Spark workloads."]}]}\n    path=render_llm_resume(SimpleNamespace(company="Example",title="Senior Data Engineer"),profile,generated,output_dir=str(tmp_path))\n    doc=Document(path)\n    assert doc.styles["Normal"].font.name=="Calibri"\n    company=next(p for p in doc.paragraphs if p.text.startswith("Fidelity Investments"))\n    idx=doc.paragraphs.index(company); title=doc.paragraphs[idx+1]; first=doc.paragraphs[idx+2]\n    assert company.paragraph_format.keep_with_next is True\n    assert title.paragraph_format.keep_with_next is True\n    assert first.paragraph_format.keep_together is True\n    assert first.paragraph_format.keep_with_next is not True\n    assert "\\t" in company.text\n    assert any(t.alignment==WD_TAB_ALIGNMENT.RIGHT for t in company.paragraph_format.tab_stops)\n    section=next(p for p in doc.paragraphs if p.text=="PROFESSIONAL EXPERIENCE")\n    assert section.paragraph_format.keep_with_next is True\n    assert section.runs[0].font.name=="Calibri"\n''',encoding="utf-8")
+
+          print("Continuation patch applied successfully.")
+          PY
+
+      - name: Compile Python
+        run: python -m compileall -q app tests
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run regression suite
+        run: python -m pytest -q
+
+      - name: Commit validated continuation
+        shell: bash
+        run: |
+          rm -f .github/workflows/continue-latest-commit.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -m "Enforce employer-authoritative discovery and resume policy"
+          git push origin HEAD:main
