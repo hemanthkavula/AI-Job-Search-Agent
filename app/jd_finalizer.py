@@ -256,6 +256,18 @@ def resolve_full_jd(job):
     out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
 
+def _job_freshness_cutoff(job,fallback):
+    value=(job or {}).get("freshness_cutoff")
+    if value in (None,""):
+        return fallback
+    try:
+        parsed=datetime.fromisoformat(str(value).replace("Z","+00:00"))
+        if parsed.tzinfo is None:
+            parsed=parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError,ValueError):
+        return fallback
+
 def finalize_report(report_path,output_path="generated/finalized_jobs.json",hours=24,now=None):
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile()
     finalized=[];held=[]
@@ -283,7 +295,8 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             continue
         aggregator_origin=bool(raw.get("aggregator_url")) or (raw.get("source") or "").lower() in {"dice","ziprecruiter","indeed","linkedin","monster"}
         check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        cutoff=check_now-timedelta(hours=hours)
+        global_cutoff=check_now-timedelta(hours=hours)
+        cutoff=_job_freshness_cutoff(raw,global_cutoff)
         posting_fields=("posted_at","posted_on","date_posted","datePosted","published_at","publication_date")
         raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
         official_posted=None;official_label=None
@@ -316,7 +329,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":reason,"diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution"),"discovery_freshness_basis":raw.get("freshness_basis")}})
             continue
         if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):
-            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
+            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the source-specific freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_cutoff":cutoff.isoformat(),"global_freshness_hours":hours,"discovery_source":raw.get("source")}})
             continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:

@@ -56,24 +56,28 @@ def _parse_state_time(value):
     except Exception:return None
 
 def _scheduled_cutoff(now,state):
-    """Return the exact lower bound for this scan.
+    """Return the global lower bound while preserving source-specific catch-up.
 
-    Normal hourly runs start at the last successful scan. The first run of a
-    weekday starts at the previous weekday's 18:00 cutoff; Monday therefore
-    catches Friday 18:00 through Monday morning. If a daytime run was missed,
-    the next run catches up from the last successful scan instead of losing jobs.
+    The global window advances from the most recent attempted cycle, even when
+    one provider failed. Failed providers do not lose coverage: each provider
+    and Workday tenant has its own watermark and therefore independently catches
+    up from its last successful discovery. This prevents one persistently failing
+    provider from stretching every later cycle/finalizer window for days.
+
+    Older scheduler state that lacks ``last_run_at`` safely falls back to the
+    legacy successful watermark. A brand-new state still bootstraps from the
+    previous weekday close so weekend/missed-run coverage is retained.
     """
-    last=_parse_state_time(state.get("last_successful_scan_at"))
+    last_attempt=_parse_state_time(state.get("last_run_at"))
+    last_success=_parse_state_time(state.get("last_successful_scan_at"))
+    last=last_attempt or last_success
     today=now.date()
     # Construct the prior scheduled close as a local wall-clock time instead of
-    # subtracting elapsed hours. This preserves 19:00 Eastern across DST changes.
+    # subtracting elapsed hours so DST transitions preserve the requested clock.
     days_back=3 if now.weekday()==0 else 1
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
     if last is None:return prior_close,"bootstrap"
-    # The persisted watermark is authoritative. If the prior 18:00 run was
-    # missed (for example the last success was 17:00), resume at 17:00 so no
-    # posting interval is silently lost.
     if last.date()!=today:return last,"bootstrap"
     return last,"incremental"
 
