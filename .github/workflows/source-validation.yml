@@ -27,5 +27,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Validate source configuration JSON
         run: python -m json.tool data/job_sources.json >/dev/null
+      - name: Validate production requirements contract
+        run: python -m app.production_preflight --strict --check-only
       - name: Run test suite
         run: python -m pytest -q
