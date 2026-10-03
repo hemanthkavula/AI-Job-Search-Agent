@@ -11,7 +11,7 @@ This review treats the job-search agent as one production pipeline rather than a
 5. **U.S.-only targeting** — U.S.-scoped remote, hybrid and onsite jobs are allowed; explicit foreign locations are rejected.
 6. **Data Engineering family** — Data Engineer plus legitimate adjacent IC Data Engineering titles are supported. Manager/Director/Architect/Consultant and unrelated families are rejected.
 7. **Employment/work authorization** — Full-Time/W-2 focus; explicit no-future-sponsorship, citizenship-only and required-clearance postings are rejected. Unknown sponsorship is not rejected by assumption.
-8. **Experience window** — configured minimum and maximum required-years bounds are inclusive.
+8. **Experience window** — preserve the established profile policy: the configured minimum is inclusive and `max_required_years` is an exclusive upper boundary. With the current `3–7` setup, 3–6 years qualifies and 7+ does not.
 9. **Prior-employer exclusions** — Fidelity Investments, Cigna/The Cigna Group and Target remain excluded from application eligibility.
 10. **Resume decisioning** — verified but partial/low-target JDs use the unchanged master resume; sufficiently actionable JDs use JD-specific tailoring.
 11. **Resume presentation** — the current master resume is the visual authority: two pages, Calibri, master color/spacing/alignment and 10/8/8 employer bullet counts.
@@ -44,8 +44,8 @@ Unit-level watermarks are currently a Workday feature. Scheduler state now limit
 ### U.S.-remote location false negatives and state-code false positives
 Generic `Remote` jobs can now qualify when the JD explicitly establishes U.S. scope. State abbreviations are matched case-sensitively so ordinary words such as `in` and `or` cannot be misread as Indiana/Oregon. Explicit foreign location metadata remains a hard rejection.
 
-### Experience maximum was exclusive by mistake
-A configured range of 3–7 years previously rejected a job requiring exactly 7 years. The maximum is now inclusive.
+### Experience boundary was reviewed and preserved
+The first pre-merge CI run exposed an attempted policy change: treating `max_required_years: 7` as inclusive would have admitted 7+ year postings, but an existing locked regression test explicitly excludes them. The hardening pass therefore preserves the established `[3,7)` policy rather than changing eligibility semantics without a new user requirement.
 
 ### Employer enrichment was manual-only
 Employer-universe enrichment now receives a weekday 05:30 ET scheduled run, using DST-safe UTC heartbeats plus a local-time guard. It runs ahead of the first 07:30 production slot and publishes its verified employer/source state for production restoration.
@@ -55,7 +55,7 @@ Source Validation now runs for pull requests targeting `main` as well as pushes 
 
 ## Verification added
 
-Regression tests cover U.S.-remote scope, foreign-location state-code collisions, the inclusive experience boundary, current-cycle source health, learned-provider status, source-specific freshness cutoffs, status-object normalization, partial-provider recovery behavior, degraded-source watermark retention and the DST-safe pre-production enrichment schedule.
+Regression tests cover U.S.-remote scope, foreign-location state-code collisions, the established experience boundary, current-cycle source health, learned-provider status, source-specific freshness cutoffs, status-object normalization, partial-provider recovery behavior, degraded-source watermark retention and the DST-safe pre-production enrichment schedule.
 
 ## Production acceptance criteria
 
