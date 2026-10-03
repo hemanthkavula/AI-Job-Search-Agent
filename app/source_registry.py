@@ -272,6 +272,7 @@ def _reusable_search_url(provider,url):
 
 def as_discovery_config(registry):
  out={k:[] for k in PATTERNS}
+ out["career_site"]=[]
  for x in registry.get("greenhouse",[]):out["greenhouse"].append({"company":x.get("company"),"board_token":x.get("identifier") or x.get("board_token")})
  for x in registry.get("lever",[]):out["lever"].append({"company":x.get("company"),"site":x.get("identifier") or x.get("site")})
  for x in registry.get("ashby",[]):out["ashby"].append({"company":x.get("company"),"board_name":x.get("identifier") or x.get("board_name")})
@@ -286,6 +287,13 @@ def as_discovery_config(registry):
    # supplying search_url for generic/public-board collectors.
    if provider in {"oracle","icims","successfactors"}:row["base_url"]=url
    out[provider].append(row)
+ for x in registry.get("career_site",[]):
+  url=x.get("search_url") or x.get("careers_url") or x.get("original_url") or x.get("url")
+  if not url:continue
+  out["career_site"].append({
+   "company":x.get("company"),"search_url":url,
+   "job_url_pattern":x.get("job_url_pattern") or r"(?:/jobs?/|/careers?/|/positions?/|/openings?/|jobId=|job_id=)"
+  })
  for x in registry.get("workday",[]):
   identifier=x.get("identifier") or ""
   parts=identifier.split("|",1)

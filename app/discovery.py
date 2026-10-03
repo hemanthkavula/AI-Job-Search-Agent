@@ -72,6 +72,16 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                 if key not in seen:
                     existing.append(row);seen.add(key)
         merged[provider]=existing
+    # Verified first-party career pages learned by employer enrichment are executable
+    # production sources too. Previously they were persisted but never merged back
+    # into discovery, so enrichment coverage did not translate into discovered jobs.
+    existing_career=list(config.get("career_site",[]) or [])
+    seen_career={(str(x.get("company") or "").strip().lower(),str(x.get("search_url") or x.get("careers_url") or "").rstrip("/").lower()) for x in existing_career}
+    for row in learned_config.get("career_site",[]) or []:
+        key=(str(row.get("company") or "").strip().lower(),str(row.get("search_url") or row.get("careers_url") or "").rstrip("/").lower())
+        if key not in seen_career and key[1]:
+            existing_career.append(row);seen_career.add(key)
+    merged["career_site"]=existing_career
     config=merged
     jobs=[]
     errors=[]

@@ -202,14 +202,14 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     if source_status.get("workday")!="ERROR" and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
     failed_providers=sorted(provider for provider,status in source_status.items() if status=="ERROR")
-    state_update={"last_run_at":now.isoformat(),"last_completed_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
+    state_update={"last_run_at":now.isoformat(),"last_attempted_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
                   "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
                   "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
                   "last_failed_providers":failed_providers}
-    # Keep last_successful_scan_at reserved for a cycle where every reported
-    # provider completed. Partial cycles are still slot-complete because failed
-    # providers retain their own older watermarks and catch up next slot.
+    # A recovery heartbeat inside the same window must be able to retry a partial
+    # cycle. Only a fully successful cycle closes the slot.
     if not failed_providers:
+        state_update["last_completed_slot"]=slot
         state_update["last_successful_scan_at"]=now.isoformat()
     state.update(state_update)
     summary["scan_cutoff_local"]=cutoff.isoformat()

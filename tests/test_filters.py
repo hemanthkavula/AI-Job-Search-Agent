@@ -1,7 +1,7 @@
 from app.filters import passes_hard_filters, employment_is_target
 
 PROFILE={
-  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},
+  "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"min_required_years":3,"max_required_years":7},
   "work_authorization":{"requires_sponsorship_future":True},
   "candidate_experience_years":5
 }
@@ -160,3 +160,18 @@ def test_software_engineer_data_platform_with_strong_de_jd_is_target():
       "description":"Build Spark data pipelines, Kafka ingestion, lakehouse storage, Airflow orchestration and data warehouse integrations."
     },PROFILE)
     assert ok
+
+
+def test_three_year_requirement_is_in_target_range():
+    ok,_=passes_hard_filters({"title":"Data Engineer","location":"United States","employment_type":"Full-Time","description":"3+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert ok
+
+
+def test_two_year_requirement_is_below_target_range():
+    ok,reasons=passes_hard_filters({"title":"Data Engineer","location":"United States","employment_type":"Full-Time","description":"2+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert not ok and any("experience" in x.lower() for x in reasons)
+
+
+def test_seven_year_requirement_is_excluded():
+    ok,reasons=passes_hard_filters({"title":"Senior Data Engineer","location":"United States","employment_type":"Full-Time","description":"7+ years of professional experience required. Python SQL Spark."},PROFILE)
+    assert not ok and any("7" in x for x in reasons)

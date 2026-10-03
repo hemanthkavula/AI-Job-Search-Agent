@@ -25,6 +25,8 @@ def test_partial_cycle_does_not_claim_global_success(monkeypatch,tmp_path):
     assert state["last_successful_scan_at"]==previous
     assert state["source_watermarks"]["greenhouse"]==report["scheduler_local_time"]
     assert state["source_watermarks"]["lever"]!=report["scheduler_local_time"]
+    assert state["last_attempted_slot"]
+    assert "last_completed_slot" not in state
 
 
 def test_guard_accepted_slot_survives_setup_delay(monkeypatch,tmp_path):

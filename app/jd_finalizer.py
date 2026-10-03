@@ -11,6 +11,7 @@ from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
+from app.source_registry import detect_ats
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -233,16 +234,24 @@ def resolve_full_jd(job):
     should_resolve_employer=(bool(out.get("discovery_only")) or source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
-        if len(employer_desc)>len(resolved):resolved=employer_desc
         if employer_url:
+            # Employer/ATS content is authoritative even when a board copied a
+            # longer description. Never keep the aggregator copy because it is longer.
+            resolved=employer_desc or resolved
+            provider,identifier=detect_ats(employer_url)
             out["aggregator_url"]=out.get("original_url") or out.get("url")
             out["original_url"]=employer_url
+            out["ats_provider"]=provider or "career_site"
+            out["ats_identifier"]=identifier or parse.urlsplit(employer_url).netloc.lower()
             out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
-    if len(resolved)>len(current):out["description"]=resolved
+    if employer_url:
+        out["description"]=resolved
+    elif len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
+    quality_source="" if employer_url else source
     out["description_length"]=len(final)
-    out["description_complete"]=_looks_like_complete_jd(final,source)
-    out["description_usable"]=_looks_like_usable_jd(final,source)
+    out["description_complete"]=_looks_like_complete_jd(final,quality_source)
+    out["description_usable"]=_looks_like_usable_jd(final,quality_source)
     out["jd_signal_score"]=_jd_signal_score(final)
     out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
@@ -301,24 +310,8 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["official_posted_label"]=official_label
             raw["freshness_basis"]="official_employer_posting_date"
         if aggregator_origin and official_posted is None:
-            # The official employer/ATS page is always the primary freshness source.
-            # For a Dice-origin lead only, once that lead has been identity-resolved
-            # to an official employer/ATS application page, allow Dice's posting date
-            # as a fallback when the official page exposes no usable date.
-            # This never permits an unresolved Dice URL to become the application URL.
-            from app.freshness import _parse_posting_value
-            discovery_source=(raw.get("source") or "").lower()
-            fallback_value=raw.get("discovery_posted_at")
-            fallback_posted=_parse_posting_value(fallback_value,check_now) if discovery_source=="dice" and raw.get("aggregator_url") and fallback_value else None
-            if fallback_posted is not None:
-                official_posted=fallback_posted
-                official_label=str(fallback_value)
-                raw["official_posted_at"]=fallback_posted.isoformat()
-                raw["official_posted_label"]=official_label
-                raw["freshness_basis"]="dice_date_fallback_after_official_ats_resolution"
-            else:
-                held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization and no permitted Dice fallback date was available.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
-                continue
+            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization. Aggregator/repost dates are discovery evidence only and are never used as freshness authority.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
+            continue
         if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):
             held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
             continue
@@ -340,12 +333,9 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         # controlled Dice adapter; the adapter must inspect the Apply flow and
         # This pipeline verifies the job/application destination but does not
         # decide whether the separate Muse application system can automate it.
-        source_supported=set(ALL_ATS_PROVIDERS)
+        source_supported=set(ALL_ATS_PROVIDERS)|{"career_site"}
         if raw.get("ats_provider") in source_supported:
             raw["application_route"]="EXTERNAL_ATS"
-        elif (raw.get("source") or "").lower()=="dice" and "dice.com" in (raw.get("original_url") or raw.get("url") or "").lower():
-            raw["application_route"]="DICE"
-            raw["ats_provider"]="dice"
         else:
             held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue

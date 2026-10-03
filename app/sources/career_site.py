@@ -13,9 +13,9 @@ def _get(url: str, timeout: int = 20) -> str:
 
 def _plain(value: str) -> str:
     value=html.unescape(value or "")
-    value=re.sub(r"<script[\\s\\S]*?</script>"," ",value,flags=re.I)
-    value=re.sub(r"<style[\\s\\S]*?</style>"," ",value,flags=re.I)
-    return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
+    value=re.sub(r"<script[\s\S]*?</script>"," ",value,flags=re.I)
+    value=re.sub(r"<style[\s\S]*?</style>"," ",value,flags=re.I)
+    return re.sub(r"\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
 
 def _jobpostings(body: str) -> list[dict]:
     """Return all schema.org JobPosting objects embedded in a career page."""

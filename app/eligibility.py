@@ -76,7 +76,7 @@ def experience_check(job: dict, profile: dict) -> dict:
     full=f"{job.get('title','')} {job.get('description','')}"
     rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
-    min_req=profile.get("preferences",{}).get("min_required_years",4)
+    min_req=profile.get("preferences",{}).get("min_required_years",3)
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
