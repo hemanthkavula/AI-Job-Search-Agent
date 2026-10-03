@@ -80,9 +80,9 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    # Configuration values describe an inclusive eligibility window. A configured
-    # maximum of 7 years must not accidentally reject a posting asking for 7.
-    eligible=min_req <= req <= max_req
+    # Preserve the established policy: max_required_years is the exclusive upper
+    # boundary. With the current [3,7) configuration, 3–6 years qualify and 7+ does not.
+    eligible=min_req <= req < max_req
     return {"category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
