@@ -38,9 +38,9 @@ def _queue_item(description="Build Python SQL Spark data pipelines. Full-Time.")
 
 def test_application_task_keeps_sponsorship_truthful_but_non_blocking():
     task = build_task(_queue_item(), PROFILE, Path("/tmp/resume.pdf"), allow_submit=True)
-    assert "requires sponsorship now/currently: NO" in task
-    assert "requires sponsorship in the future: YES" in task
-    assert '"no sponsorship"' in task
+    assert "sponsorship now/currently=NO" in task
+    assert "sponsorship in future=YES" in task
+    assert "no-sponsorship/no-future-sponsorship/no-immigration-support" in task
     assert "is NOT an eligibility blocker" in task
 
 
