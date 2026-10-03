@@ -48,10 +48,11 @@ def test_github_native_production_scheduler_fallback_covers_edt_and_est():
 
 def test_github_native_enrichment_fallback_is_delayed_idempotent_and_separate():
     workflow = (ROOT / ".github" / "workflows" / "employer-universe-enrichment.yml").read_text(encoding="utf-8")
-    # Cloudflare is primary at 05:30 ET; GitHub waits until 05:45 ET so it acts
-    # as a fallback rather than racing the primary dispatch.
-    assert 'cron: "45 9 * * 1-5"' in workflow
-    assert 'cron: "45 10 * * 1-5"' in workflow
+    # Cloudflare is primary at 05:30 ET. GitHub waits until 06:50 ET, after the
+    # primary workflow's full timeout window, so it cannot race a healthy run.
+    assert 'cron: "50 10 * * 1-5"' in workflow
+    assert 'cron: "50 11 * * 1-5"' in workflow
+    assert "now.hour == 6" in workflow
     assert "scheduled_dispatch:" in workflow
     assert 'scheduled_dispatch = "${{ inputs.scheduled_dispatch }}" == "true"' in workflow
     assert 'Path("state/employer_universe_last_success.json")' in workflow
@@ -60,8 +61,8 @@ def test_github_native_enrichment_fallback_is_delayed_idempotent_and_separate():
     assert "python -m app.company_enrichment_runner" in workflow
     assert "app.scheduled_runner" not in workflow
 
-    # The persisted state must be restored before the due/duplicate decision so
-    # a queued GitHub fallback can observe the primary run's success marker.
+    # Persisted state is restored before the due/duplicate decision so the
+    # independent fallback can observe the primary run's success marker.
     restore_index = workflow.index("- name: Restore employer/source discovery state")
     guard_index = workflow.index("- name: Decide whether enrichment is due")
     assert restore_index < guard_index
