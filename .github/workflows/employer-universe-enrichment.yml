@@ -1,8 +1,14 @@
 name: Employer Universe Enrichment
-# Deliberately separate from the production job cycle. Run incremental batches
-# so slow employer/ATS probing never delays fresh-job discovery or resume generation.
+# Slow employer/ATS enrichment runs before the first production slot so fresh
+# discovery consumes the latest verified employer/career-source registry without
+# delaying the 07:30 ET job cycle.
 
 on:
+  schedule:
+    # GitHub cron is UTC. Run both DST possibilities; the local-time guard below
+    # allows only the 05:30 America/New_York invocation to perform enrichment.
+    - cron: "30 9 * * 1-5"
+    - cron: "30 10 * * 1-5"
   workflow_dispatch:
     inputs:
       domain_budget:
@@ -42,7 +48,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Decide whether scheduled enrichment is due
+        id: guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import os
+          manual = "${{ github.event_name }}" == "workflow_dispatch"
+          now = datetime.now(ZoneInfo("America/New_York"))
+          due = manual or (now.weekday() < 5 and now.hour == 5)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"should_run={'true' if due else 'false'}\n")
+          print(f"Eastern time: {now.isoformat()}; enrichment due={due}")
+          PY
+
+      - name: Stop duplicate DST heartbeat
+        if: steps.guard.outputs.should_run != 'true'
+        run: echo "This UTC heartbeat is not the 05:30 ET enrichment window."
+
       - name: Restore employer/source discovery state
+        if: steps.guard.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -51,21 +79,31 @@ jobs:
           key: job-agent-state-enrichment-${{ github.run_id }}
           restore-keys: |
             job-agent-state-
+
       - name: Install dependencies
+        if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
+
       - name: Run employer-universe enrichment only
+        if: steps.guard.outputs.should_run == 'true'
         env:
           COLLEGE_SCORECARD_API_KEY: ${{ secrets.COLLEGE_SCORECARD_API_KEY }}
           SAM_API_KEY: ${{ secrets.SAM_API_KEY }}
         run: |
+          DEEP_ARG="--deep-domain-search"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.deep_domain_search }}" != "true" ]; then
+            DEEP_ARG=""
+          fi
           python -m app.company_enrichment_runner \
             --source-config data/job_sources.json \
-            --domain-budget "${{ inputs.domain_budget }}" \
-            --career-budget "${{ inputs.career_budget }}" \
-            --ats-tenant-budget "${{ inputs.ats_tenant_budget }}" \
+            --domain-budget "${{ inputs.domain_budget || '750' }}" \
+            --career-budget "${{ inputs.career_budget || '750' }}" \
+            --ats-tenant-budget "${{ inputs.ats_tenant_budget || '250' }}" \
             --retry-days 1 \
-            ${{ inputs.deep_domain_search && '--deep-domain-search' || '' }} | tee employer-universe-enrichment.log
+            $DEEP_ARG | tee employer-universe-enrichment.log
+
       - name: Publish employer-universe metrics
+        if: steps.guard.outputs.should_run == 'true'
         shell: bash
         run: |
           echo "## Employer Universe Enrichment" >> "$GITHUB_STEP_SUMMARY"
@@ -73,7 +111,9 @@ jobs:
             echo "EMPLOYER_UNIVERSE metrics were not emitted." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           }
+
       - uses: actions/upload-artifact@v4
+        if: steps.guard.outputs.should_run == 'true'
         with:
           name: employer-universe-${{ github.run_number }}
           path: |
