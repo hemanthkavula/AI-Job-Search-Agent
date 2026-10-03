@@ -19,9 +19,14 @@ def load_sources(path):return json.loads(Path(path).read_text(encoding="utf-8"))
 
 def _reason_key(reason):
     r=(reason or "").lower()
-    if "title outside" in r:return "wrong_job_family"
+    if "data-engineering job family" in r or "title/jd outside" in r:return "wrong_job_family"
+    if "location outside united states" in r:return "location_outside_us"
+    if "employment type outside" in r:return "employment_type_mismatch"
     if "experience requirement" in r:return "experience_mismatch"
     if "sponsorship unavailable" in r:return "no_future_sponsorship"
+    if "citizenship required" in r:return "citizenship_restriction"
+    if "clearance required" in r:return "clearance_restriction"
+    if "excluded prior employer" in r:return "excluded_prior_employer"
     return "other_hard_filter"
 
 def _norm_company(value):
@@ -171,7 +176,10 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     target_rejected=sum(bool((x.get("job") or {}).get("target_company")) for x in skipped)
     diagnostics={
         "fresh_jobs_checked":len(jobs24),"target_company_jobs":target_fresh,"target_company_eligible":target_eligible,"target_company_rejected":target_rejected,"wrong_job_family":reason_counts["wrong_job_family"],
+        "location_outside_us":reason_counts["location_outside_us"],"employment_type_mismatch":reason_counts["employment_type_mismatch"],
         "experience_mismatch":reason_counts["experience_mismatch"],"no_future_sponsorship":reason_counts["no_future_sponsorship"],
+        "citizenship_restriction":reason_counts["citizenship_restriction"],"clearance_restriction":reason_counts["clearance_restriction"],
+        "excluded_prior_employer":reason_counts["excluded_prior_employer"],
         "duplicates_removed":len(duplicates),"outside_target_company":reason_counts["outside_target_company"],
         "other_hard_filter":reason_counts["other_hard_filter"],"already_processed_ledger":reason_counts["already_processed_ledger"],"eligible_for_resume":len(eligible),
     }
@@ -184,7 +192,7 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
 
 def _print_diagnostics(d,hours):
     print(f"\nLAST {hours} HOURS — ELIGIBILITY STAGE",flush=True)
-    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
+    labels=[("Fresh verified jobs","fresh_jobs_checked"),("Wrong job family","wrong_job_family"),("Location outside US","location_outside_us"),("Employment type mismatch","employment_type_mismatch"),("Experience mismatch","experience_mismatch"),("No future sponsorship","no_future_sponsorship"),("Citizenship restriction","citizenship_restriction"),("Clearance restriction","clearance_restriction"),("Excluded prior employer","excluded_prior_employer"),("Duplicates removed","duplicates_removed"),("Other eligibility filter","other_hard_filter"),("Already processed ledger","already_processed_ledger"),("Eligible for resume","eligible_for_resume")]
     for label,key in labels:print(f"{label + ':':34} {d.get(key,0)}",flush=True)
 
 def _print_eligible(results):

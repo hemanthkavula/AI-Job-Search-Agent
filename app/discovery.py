@@ -1,6 +1,6 @@
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
 from app.sources.lever import fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
@@ -38,7 +38,7 @@ DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","succ
 FALLBACK_ATS_PROVIDERS=()
 ALL_ATS_PROVIDERS=DIRECT_PROVIDERS+FALLBACK_ATS_PROVIDERS
 
-def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_hours=None, source_unit_hours=None, return_coverage=False) -> list[dict]:
+def discover(config: dict, only_source=None, dice_search_terms=None, registry_path=None, hours=24, health_path="state/source_health.json", source_retry_path="state/source_retry_state.json", unhealthy_retry_hours=6, source_hours=None, source_unit_hours=None, return_coverage=False) -> list[dict]:
     registry_path=registry_path or str(DEFAULT_PATH)
     source_hours=source_hours or {}
     source_unit_hours=source_unit_hours or {}
@@ -91,9 +91,17 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     # career pages that are already known to be blocked, unreachable, or JS-only.
     unhealthy_career_sites=set()
     unhealthy_units=set()
+    unhealthy_status={}
+    retry_state={}
+    retry_now=datetime.now(timezone.utc)
     try:
         from pathlib import Path
         import time
+        retry_file=Path(source_retry_path)
+        try:
+            retry_state=json.loads(retry_file.read_text(encoding="utf-8")) if retry_file.exists() else {}
+        except Exception:
+            retry_state={}
         health_file=Path(health_path)
         # Backward-compatible migration: use the old generated report once if
         # state/source_health.json has not been created yet.
@@ -111,10 +119,42 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
                     if row.get("company"):
                         unhealthy_career_sites.add(row["company"])
                 if status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"} and row.get("provider") and row.get("company"):
-                    unhealthy_units.add((row["provider"],row["company"]))
+                    unit=(row["provider"],row["company"])
+                    unhealthy_units.add(unit)
+                    unhealthy_status[unit]=status
     except Exception:
         pass
-    # Quarantine stale/broken learned ATS tenants for the health TTL instead of
+
+    def _should_skip_unhealthy(provider, company):
+        """Skip a known-unhealthy unit only until its real-adapter retry TTL expires."""
+        unit=(provider,company)
+        if unit not in unhealthy_units:
+            return False
+        key=f"{provider}:{company or provider}"
+        # An explicit provider-only diagnostic is a manual retry and must never be
+        # defeated by the cached health quarantine.
+        force_retry=only_source==provider
+        previous=retry_state.get(key,{}) if isinstance(retry_state,dict) else {}
+        last_retry=None
+        if isinstance(previous,dict):
+            value=previous.get("last_retry_at")
+            if value:
+                try:
+                    last_retry=datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone(timezone.utc)
+                except Exception:
+                    last_retry=None
+        retry_due=force_retry or last_retry is None or (retry_now-last_retry)>=timedelta(hours=max(1,float(unhealthy_retry_hours)))
+        if retry_due:
+            retry_state[key]={
+                "source":provider,
+                "company":company,
+                "health_status":unhealthy_status.get(unit),
+                "last_retry_at":retry_now.isoformat(),
+            }
+            return False
+        return True
+
+    # Quarantine stale/broken learned ATS tenants between bounded adapter retries
     # repeatedly spending the production window on known 404/403/unreachable boards.
     # Source health is refreshed before every production discovery, so recovered
     # tenants automatically re-enter without deleting them from persistent learning.
@@ -124,8 +164,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         kept=[]
         for src in units:
             company=src.get("company") or src.get("tenant") or src.get("site") or src.get("board_token") or src.get("board_name")
-            if (provider,company) in unhealthy_units:
-                health[f"{provider}:{company or provider}"]={"source":provider,"company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+            if _should_skip_unhealthy(provider,company):
+                health[f"{provider}:{company or provider}"]={"source":provider,"company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat(),"retry_ttl_hours":unhealthy_retry_hours}
             else:
                 kept.append(src)
         config[provider]=kept
@@ -157,9 +197,9 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             if url:tasks.append((pool.submit(oracle_jobs,src.get("company") or "oracle",url),"oracle",src.get("company") or "oracle"))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
             company=src.get("company")
-            if company in unhealthy_career_sites:
+            if company in unhealthy_career_sites and _should_skip_unhealthy("career_site",company):
                 key=f"career_site:{company}"
-                health[key]={"source":"career_site","company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+                health[key]={"source":"career_site","company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat(),"retry_ttl_hours":unhealthy_retry_hours}
                 continue
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
@@ -348,4 +388,6 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     except Exception:prior={}
     prior.update(health)
     hp.write_text(json.dumps(prior,indent=2),encoding="utf-8")
+    rp=__import__("pathlib").Path(source_retry_path);rp.parent.mkdir(parents=True,exist_ok=True)
+    rp.write_text(json.dumps(retry_state,indent=2),encoding="utf-8")
     return (rows, errors, coverage) if return_coverage else (rows, errors)

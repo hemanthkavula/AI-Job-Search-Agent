@@ -287,17 +287,19 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         posting_fields=("posted_at","posted_on","date_posted","datePosted","published_at","publication_date")
         raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
         official_posted=None;official_label=None
-        if aggregator_origin:
-            # Aggregator timestamps are discovery evidence only. Re-read the
-            # resolved employer/ATS page and enforce its authoritative date.
+        provisional_updated_at=raw.get("freshness_basis")=="updated_at_fallback"
+        requires_official_post_date=aggregator_origin or provisional_updated_at
+        if requires_official_post_date:
+            # Aggregator timestamps and generic ATS updated_at values are discovery
+            # evidence only. Re-read the employer/ATS page and require a true
+            # publication date before the job can become Ready-to-Apply.
             official_page=_fetch_public_page(application_url)
             official_posted,official_label=_official_posted_at(official_page,now=check_now)
         else:
             # Direct ATS jobs can gain a more authoritative posting field during
             # detail resolution after the earlier freshness pass. Re-check that
             # final value here so e.g. Workday "Posted 4 Days Ago" cannot bypass
-            # a ~61-hour production window. If no posting field was added, retain
-            # the result of the earlier strict freshness gate.
+            # a ~61-hour production window.
             from app.freshness import _parse_posting_value
             for field in posting_fields:
                 value=raw.get(field)
@@ -309,8 +311,9 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["official_posted_at"]=official_posted.isoformat()
             raw["official_posted_label"]=official_label
             raw["freshness_basis"]="official_employer_posting_date"
-        if aggregator_origin and official_posted is None:
-            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization. Aggregator/repost dates are discovery evidence only and are never used as freshness authority.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
+        if requires_official_post_date and official_posted is None:
+            reason=("Official employer/ATS posting date could not be verified at finalization. Aggregator/repost dates are discovery evidence only and are never used as freshness authority." if aggregator_origin else "The ATS updated_at timestamp is only a modification timestamp and cannot prove when the job was posted. An authoritative employer/ATS posting date could not be verified at finalization.")
+            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":reason,"diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution"),"discovery_freshness_basis":raw.get("freshness_basis")}})
             continue
         if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):
             held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
