@@ -15,12 +15,7 @@ from app.source_registry import load_registry, as_discovery_config
 from app.discovery import ALL_ATS_PROVIDERS
 
 def _eastern_tz():
-    """Use IANA Eastern time when available; fall back to Windows local Eastern time.
-
-    Windows Python installations may not ship the IANA tz database. The fallback
-    intentionally uses the machine's local timezone so DST remains correct when
-    the Windows timezone is configured as Eastern Time.
-    """
+    """Use IANA Eastern time when available; fall back to Windows local Eastern time."""
     if ZoneInfo is not None:
         try:
             return ZoneInfo("America/New_York")
@@ -39,7 +34,7 @@ FINAL_HOUR=21
 RUN_SLOTS=((7,30),(10,0),(12,30),(15,30),(18,30),(21,0))
 SLOT_RECOVERY_MINUTES=55
 INCREMENTAL_WINDOW_HOURS=2.5
-RUN_WEEKDAYS={0,1,2,3,4}  # Monday-Friday
+RUN_WEEKDAYS={0,1,2,3,4}
 
 def _load_state():
     if not STATE_PATH.exists(): return {}
@@ -55,25 +50,22 @@ def _parse_state_time(value):
     try:return datetime.fromisoformat(value).astimezone(ET)
     except Exception:return None
 
+def _status_code(value):
+    """Normalize provider/unit status from legacy strings or diagnostic objects."""
+    if isinstance(value,dict):value=value.get("status")
+    return str(value or "").upper()
+
 def _scheduled_cutoff(now,state):
     """Return the global lower bound while preserving source-specific catch-up.
 
-    The global window advances from the most recent attempted cycle, even when
-    one provider failed. Failed providers do not lose coverage: each provider
-    and Workday tenant has its own watermark and therefore independently catches
-    up from its last successful discovery. This prevents one persistently failing
-    provider from stretching every later cycle/finalizer window for days.
-
-    Older scheduler state that lacks ``last_run_at`` safely falls back to the
-    legacy successful watermark. A brand-new state still bootstraps from the
-    previous weekday close so weekend/missed-run coverage is retained.
+    The global window advances from the most recent attempted cycle. Providers
+    whose watermark did not advance independently catch up from their own last
+    successful cutoff on a later retry/slot.
     """
     last_attempt=_parse_state_time(state.get("last_run_at"))
     last_success=_parse_state_time(state.get("last_successful_scan_at"))
     last=last_attempt or last_success
     today=now.date()
-    # Construct the prior scheduled close as a local wall-clock time instead of
-    # subtracting elapsed hours so DST transitions preserve the requested clock.
     days_back=3 if now.weekday()==0 else 1
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
@@ -112,15 +104,12 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     if not force and active_slot is None:
         return {"status":"OUTSIDE_RUN_WINDOW","local_time":now.isoformat(),"window":window_label}
     state=_load_state()
-    # Cloudflare continues to provide repeated heartbeat opportunities. Once a
-    # requested slot completes, later heartbeats inside its recovery window are no-ops.
     slot_hour,slot_minute=active_slot if active_slot is not None else (now.hour,now.minute)
     slot=accepted_slot_value or f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
     if not force and state.get("last_completed_slot")==slot:
         return {"status":"SLOT_ALREADY_COMPLETED","local_time":now.isoformat(),"slot":slot}
     hours,mode,cutoff=_window_for(now,state)
-    # Each provider resumes from its own last successful discovery. Existing
-    # scheduler state migrates safely by falling back to the global cutoff.
+
     source_config_for_watermarks=json.loads((ROOT/sources).read_text(encoding="utf-8")) if (ROOT/sources).exists() else {}
     portal_providers=tuple(row.get("provider") for row in source_config_for_watermarks.get("discovery_portal",[]) if isinstance(row,dict) and row.get("enabled",True) and row.get("provider"))
     providers=tuple(dict.fromkeys(ALL_ATS_PROVIDERS+("career_site","dice","ziprecruiter","monster")+portal_providers))
@@ -132,16 +121,11 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         source_cutoffs[provider]=provider_cutoff.isoformat()
         source_hours[provider]=max(1,(now-provider_cutoff).total_seconds())/3600.0+(5.0/60.0)
     discovery_hours=hours+(5.0/60.0)
-    # Workday tenants have independent failure domains. Preserve a watermark per
-    # company so healthy tenants advance even when one tenant returns 5xx.
+
     try:
         source_config=json.loads((ROOT/sources).read_text(encoding="utf-8"))
     except Exception:
         source_config={}
-    # Discovery merges learned Workday tenants from the source registry with the
-    # static config. Build the scheduler's tenant list the same way; otherwise
-    # learned tenants are scanned but never receive their own watermark and keep
-    # replaying the provider-level historical catch-up window forever.
     configured_workday=list(source_config.get("workday",[]) or [])
     try:
         learned_workday=list(as_discovery_config(load_registry()).get("workday",[]) or [])
@@ -160,58 +144,51 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
         key=f"workday:{unit}"
         unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get("workday")) or cutoff
         source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0+(5.0/60.0)
+
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
                       since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours,
                       source_unit_hours=source_unit_hours)
-
-    # Resume generation and the application queue are the terminal automation boundary.
-    # Applications are intentionally submitted manually by the user.
     summary["application_stage_enabled"]=False
     summary["applications_processed"]=0
 
-    # Advance only providers that completed without discovery errors. A failed
-    # provider keeps its old watermark and catches the missed interval next run.
     source_status=summary.get("source_status") or {}
-    # Seed every provider with the cutoff actually used for this cycle. This
-    # safely migrates legacy state that only has the global watermark: a failed
-    # provider keeps the old cutoff instead of falling forward to the new global
-    # success timestamp on the next run.
     next_watermarks={provider:source_cutoffs[provider] for provider in providers}
     next_watermarks.update(watermarks)
     for provider,status in source_status.items():
-        if status=="OK":next_watermarks[provider]=now.isoformat()
+        if _status_code(status)=="OK":next_watermarks[provider]=now.isoformat()
+
     next_unit_watermarks=dict(unit_watermarks)
     unit_status=summary.get("source_unit_status") or {}
-    # Every Workday tenant supplied to discovery completed unless it appears in
-    # source_errors. Seed status for learned tenants too, because older reports
-    # only enumerated the static config subset.
     failed_workday={e.get("company") for e in (summary.get("source_errors") or {}).get("workday",[]) if e.get("company")}
     for src in configured_workday:
         unit=src.get("company") or src.get("tenant")
         if unit:
             unit_status.setdefault(f"workday:{unit}","ERROR" if unit in failed_workday else "OK")
     for key,status in unit_status.items():
+        # Unit-level watermarks are currently implemented only for Workday. Do not
+        # create misleading per-unit state for other provider families.
+        if not key.startswith("workday:"):continue
         if key not in next_unit_watermarks:
             next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
-        if status=="OK":
+        if _status_code(status)=="OK":
             next_unit_watermarks[key]=now.isoformat()
-    # Keep the provider-level Workday watermark as the oldest tenant watermark.
-    # This remains a conservative fallback for legacy code/state while actual
-    # Workday network windows use the more precise per-tenant values above.
+
     workday_values=[_parse_state_time(v) for k,v in next_unit_watermarks.items() if k.startswith("workday:")]
     workday_values=[v for v in workday_values if v is not None]
-    # If the whole Workday provider failed, keep its prior provider-level watermark.
-    # Tenant watermarks may still exist from earlier successful runs, but they must
-    # not make a failed provider appear to have advanced.
-    if source_status.get("workday")!="ERROR" and workday_values:
+    if _status_code(source_status.get("workday")) not in {"ERROR"} and workday_values:
         next_watermarks["workday"]=min(workday_values).isoformat()
-    failed_providers=sorted(provider for provider,status in source_status.items() if status=="ERROR")
+
+    # ERROR and PARTIAL both represent a real adapter failure and are retryable
+    # within the same 55-minute slot. DEGRADED means a known-unhealthy unit was
+    # intentionally quarantined: keep its old watermark but close the slot to
+    # avoid repeatedly hammering a blocked source before its retry TTL.
+    failed_providers=sorted(provider for provider,status in source_status.items() if _status_code(status) in {"ERROR","PARTIAL"})
+    degraded_providers=sorted(provider for provider,status in source_status.items() if _status_code(status)=="DEGRADED")
+    cycle_status="PARTIAL" if failed_providers else ("DEGRADED" if degraded_providers else "SUCCESS")
     state_update={"last_run_at":now.isoformat(),"last_attempted_slot":slot,"last_mode":mode,"last_cycle_id":summary.get("cycle_id"),
                   "source_watermarks":next_watermarks,"source_unit_watermarks":next_unit_watermarks,
-                  "last_cycle_status":"PARTIAL" if failed_providers else "SUCCESS",
-                  "last_failed_providers":failed_providers}
-    # A recovery heartbeat inside the same window must be able to retry a partial
-    # cycle. Only a fully successful cycle closes the slot.
+                  "last_cycle_status":cycle_status,"last_failed_providers":failed_providers,
+                  "last_degraded_providers":degraded_providers}
     if not failed_providers:
         state_update["last_completed_slot"]=slot
         state_update["last_successful_scan_at"]=now.isoformat()
@@ -224,8 +201,9 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     summary["scheduler_mode"]=mode
     summary["scheduler_local_time"]=now.isoformat()
     summary["daily_final_cycle"]=active_slot==(21,0) if not force else now.hour==FINAL_HOUR
-    summary["cycle_status"]="PARTIAL" if failed_providers else "SUCCESS"
+    summary["cycle_status"]=cycle_status
     summary["failed_providers"]=failed_providers
+    summary["degraded_providers"]=degraded_providers
     return summary
 
 if __name__=="__main__":

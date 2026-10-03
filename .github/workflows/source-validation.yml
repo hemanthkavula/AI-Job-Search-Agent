@@ -3,37 +3,8 @@ name: Source Validation
 on:
   push:
     branches: [main]
-    paths:
-      - "app/sources/**"
-      - "app/discovery.py"
-      - "app/daily_runner.py"
-      - "app/application_queue.py"
-      - "app/batch_prepare.py"
-      - "app/resume_generator.py"
-      - "app/reference_resume_formatter.py"
-      - "app/dashboard.py"
-      - "app/job_ledger.py"
-      - "app/production_cycle.py"
-      - "app/jd_finalizer.py"
-      - "app/source_registry.py"
-      - "app/source_health.py"
-      - "app/company_feeders.py"
-      - "app/company_universe.py"
-      - "app/company_domain_resolver.py"
-      - "app/career_page_resolver.py"
-      - "app/ats_tenant_resolver.py"
-      - "app/company_enrichment_runner.py"
-      - "app/company_registry.py"
-      - "data/job_sources.json"
-      - "tests/**"
-      - "app/scheduled_runner.py"
-      - "app/job_identity.py"
-      - ".github/workflows/daily-discovery.yml"
-      - ".github/workflows/source-validation.yml"
-      - ".github/workflows/employer-universe-enrichment.yml"
-      - "cloudflare-scheduler.js"
-      - "wrangler.toml"
-      - "CLOUDFLARE_SCHEDULER.md"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
