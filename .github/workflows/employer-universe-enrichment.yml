@@ -6,11 +6,12 @@ name: Employer Universe Enrichment
 on:
   schedule:
     # GitHub is the delayed fallback, not the primary clock. Run both DST
-    # possibilities at :45; the local-time guard below allows only the 05:45 ET
+    # possibilities at :50; the local-time guard below allows only the 06:50 ET
     # heartbeat, and only when today's Cloudflare-triggered enrichment did not
-    # already complete successfully.
-    - cron: "45 9 * * 1-5"
-    - cron: "45 10 * * 1-5"
+    # already complete successfully. This is deliberately after the primary
+    # workflow's 75-minute timeout window from its 05:30 ET start.
+    - cron: "50 10 * * 1-5"
+    - cron: "50 11 * * 1-5"
   workflow_dispatch:
     inputs:
       domain_budget:
@@ -58,7 +59,7 @@ jobs:
 
       # Restore state before deciding whether the fallback is necessary. The
       # successful primary run writes employer_universe_last_success.json into
-      # this shared cache, so a queued fallback becomes a safe no-op.
+      # this shared cache, so the delayed fallback becomes a safe no-op.
       - name: Restore employer/source discovery state
         uses: actions/cache@v4
         with:
@@ -107,7 +108,7 @@ jobs:
           # once-per-weekday idempotency guard instead of acting like a manual force.
           manual_force = event == "workflow_dispatch" and not scheduled_dispatch
           cloudflare_due = event == "workflow_dispatch" and scheduled_dispatch and now.weekday() < 5
-          github_fallback_due = event == "schedule" and now.weekday() < 5 and now.hour == 5
+          github_fallback_due = event == "schedule" and now.weekday() < 5 and now.hour == 6
 
           due = manual_force or (
               (cloudflare_due or github_fallback_due)
