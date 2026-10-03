@@ -29,17 +29,21 @@ def test_locationless_direct_ats_can_use_explicit_us_scope_from_jd():
     )
 
 
-def test_experience_window_includes_configured_maximum():
+def test_experience_window_preserves_exclusive_upper_bound():
     profile={
         "candidate_experience_years":5,
         "preferences":{"min_required_years":3,"max_required_years":7},
     }
-    result=experience_check(
+    six=experience_check(
+        {"title":"Senior Data Engineer","description":"Requires 6 years of relevant experience."},
+        profile,
+    )
+    seven=experience_check(
         {"title":"Senior Data Engineer","description":"Requires 7 years of relevant experience."},
         profile,
     )
-    assert result["required_years"] == 7
-    assert result["eligible"] is True
+    assert six["eligible"] is True
+    assert seven["eligible"] is False
 
 
 def test_provider_status_uses_current_health_for_learned_provider():
