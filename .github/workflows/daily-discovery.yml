@@ -7,6 +7,10 @@ on:
         required: false
         default: false
         type: boolean
+  push:
+    branches: [main]
+    paths:
+      - "state/manual-production-trigger.txt"
 
 concurrency:
   group: production-job-cycle
@@ -46,9 +50,9 @@ jobs:
           import json
           from pathlib import Path
 
-          force = "${{ github.event_name }}" == "workflow_dispatch" and "${{ inputs.force }}" == "true"
+          force = "${{ github.event_name }}" == "push" or ("${{ github.event_name }}" == "workflow_dispatch" and "${{ inputs.force }}" == "true")
           if force:
-              print("Manual force run requested.")
+              print("Controlled force run requested.")
               with open(Path("${{ github.output }}") if False else "/dev/null", "w") as _:
                   pass
           now = datetime.now(ZoneInfo("America/New_York"))
@@ -59,9 +63,6 @@ jobs:
               state = {}
 
           due_slots = ((7, 30), (10, 0), (12, 30), (15, 30), (18, 30), (21, 0))
-          # Keep the existing Cloudflare heartbeat architecture. Each requested
-          # slot remains recoverable for 55 minutes, so repeated heartbeats can
-          # recover a delayed/dropped dispatch without running the slot twice.
           now_minutes = now.hour * 60 + now.minute
           active_slot = None
           for hour, minute in due_slots:
@@ -71,14 +72,7 @@ jobs:
                   break
           slot_hour, slot_minute = active_slot if active_slot else (now.hour, now.minute)
           slot = f"{now.date().isoformat()}T{slot_hour:02d}:{slot_minute:02d}"
-          due = (
-              force
-              or (
-                  now.weekday() < 5
-                  and active_slot is not None
-                  and state.get("last_completed_slot") != slot
-              )
-          )
+          due = force or (now.weekday() < 5 and active_slot is not None and state.get("last_completed_slot") != slot)
           output = Path(__import__("os").environ["GITHUB_OUTPUT"])
           with output.open("a") as f:
               f.write(f"should_run={'true' if due else 'false'}\n")
@@ -102,11 +96,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends libreoffice-writer
           soffice --version
 
-      # Full regression tests run in source-validation when code changes. Source
-      # health is a cached advisory input with its own TTL and is not re-crawled
-      # before every production slot, so fresh job discovery starts promptly.
-      # Employer-universe enrichment remains a separate bounded workflow.
-
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
         env:
@@ -114,7 +103,7 @@ jobs:
           RESUME_LLM_MODEL: gpt-5.6
         run: |
           FORCE_ARG=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; }; then
             FORCE_ARG="--force"
           fi
           python -m app.scheduled_runner --sources data/job_sources.json --accepted-slot "${{ steps.guard.outputs.slot }}" $FORCE_ARG
