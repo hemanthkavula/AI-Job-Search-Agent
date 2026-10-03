@@ -32,6 +32,7 @@ def test_cloudflare_primary_scheduler_covers_production_and_enrichment():
     assert 'career_budget: "750"' in worker
     assert 'ats_tenant_budget: "250"' in worker
     assert 'deep_domain_search: "true"' in worker
+    assert 'scheduled_dispatch: "true"' in worker
     assert "const dueSlots = [[7,30],[10,0],[12,30],[15,30],[18,30],[21,0]];" in worker
     assert "localMinutes < slotMinutes + 55" in worker
     assert 'new Set(["Mon","Tue","Wed","Thu","Fri"])' in worker
@@ -45,10 +46,22 @@ def test_github_native_production_scheduler_fallback_covers_edt_and_est():
     assert "state.get(\"last_completed_slot\") != slot" in workflow
 
 
-def test_github_native_enrichment_fallback_is_separate_and_weekday_only():
+def test_github_native_enrichment_fallback_is_delayed_idempotent_and_separate():
     workflow = (ROOT / ".github" / "workflows" / "employer-universe-enrichment.yml").read_text(encoding="utf-8")
-    assert 'cron: "30 9 * * 1-5"' in workflow
-    assert 'cron: "30 10 * * 1-5"' in workflow
-    assert "now.weekday() < 5 and now.hour == 5" in workflow
+    # Cloudflare is primary at 05:30 ET; GitHub waits until 05:45 ET so it acts
+    # as a fallback rather than racing the primary dispatch.
+    assert 'cron: "45 9 * * 1-5"' in workflow
+    assert 'cron: "45 10 * * 1-5"' in workflow
+    assert "scheduled_dispatch:" in workflow
+    assert 'scheduled_dispatch = "${{ inputs.scheduled_dispatch }}" == "true"' in workflow
+    assert 'Path("state/employer_universe_last_success.json")' in workflow
+    assert "already_succeeded_today" in workflow
+    assert "and not already_succeeded_today" in workflow
     assert "python -m app.company_enrichment_runner" in workflow
     assert "app.scheduled_runner" not in workflow
+
+    # The persisted state must be restored before the due/duplicate decision so
+    # a queued GitHub fallback can observe the primary run's success marker.
+    restore_index = workflow.index("- name: Restore employer/source discovery state")
+    guard_index = workflow.index("- name: Decide whether enrichment is due")
+    assert restore_index < guard_index
