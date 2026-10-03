@@ -138,16 +138,18 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
             configured_workday.append(src);seen_workday.add(identity)
     unit_watermarks=state.get("source_unit_watermarks") or {}
     source_unit_hours={}
+    source_unit_since={}
     for src in configured_workday:
         unit=src.get("company") or src.get("tenant")
         if not unit:continue
         key=f"workday:{unit}"
         unit_cutoff=_parse_state_time(unit_watermarks.get(key)) or _parse_state_time(watermarks.get("workday")) or cutoff
+        source_unit_since[key]=unit_cutoff.isoformat()
         source_unit_hours[key]=max(1,(now-unit_cutoff).total_seconds())/3600.0+(5.0/60.0)
 
     summary=run_cycle(sources=sources,hours=discovery_hours,ledger=ledger,generate_resumes=generate_resumes,limit=limit,
                       since=cutoff.isoformat(),scan_now=now,source_since=source_cutoffs,source_hours=source_hours,
-                      source_unit_hours=source_unit_hours)
+                      source_unit_hours=source_unit_hours,source_unit_since=source_unit_since)
     summary["application_stage_enabled"]=False
     summary["applications_processed"]=0
 
