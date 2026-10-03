@@ -17,7 +17,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,5 +29,22 @@ jobs:
         run: python -m json.tool data/job_sources.json >/dev/null
       - name: Validate production requirements contract
         run: python -m app.production_preflight --strict --check-only
+      - name: Validate isolated application dependency pin
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("requirements-application.txt").read_text(encoding="utf-8")
+          assert "browser-use==0.13.10" in text
+          PY
       - name: Run test suite
         run: python -m pytest -q
+      - name: Smoke test application browser runtime
+        run: |
+          pip install -r requirements-application.txt
+          python - <<'PY'
+          from browser_use import Agent, Browser, ChatOpenAI
+          assert Agent and Browser and ChatOpenAI
+          print("Browser Use application runtime imports successfully.")
+          PY
+          browser-use install
+          browser-use --help >/dev/null

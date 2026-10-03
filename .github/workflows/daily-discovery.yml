@@ -30,7 +30,7 @@ permissions:
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -146,6 +146,47 @@ jobs:
       - name: Verify production acceptance invariants
         if: steps.guard.outputs.should_run == 'true'
         run: python -m app.production_acceptance
+
+      - name: Inspect ready application queue
+        if: steps.guard.outputs.should_run == 'true'
+        id: appqueue
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          summaries=sorted(Path("generated/cycles").glob("*_summary.json"))
+          count=0
+          queue=""
+          if summaries:
+              summary=json.loads(summaries[-1].read_text(encoding="utf-8"))
+              queue=str(summary.get("application_queue") or "")
+              if queue and Path(queue).exists():
+                  rows=json.loads(Path(queue).read_text(encoding="utf-8"))
+                  count=sum(1 for row in rows if row.get("status")=="READY_FOR_ATS_ADAPTER")
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as f:
+              f.write(f"count={count}\n")
+              f.write(f"queue={queue}\n")
+          print(f"Ready application rows: {count}; queue={queue or 'none'}")
+          PY
+
+      - name: Install application browser runtime
+        if: steps.guard.outputs.should_run == 'true' && steps.appqueue.outputs.count != '0'
+        continue-on-error: true
+        run: |
+          pip install -r requirements-application.txt
+          browser-use install
+
+      - name: Run guarded automatic application stage
+        if: steps.guard.outputs.should_run == 'true'
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          APPLICATION_AGENT_MODEL: gpt-5.6-luna
+          APPLICATION_AGENT_MAX_STEPS: "80"
+          APPLICATION_AGENT_TIMEOUT_SECONDS: "600"
+        run: |
+          python -m app.application_stage --submit
 
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'
