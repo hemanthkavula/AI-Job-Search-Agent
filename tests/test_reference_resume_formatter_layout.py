@@ -17,9 +17,11 @@ def test_reference_layout_uses_calibri_and_keeps_first_bullet_with_employer(tmp_
     assert doc.styles["Normal"].font.name=="Calibri"
     paragraphs=doc.paragraphs
     idx=next(i for i,p in enumerate(paragraphs) if p.text.startswith("Fidelity Investments"))
-    company=paragraphs[idx]; title=paragraphs[idx+1]; first=paragraphs[idx+2]
+    company=paragraphs[idx]; title=paragraphs[idx+1]; roles=paragraphs[idx+2]; first=paragraphs[idx+3]
     assert company.paragraph_format.keep_with_next is True
     assert title.paragraph_format.keep_with_next is True
+    assert roles.text=="Roles & Responsibilities:"
+    assert roles.paragraph_format.keep_with_next is True
     assert first.paragraph_format.keep_together is True
     assert first.paragraph_format.keep_with_next is not True
     assert "	" in company.text

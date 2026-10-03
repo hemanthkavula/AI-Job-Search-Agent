@@ -13,41 +13,52 @@
   "skills": [
     "Python",
     "SQL",
-    "PySpark",
-    "Apache Spark",
-    "Kafka",
-    "Databricks",
-    "Delta Lake",
+    "Scala",
     "AWS Glue",
     "Amazon EMR",
     "Amazon S3",
     "Amazon Redshift",
     "Lambda",
     "Kinesis",
-    "Azure Data Factory",
-    "Azure Synapse Analytics",
-    "ADLS Gen2",
+    "Data Factory",
+    "Synapse Analytics",
+    "Azure Data Lake Storage Gen2",
     "Event Hub",
+    "Apache Spark",
+    "PySpark",
+    "Databricks",
+    "Delta Lake",
+    "Apache Kafka",
     "Snowflake",
-    "Airflow",
+    "Azure Synapse Analytics",
+    "Oracle",
+    "SQL Server",
+    "PostgreSQL",
+    "MySQL",
+    "MongoDB",
+    "DynamoDB",
+    "Apache Airflow",
+    "Azure Data Factory",
     "dbt",
+    "Star Schema",
+    "Snowflake Schema",
+    "Dimensional Modeling",
+    "Slowly Changing Dimensions",
     "Terraform",
     "Docker",
     "Jenkins",
+    "GitLab CI/CD",
+    "Git",
     "Great Expectations",
+    "AWS Glue Data Catalog",
     "Azure Purview",
-    "Power BI",
     "Tableau",
-    "PostgreSQL",
-    "MySQL",
-    "BigQuery",
-    "Dagster",
-    "Apache Beam",
-    "Apache Flink",
-    "Kubernetes",
-    "ArgoCD",
-    "Helm",
-    "Istio"
+    "Power BI",
+    "Looker",
+    "Agile/Scrum",
+    "DevOps",
+    "DataOps",
+    "CI/CD Best Practices"
   ],
   "priority_skills": [
     "Python",
@@ -75,10 +86,46 @@
         "Built real-time streaming pipelines using Kafka and Kinesis, ingesting trade lifecycle events with sub-minute latency to improve visibility for compliance monitoring systems.",
         "Modeled and delivered Snowflake data warehouse solutions (Star Schema, SCD Type 2) supporting portfolio analytics and regulatory reporting used by risk and investment stakeholders.",
         "Architected and maintained an S3-based data lake (Delta, medallion architecture) supporting curated datasets consumed by analysts and quantitative teams.",
+        "Developed modular dbt transformation models and automated data quality tests in Snowflake, creating reusable analytics datasets for risk and investment reporting.",
         "Established data quality validation using Great Expectations (70+ rules), improving data reliability and reducing downstream reporting inconsistencies.",
+        "Enabled AI/ML-driven analytics by building scalable Python and PySpark data pipelines that curated trading and market datasets for anomaly detection, risk analysis, and predictive modeling use cases.",
         "Optimized Spark workloads through partitioning and join strategies, reducing pipeline runtime by ~30% and lowering EMR compute costs.",
         "Automated infrastructure provisioning and deployments using Terraform and Jenkins, ensuring consistent and reliable releases across environments.",
         "Enabled analytics-ready datasets for portfolio managers and quant teams, supporting risk exposure analysis and trading performance insights."
+      ],
+      "bullet_emphasis": [
+        [
+          "~2.5–3M daily trading events and ~400–500GB of market data"
+        ],
+        [
+          "Kafka and Kinesis"
+        ],
+        [
+          "Snowflake data warehouse solutions (Star Schema, SCD Type 2)"
+        ],
+        [
+          "S3-based data lake (Delta, medallion architecture)"
+        ],
+        [
+          "dbt transformation models"
+        ],
+        [
+          "Great Expectations (70+ rules)"
+        ],
+        [
+          "AI/ML-driven analytics",
+          "Python and PySpark data pipelines"
+        ],
+        [
+          "~30%",
+          "EMR compute costs"
+        ],
+        [
+          "Terraform and Jenkins"
+        ],
+        [
+          "analytics-ready datasets for portfolio managers and quant teams"
+        ]
       ]
     },
     {
@@ -96,6 +143,32 @@
         "Optimized Spark workloads and cluster configurations, reducing processing time by ~25–30% across large healthcare datasets.",
         "Supported data governance initiatives using Azure Purview, enabling metadata tracking, lineage, and compliance for sensitive healthcare data (HIPAA).",
         "Developed Power BI dashboards used by operations and clinical teams to monitor utilization trends, cost metrics, and performance indicators."
+      ],
+      "bullet_emphasis": [
+        [
+          "claims, eligibility, and provider data for ~2–3M members"
+        ],
+        [
+          "Databricks"
+        ],
+        [
+          "ADLS Gen2 data lake (layered/medallion architecture)"
+        ],
+        [
+          "Snowflake data warehouse solutions"
+        ],
+        [
+          "Event Hub and Structured Streaming"
+        ],
+        [
+          "~25–30%"
+        ],
+        [
+          "Azure Purview"
+        ],
+        [
+          "operations and clinical teams"
+        ]
       ]
     },
     {
@@ -113,6 +186,32 @@
         "Optimized SQL queries and indexing in PostgreSQL/MySQL, improving performance of BI and reporting workloads.",
         "Developed Tableau dashboards used by merchandising and operations teams to analyze product demand, customer behavior, and store performance.",
         "Enabled data-driven decision-making for retail operations, improving visibility into sales trends, inventory optimization, and product performance."
+      ],
+      "bullet_emphasis": [
+        [
+          "~120–180GB/day of retail sales and inventory data"
+        ],
+        [
+          "product, pricing, and order data"
+        ],
+        [
+          "Redshift data warehouse models (Star Schema)"
+        ],
+        [
+          "near real-time POS data"
+        ],
+        [
+          "Python and SQL"
+        ],
+        [
+          "PostgreSQL/MySQL"
+        ],
+        [
+          "merchandising and operations teams"
+        ],
+        [
+          "data-driven decision-making for retail operations"
+        ]
       ]
     }
   ],
@@ -170,15 +269,14 @@
     }
   },
   "summary_source": [
-    "Senior Data Engineer with 5+ years of experience building high-scale data platforms and real-time pipelines processing millions of transactions and large-volume datasets across financial services, healthcare, and retail domains.",
-    "Expert in Python, SQL, and PySpark with deep experience in Apache Spark, Kafka, and Databricks for distributed data processing and streaming systems.",
-    "Proven track record of architecting cloud-native data lakes and warehouses on AWS and Azure, delivering reliable analytics-ready datasets for risk analytics, clinical insights, and retail operations.",
-    "Strong expertise in dimensional modeling, medallion architecture, performance optimization, data quality, and scalable cloud data engineering."
+    "Senior Data Engineer with 5+ years of experience building high-scale data platforms and real-time pipelines processing millions of transactions and large-volume datasets across financial services, healthcare, and retail domains. Expert in Python, SQL, and PySpark with deep experience in Apache Spark, Kafka, and Databricks for distributed data processing and streaming systems.",
+    "Proven track record of architecting cloud-native data lakes and warehouses on AWS and Azure (S3, Glue, EMR, Redshift, Snowflake, ADF, ADLS Gen2), delivering reliable, analytics-ready datasets for business-critical use cases including risk analytics, clinical insights, and retail operations. Strong expertise in dimensional modeling (Star Schema, SCD Type 2), medallion architecture, and performance optimization, consistently improving pipeline efficiency, scalability, and data quality."
   ],
   "skill_categories": {
     "Programming Languages": [
       "Python",
-      "SQL"
+      "SQL",
+      "Scala"
     ],
     "Cloud Platforms (AWS)": [
       "AWS Glue",
@@ -194,23 +292,17 @@
       "Azure Data Lake Storage Gen2",
       "Event Hub"
     ],
-    "Cloud & Data Platforms": [
-      "BigQuery"
-    ],
     "Big Data & Data Processing": [
       "Apache Spark",
       "PySpark",
       "Databricks",
       "Delta Lake",
-      "Apache Kafka",
-      "Apache Beam",
-      "Apache Flink"
+      "Apache Kafka"
     ],
     "Data Warehousing": [
       "Snowflake",
       "Amazon Redshift",
-      "Azure Synapse Analytics",
-      "BigQuery"
+      "Azure Synapse Analytics"
     ],
     "Databases": [
       "Oracle",
@@ -222,7 +314,6 @@
     ],
     "Data Integration & Orchestration": [
       "Apache Airflow",
-      "Dagster",
       "AWS Glue",
       "Azure Data Factory",
       "dbt"
@@ -238,11 +329,7 @@
       "Docker",
       "Jenkins",
       "GitLab CI/CD",
-      "Git",
-      "Kubernetes",
-      "ArgoCD",
-      "Helm",
-      "Istio"
+      "Git"
     ],
     "Data Quality & Governance": [
       "Great Expectations",
@@ -289,5 +376,41 @@
       "accept_required_terms_and_privacy_acknowledgments": true,
       "scope": "Required job-application Terms & Conditions and privacy acknowledgments necessary to continue/submit, after inspecting the actual application text or linked terms."
     }
-  }
+  },
+  "master_resume_reference": {
+    "filename": "Hemanth_Kavula_Senior_Data_Engineer_Resume.pdf",
+    "effective_date": "2026-10-03",
+    "layout_version": "master-2026-10-03",
+    "pages": 2,
+    "bullet_counts": {
+      "Fidelity Investments": 10,
+      "Cigna Healthcare": 8,
+      "Target Corporation": 8
+    },
+    "style": {
+      "font": "Calibri",
+      "name_pt": 18,
+      "headline_pt": 13,
+      "contact_pt": 11,
+      "section_heading_pt": 12,
+      "summary_pt": 11,
+      "body_pt": 10,
+      "accent_hex": "1F4E79",
+      "selective_phrase_bold": true,
+      "roles_and_responsibilities_label": true,
+      "environment_line": true,
+      "right_aligned_dates": true,
+      "two_summary_paragraphs": true
+    }
+  },
+  "summary_emphasis": [
+    "Senior Data Engineer with 5+ years of experience",
+    "financial services, healthcare, and retail domains",
+    "Python, SQL, and PySpark",
+    "Apache Spark, Kafka, and Databricks",
+    "AWS and Azure (S3, Glue, EMR, Redshift, Snowflake, ADF, ADLS Gen2)",
+    "dimensional modeling (Star Schema, SCD Type 2)",
+    "medallion architecture",
+    "improving pipeline efficiency, scalability, and data quality"
+  ]
 }

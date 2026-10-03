@@ -17,10 +17,11 @@ MAX_RESUME_ATTEMPTS=3
 def _base_resume_payload(profile):
     """Build the standard resume strictly from the candidate profile; no JD tailoring or LLM."""
     return {
-        "summary": " ".join(profile.get("summary_source") or []),
+        "summary": "\n\n".join(profile.get("summary_source") or []),
+        "summary_emphasis": list(profile.get("summary_emphasis") or []),
         "skills": profile.get("skill_categories") or {},
         "experience": [
-            {"company": row.get("company"), "bullets": list(row.get("evidence") or [])}
+            {"company": row.get("company"), "bullets": list(row.get("evidence") or []), "bullet_emphasis": list(row.get("bullet_emphasis") or [])}
             for row in (profile.get("experience") or [])
         ],
     }

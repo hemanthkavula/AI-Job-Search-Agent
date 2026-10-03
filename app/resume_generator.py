@@ -3,7 +3,7 @@
 # Generate a fresh resume per JD with strict domain lock:
 # Fidelity = financial services; Cigna = healthcare; Target = retail.
 # Preserve identity, company names, titles, locations, dates, education and certifications.
-# Exact bullet counts: Fidelity 8, Cigna 7, Target 6.
+# Exact bullet counts: Fidelity 10, Cigna 8, Target 8 (current master resume).
 # Fidelity gets strongest/newest JD technology coverage; Cigna moderate; Target foundational.
 # Summary must be concise and naturally include top JD terms.
 # Technical Skills should use standard ATS categories and blend relevant JD terminology naturally.
@@ -257,7 +257,7 @@ def generate_resume(job,analysis,profile,output_dir="generated/resumes"):
         company_p=doc.add_paragraph();r=company_p.add_run(f"{exp['company']} | {exp.get('location','')}");r.bold=True;r=company_p.add_run(f"    {exp['dates']}");r.bold=True
         title_p=doc.add_paragraph();r=title_p.add_run(exp["title"]);r.bold=True
         environment_p=doc.add_paragraph();r=environment_p.add_run("Environment: ");r.bold=True;environment_p.add_run(exp.get("environment",""))
-        limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+        limits={"Fidelity Investments":10,"Cigna Healthcare":8,"Target Corporation":8}
         ranked=_rank(exp["evidence"],job.description,keys)[:limits.get(exp["company"],7)]
         first_bullet=None
         for line in ranked:
@@ -289,7 +289,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         p=doc.add_paragraph();r=p.add_run(str(label)+": ");r.bold=True;p.add_run(", ".join(vals))
     _h(doc,"PROFESSIONAL EXPERIENCE")
     expected={x["company"]:x for x in profile["experience"]}
-    limits={"Fidelity Investments":8,"Cigna Healthcare":7,"Target Corporation":6}
+    limits={"Fidelity Investments":10,"Cigna Healthcare":8,"Target Corporation":8}
     for item in generated.get("experience",[]):
         base=expected.get(item.get("company"))
         if not base: continue
