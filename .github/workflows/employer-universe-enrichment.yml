@@ -112,6 +112,31 @@ jobs:
             exit 1
           }
 
+      - name: Record successful enrichment handoff
+        if: steps.guard.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          log = Path("employer-universe-enrichment.log").read_text(encoding="utf-8", errors="replace").splitlines()
+          metric_lines = [line for line in log if line.startswith("EMPLOYER_UNIVERSE ")]
+          if not metric_lines:
+              raise SystemExit("Cannot mark enrichment successful without EMPLOYER_UNIVERSE metrics")
+          state = Path("state")
+          state.mkdir(parents=True, exist_ok=True)
+          marker = {
+              "status": "SUCCESS",
+              "completed_at": datetime.now(timezone.utc).isoformat(),
+              "workflow_run_id": "${{ github.run_id }}",
+              "metrics": metric_lines[-1].removeprefix("EMPLOYER_UNIVERSE ").strip(),
+          }
+          (state / "employer_universe_last_success.json").write_text(json.dumps(marker, indent=2), encoding="utf-8")
+          print(json.dumps(marker, indent=2))
+          PY
+
       - uses: actions/upload-artifact@v4
         if: steps.guard.outputs.should_run == 'true'
         with:
