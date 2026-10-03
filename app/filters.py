@@ -182,8 +182,10 @@ def passes_hard_filters(job:dict,profile:dict):
     2) United States location scope
     3) Full-time/W-2 employment target
     4) Experience requirement must fit the configured target window
-    5) Future sponsorship must not be explicitly unavailable
-    6) Explicit citizenship/clearance restrictions are rejected
+    5) Explicit citizenship/clearance restrictions are rejected
+
+    Sponsorship language is recorded separately for diagnostics but is not a
+    hard eligibility filter.
     """
     reasons=[]
     if employer_is_excluded(job.get("company") or job.get("company_key")):
@@ -197,8 +199,6 @@ def passes_hard_filters(job:dict,profile:dict):
     eligibility=two_category_filter(job,profile)
     if not eligibility["experience"]["eligible"]:
         reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
-    if eligibility["sponsorship"]["eligible"] is False:
-        reasons.append("future H-1B sponsorship unavailable")
     if eligibility.get("citizenship",{}).get("eligible") is False:
         reasons.append("US citizenship required")
     if eligibility.get("clearance",{}).get("eligible") is False:
