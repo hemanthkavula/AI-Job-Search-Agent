@@ -1,0 +1,53 @@
+name: Validate Source-Specific Freshness Window Fix
+
+on:
+  push:
+    branches: [fix/source-specific-freshness-window-20261003]
+    paths:
+      - "scripts/fix_source_specific_window.py"
+      - ".github/workflows/source-specific-window-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/source-specific-freshness-window-20261003
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply patch
+        run: python scripts/fix_source_specific_window.py
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run targeted regressions
+        run: |
+          python -m pytest -q \
+            tests/test_scheduled_runner_windows.py \
+            tests/test_scheduled_runner_partial_cycle.py \
+            tests/test_scheduled_runner_partial_catchup.py \
+            tests/test_updated_at_fallback_finalizer.py \
+            tests/test_official_posting_freshness.py
+
+      - name: Run full suite
+        run: python -m pytest -q
+
+      - name: Commit validated code
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/scheduled_runner.py app/jd_finalizer.py tests/test_scheduled_runner_windows.py tests/test_updated_at_fallback_finalizer.py
+          git status --short
+          git commit -m "Use source-specific freshness cutoffs after partial cycles"
+          git push origin HEAD:fix/source-specific-freshness-window-20261003
