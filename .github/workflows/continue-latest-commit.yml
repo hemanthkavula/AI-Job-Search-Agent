@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/continue-latest-commit.yml"
+      - "scripts/continue_latest_commit.py"
+      - "scripts/run_continuation.py"
 
 permissions:
   contents: write
@@ -27,7 +29,7 @@ jobs:
           python-version: "3.12"
 
       - name: Apply continuation fixes
-        run: python scripts/continue_latest_commit.py
+        run: python scripts/run_continuation.py
 
       - name: Compile Python
         run: python -m compileall -q app tests
@@ -41,7 +43,7 @@ jobs:
       - name: Commit validated continuation
         shell: bash
         run: |
-          rm -f .github/workflows/continue-latest-commit.yml scripts/continue_latest_commit.py
+          rm -f .github/workflows/continue-latest-commit.yml scripts/continue_latest_commit.py scripts/run_continuation.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
