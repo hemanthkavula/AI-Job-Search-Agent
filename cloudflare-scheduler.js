@@ -18,7 +18,7 @@ export default {
     const localMinutes = hour * 60 + minute;
     const inRecoveryWindow = dueSlots.some(([slotHour, slotMinute]) => {
       const slotMinutes = slotHour * 60 + slotMinute;
-      return localMinutes >= slotMinutes && localMinutes <= slotMinutes + 55;
+      return localMinutes >= slotMinutes && localMinutes < slotMinutes + 55;
     });
 
     if (!weekdays.has(weekday) || !inRecoveryWindow) return;
