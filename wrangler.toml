@@ -2,7 +2,10 @@ name = "ai-job-search-scheduler"
 main = "cloudflare-scheduler.js"
 compatibility_date = "2026-09-22"
 
-# Cloudflare cron is UTC. We wake frequently on weekdays; the Worker checks
-# America/New_York and dispatches only the 07/09/11/13/15/17/19 ET windows.
+# Cloudflare cron is UTC. Wake three times per hour through Monday-Saturday UTC;
+# cloudflare-scheduler.js converts each heartbeat to America/New_York and only
+# dispatches during the requested Monday-Friday ET recovery windows for
+# 07:30, 10:00, 12:30, 15:30, 18:30, and 21:00. Saturday UTC is required so
+# Friday's 21:00 ET slot is still covered after UTC has rolled to Saturday.
 [triggers]
-crons = ["7,22,42 * * * MON-FRI"]
+crons = ["7,22,42 * * * MON-SAT"]
