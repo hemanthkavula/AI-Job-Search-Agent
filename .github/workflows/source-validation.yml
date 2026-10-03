@@ -10,6 +10,7 @@ on:
       - "app/application_queue.py"
       - "app/batch_prepare.py"
       - "app/resume_generator.py"
+      - "app/reference_resume_formatter.py"
       - "app/dashboard.py"
       - "app/job_ledger.py"
       - "app/production_cycle.py"
