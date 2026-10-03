@@ -297,7 +297,7 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
     hard_filter_source = inspect.getsource(passes_hard_filters)
     if "target_company" in hard_filter_source or "target company" in hard_filter_source.lower():
         failures.append("target-company annotation leaked into hard eligibility filtering")
-    if "sponsorship unavailable" in hard_filter_source.lower() or "sponsorship"]["eligible"] is false" in hard_filter_source.lower():
+    if "sponsorship unavailable" in hard_filter_source.lower():
         failures.append("sponsorship leaked back into hard eligibility filtering")
 
     supported = set(ALL_ATS_PROVIDERS)
