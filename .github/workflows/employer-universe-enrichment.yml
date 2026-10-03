@@ -5,10 +5,13 @@ name: Employer Universe Enrichment
 
 on:
   schedule:
-    # GitHub cron is UTC. Run both DST possibilities; the local-time guard below
-    # allows only the 05:30 America/New_York invocation to perform enrichment.
-    - cron: "30 9 * * 1-5"
-    - cron: "30 10 * * 1-5"
+    # GitHub is the delayed fallback, not the primary clock. Run both DST
+    # possibilities at :50; the local-time guard below allows only the 06:50 ET
+    # heartbeat, and only when today's Cloudflare-triggered enrichment did not
+    # already complete successfully. This is deliberately after the primary
+    # workflow's 75-minute timeout window from its 05:30 ET start.
+    - cron: "50 10 * * 1-5"
+    - cron: "50 11 * * 1-5"
   workflow_dispatch:
     inputs:
       domain_budget:
@@ -31,6 +34,11 @@ on:
         required: false
         default: true
         type: boolean
+      scheduled_dispatch:
+        description: "Internal: Cloudflare scheduler dispatch; normal manual runs should leave this false"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: employer-universe-enrichment
@@ -49,28 +57,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Decide whether scheduled enrichment is due
-        id: guard
-        shell: bash
-        run: |
-          python - <<'PY'
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
-          import os
-          manual = "${{ github.event_name }}" == "workflow_dispatch"
-          now = datetime.now(ZoneInfo("America/New_York"))
-          due = manual or (now.weekday() < 5 and now.hour == 5)
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"should_run={'true' if due else 'false'}\n")
-          print(f"Eastern time: {now.isoformat()}; enrichment due={due}")
-          PY
-
-      - name: Stop duplicate DST heartbeat
-        if: steps.guard.outputs.should_run != 'true'
-        run: echo "This UTC heartbeat is not the 05:30 ET enrichment window."
-
+      # Restore state before deciding whether the fallback is necessary. The
+      # successful primary run writes employer_universe_last_success.json into
+      # this shared cache, so the delayed fallback becomes a safe no-op.
       - name: Restore employer/source discovery state
-        if: steps.guard.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -79,6 +69,64 @@ jobs:
           key: job-agent-state-enrichment-${{ github.run_id }}
           restore-keys: |
             job-agent-state-
+
+      - name: Decide whether enrichment is due
+        id: guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          import json
+          import os
+
+          event = "${{ github.event_name }}"
+          scheduled_dispatch = "${{ inputs.scheduled_dispatch }}" == "true"
+          now = datetime.now(ZoneInfo("America/New_York"))
+
+          already_succeeded_today = False
+          marker_path = Path("state/employer_universe_last_success.json")
+          if marker_path.exists():
+              try:
+                  marker = json.loads(marker_path.read_text(encoding="utf-8"))
+                  completed = datetime.fromisoformat(
+                      str(marker.get("completed_at") or "").replace("Z", "+00:00")
+                  )
+                  if completed.tzinfo is None:
+                      completed = completed.replace(tzinfo=timezone.utc)
+                  completed_et = completed.astimezone(ZoneInfo("America/New_York"))
+                  already_succeeded_today = (
+                      marker.get("status") == "SUCCESS"
+                      and completed_et.date() == now.date()
+                  )
+              except Exception as exc:
+                  print(f"Ignoring unreadable enrichment success marker: {exc}")
+
+          # A user-triggered workflow_dispatch remains an explicit force run.
+          # Cloudflare marks its automated dispatch so it participates in the
+          # once-per-weekday idempotency guard instead of acting like a manual force.
+          manual_force = event == "workflow_dispatch" and not scheduled_dispatch
+          cloudflare_due = event == "workflow_dispatch" and scheduled_dispatch and now.weekday() < 5
+          github_fallback_due = event == "schedule" and now.weekday() < 5 and now.hour == 6
+
+          due = manual_force or (
+              (cloudflare_due or github_fallback_due)
+              and not already_succeeded_today
+          )
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"should_run={'true' if due else 'false'}\n")
+          print(
+              f"Eastern time: {now.isoformat()}; event={event}; "
+              f"scheduled_dispatch={scheduled_dispatch}; "
+              f"already_succeeded_today={already_succeeded_today}; enrichment due={due}"
+          )
+          PY
+
+      - name: Stop fallback or duplicate dispatch when enrichment is not due
+        if: steps.guard.outputs.should_run != 'true'
+        run: echo "Employer/source enrichment is not due; exiting without production work."
 
       - name: Install dependencies
         if: steps.guard.outputs.should_run == 'true'
@@ -120,6 +168,7 @@ jobs:
           import json
           from datetime import datetime, timezone
           from pathlib import Path
+          from zoneinfo import ZoneInfo
 
           log = Path("employer-universe-enrichment.log").read_text(encoding="utf-8", errors="replace").splitlines()
           metric_lines = [line for line in log if line.startswith("EMPLOYER_UNIVERSE ")]
@@ -127,9 +176,11 @@ jobs:
               raise SystemExit("Cannot mark enrichment successful without EMPLOYER_UNIVERSE metrics")
           state = Path("state")
           state.mkdir(parents=True, exist_ok=True)
+          completed = datetime.now(timezone.utc)
           marker = {
               "status": "SUCCESS",
-              "completed_at": datetime.now(timezone.utc).isoformat(),
+              "completed_at": completed.isoformat(),
+              "eastern_date": completed.astimezone(ZoneInfo("America/New_York")).date().isoformat(),
               "workflow_run_id": "${{ github.run_id }}",
               "metrics": metric_lines[-1].removeprefix("EMPLOYER_UNIVERSE ").strip(),
           }

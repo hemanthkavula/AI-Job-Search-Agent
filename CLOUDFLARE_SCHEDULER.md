@@ -9,7 +9,11 @@ That workflow runs employer/source enrichment only. It may verify employer domai
 
 Cloudflare wakes at both possible UTC equivalents of 05:30 ET (09:30 during EDT and 10:30 during EST). The Worker converts to `America/New_York` and dispatches only when the local time is exactly 05:30 on a weekday.
 
-GitHub Actions retains its own 09:30/10:30 UTC weekday schedule as an independent fallback. The workflow's local-time guard prevents the inactive DST alternative from doing enrichment work.
+GitHub Actions is a delayed fallback rather than a competing primary trigger. It wakes at both UTC equivalents of **06:50 ET** (10:50/11:50 UTC), which is deliberately after the primary enrichment workflow's 75-minute timeout window. Before doing enrichment, the fallback restores shared state and checks `state/employer_universe_last_success.json`. If the Cloudflare-triggered run already completed successfully for the current Eastern date, the GitHub fallback exits without enrichment work. If Cloudflare did not dispatch or the primary enrichment did not complete successfully, the fallback proceeds.
+
+A fallback enrichment may overlap the 07:30 production cycle. Production does not wait for it: the 07:30 cycle uses the latest previously persisted verified source state, while later production cycles can consume newly enriched state after the fallback completes. This keeps source maintenance from becoming a single point of failure for job discovery.
+
+Cloudflare marks its `workflow_dispatch` with `scheduled_dispatch=true`, so automated dispatches participate in this once-per-weekday idempotency guard. A normal user-triggered manual `workflow_dispatch` remains an explicit force run.
 
 ## Production job cycles
 The requested production slots are Monday-Friday at 07:30, 10:00, 12:30, 15:30, 18:30, and 21:00 America/New_York.

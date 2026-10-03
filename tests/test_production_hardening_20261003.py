@@ -152,7 +152,9 @@ def test_degraded_quarantined_provider_closes_slot_without_advancing_watermark(m
 
 def test_enrichment_has_dst_safe_preproduction_schedule():
     text=Path(".github/workflows/employer-universe-enrichment.yml").read_text(encoding="utf-8")
-    assert 'cron: "30 9 * * 1-5"' in text
-    assert 'cron: "30 10 * * 1-5"' in text
-    assert "now.hour == 5" in text
+    assert 'cron: "50 10 * * 1-5"' in text
+    assert 'cron: "50 11 * * 1-5"' in text
+    assert "now.hour == 6" in text
+    assert "scheduled_dispatch" in text
+    assert "already_succeeded_today" in text
     assert "--domain-budget \"${{ inputs.domain_budget || '750' }}\"" in text
