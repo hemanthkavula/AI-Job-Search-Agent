@@ -3,7 +3,7 @@ import argparse, json, re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.error import HTTPError, URLError
 from app.sources.career_site import validate_source as validate_career_site
 from app.discovery import DIRECT_PROVIDERS, FALLBACK_ATS_PROVIDERS
@@ -12,14 +12,31 @@ from app.source_registry import load_registry, as_discovery_config
 ROOT=Path(__file__).resolve().parents[1]
 UA={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/html,*/*"}
 
+def _normalize_probe_url(url: str) -> str:
+    """Return an HTTP-safe URL without corrupting already escaped characters."""
+    parts=urlsplit(str(url).strip())
+    host=parts.hostname.encode("idna").decode("ascii") if parts.hostname else ""
+    if parts.port:
+        host=f"{host}:{parts.port}"
+    if parts.username:
+        auth=quote(parts.username,safe="")
+        if parts.password is not None:
+            auth += ":" + quote(parts.password,safe="")
+        host=f"{auth}@{host}"
+    path=quote(parts.path,safe="/%:@!$&'()*+,;=-._~")
+    query=quote(parts.query,safe="=&?/:;+,%@!$'()*-._~")
+    fragment=quote(parts.fragment,safe="=&?/:;+,%@!$'()*-._~")
+    return urlunsplit((parts.scheme,host,path,query,fragment))
+
 def _probe(url: str, timeout: int=12, method: str="GET", data: bytes|None=None, headers: dict|None=None) -> dict:
     h=dict(UA); h.update(headers or {})
     try:
-        with urlopen(Request(url,data=data,headers=h,method=method),timeout=timeout) as resp:
+        safe_url=_normalize_probe_url(url)
+        with urlopen(Request(safe_url,data=data,headers=h,method=method),timeout=timeout) as resp:
             return {"status":"ok","http_status":getattr(resp,"status",None)}
     except HTTPError as exc:
         return {"status":"broken" if exc.code in (404,410) else "blocked_or_http_error","http_status":exc.code,"error":str(exc)}
-    except (URLError,TimeoutError,OSError) as exc:
+    except (URLError,TimeoutError,OSError,UnicodeError,ValueError) as exc:
         return {"status":"unreachable","http_status":None,"error":str(exc)}
 
 def _row(provider, company, target, result, **extra):
