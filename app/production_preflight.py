@@ -58,6 +58,9 @@ REQUIRED_ATS_FAMILIES = {
 }
 
 EXPECTED_SLOTS = ((7, 30), (10, 0), (12, 30), (15, 30), (18, 30), (21, 0))
+AUTHORIZED_ONLY_PORTALS = {"indeed", "linkedin_jobs", "glassdoor"}
+EXPECTED_ENABLED_PUBLIC_PORTALS = {"wellfound", "yc_jobs", "builtin"}
+EXPECTED_EXCLUDED_EMPLOYERS = ("Fidelity Investments", "Cigna Healthcare", "Target Corporation")
 
 
 def _parse_time(value):
@@ -107,7 +110,7 @@ def _health_rows(payload) -> list[dict]:
     if isinstance(embedded, list):
         rows.extend(x for x in embedded if isinstance(x, dict))
     # Discovery persists runtime health as a keyed dictionary. Keep supporting
-    # that format and convert it into the legacy/report shape discovery reads.
+    # that format and convert it into the report shape discovery reads.
     for key, value in payload.items():
         if key == "sources" or not isinstance(value, dict):
             continue
@@ -182,6 +185,58 @@ def _synthetic_job(title: str, description: str | None = None) -> dict:
     }
 
 
+def _validate_source_policy(sources: dict, failures: list[str], warnings: list[str]) -> None:
+    source_policy = sources.get("source_policy") or {}
+    if source_policy.get("seed_lists_are_allowlists") is not False:
+        failures.append("seed/example company lists must never become production allowlists")
+    if source_policy.get("unknown_employers_allowed") is not True:
+        failures.append("unknown/unseeded employers must remain eligible for discovery")
+    if source_policy.get("authoritative_jd_required_before_resume") is not True:
+        failures.append("authoritative employer/ATS JD must be required before resume generation")
+    if source_policy.get("ats_catalog_mode") != "open_ended":
+        failures.append("ATS catalog must remain open-ended so newly learned providers/employers can enter production")
+
+    discovery_policy = sources.get("discovery_portals") or {}
+    if discovery_policy.get("policy") != "discovery_only_resolve_to_authoritative_employer_posting":
+        failures.append(f"discovery portal authority policy drifted: {discovery_policy.get('policy')!r}")
+
+    enabled = set(discovery_policy.get("enabled") or [])
+    if not EXPECTED_ENABLED_PUBLIC_PORTALS.issubset(enabled):
+        failures.append(
+            "required public discovery portals are missing: "
+            + ", ".join(sorted(EXPECTED_ENABLED_PUBLIC_PORTALS - enabled))
+        )
+    if not sources.get("dice", {}).get("enabled"):
+        failures.append("Dice discovery must remain enabled")
+    if not sources.get("ziprecruiter", {}).get("enabled"):
+        failures.append("ZipRecruiter discovery must remain enabled")
+
+    planned = {
+        str(row.get("provider")): str(row.get("status") or "")
+        for row in (discovery_policy.get("planned") or [])
+        if isinstance(row, dict) and row.get("provider")
+    }
+    for provider in AUTHORIZED_ONLY_PORTALS:
+        if planned.get(provider) != "AUTHORIZED_INTEGRATION_REQUIRED":
+            failures.append(f"{provider} must stay disabled until an authorized integration is available")
+        if provider in enabled:
+            failures.append(f"{provider} was enabled without an authorized-integration contract")
+
+    executable_portals = {
+        str(row.get("provider")): row
+        for row in (sources.get("discovery_portal") or [])
+        if isinstance(row, dict) and row.get("provider")
+    }
+    for provider in ("careerbuilder", "simplyhired"):
+        row = executable_portals.get(provider) or {}
+        if row.get("enabled") is not False:
+            failures.append(f"{provider} must remain disabled while its public adapter is access-blocked")
+        if not row.get("disabled_reason"):
+            warnings.append(f"{provider} has no disabled_reason explaining its access limitation")
+    if sources.get("monster", {}).get("enabled") is not False:
+        failures.append("Monster must remain disabled while its public search adapter returns HTTP 403")
+
+
 def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
     failures = []
     warnings = []
@@ -223,6 +278,13 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
     if ok:
         failures.append("explicit no-future-sponsorship job passed hard filters")
 
+    for company in EXPECTED_EXCLUDED_EMPLOYERS:
+        prior_employer = _synthetic_job("Senior Data Engineer")
+        prior_employer["company_key"] = company
+        ok, _ = passes_hard_filters(prior_employer, profile)
+        if ok:
+            failures.append(f"excluded prior employer passed hard filters: {company}")
+
     hard_filter_source = inspect.getsource(passes_hard_filters)
     if "target_company" in hard_filter_source or "target company" in hard_filter_source.lower():
         failures.append("target-company annotation leaked into hard eligibility filtering")
@@ -238,9 +300,7 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
     except Exception as exc:
         failures.append(f"job source configuration cannot be loaded: {exc}")
         sources = {}
-    policy = (sources.get("discovery_portals") or {}).get("policy")
-    if policy != "discovery_only_resolve_to_authoritative_employer_posting":
-        failures.append(f"discovery portal authority policy drifted: {policy!r}")
+    _validate_source_policy(sources, failures, warnings)
 
     master = profile.get("master_resume_reference") or {}
     counts = master.get("bullet_counts") or {}
@@ -258,6 +318,8 @@ def validate_requirements(source_config=DEFAULT_SOURCE_CONFIG) -> dict:
         "profile_target_roles": configured_roles,
         "required_target_roles": list(REQUIRED_TARGET_ROLES),
         "master_layout_version": master.get("layout_version"),
+        "open_employer_universe": (sources.get("source_policy") or {}).get("unknown_employers_allowed"),
+        "seed_lists_are_allowlists": (sources.get("source_policy") or {}).get("seed_lists_are_allowlists"),
     }
 
 
