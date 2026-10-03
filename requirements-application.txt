@@ -1,0 +1,3 @@
+# Isolated dependency set for the post-queue application stage.
+# Keep browser automation out of the core discovery/resume environment.
+browser-use==0.13.10
