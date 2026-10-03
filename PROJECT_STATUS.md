@@ -126,7 +126,7 @@ Employment policy:
 Experience policy:
 
 - current candidate target is approximately 5+ years;
-- configured required-experience window is inclusive at both minimum and maximum bounds.
+- preserve the established profile window semantics: the minimum is inclusive and `max_required_years` is an exclusive upper boundary; with the current `3–7` configuration, 3–6 years qualifies and 7+ does not.
 
 Work-authorization screening:
 
