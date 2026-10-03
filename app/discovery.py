@@ -171,7 +171,10 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         config[provider]=kept
     # Network-bound ATS/company calls are independent. Run them concurrently so a
     # slow Workday tenant cannot serially block every other source in the hourly cycle.
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    # These calls are network-bound and spread across independent employer/ATS hosts.
+    # Use bounded higher concurrency so a large enriched source universe can finish
+    # inside a production slot without changing source coverage or eligibility.
+    with ThreadPoolExecutor(max_workers=32) as pool:
         for src in config.get("greenhouse",[]) if only_source in (None,"greenhouse") else []:
             tasks.append((pool.submit(greenhouse_jobs,src["board_token"]),"greenhouse",src.get("company")))
         for src in config.get("lever",[]) if only_source in (None,"lever") else []:
@@ -284,15 +287,20 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
         if only_source in (None,"monster") and config.get("monster",{}).get("enabled",False):
             tasks.append((pool.submit(monster_jobs,hours=_hours("monster")),"monster","Monster"))
-        for future,source,company in tasks:
+        # Consume completed network calls in completion order. Previously this loop
+        # called future.result() in submission order, so one slow early tenant could
+        # head-of-line block hundreds of already-completed sources.
+        task_meta={future:(source,company) for future,source,company in tasks}
+        for future in as_completed(task_meta):
+            source,company=task_meta[future]
             key=f"{source}:{company or source}"
-            started=datetime.now(timezone.utc)
+            completed=datetime.now(timezone.utc)
             try:
                 result=future.result();jobs.extend(result)
-                health[key]={"source":source,"company":company,"status":"OK","jobs_returned":len(result),"checked_at":started.isoformat()}
+                health[key]={"source":source,"company":company,"status":"OK","jobs_returned":len(result),"checked_at":completed.isoformat()}
             except Exception as e:
                 err={"source":source,"company":company,"error":str(e)};errors.append(err)
-                health[key]={"source":source,"company":company,"status":"ERROR","jobs_returned":0,"error":str(e),"checked_at":started.isoformat()}
+                health[key]={"source":source,"company":company,"status":"ERROR","jobs_returned":0,"error":str(e),"checked_at":completed.isoformat()}
 
     dedup={}
     for job in jobs:
