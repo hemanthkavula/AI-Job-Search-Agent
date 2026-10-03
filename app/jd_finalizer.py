@@ -18,7 +18,14 @@ MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
 MIN_USABLE_JD_CHARS=250
 DICE_BOILERPLATE_MARKERS=("Search all similar jobs","Jobs Directory","Career Advice","Employers and Recruiters","Get the Dice app","Copyright ©","Apply Now To see how well you match")
-AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com")
+# Every board/portal in this set is discovery-only. None may become an
+# application destination or posting-date authority without resolving to the
+# employer's own career page or ATS posting first.
+AGGREGATOR_SOURCES={"dice","ziprecruiter","indeed","linkedin","monster","wellfound","builtin","yc_jobs"}
+AGGREGATOR_HOSTS=(
+    "dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com",
+    "wellfound.com","builtin.com","ycombinator.com","workatastartup.com",
+)
 
 def _is_aggregator_url(url):
     host=(parse.urlsplit(url or "").netloc or "").lower()
@@ -197,7 +204,9 @@ def _resolve_employer_career_page(job):
             if u in seen:continue
             seen.add(u)
             low=u.lower()
-            if any(x in low for x in ("dice.com","indeed.com","linkedin.com","ziprecruiter.com","google.com")):continue
+            # Never "resolve" one discovery board to another discovery board.
+            # The terminal target must be the employer or an ATS/career site.
+            if _is_aggregator_url(u) or "google.com" in low:continue
             p=_fetch_public_page(u)
             for node in _jsonld_jobpostings(p):
                 if not _jobposting_identity_matches(job,node,u):continue
@@ -215,7 +224,7 @@ def resolve_full_jd(job):
     current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
     lead_before_resolution=job.get("original_url") or job.get("url") or ""
-    aggregator_origin=bool(job.get("discovery_only")) or source in {"dice","ziprecruiter","indeed","linkedin","monster"} or _is_aggregator_url(lead_before_resolution)
+    aggregator_origin=bool(job.get("discovery_only")) or source in AGGREGATOR_SOURCES or _is_aggregator_url(lead_before_resolution)
     if job.get("description_complete") and _looks_like_complete_jd(current,source) and not aggregator_origin:return job
     fetch_url=job.get("original_url") or job.get("url")
     page=_fetch_public_page(fetch_url)
@@ -225,13 +234,10 @@ def resolve_full_jd(job):
     # Aggregators can expose only a teaser and omit the employer ATS link. In
     # that case, resolve the same company/title on the employer's public career
     # site rather than weakening JD quality requirements.
-    # Aggregator URLs are discovery leads, not preferred application targets.
-    # Always try to canonicalize Dice to the employer's own careers/ATS page,
-    # even when Dice already supplied a usable/full JD.
     lead_url=out.get("original_url") or out.get("url") or ""
     # Any aggregator-origin lead is discovery-only. It must resolve to the
     # employer/ATS job page before it can become eligible for paid resume work.
-    should_resolve_employer=(bool(out.get("discovery_only")) or source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
+    should_resolve_employer=(bool(out.get("discovery_only")) or source in AGGREGATOR_SOURCES or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
         if employer_url:
@@ -293,7 +299,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if _is_aggregator_url(application_url):
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
-        aggregator_origin=bool(raw.get("aggregator_url")) or (raw.get("source") or "").lower() in {"dice","ziprecruiter","indeed","linkedin","monster"}
+        aggregator_origin=bool(raw.get("aggregator_url")) or bool(raw.get("discovery_only")) or (raw.get("source") or "").lower() in AGGREGATOR_SOURCES
         check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
         global_cutoff=check_now-timedelta(hours=hours)
         cutoff=_job_freshness_cutoff(raw,global_cutoff)
@@ -311,8 +317,8 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         else:
             # Direct ATS jobs can gain a more authoritative posting field during
             # detail resolution after the earlier freshness pass. Re-check that
-            # final value here so e.g. Workday "Posted 4 Days Ago" cannot bypass
-            # a ~61-hour production window.
+            # final value here so an older official posting cannot bypass the
+            # source-specific production window.
             from app.freshness import _parse_posting_value
             for field in posting_fields:
                 value=raw.get(field)
@@ -344,11 +350,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
-        # Paid resume generation requires a known application route. A verified
-        # external ATS is preferred. Dice-hosted jobs remain eligible for a
-        # controlled Dice adapter; the adapter must inspect the Apply flow and
-        # This pipeline verifies the job/application destination but does not
-        # decide whether the separate Muse application system can automate it.
+        # Paid resume generation requires a known employer/ATS application route.
         source_supported=set(ALL_ATS_PROVIDERS)|{"career_site"}
         if raw.get("ats_provider") in source_supported:
             raw["application_route"]="EXTERNAL_ATS"
