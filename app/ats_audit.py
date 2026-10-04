@@ -113,36 +113,52 @@ def document_text(path):
     return "\n".join(p.text for p in doc.paragraphs)
 
 
-def _experience_bullets(paragraphs):
-    by_company = {company: [] for company in EXPECTED_COUNTS}
-    current = None
-    for paragraph in paragraphs:
-        text = paragraph.text.strip()
-        for company in EXPECTED_COUNTS:
-            if text.startswith(company):
-                current = company
-                break
-        else:
-            if current and paragraph.style and "List Bullet" in paragraph.style.name:
-                by_company[current].append(text)
-    return by_company
+def _experience_sections(paragraphs):
+    """Read experience rows from the authoritative Word layout, not a style name.
 
-
-def _experience_cloud_text(paragraphs):
+    The user-uploaded master DOCX uses direct paragraph formatting for its visible
+    experience bullets rather than Word's named ``List Bullet`` style.  The
+    structure is stable and authoritative: company header -> Roles &
+    Responsibilities -> bullet paragraphs -> Environment.  Audit that structure
+    directly so preserving the user's native Word formatting never makes valid
+    bullets disappear from ATS validation.
+    """
     by_company = {company: [] for company in EXPECTED_COUNTS}
+    environments = {company: "" for company in EXPECTED_COUNTS}
     current = None
+    in_roles = False
     for paragraph in paragraphs:
         text = paragraph.text.strip()
         matched_company = next((company for company in EXPECTED_COUNTS if text.startswith(company)), None)
         if matched_company:
             current = matched_company
+            in_roles = False
             continue
         if not current:
             continue
-        is_bullet = bool(paragraph.style and "List Bullet" in paragraph.style.name)
-        if is_bullet or text.startswith("Environment:"):
+        if text == "Roles & Responsibilities:":
+            in_roles = True
+            continue
+        if text.startswith("Environment:"):
+            environments[current] = text
+            in_roles = False
+            continue
+        if in_roles and text:
             by_company[current].append(text)
-    return {company: "\n".join(rows) for company, rows in by_company.items()}
+    return by_company, environments
+
+
+def _experience_bullets(paragraphs):
+    by_company, _ = _experience_sections(paragraphs)
+    return by_company
+
+
+def _experience_cloud_text(paragraphs):
+    by_company, environments = _experience_sections(paragraphs)
+    return {
+        company: "\n".join(rows + ([environments[company]] if environments.get(company) else []))
+        for company, rows in by_company.items()
+    }
 
 
 def _section_rows(paragraphs, start_heading, end_heading):
