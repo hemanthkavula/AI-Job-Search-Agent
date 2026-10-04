@@ -18,6 +18,7 @@ from app.llm_resume_writer import generate_with_llm
 from app.master_resume import master_resume_payload
 from app.pdf_export import convert_docx_to_pdf_detailed, validate_docx_pdf_parity
 from app.reference_resume_formatter import render_llm_resume
+from app.resume_tailoring_policy import determine_tailoring_policy
 
 load_dotenv()
 
@@ -83,6 +84,12 @@ def _audit_failure_summary(audit):
             + "%; gaps="
             + ", ".join(audit.get("experience_depth_gaps", []))
         )
+    if audit.get("master_retention_violations"):
+        reasons.append("master_retention=" + json.dumps(audit["master_retention_violations"], ensure_ascii=False))
+    if audit.get("content_density_violations"):
+        reasons.append("content_density=" + json.dumps(audit["content_density_violations"], ensure_ascii=False))
+    if audit.get("cloud_policy_violations"):
+        reasons.append("cloud_policy=" + json.dumps(audit["cloud_policy_violations"], ensure_ascii=False))
     if failed:
         reasons.append("failed_gates=" + ", ".join(failed))
     if audit.get("metric_violations"):
@@ -110,6 +117,14 @@ def _audit_feedback(audit, prior_audits=None):
         "repetition_score": audit.get("repetition_score"),
         "repeated_phrases": audit.get("repeated_phrases", []),
         "repeated_opening_verbs": audit.get("repeated_opening_verbs", {}),
+        "master_bullets_retained_by_employer": audit.get("master_bullets_retained_by_employer", {}),
+        "master_retention_violations": audit.get("master_retention_violations", {}),
+        "summary_density_ratio": audit.get("summary_density_ratio"),
+        "technical_skill_rows": audit.get("technical_skill_rows"),
+        "minimum_technical_skill_rows": audit.get("minimum_technical_skill_rows"),
+        "content_density_violations": audit.get("content_density_violations", {}),
+        "employer_cloud_modes": audit.get("employer_cloud_modes", {}),
+        "cloud_policy_violations": audit.get("cloud_policy_violations", []),
         "metric_counts_by_employer": audit.get("metric_counts_by_employer", {}),
         "metric_violations": audit.get("metric_violations", {}),
         "unapproved_metric_claims": audit.get("unapproved_metric_claims", []),
@@ -119,10 +134,12 @@ def _audit_feedback(audit, prior_audits=None):
         "quality_gates": audit.get("quality_gates", {}),
         "experience_depth_coverage": audit.get("experience_depth_coverage"),
         "experience_depth_gaps": audit.get("experience_depth_gaps", []),
+        "tailoring_policy": audit.get("tailoring_policy", {}),
         "retry_instruction": (
-            "Correct every failed audit gate without dropping JD requirements that already passed. "
-            "The current JD and coverage plan are the only technical sources. Do not use master-resume "
-            "skills, bullets, environments, metrics, or summary wording. Preserve only fixed personal/history facts."
+            "Correct every failed audit gate without dropping JD requirements that already passed. Keep the uploaded master resume as the truthful base. "
+            "Retain at least the required number of verbatim master bullets for this tailoring depth, preserve summary/skills density, and obey employer cloud locks. "
+            "New technologies that are absent from the master must come from the current JD. Existing master metrics may remain only in verbatim retained master bullets; "
+            "do not invent or move numerical claims."
         ),
     }
 
@@ -148,7 +165,7 @@ def _retryable_resume_error(exc):
 
 
 def _should_use_master_resume(raw, coverage_plan):
-    """Use the uploaded master only when target extraction yields exactly zero targets."""
+    """Use the uploaded master unchanged only when target extraction yields zero targets."""
     return int(coverage_plan.get("target_count") or 0) == 0
 
 
@@ -200,10 +217,14 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
             location=raw.get("location"),
             employment_type=raw.get("employment_type"),
             url=raw.get("url"),
+            description_complete=raw.get("description_complete"),
+            description_usable=raw.get("description_usable"),
+            tailoring_mode=raw.get("tailoring_mode"),
         )
         print(f"START {job.company} | {job.title} | FINAL_JD_VERIFIED", flush=True)
         audit_history = []
         use_master_resume = False
+        tailoring_policy = None
         try:
             if not (
                 raw.get("description_complete")
@@ -215,11 +236,14 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
                 )
 
             coverage_plan = build_coverage_plan(job, profile)
+            tailoring_policy = determine_tailoring_policy(job, coverage_plan)
             print(
-                "V1 coverage plan | targets={} | must_cover={} | preferred={}".format(
+                "V1 coverage plan | targets={} | must_cover={} | preferred={} | hybrid_mode={} | richness={}".format(
                     coverage_plan["target_count"],
                     coverage_plan["must_cover_terms"],
                     coverage_plan["preferred_terms"],
+                    tailoring_policy["mode"],
+                    tailoring_policy["richness"],
                 ),
                 flush=True,
             )
@@ -236,7 +260,10 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
                 audit_history = [{"version": "MASTER", "resume_path": str(resume), "audit": audit}]
             else:
                 attempts = 1
-                print("NONZERO JD TARGETS | generating JD-only tailored resume (V1)...", flush=True)
+                print(
+                    f"NONZERO JD TARGETS | generating master-based {tailoring_policy['mode']} resume (V1)...",
+                    flush=True,
+                )
                 generated = generate_with_llm(job, profile, coverage_plan=coverage_plan)
                 if not generated:
                     raise RuntimeError(
@@ -249,7 +276,7 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
             print(
                 f"V1 audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | "
                 f"JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | "
-                f"recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",
+                f"retained={audit.get('master_bullets_retained_by_employer')} | human={audit.get('human_quality_score')}",
                 flush=True,
             )
             if not audit["passed"]:
@@ -258,7 +285,7 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
             while not audit["passed"] and not use_master_resume and attempts < MAX_RESUME_ATTEMPTS:
                 attempts += 1
                 print(
-                    f"Audit failed; correcting JD-only resume gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",
+                    f"Audit failed; correcting hybrid resume gaps (V{attempts}/{MAX_RESUME_ATTEMPTS})...",
                     flush=True,
                 )
                 generated = generate_with_llm(
@@ -278,13 +305,14 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
                 print(
                     f"V{attempts} audit | passed={audit['passed']} | ATS={audit.get('internal_ats_score')} | "
                     f"JD_coverage={audit.get('keyword_coverage')} | experience_depth={audit.get('experience_depth_coverage')} | "
-                    f"recruiter_fit={audit.get('recruiter_fit_score')} | human={audit.get('human_quality_score')}",
+                    f"retained={audit.get('master_bullets_retained_by_employer')} | human={audit.get('human_quality_score')}",
                     flush=True,
                 )
 
             audit["generation_attempts"] = attempts
             if attempts > 0:
-                audit["generation_source"] = "openai_jd_only_quality_driven"
+                audit["generation_source"] = "openai_hybrid_master_jd_quality_driven"
+            audit["resume_tailoring_policy"] = tailoring_policy
 
             pdf_path = None
             artifact_validation = {"passed": False, "reason": "Resume audit did not pass", "attempts": 0}
@@ -320,7 +348,8 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
 
             print(
                 f"DONE {job.company} | passed={audit['passed']} | attempts={attempts} | "
-                f"ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')}",
+                f"ATS={audit.get('internal_ats_score')} | JD_coverage={audit.get('keyword_coverage')} | "
+                f"hybrid_mode={tailoring_policy.get('mode') if tailoring_policy else None}",
                 flush=True,
             )
         except Exception as exc:
@@ -342,6 +371,7 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
                 "error": str(exc),
                 "generation_attempts": 0,
                 "retryable": retryable,
+                "resume_tailoring_policy": tailoring_policy,
             }
             artifact_validation = {"passed": False, "reason": str(exc)}
 
@@ -368,6 +398,7 @@ def prepare(report_path, output_path="generated/application_manifest.json", debu
                 "sponsorship": elig["sponsorship"],
                 "resume_path": resume,
                 "pdf_path": pdf_path,
+                "resume_tailoring_policy": tailoring_policy,
                 "ats_audit": audit,
                 "artifact_validation": artifact_validation,
                 "audit_history": audit_history,
