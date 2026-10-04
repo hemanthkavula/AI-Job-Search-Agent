@@ -58,22 +58,24 @@ def _parse_state_time(value):
 def _scheduled_cutoff(now,state):
     """Return the exact lower bound for this scan.
 
-    Normal hourly runs start at the last successful scan. The first run of a
-    weekday starts at the previous weekday's 18:00 cutoff; Monday therefore
-    catches Friday 18:00 through Monday morning. If a daytime run was missed,
-    the next run catches up from the last successful scan instead of losing jobs.
+    The global production window starts at the most recent completed cycle,
+    including a PARTIAL cycle. Provider-specific and Workday-tenant watermarks
+    independently retain older cutoffs for sources that failed, so one unhealthy
+    source cannot force every healthy provider to replay days of history. Legacy
+    state without ``last_run_at`` falls back to ``last_successful_scan_at``.
+
+    When there is no prior state, bootstrap from the previous weekday close so
+    the first scheduled cycle still has a deterministic starting point.
     """
-    last=_parse_state_time(state.get("last_successful_scan_at"))
+    last_run=_parse_state_time(state.get("last_run_at"))
+    last_success=_parse_state_time(state.get("last_successful_scan_at"))
+    candidates=[x for x in (last_run,last_success) if x is not None and x<=now+timedelta(minutes=10)]
+    last=max(candidates) if candidates else None
     today=now.date()
-    # Construct the prior scheduled close as a local wall-clock time instead of
-    # subtracting elapsed hours. This preserves 19:00 Eastern across DST changes.
     days_back=3 if now.weekday()==0 else 1
     prior_date=today-timedelta(days=days_back)
     prior_close=datetime(prior_date.year,prior_date.month,prior_date.day,FINAL_HOUR,tzinfo=ET)
     if last is None:return prior_close,"bootstrap"
-    # The persisted watermark is authoritative. If the prior 18:00 run was
-    # missed (for example the last success was 17:00), resume at 17:00 so no
-    # posting interval is silently lost.
     if last.date()!=today:return last,"bootstrap"
     return last,"incremental"
 
