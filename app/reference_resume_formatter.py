@@ -131,13 +131,13 @@ def validate_master_format_contract(path,master=None,word_format=None):
     sk=[p for p in _between(op,"TECHNICAL SKILLS","PROFESSIONAL EXPERIENCE") if _text(p)]
     if not sk or len(sk)>int(bud["skills_max_rows"]) or sum(len(_text(p)) for p in sk)>int(bud["skills_total_max_chars"]):reasons.append("skills_budget")
     sx=[p for p in _between(sp,"PROFESSIONAL SUMMARY","TECHNICAL SKILLS") if _text(p)];kx=[p for p in _between(sp,"TECHNICAL SKILLS","PROFESSIONAL EXPERIENCE") if _text(p)]
-    if sx and any(_ppr(p)!=_ppr(sx[0]) for p in sm):reasons.append("summary_paragraph_format")
-    if kx and any(_ppr(p)!=_ppr(kx[0]) for p in sk):reasons.append("skills_paragraph_format")
+    if len(sm)>len(sx) or any(_ppr(p)!=_ppr(sx[i]) for i,p in enumerate(sm)):reasons.append("summary_paragraph_format")
+    if len(sk)>len(kx) or any(_ppr(p)!=_ppr(kx[i]) for i,p in enumerate(sk)):reasons.append("skills_paragraph_format")
     lo=_exp(op);ls=_exp(sp)
     for row in master["experience"]:
         c=row["company"]
         if len(lo[c]["bullets"])!=len(row["bullets"]):reasons.append(c+"_bullet_count")
-        if any(_ppr(p)!=_ppr(ls[c]["bullets"][0]) for p in lo[c]["bullets"]):reasons.append(c+"_bullet_format")
+        if len(lo[c]["bullets"])>len(ls[c]["bullets"]) or any(_ppr(p)!=_ppr(ls[c]["bullets"][i]) for i,p in enumerate(lo[c]["bullets"])):reasons.append(c+"_bullet_format")
         if _ppr(lo[c]["environment"])!=_ppr(ls[c]["environment"]):reasons.append(c+"_environment_format")
     return {"passed":not reasons,"reasons":list(dict.fromkeys(reasons)),"format_authority":"user_uploaded_word_format_template","format_source":"live_user_uploaded_docx_template","word_template_sha256":fmt["source"].get("sha256")}
 def _out(job,d):
@@ -151,7 +151,10 @@ def render_llm_resume(job,profile,generated,output_dir="generated/resumes"):
     hp=ps[1];normal=_rpr(hp,False);_clear(hp);_run(hp,canonical_resume_title(job.title),normal)
     sps=[p for p in _between(ps,"PROFESSIONAL SUMMARY","TECHNICAL SKILLS") if _text(p)];parts=_summary_parts(generated.get("summary",""))
     if len(parts)!=2 or sum(len(x) for x in parts)>int(bud["summary_total_max_chars"]):raise RuntimeError("Generated summary violates Word template budget")
-    sn=_rpr(sps[0],False) or _rpr(sps[1],False);sb=_rpr(sps[0],True) or _rpr(sps[1],True)
+    sn=_rpr(sps[0],False)
+    if sn is None:sn=_rpr(sps[1],False)
+    sb=_rpr(sps[0],True)
+    if sb is None:sb=_rpr(sps[1],True)
     for p,t in zip(sps,parts):_replace(p,t,_emphasis(t,generated,5),sn,sb)
     ps=_pt(root);sks=[p for p in _between(ps,"TECHNICAL SKILLS","PROFESSIONAL EXPERIENCE") if _text(p)];items=list((generated.get("skills") or {}).items())
     if not items or len(items)>int(bud["skills_max_rows"]):raise RuntimeError("Generated Technical Skills violate Word template row budget")
