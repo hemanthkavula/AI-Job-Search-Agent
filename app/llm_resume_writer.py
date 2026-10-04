@@ -82,6 +82,25 @@ def _word_content_budget() -> dict:
     return dict(data["content_budget"])
 
 
+def _sanitize_audit_feedback(audit_feedback):
+    """Remove legacy master-content retry hints so every retry stays JD-only."""
+    if not isinstance(audit_feedback, dict):
+        return {}
+    blocked = {
+        "master_bullets_retained_by_employer",
+        "master_retention_violations",
+        "minimum_master_bullets_retained",
+        "retry_instruction",
+    }
+    safe = {key: value for key, value in audit_feedback.items() if key not in blocked}
+    safe["retry_instruction"] = (
+        "Correct the reported audit gaps using only current-JD technical content. "
+        "Do not copy technical skills, bullets, environments, metrics, or technologies from the Word/PDF template. "
+        "Preserve fixed personal history and employer domains, obey cloud locks, avoid fabricated metrics, and stay within the two-page Word content budget."
+    )
+    return safe
+
+
 def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
     coverage_plan = coverage_plan or {}
     description = job.description or ""
@@ -147,7 +166,7 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
     }
     if audit_feedback:
         prompt["revision_mode"] = True
-        prompt["audit_feedback"] = audit_feedback
+        prompt["audit_feedback"] = _sanitize_audit_feedback(audit_feedback)
         prompt["task"] = (
             "Regenerate the JD-driven resume for the same JD and correct every audit failure. "
             "Do not use technical content from the Word/PDF template. Preserve fixed history, use only current-JD technical content, "
