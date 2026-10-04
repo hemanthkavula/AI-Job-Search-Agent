@@ -84,14 +84,14 @@ def experience_check(job: dict, profile: dict) -> dict:
     return {"category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
+    """Record sponsorship wording for diagnostics only; never gate eligibility."""
     text=_clean(f"{job.get('title','')} {job.get('description','')}")
-    needs_future=profile.get("work_authorization",{}).get("requires_sponsorship_future",False)
     explicit_no_sponsorship=any(x in text for x in NO_SPONSOR_PATTERNS) or any(re.search(p,text,re.I) for p in NO_SPONSOR_REGEX_PATTERNS)
-    if needs_future and explicit_no_sponsorship:
-        return {"category":"NO_SPONSORSHIP","eligible":False,"evidence":"Posting states sponsorship is unavailable."}
+    if explicit_no_sponsorship:
+        return {"category":"SPONSORSHIP_UNAVAILABLE_INFORMATIONAL","eligible":True,"evidence":"Posting states sponsorship is unavailable; this is informational only and does not affect eligibility."}
     if any(x in text for x in SPONSOR_POSITIVE_PATTERNS):
-        return {"category":"SPONSORSHIP_AVAILABLE","eligible":True,"evidence":"Posting contains affirmative sponsorship language."}
-    return {"category":"SPONSORSHIP_NOT_STATED","eligible":True,"evidence":"No explicit sponsorship restriction is stated in the posting; proceed to the next eligibility stage."}
+        return {"category":"SPONSORSHIP_AVAILABLE_INFORMATIONAL","eligible":True,"evidence":"Posting contains affirmative sponsorship language; this is informational only and does not affect eligibility."}
+    return {"category":"SPONSORSHIP_NOT_STATED","eligible":True,"evidence":"Sponsorship is not stated; sponsorship does not affect eligibility."}
 
 CLEARANCE_PATTERNS=(
  "ts/sci","top secret","secret clearance","active clearance",
@@ -129,5 +129,6 @@ def clearance_check(job: dict, profile: dict) -> dict:
 
 def two_category_filter(job: dict, profile: dict) -> dict:
     exp=experience_check(job,profile); sponsor=sponsorship_check(job,profile); citizenship=citizenship_check(job,profile); clearance=clearance_check(job,profile)
-    eligible=exp["eligible"] and sponsor["eligible"] is not False and citizenship["eligible"] and clearance["eligible"]
+    # Sponsorship is informational only. It must never reject or hold a job.
+    eligible=exp["eligible"] and citizenship["eligible"] and clearance["eligible"]
     return {"eligible":eligible,"experience":exp,"sponsorship":sponsor,"citizenship":citizenship,"clearance":clearance}
