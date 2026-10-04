@@ -45,7 +45,10 @@ def test_tailoring_prompt_ignores_profile_technical_fields():
     assert "SECRET_MASTER_TOOL" not in serialized
     assert "SECRET MASTER SUMMARY" not in serialized
     assert "SECRET MASTER BULLET" not in serialized
-    assert prompt["technical_source_policy"]["job_description_is_only_technical_source"] is True
+    policy=prompt["technical_source_policy"]
+    assert policy["job_description_is_primary_technical_source"] is True
+    assert policy["employer_cloud_credibility_exception_only"] is True
+    assert prompt["employer_cloud_credibility_policy"]["hard_constraint"] is True
 
 
 def test_master_payload_is_exact_zero_target_content():
