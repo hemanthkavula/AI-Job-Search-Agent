@@ -23,16 +23,13 @@ def _known_answers():
     return {
       "authorized_to_work_us":"Yes",
       "requires_sponsorship_now":"No",
-      "requires_future_sponsorship":"Yes",
-      "sponsorship_statement":"I am currently authorized to work in the United States under F-1 OPT and do not require sponsorship at this time. I will require H-1B sponsorship in the future to continue working in the United States."
+      "requires_future_sponsorship":"No",
+      "sponsorship_statement":"I am currently authorized to work in the United States and do not require employer sponsorship now or in the future."
     }
 
 def _artifact_path(value,manifest_path):
     if not value:return None
     raw=str(value).strip()
-    # Handle Windows absolute paths even when code is inspected/run under a
-    # different path flavor. On Windows, Path handles these natively; this
-    # branch also preserves drive-letter paths exactly.
     if re.match(r"^[A-Za-z]:[\\/]", raw):
         return str(Path(raw))
     p=Path(raw)
@@ -40,8 +37,6 @@ def _artifact_path(value,manifest_path):
     candidates=[ROOT/p,Path(manifest_path).resolve().parent/p,p.resolve()]
     for candidate in candidates:
         if candidate.exists():return str(candidate.resolve())
-    # Preserve a deterministic project-root path so downstream diagnostics explain
-    # exactly which artifact was expected even if it was later moved/deleted.
     return str((ROOT/p).resolve())
 
 def _application_gate(row,profile):
@@ -55,8 +50,6 @@ def _application_gate(row,profile):
 def _queue_identity_keys(row):
     """Shared cross-source aliases used to block duplicate final submissions."""
     job=dict(row)
-    # Manifest rows use company while the shared identity helper accepts either
-    # company or company_key. Preserve all requisition/URL aliases when present.
     return identity_keys(job)
 
 def build(manifest_path="generated/application_manifest.json",output="generated/application_queue.json"):
@@ -68,14 +61,8 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
         if any(key in seen_keys for key in keys):continue
         validation=r.get("artifact_validation") or {}
         pdf=r.get("pdf_path")
-        # Backward compatibility: manifests created before artifact_validation was
-        # persisted can still be used, but only when READY_TO_APPLY has a real PDF.
-        # New manifests must continue to honor an explicit failed validation.
         resolved_pdf=_artifact_path(pdf,manifest_path)
         explicit_validation="artifact_validation" in r and r.get("artifact_validation") is not None
-        # Do not silently drop READY_TO_APPLY rows because a legacy manifest
-        # points to a stale/moved artifact. Queue them and let autofill produce a
-        # precise MANUAL_ACTION_REQUIRED diagnostic with the expected path.
         if not pdf or not resolved_pdf:continue
         if explicit_validation and not validation.get("passed"):continue
         provider=_provider(r)
