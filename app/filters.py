@@ -58,6 +58,9 @@ def employer_is_excluded(company):
     return normalized in EXCLUDED_EMPLOYER_ALIASES
 
 def _clean(v):return re.sub(r"\s+"," ",(v or "").lower()).strip()
+def _has_bounded_marker(text,marker):
+    return re.search(rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",text) is not None
+
 def _title_for_match(title):
     # Parenthetical work-arrangement/location qualifiers do not change the role family.
     t=_clean(title)
@@ -122,11 +125,9 @@ def _description_has_us_location(description):
 
 def _description_has_non_us_location(description):
     text=_clean(description)
-    # Discovery providers can occasionally return an empty/incorrect location even
-    # when the JD excerpt explicitly identifies a foreign office. Treat explicit
-    # foreign country/city evidence in the posting as authoritative only when no
-    # stronger U.S.-scope evidence is available.
-    return any(marker in text for marker in NON_US_MARKERS)
+    # Match whole location tokens/phrases so a country such as "india" does not
+    # accidentally match a valid U.S. city such as "Indianapolis".
+    return any(_has_bounded_marker(text,marker) for marker in NON_US_MARKERS)
 
 def location_is_us(location,source=None,description=""):
     raw=(location or "").strip();src=_clean(source)
@@ -137,8 +138,9 @@ def location_is_us(location,source=None,description=""):
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
     # Explicit foreign location metadata is stronger than incidental state-code-like
-    # text and must be rejected before abbreviation checks.
-    if any(marker in loc for marker in NON_US_MARKERS):return False
+    # text and must be rejected before abbreviation checks. Match on token boundaries
+    # so "india" does not falsely reject "Indianapolis, IN".
+    if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):return False
     if US_STATE_RE.search(raw):return True
     # Some ATS providers return only a US city (e.g. "San Francisco") without
     # state/country. Accept known unambiguous US city names instead of rejecting them.
