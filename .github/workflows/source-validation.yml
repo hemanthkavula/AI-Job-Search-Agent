@@ -15,6 +15,7 @@ on:
       - "app/resume_tailoring_policy.py"
       - "app/cloud_policy.py"
       - "app/reference_resume_formatter.py"
+      - "app/pdf_export.py"
       - "app/ats_audit.py"
       - "app/dashboard.py"
       - "app/job_ledger.py"
@@ -34,6 +35,7 @@ on:
       - "data/job_sources.json"
       - "data/candidate_profile.json"
       - "data/master_resume.json"
+      - "data/master_word_format.json"
       - "tests/**"
       - "app/scheduled_runner.py"
       - "app/job_identity.py"
@@ -64,5 +66,6 @@ jobs:
         run: |
           python -m json.tool data/job_sources.json >/dev/null
           python -m json.tool data/master_resume.json >/dev/null
+          python -m json.tool data/master_word_format.json >/dev/null
       - name: Run test suite
         run: python -m pytest -q
