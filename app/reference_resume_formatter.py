@@ -11,9 +11,10 @@ from app.resume_generator import ROOT,clean_company_name,safe_name
 
 WORD_FORMAT_PATH=ROOT/"data"/"master_word_format.json"
 WORD_TEMPLATE_PATH=ROOT/"data"/"Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
-W="{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+W_URI="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+W=f"{{{W_URI}}}"
 XMLSPACE="{http://www.w3.org/XML/1998/namespace}space"
-NS={"w":W}
+NS={"w":W_URI}
 
 
 def load_word_format(path=WORD_FORMAT_PATH):
