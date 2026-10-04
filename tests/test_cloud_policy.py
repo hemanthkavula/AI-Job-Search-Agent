@@ -5,6 +5,7 @@ from app.cloud_policy import (
     CLOUD_AZURE,
     CLOUD_GCP,
     cloud_policy_violations,
+    cloud_signal_counts,
     employer_cloud_modes,
     fidelity_cloud_mode,
 )
@@ -22,18 +23,43 @@ def test_fidelity_uses_single_gcp_cloud_when_jd_is_gcp_only():
 
 
 def test_fidelity_uses_single_aws_cloud_when_jd_is_aws_only():
-    jd = "Build AWS data pipelines using S3, Glue, EMR, and Redshift."
+    jd = "Build AWS data pipelines using S3, AWS Glue, EMR, and Redshift."
     assert fidelity_cloud_mode(jd) == CLOUD_AWS
 
 
-def test_fidelity_multicloud_aws_and_azure_resolves_to_aws_only():
-    jd = "Multi-cloud platform using AWS S3 and Azure Data Factory."
+def test_fidelity_multicloud_chooses_azure_when_azure_is_more_heavily_mentioned():
+    jd = "AWS exposure is useful. Primary platform is Azure with Azure Data Factory, ADLS Gen2, Azure Synapse, and Azure Functions."
+    counts = cloud_signal_counts(jd)
+    assert counts[CLOUD_AZURE] > counts[CLOUD_AWS]
+    assert fidelity_cloud_mode(jd) == CLOUD_AZURE
+
+
+def test_fidelity_multicloud_chooses_gcp_when_gcp_is_more_heavily_mentioned():
+    jd = "Some Azure familiarity is helpful. Core platform is GCP with Google Cloud, BigQuery, Dataflow, Pub/Sub, and Dataproc."
+    counts = cloud_signal_counts(jd)
+    assert counts[CLOUD_GCP] > counts[CLOUD_AZURE]
+    assert fidelity_cloud_mode(jd) == CLOUD_GCP
+
+
+def test_fidelity_multicloud_chooses_aws_when_aws_is_more_heavily_mentioned():
+    jd = "Azure knowledge is a plus. Main workloads run on AWS with S3, AWS Glue, EMR, Redshift, Lambda, and Kinesis."
+    counts = cloud_signal_counts(jd)
+    assert counts[CLOUD_AWS] > counts[CLOUD_AZURE]
     assert fidelity_cloud_mode(jd) == CLOUD_AWS
 
 
-def test_fidelity_multicloud_azure_and_gcp_still_resolves_to_aws_only():
-    jd = "Multi-cloud platform using Azure Synapse and Google BigQuery."
+def test_fidelity_aws_wins_exact_tie_for_master_credibility():
+    jd = "AWS S3 and Azure Data Factory are used across the platform."
+    counts = cloud_signal_counts(jd)
+    assert counts[CLOUD_AWS] == counts[CLOUD_AZURE]
     assert fidelity_cloud_mode(jd) == CLOUD_AWS
+
+
+def test_fidelity_azure_gcp_tie_uses_first_mentioned_cloud_in_jd():
+    jd = "Azure Synapse and Google BigQuery are both required."
+    counts = cloud_signal_counts(jd)
+    assert counts[CLOUD_AZURE] == counts[CLOUD_GCP]
+    assert fidelity_cloud_mode(jd) == CLOUD_AZURE
 
 
 def test_fidelity_cloud_neutral_jd_defaults_to_master_backed_aws():
@@ -41,35 +67,36 @@ def test_fidelity_cloud_neutral_jd_defaults_to_master_backed_aws():
     assert fidelity_cloud_mode(jd) == CLOUD_AWS
 
 
-def test_fixed_employer_cloud_modes_are_preserved():
-    modes = employer_cloud_modes("Azure Data Factory and BigQuery multi-cloud platform")
+def test_fixed_cigna_and_target_cloud_modes_are_preserved_while_fidelity_tracks_dominant_jd_cloud():
+    jd = "Azure is primary: Azure Data Factory, ADLS Gen2, Azure Synapse, Azure Functions. Some BigQuery exposure is useful."
+    modes = employer_cloud_modes(jd)
     assert modes == {
-        "Fidelity Investments": CLOUD_AWS,
+        "Fidelity Investments": CLOUD_AZURE,
         "Cigna Healthcare": CLOUD_AZURE,
         "Target Corporation": CLOUD_AWS,
     }
 
 
-def test_cloud_audit_rejects_mixed_fidelity_clouds_for_multicloud_jd():
-    jd = "AWS S3 and Azure Data Factory are used across a multi-cloud platform."
+def test_cloud_audit_rejects_non_selected_cloud_inside_fidelity():
+    jd = "Primary Azure platform with Azure Data Factory, ADLS Gen2, Azure Synapse and Azure Functions. AWS familiarity is a plus."
     findings = cloud_policy_violations(
         {
-            "Fidelity Investments": "Built AWS Glue pipelines and Azure Data Factory workflows.",
+            "Fidelity Investments": "Built Azure Data Factory pipelines and AWS Glue workflows.",
             "Cigna Healthcare": "Built Azure Databricks pipelines.",
             "Target Corporation": "Built Amazon S3 pipelines.",
         },
         jd,
     )
     fidelity = next(item for item in findings if item["company"] == "Fidelity Investments")
-    assert fidelity["selected_cloud"] == CLOUD_AWS
-    assert fidelity["forbidden_clouds"] == [CLOUD_AZURE]
+    assert fidelity["selected_cloud"] == CLOUD_AZURE
+    assert fidelity["forbidden_clouds"] == [CLOUD_AWS]
 
 
-def test_cloud_audit_accepts_aws_only_fidelity_for_multicloud_jd():
-    jd = "AWS S3, Azure Data Factory, and BigQuery support a multi-cloud estate."
+def test_cloud_audit_accepts_only_dominant_cloud_in_fidelity():
+    jd = "AWS exposure is useful. Primary platform is Azure with Azure Data Factory, ADLS Gen2, Azure Synapse, and Azure Functions."
     findings = cloud_policy_violations(
         {
-            "Fidelity Investments": "Built AWS Glue, S3, and Redshift data pipelines.",
+            "Fidelity Investments": "Built Azure Data Factory, ADLS Gen2, and Azure Synapse data pipelines.",
             "Cigna Healthcare": "Built Azure Data Factory and ADLS pipelines.",
             "Target Corporation": "Built AWS S3 pipelines.",
         },
@@ -95,14 +122,17 @@ def test_cloud_audit_rejects_aws_or_gcp_inside_cigna_and_azure_or_gcp_inside_tar
     assert CLOUD_AZURE in by_company["Target Corporation"]["forbidden_clouds"]
 
 
-def test_resume_prompt_receives_deterministic_cloud_modes():
+def test_resume_prompt_receives_dominant_cloud_counts_and_modes():
     job = SimpleNamespace(
         company="Example",
         title="Senior Data Engineer",
-        description="Multi-cloud role using Azure Synapse and Google BigQuery.",
+        description="AWS familiarity is helpful. Azure is primary with Azure Data Factory, ADLS Gen2, Azure Synapse, and Azure Functions.",
     )
     prompt = build_prompt(job, coverage_plan={"target_count": 4})
-    modes = prompt["employer_cloud_credibility_policy"]["selected_cloud_by_employer"]
-    assert modes["Fidelity Investments"] == CLOUD_AWS
+    policy = prompt["employer_cloud_credibility_policy"]
+    modes = policy["selected_cloud_by_employer"]
+    counts = policy["jd_cloud_signal_counts"]
+    assert counts[CLOUD_AZURE] > counts[CLOUD_AWS]
+    assert modes["Fidelity Investments"] == CLOUD_AZURE
     assert modes["Cigna Healthcare"] == CLOUD_AZURE
     assert modes["Target Corporation"] == CLOUD_AWS
