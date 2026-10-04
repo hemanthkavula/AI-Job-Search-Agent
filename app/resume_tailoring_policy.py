@@ -4,10 +4,10 @@ import math
 import re
 
 MODE_MASTER = "MASTER_UNCHANGED"
-MODE_LIGHT = "HYBRID_LIGHT"
-MODE_MODERATE = "HYBRID_MODERATE"
-MODE_STRONG = "HYBRID_STRONG"
-MODE_FULL = "HYBRID_FULL"
+MODE_LIGHT = "JD_DRIVEN_LIGHT"
+MODE_MODERATE = "JD_DRIVEN_MODERATE"
+MODE_STRONG = "JD_DRIVEN_STRONG"
+MODE_FULL = "JD_DRIVEN_FULL"
 
 EMPLOYER_COUNTS = {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8}
 
@@ -28,30 +28,33 @@ ACTION_PATTERNS = (
     r"\bintegrat(?:e|ed|ing|ion)\b",
 )
 
-# These are floors, not exact rewrite percentages. They prevent a short JD from
-# causing the model to unnecessarily rewrite the whole user-authoritative resume.
+# The uploaded Word/PDF resume is a formatting template, not a technical-content
+# reservoir for JD-tailored resumes. Nonzero-target modes therefore have no
+# requirement to retain technical bullets from the template.
 RETENTION_FLOORS = {
     MODE_MASTER: {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8},
-    MODE_LIGHT: {"Fidelity Investments": 7, "Cigna Healthcare": 6, "Target Corporation": 6},
-    MODE_MODERATE: {"Fidelity Investments": 5, "Cigna Healthcare": 4, "Target Corporation": 4},
-    MODE_STRONG: {"Fidelity Investments": 2, "Cigna Healthcare": 2, "Target Corporation": 2},
+    MODE_LIGHT: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
+    MODE_MODERATE: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
+    MODE_STRONG: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
     MODE_FULL: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
 }
 
+# These ratios preserve roughly the same visual density as the two-page Word
+# template while allowing all technical wording to come from the current JD.
 SUMMARY_MIN_RATIO = {
     MODE_MASTER: 0.95,
-    MODE_LIGHT: 0.80,
-    MODE_MODERATE: 0.72,
-    MODE_STRONG: 0.65,
+    MODE_LIGHT: 0.65,
+    MODE_MODERATE: 0.65,
+    MODE_STRONG: 0.60,
     MODE_FULL: 0.60,
 }
 
 SKILLS_ROW_MIN_RATIO = {
     MODE_MASTER: 0.95,
-    MODE_LIGHT: 0.75,
-    MODE_MODERATE: 0.65,
-    MODE_STRONG: 0.55,
-    MODE_FULL: 0.45,
+    MODE_LIGHT: 0.25,
+    MODE_MODERATE: 0.25,
+    MODE_STRONG: 0.25,
+    MODE_FULL: 0.25,
 }
 
 MIN_JD_EXPERIENCE_BULLETS = {
@@ -68,8 +71,15 @@ def _word_count(text: str) -> int:
 
 
 def _action_statement_count(text: str) -> int:
-    statements = [x.strip() for x in re.split(r"[\n\r]+|(?<=[.!?])\s+", text or "") if x.strip()]
-    return sum(any(re.search(pattern, statement, flags=re.I) for pattern in ACTION_PATTERNS) for statement in statements)
+    statements = [
+        x.strip()
+        for x in re.split(r"[\n\r]+|(?<=[.!?])\s+", text or "")
+        if x.strip()
+    ]
+    return sum(
+        any(re.search(pattern, statement, flags=re.I) for pattern in ACTION_PATTERNS)
+        for statement in statements
+    )
 
 
 def jd_richness(job, coverage_plan: dict) -> dict:
@@ -93,18 +103,19 @@ def jd_richness(job, coverage_plan: dict) -> dict:
 
 
 def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
-    """Choose how aggressively to tailor while keeping the master as the base.
+    """Choose how much JD evidence is available for a JD-driven tailored resume.
 
-    The decision uses target count together with JD richness. A concise JD with
-    many concrete engineering responsibilities can still justify deeper tailoring,
-    while a keyword-only JD stays light even when it lists several technologies.
+    For any nonzero target count, the current JD is the technical-content source.
+    The uploaded Word/PDF resume supplies format only. Zero targets retain the
+    existing unchanged-master fallback so a weak/empty JD cannot manufacture
+    unsupported technical content.
     """
     richness = jd_richness(job, coverage_plan)
     target_count = richness["target_count"]
 
     if target_count == 0:
         mode = MODE_MASTER
-        reason = "No meaningful JD targets; use the uploaded master unchanged."
+        reason = "No meaningful JD targets; use the unchanged master fallback rather than invent technical content."
     else:
         partial = (
             richness["source_tailoring_mode"] == "BASE_RESUME_CONSERVATIVE"
@@ -115,16 +126,16 @@ def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
 
         if target_count <= 2 or partial or (words < 180 and actions < 3):
             mode = MODE_LIGHT
-            reason = "Few targets or weak/partial JD evidence; keep most master content and make only evidence-supported changes."
+            reason = "Limited JD evidence; create a conservative JD-driven resume using only explicit JD technical content."
         elif target_count <= 5 or (words < 350 and actions < 5):
             mode = MODE_MODERATE
-            reason = "Moderate JD evidence; tailor selected sections and bullets while retaining a strong master base."
+            reason = "Moderate JD evidence; use the JD to drive the technical summary, skills, and selected experience coverage."
         elif target_count <= 9 or (words < 600 and actions < 8):
             mode = MODE_STRONG
-            reason = "Rich JD evidence; make substantial changes but retain some master evidence for continuity."
+            reason = "Rich JD evidence; use broad JD-driven technical coverage while preserving fixed history and employer domains."
         else:
             mode = MODE_FULL
-            reason = "Rich, detailed JD with broad target coverage; JD may drive most content while preserving fixed history and format."
+            reason = "Rich, detailed JD; drive the technical resume from the JD while preserving fixed history, domain locks, and Word formatting."
 
     return {
         "mode": mode,
@@ -132,12 +143,14 @@ def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
         "richness": richness,
         "minimum_master_bullets_retained": dict(RETENTION_FLOORS[mode]),
         "summary_min_master_density_ratio": SUMMARY_MIN_RATIO[mode],
-        "summary_max_master_density_ratio": 1.25,
+        "summary_max_master_density_ratio": 1.15,
         "skills_min_master_row_ratio": SKILLS_ROW_MIN_RATIO[mode],
         "minimum_jd_specific_experience_bullets": MIN_JD_EXPERIENCE_BULLETS[mode],
-        "master_is_base": True,
-        "new_technology_requires_jd_evidence": True,
-        "unchanged_master_bullets_should_be_verbatim": True,
+        "master_is_base": mode == MODE_MASTER,
+        "word_template_is_format_only": mode != MODE_MASTER,
+        "technical_content_source": "current_job_description" if mode != MODE_MASTER else "unchanged_master_fallback",
+        "new_technology_requires_jd_evidence": mode != MODE_MASTER,
+        "unchanged_master_bullets_should_be_verbatim": mode == MODE_MASTER,
     }
 
 
