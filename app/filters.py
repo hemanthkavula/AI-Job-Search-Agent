@@ -17,7 +17,11 @@ EXCLUDED_TITLE_TERMS={
  "data governance lead","summer internship","internship","career accelerator program","junior data engineer"
 }
 
-US_MARKERS={"united states","united states of america","usa","u.s.","u.s.a.","us remote","remote - us","remote, us","remote us"}
+US_MARKERS={
+ "united states","united states of america","usa","u.s.","u.s.a.","us remote","remote - us","remote, us","remote us",
+ "remote in the united states","remote within the united states","anywhere in the united states","united states remote",
+ "remote in the u.s.","remote within the u.s.","u.s.-based","u.s. based","us-based","us based"
+}
 US_STATE_NAMES={
  "alabama","alaska","arizona","arkansas","california","colorado","connecticut","delaware","florida","georgia","hawaii","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new hampshire","new jersey","new mexico","new york","north carolina","north dakota","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","vermont","virginia","washington","west virginia","wisconsin","wyoming","district of columbia"
 }
@@ -32,7 +36,9 @@ US_CITY_MARKERS={
  "tampa","orlando","minneapolis","columbus","cleveland","detroit","pittsburgh","princeton","newark","malvern","plano",
  "redmond","washington dc","washington, dc"
 }
-US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)",re.I)
+# Keep state abbreviations case-sensitive. With re.I, ordinary words such as "in"
+# and "or" become Indiana/Oregon and can incorrectly turn foreign locations into U.S. jobs.
+US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)")
 
 EMPLOYMENT_ACCEPT_MARKERS=("full-time","full time","fulltime","regular","permanent","employee","w2","w-2")
 EMPLOYMENT_REJECT_PATTERNS=(r"\bc2c\b",r"\bcorp[- ]to[- ]corp\b",r"\b1099\b",r"\bpart[- ]time\b",r"\bintern(?:ship)?\b",r"\btemporary\b",r"\btemp\b",r"\bseasonal\b",r"\bvolunteer\b",r"\bcontract[- ]to[- ]hire\b",r"\b(?:employment type|job type|position type)\s*:?\s*(?:w-?2\s+)?contract\b",r"\bcontract duration\s*:",r"\b\d+\s*(?:month|months|mo)\s+contract\b",r"\bcontract position\b",r"\bon a contract basis\b")
@@ -108,33 +114,43 @@ def title_is_target(title,description=""):
 def _description_has_us_location(description):
     text=_clean(description)
     if any(marker in text for marker in US_MARKERS):return True
-    if US_STATE_RE.search(description or ""):return True
-    if any(re.search(rf"\\b{re.escape(state)}\\b",text) for state in US_STATE_NAMES):return True
-    if any(re.search(rf"\\b{re.escape(city)}\\b",text) for city in US_CITY_MARKERS):return True
+    # Do not scan arbitrary JD prose for two-letter state abbreviations: words such
+    # as IN/OR can look like state codes. Full state/city names are safe evidence.
+    if any(re.search(rf"\b{re.escape(state)}\b",text) for state in US_STATE_NAMES):return True
+    if any(re.search(rf"\b{re.escape(city)}\b",text) for city in US_CITY_MARKERS):return True
     return False
 
 def _description_has_non_us_location(description):
     text=_clean(description)
     # Discovery providers can occasionally return an empty/incorrect location even
     # when the JD excerpt explicitly identifies a foreign office. Treat explicit
-    # foreign country/city evidence in the posting as authoritative.
+    # foreign country/city evidence in the posting as authoritative only when no
+    # stronger U.S.-scope evidence is available.
     return any(marker in text for marker in NON_US_MARKERS)
 
 def location_is_us(location,source=None,description=""):
     raw=(location or "").strip();src=_clean(source)
     if not raw:
+        if _description_has_us_location(description):return True
         if _description_has_non_us_location(description):return False
         return src=="dice"
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
+    # Explicit foreign location metadata is stronger than incidental state-code-like
+    # text and must be rejected before abbreviation checks.
+    if any(marker in loc for marker in NON_US_MARKERS):return False
     if US_STATE_RE.search(raw):return True
     # Some ATS providers return only a US city (e.g. "San Francisco") without
     # state/country. Accept known unambiguous US city names instead of rejecting them.
     parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
     if any(city in parts for city in US_CITY_MARKERS):return True
     if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
-    if any(marker in loc for marker in NON_US_MARKERS):return False
-    if loc in {"remote","remote - remote","multiple locations"}:return src=="dice"
+    # Generic remote metadata is only acceptable when the JD establishes U.S.
+    # scope. Dice remains a special case because its configured search is U.S.-scoped.
+    if loc in {"remote","remote - remote","multiple locations"} or loc.startswith("remote "):
+        if _description_has_us_location(description):return True
+        if _description_has_non_us_location(description):return False
+        return src=="dice"
     return False
 
 def employment_is_target(employment_type, description=""):
@@ -160,16 +176,14 @@ def work_authorization_restriction(description="",title=""):
     return None
 
 def passes_hard_filters(job:dict,profile:dict):
-    """Apply only the three governing eligibility criteria.
+    """Apply the governing eligibility criteria.
 
     1) Data Engineering family (title, or adjacent title supported by JD evidence)
-    2) Full-time/W-2 employment target
-    3) Future sponsorship must not be explicitly unavailable
+    2) United States location scope
+    3) Full-time/W-2 employment target
     4) Experience requirement must fit the configured target window
-
-    Location is a hard gate: only U.S. roles are eligible. Citizenship and
-    clearance are also enforced when explicitly required. Employment type is a
-    hard gate because the configured search targets Full-Time/W-2 roles.
+    5) Future sponsorship must not be explicitly unavailable
+    6) Explicit citizenship/clearance restrictions are rejected
     """
     reasons=[]
     if employer_is_excluded(job.get("company") or job.get("company_key")):
