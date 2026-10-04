@@ -6,9 +6,9 @@ CLOUD_AWS = "AWS"
 CLOUD_AZURE = "AZURE"
 CLOUD_GCP = "GCP"
 
-# Deliberately use provider/service names that are strong cloud signals. Generic
-# cross-cloud technologies such as Databricks, Spark, Kafka, Airflow, Snowflake,
-# Kubernetes, and Terraform do not select a cloud family by themselves.
+# Strong provider/service signals. Generic cross-cloud technologies such as
+# Databricks, Spark, Kafka, Airflow, Snowflake, Kubernetes, Terraform, Python,
+# and SQL never select a cloud family by themselves.
 CLOUD_PATTERNS = {
     CLOUD_AWS: (
         r"\baws\b",
@@ -49,27 +49,56 @@ CLOUD_PATTERNS = {
 }
 
 
-def detect_cloud_families(text: str) -> set[str]:
+def cloud_signal_counts(text: str) -> dict[str, int]:
+    """Count material cloud-provider/service signals in the JD.
+
+    Counts intentionally include both provider mentions and named services. This
+    lets a JD that repeatedly emphasizes one ecosystem outrank a token mention of
+    another cloud, which matches the user's 'use whichever is highly mentioned'
+    requirement.
+    """
     value = text or ""
     return {
-        cloud
+        cloud: sum(len(list(re.finditer(pattern, value, flags=re.I))) for pattern in patterns)
         for cloud, patterns in CLOUD_PATTERNS.items()
-        if any(re.search(pattern, value, flags=re.I) for pattern in patterns)
     }
+
+
+def detect_cloud_families(text: str) -> set[str]:
+    counts = cloud_signal_counts(text)
+    return {cloud for cloud, count in counts.items() if count > 0}
+
+
+def _first_cloud_position(text: str, cloud: str) -> int:
+    positions = []
+    for pattern in CLOUD_PATTERNS[cloud]:
+        match = re.search(pattern, text or "", flags=re.I)
+        if match:
+            positions.append(match.start())
+    return min(positions) if positions else 10**9
 
 
 def fidelity_cloud_mode(job_description: str) -> str:
     """Return the single cloud family Fidelity is allowed to use.
 
-    User credibility rule:
-    - exactly one cloud family in the JD -> use that cloud only;
-    - multi-cloud JD (2+ families) -> use AWS only;
-    - cloud-neutral JD -> default to the master-backed AWS history.
+    Fidelity credibility rule:
+    - use the cloud family with the strongest/highest JD signal count;
+    - never mix cloud families inside Fidelity experience;
+    - if AWS is tied for strongest, use AWS as the master-backed tie-breaker;
+    - if only Azure/GCP are tied, use whichever tied cloud appears first in the JD;
+    - if the JD has no cloud signal, default to the master-backed AWS history.
     """
-    families = detect_cloud_families(job_description)
-    if len(families) == 1:
-        return next(iter(families))
-    return CLOUD_AWS
+    counts = cloud_signal_counts(job_description)
+    highest = max(counts.values(), default=0)
+    if highest <= 0:
+        return CLOUD_AWS
+
+    leaders = [cloud for cloud, count in counts.items() if count == highest]
+    if len(leaders) == 1:
+        return leaders[0]
+    if CLOUD_AWS in leaders:
+        return CLOUD_AWS
+    return min(leaders, key=lambda cloud: _first_cloud_position(job_description, cloud))
 
 
 def employer_cloud_modes(job_description: str) -> dict[str, str]:
