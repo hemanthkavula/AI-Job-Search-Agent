@@ -12,9 +12,14 @@ def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
     monkeypatch.setattr(batch_prepare,"load_profile",lambda:{"summary_source":[],"skill_categories":{},"experience":[]})
     monkeypatch.setattr(batch_prepare,"build_coverage_plan",lambda job,profile:{"target_count":0,"must_cover_terms":[],"preferred_terms":[]})
     monkeypatch.setattr(batch_prepare,"_render_base_resume",lambda job,profile:str(tmp_path/"draft.docx"))
+    monkeypatch.setattr(batch_prepare,"ats_audit",lambda job,profile,path:{
+        "passed":True,"internal_ats_score":100,"keyword_coverage":100,"experience_depth_coverage":100,
+        "recruiter_fit_score":100,"human_quality_score":100,"quality_gates":{}
+    })
     monkeypatch.setattr(batch_prepare,"_promote_approved_resume",lambda path:str(tmp_path/"approved.docx"))
     monkeypatch.setattr(batch_prepare,"convert_docx_to_pdf_detailed",lambda path,attempts=2:{"pdf_path":str(tmp_path/"approved.pdf"),"attempts":1,"reason":"ok","renderer":"test"})
     monkeypatch.setattr(batch_prepare,"validate_docx_pdf_parity",lambda docx,pdf:{"passed":True})
     rows=batch_prepare.prepare(str(report),str(out))
     assert rows[0]["next_action"]=="READY_TO_APPLY"
+    assert rows[0]["ats_audit"]["generation_source"]=="uploaded_master_zero_targets"
     assert "manual_application_required" not in rows[0]
