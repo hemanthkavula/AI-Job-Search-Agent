@@ -1,0 +1,182 @@
+{
+  "source": {
+    "filename": "Hemanth_Kavula_Senior_Data_Engineer_Resume(1).pdf",
+    "sha256": "81b8a8ec35b1a21e81671d2f386aa391bbeb170e6334c0336874fd6d323353e2",
+    "size_bytes": 260162,
+    "pages": 2,
+    "page_size": "US Letter",
+    "authoring_app": "Microsoft Word for Microsoft 365",
+    "captured_date": "2026-10-04",
+    "authority": "user_uploaded_master"
+  },
+  "identity": {
+    "name": "Hemanth Kavula",
+    "headline": "Senior Data Engineer",
+    "contact": {
+      "phone": "+1 (856) 510-7610",
+      "email": "hemanthkavula@gmail.com",
+      "linkedin": "linkedin.com/in/kavulahemanth"
+    }
+  },
+  "style": {
+    "font": "Calibri",
+    "name_pt": 18.0,
+    "headline_pt": 13.0,
+    "contact_pt": 11.0,
+    "section_heading_pt": 12.0,
+    "summary_pt": 11.0,
+    "body_pt": 10.0,
+    "company_pt": 12.0,
+    "job_title_pt": 11.0,
+    "education_degree_pt": 11.0,
+    "dark_blue_hex": "1F4E78",
+    "job_blue_hex": "2E75B5",
+    "link_hex": "0563C1",
+    "date_gray_hex": "666666",
+    "rule_blue_hex": "2E75B5",
+    "top_margin_in": 0.55,
+    "bottom_margin_in": 0.42,
+    "left_margin_in": 0.50,
+    "right_margin_in": 0.50,
+    "right_tab_in": 7.45,
+    "bullet_left_indent_in": 0.50,
+    "bullet_hanging_indent_in": -0.25,
+    "section_before_pt": 9.0,
+    "section_after_pt": 4.0,
+    "summary_first_after_pt": 7.0,
+    "summary_last_after_pt": 3.0,
+    "summary_line_spacing": 1.05,
+    "bullet_after_pt": 2.0,
+    "environment_after_pt": 8.0,
+    "fidelity_page_break_before_bullet": 9,
+    "two_summary_paragraphs": true,
+    "roles_and_responsibilities_label": true,
+    "environment_line": true,
+    "right_aligned_dates": true,
+    "selective_phrase_bold": true
+  },
+  "summary": [
+    "Senior Data Engineer with 5+ years of experience building high-scale data platforms and real-time pipelines processing millions of transactions and large-volume datasets across financial services, healthcare, and retail domains. Expert in Python, SQL, and PySpark with deep experience in Apache Spark, Kafka, and Databricks for distributed data processing and streaming systems.",
+    "Proven track record of architecting cloud-native data lakes and warehouses on AWS and Azure (S3, Glue, EMR, Redshift, Snowflake, ADF, ADLS Gen2), delivering reliable, analytics-ready datasets for business-critical use cases including risk analytics, clinical insights, and retail operations. Strong expertise in dimensional modeling (Star Schema, SCD Type 2), medallion architecture, and performance optimization, consistently improving pipeline efficiency, scalability, and data quality."
+  ],
+  "summary_emphasis": [
+    "Senior Data Engineer with 5+ years of experience",
+    "financial services, healthcare, and retail domains",
+    "Python, SQL, and PySpark",
+    "Apache Spark, Kafka, and Databricks",
+    "AWS and Azure (S3, Glue, EMR, Redshift, Snowflake, ADF, ADLS Gen2)",
+    "dimensional modeling (Star Schema, SCD Type 2)",
+    "medallion architecture",
+    "improving pipeline efficiency, scalability, and data quality"
+  ],
+  "skills": {
+    "Programming Languages": ["Python", "SQL", "Scala"],
+    "Cloud Platforms (AWS)": ["AWS Glue", "Amazon EMR", "Amazon S3", "Amazon Redshift", "Lambda", "Kinesis"],
+    "Cloud Platforms (Azure)": ["Data Factory", "Synapse Analytics", "Azure Data Lake Storage Gen2", "Event Hub"],
+    "Big Data & Data Processing": ["Apache Spark", "PySpark", "Databricks", "Delta Lake", "Apache Kafka"],
+    "Data Warehousing": ["Snowflake", "Amazon Redshift", "Azure Synapse Analytics"],
+    "Databases": ["Oracle", "SQL Server", "PostgreSQL", "MySQL", "MongoDB", "DynamoDB"],
+    "Data Integration & Orchestration": ["Apache Airflow", "AWS Glue", "Azure Data Factory", "dbt"],
+    "Data Modeling": ["Star Schema", "Snowflake Schema", "Dimensional Modeling", "Slowly Changing Dimensions"],
+    "DevOps & CI/CD": ["Terraform", "Docker", "Jenkins", "GitLab CI/CD", "Git"],
+    "Data Quality & Governance": ["Great Expectations", "AWS Glue Data Catalog", "Azure Purview"],
+    "Data Visualization & BI": ["Tableau", "Power BI", "Looker"],
+    "Methodologies": ["Agile/Scrum", "DevOps", "DataOps", "CI/CD Best Practices"]
+  },
+  "experience": [
+    {
+      "company": "Fidelity Investments",
+      "location": "Jersey City, NJ",
+      "title": "Senior Data Engineer",
+      "dates": "Jan 2025 – Present",
+      "bullets": [
+        "Designed and owned AWS-based data pipelines using Glue and EMR (PySpark), processing ~2.5–3M daily trading events and ~400–500GB of market data, enabling risk monitoring and regulatory reporting for investment and compliance teams.",
+        "Built real-time streaming pipelines using Kafka and Kinesis, ingesting trade lifecycle events with sub-minute latency to improve visibility for compliance monitoring systems.",
+        "Modeled and delivered Snowflake data warehouse solutions (Star Schema, SCD Type 2) supporting portfolio analytics and regulatory reporting used by risk and investment stakeholders.",
+        "Architected and maintained an S3-based data lake (Delta, medallion architecture) supporting curated datasets consumed by analysts and quantitative teams.",
+        "Developed modular dbt transformation models and automated data quality tests in Snowflake, creating reusable analytics datasets for risk and investment reporting.",
+        "Established data quality validation using Great Expectations (70+ rules), improving data reliability and reducing downstream reporting inconsistencies.",
+        "Enabled AI/ML-driven analytics by building scalable Python and PySpark data pipelines that curated trading and market datasets for anomaly detection, risk analysis, and predictive modeling use cases.",
+        "Optimized Spark workloads through partitioning and join strategies, reducing pipeline runtime by ~30% and lowering EMR compute costs.",
+        "Automated infrastructure provisioning and deployments using Terraform and Jenkins, ensuring consistent and reliable releases across environments.",
+        "Enabled analytics-ready datasets for portfolio managers and quant teams, supporting risk exposure analysis and trading performance insights."
+      ],
+      "bullet_emphasis": [
+        ["~2.5–3M daily trading events and ~400–500GB of market data"],
+        ["Kafka and Kinesis"],
+        ["Snowflake data warehouse solutions (Star Schema, SCD Type 2)"],
+        ["S3-based data lake (Delta, medallion architecture)"],
+        ["dbt transformation models"],
+        ["Great Expectations (70+ rules)"],
+        ["AI/ML-driven analytics", "Python and PySpark data pipelines"],
+        ["~30%", "EMR compute costs"],
+        ["Terraform and Jenkins"],
+        ["analytics-ready datasets for portfolio managers and quant teams"]
+      ],
+      "environment": "Python, PySpark, AWS (Glue, EMR, S3, Redshift, Lambda, Kinesis), Snowflake, Kafka, Terraform"
+    },
+    {
+      "company": "Cigna Healthcare",
+      "location": "Bangalore, India",
+      "title": "Data Engineer",
+      "dates": "Jan 2022 – Dec 2023",
+      "bullets": [
+        "Developed and owned Azure Data Factory pipelines ingesting claims, eligibility, and provider data for ~2–3M members, improving reporting turnaround for analytics and operations teams.",
+        "Built PySpark ETL pipelines on Databricks, integrating EHR systems and third-party healthcare datasets into analytics-ready formats supporting clinical and operational insights.",
+        "Designed and maintained an ADLS Gen2 data lake (layered/medallion architecture) to enable scalable ingestion and transformation of large healthcare datasets.",
+        "Modeled and delivered Snowflake data warehouse solutions supporting claims analytics, utilization reporting, and operational dashboards.",
+        "Built streaming pipelines using Event Hub and Structured Streaming, enabling near real-time tracking of claims processing and operational events.",
+        "Optimized Spark workloads and cluster configurations, reducing processing time by ~25–30% across large healthcare datasets.",
+        "Supported data governance initiatives using Azure Purview, enabling metadata tracking, lineage, and compliance for sensitive healthcare data (HIPAA).",
+        "Developed Power BI dashboards used by operations and clinical teams to monitor utilization trends, cost metrics, and performance indicators."
+      ],
+      "bullet_emphasis": [
+        ["claims, eligibility, and provider data for ~2–3M members"],
+        ["Databricks"],
+        ["ADLS Gen2 data lake (layered/medallion architecture)"],
+        ["Snowflake data warehouse solutions"],
+        ["Event Hub and Structured Streaming"],
+        ["~25–30%"],
+        ["Azure Purview"],
+        ["operations and clinical teams"]
+      ],
+      "environment": "Python, PySpark, Azure (ADF, Databricks, ADLS Gen2, Event Hub), Snowflake, Power BI"
+    },
+    {
+      "company": "Target Corporation",
+      "location": "Bangalore, India",
+      "title": "Data Engineer",
+      "dates": "Jan 2020 – Dec 2021",
+      "bullets": [
+        "Developed and owned AWS Glue ETL pipelines processing ~120–180GB/day of retail sales and inventory data from POS and e-commerce systems, enabling enterprise reporting and analytics.",
+        "Built PySpark pipelines integrating product, pricing, and order data into unified datasets supporting merchandising and demand analytics.",
+        "Designed and implemented Redshift data warehouse models (Star Schema) supporting sales performance, inventory tracking, and store-level analytics.",
+        "Built Kafka-based ingestion pipelines for near real-time POS data, improving inventory visibility and operational insights across stores.",
+        "Implemented data validation checks using Python and SQL, improving reliability of transactional retail datasets.",
+        "Optimized SQL queries and indexing in PostgreSQL/MySQL, improving performance of BI and reporting workloads.",
+        "Developed Tableau dashboards used by merchandising and operations teams to analyze product demand, customer behavior, and store performance.",
+        "Enabled data-driven decision-making for retail operations, improving visibility into sales trends, inventory optimization, and product performance."
+      ],
+      "bullet_emphasis": [
+        ["~120–180GB/day of retail sales and inventory data"],
+        ["product, pricing, and order data"],
+        ["Redshift data warehouse models (Star Schema)"],
+        ["near real-time POS data"],
+        ["Python and SQL"],
+        ["PostgreSQL/MySQL"],
+        ["merchandising and operations teams"],
+        ["data-driven decision-making for retail operations"]
+      ],
+      "environment": "Python, SQL, PySpark, AWS (Glue, S3, Redshift), Kafka, Airflow, Tableau"
+    }
+  ],
+  "education": [
+    {
+      "degree": "Master of Science in Computer Science",
+      "school": "Rowan University",
+      "location": "Glassboro, NJ",
+      "start": "Jan 2024",
+      "end": "Dec 2025"
+    }
+  ]
+}
