@@ -3,8 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.word_template_source import ensure_master_word_template
+
 ROOT = Path(__file__).resolve().parents[1]
 MASTER_RESUME_PATH = ROOT / "data" / "master_resume.json"
+
+# The actual user-uploaded DOCX is the formatting authority. Materialize and
+# checksum-verify its exact bytes before any resume formatter can consume it.
+ensure_master_word_template()
 
 
 def load_master_resume(path: str | Path = MASTER_RESUME_PATH) -> dict:
@@ -64,10 +70,9 @@ def master_resume_payload(master: dict | None = None) -> dict:
 def master_tailoring_base(master: dict | None = None) -> dict:
     """Return the truthful master content reservoir for hybrid tailoring.
 
-    This is intentionally separate from fixed_personal_facts(). The hybrid
-    writer may retain this user-authoritative content when a JD does not provide
-    enough evidence to improve a section. New technologies that are absent from
-    the master may only be introduced when they are supported by the current JD.
+    This function is retained for zero-target/backward-compatible routes. For
+    nonzero JD-target tailoring, the LLM writer does not receive this technical
+    content; the current JD is the technical-content source.
     """
     master = master or load_master_resume()
     return {
