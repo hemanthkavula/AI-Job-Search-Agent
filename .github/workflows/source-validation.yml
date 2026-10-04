@@ -36,6 +36,7 @@ on:
       - "data/candidate_profile.json"
       - "data/master_resume.json"
       - "data/master_word_format.json"
+      - "data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
       - "tests/**"
       - "app/scheduled_runner.py"
       - "app/job_identity.py"
@@ -68,4 +69,11 @@ jobs:
           python -m json.tool data/master_resume.json >/dev/null
           python -m json.tool data/master_word_format.json >/dev/null
       - name: Run test suite
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml=pytest-results.xml
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-validation-pytest-results
+          path: pytest-results.xml
+          if-no-files-found: ignore
