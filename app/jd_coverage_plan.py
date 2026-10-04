@@ -2,7 +2,6 @@ from __future__ import annotations
 import re
 from app.resume_generator import jd_keywords, inferable_terms, jd_skill_terms
 
-OPTIONAL_LANGUAGE_ALTERNATIVES={"Go","Rust","Scala","Java"}
 CANONICAL={
     "Synapse Analytics":"Azure Synapse Analytics","Azure Synapse":"Azure Synapse Analytics",
     "Data Factory":"Azure Data Factory","ETL":"ETL/ELT","ELT":"ETL/ELT","CI/CD":"CI/CD Best Practices",
@@ -51,9 +50,6 @@ def _profile_terms(profile):
 def _classify(term,description):
     lines=[x.strip() for x in re.split(r"[\n\r]+|(?<=[.!?])\s+",description or "") if _mentioned(x,term)]
     if not lines:return "mentioned"
-    # Strongest evidence wins across all mentions. A preferred mention cannot
-    # downgrade the same technology when it also appears in a required or
-    # ordinary material responsibility elsewhere in the JD.
     if any(any(cue in x.lower() for cue in REQUIRED_CUES) for x in lines):return "required"
     material_lines=[
         x for x in lines
@@ -72,7 +68,6 @@ def build_coverage_plan(job,profile):
     for term in raw:
         term=_canonical(term)
         if term not in targets:targets.append(term)
-    if "Python" in targets: targets=[t for t in targets if t not in OPTIONAL_LANGUAGE_ALTERNATIVES]
 
     requirements=[]
     for term in targets:
@@ -90,9 +85,9 @@ def build_coverage_plan(job,profile):
         "targeted_terms":targets,"target_count":len(targets),"requirements":requirements,
         "must_cover_terms":must_cover,"preferred_terms":preferred,"alternative_terms":alternatives,
         "v1_instruction":(
-            "The complete JD is the technical tailoring source. Before writing V1, cover every material/required "
-            "JD technology, responsibility, and material concept naturally across Summary, Technical Skills and relevant experience bullets. "
-            "The master profile is not a technical-keyword whitelist. Preserve fixed factual history and do not "
-            "invent certifications, employers, dates, education, numerical outcomes or specific accomplishments."
+            "Use the current JD to decide what to emphasize and change while treating the uploaded master as the truthful base. "
+            "Cover every material/required JD technology, responsibility, and concept naturally across Summary, Technical Skills and relevant experience bullets. "
+            "New technologies that are absent from the master may be introduced only when they are supported by this JD. "
+            "Preserve fixed factual history and do not invent certifications, employers, dates, education, numerical outcomes or specific accomplishments."
         ),
     }
