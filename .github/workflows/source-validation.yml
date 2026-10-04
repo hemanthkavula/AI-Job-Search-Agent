@@ -10,6 +10,10 @@ on:
       - "app/application_queue.py"
       - "app/batch_prepare.py"
       - "app/resume_generator.py"
+      - "app/master_resume.py"
+      - "app/llm_resume_writer.py"
+      - "app/reference_resume_formatter.py"
+      - "app/ats_audit.py"
       - "app/dashboard.py"
       - "app/job_ledger.py"
       - "app/production_cycle.py"
@@ -27,6 +31,7 @@ on:
       - "app/eligibility.py"
       - "data/job_sources.json"
       - "data/candidate_profile.json"
+      - "data/master_resume.json"
       - "tests/**"
       - "app/scheduled_runner.py"
       - "app/job_identity.py"
@@ -54,6 +59,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Validate source configuration JSON
-        run: python -m json.tool data/job_sources.json >/dev/null
+        run: |
+          python -m json.tool data/job_sources.json >/dev/null
+          python -m json.tool data/master_resume.json >/dev/null
       - name: Run test suite
         run: python -m pytest -q
