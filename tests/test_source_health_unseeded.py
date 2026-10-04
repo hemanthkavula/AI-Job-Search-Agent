@@ -7,6 +7,8 @@ def test_source_health_reports_unseeded_provider(tmp_path, monkeypatch):
     p=tmp_path/"sources.json"
     p.write_text(json.dumps(cfg),encoding="utf-8")
     monkeypatch.setattr(source_health,"ROOT",Path(tmp_path))
+    monkeypatch.setattr(source_health,"load_registry",lambda: {})
+    monkeypatch.setattr(source_health,"as_discovery_config",lambda registry: registry)
     report=source_health.run("sources.json",timeout=1)
     by_provider={r["provider"]:r for r in report["sources"]}
     assert by_provider["talentreef"]["coverage_status"]=="UNSEEDED"
