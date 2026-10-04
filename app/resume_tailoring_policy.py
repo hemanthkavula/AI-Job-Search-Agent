@@ -95,9 +95,9 @@ def jd_richness(job, coverage_plan: dict) -> dict:
 def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
     """Choose how aggressively to tailor while keeping the master as the base.
 
-    The decision intentionally uses both target count and JD richness. A short JD
-    with five keywords is not treated the same as a detailed JD with five deeply
-    described responsibilities.
+    The decision uses target count together with JD richness. A concise JD with
+    many concrete engineering responsibilities can still justify deeper tailoring,
+    while a keyword-only JD stays light even when it lists several technologies.
     """
     richness = jd_richness(job, coverage_plan)
     target_count = richness["target_count"]
@@ -113,13 +113,13 @@ def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
         words = richness["word_count"]
         actions = richness["action_statement_count"]
 
-        if target_count <= 2 or words < 180 or actions < 3 or partial:
+        if target_count <= 2 or partial or (words < 180 and actions < 3):
             mode = MODE_LIGHT
-            reason = "Few targets or a short/partial JD; keep most master content and make only evidence-supported changes."
-        elif target_count <= 5 or words < 350 or actions < 5:
+            reason = "Few targets or weak/partial JD evidence; keep most master content and make only evidence-supported changes."
+        elif target_count <= 5 or (words < 350 and actions < 5):
             mode = MODE_MODERATE
             reason = "Moderate JD evidence; tailor selected sections and bullets while retaining a strong master base."
-        elif target_count <= 9 or words < 600 or actions < 8:
+        elif target_count <= 9 or (words < 600 and actions < 8):
             mode = MODE_STRONG
             reason = "Rich JD evidence; make substantial changes but retain some master evidence for continuity."
         else:
