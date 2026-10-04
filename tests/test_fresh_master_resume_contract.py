@@ -1,12 +1,11 @@
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 from docx import Document
 
 import app.reference_resume_formatter as formatter
 from app.llm_resume_writer import build_prompt
-from app.master_resume import fixed_personal_facts, load_master_resume, master_resume_payload
+from app.master_resume import fixed_personal_facts, load_master_resume, master_resume_payload, master_tailoring_base
 
 
 EXPECTED_SHA256="81b8a8ec35b1a21e81671d2f386aa391bbeb170e6334c0336874fd6d323353e2"
@@ -22,7 +21,7 @@ def test_uploaded_resume_is_authoritative_master_record():
     assert master["style"]["body_pt"]==10.0
 
 
-def test_fixed_personal_facts_exclude_all_master_technical_content():
+def test_fixed_personal_facts_exclude_master_technical_content():
     facts=fixed_personal_facts()
     serialized=json.dumps(facts).lower()
     for forbidden in ("pyspark","snowflake","databricks","kafka","terraform","great expectations","environment","bullets"):
@@ -33,21 +32,32 @@ def test_fixed_personal_facts_exclude_all_master_technical_content():
     ]
 
 
-def test_tailoring_prompt_ignores_profile_technical_fields():
+def test_master_tailoring_base_exposes_authoritative_content():
+    base=master_tailoring_base()
+    serialized=json.dumps(base).lower()
+    assert base["authority"]=="user_uploaded_master"
+    assert "pyspark" in serialized
+    assert "snowflake" in serialized
+    assert [len(x["bullets"]) for x in base["experience"]]==[10,8,8]
+
+
+def test_tailoring_prompt_ignores_profile_technical_fields_but_uses_master_base():
     job=SimpleNamespace(company="Example",title="Data Engineer",description="Build Python and SQL ETL pipelines with Airflow.")
-    contaminated_profile={
-        "skills":["SECRET_MASTER_TOOL"],
-        "summary_source":["SECRET MASTER SUMMARY"],
-        "experience":[{"evidence":["SECRET MASTER BULLET"]}],
+    profile_only={
+        "skills":["PROFILE_ONLY_TOOL"],
+        "summary_source":["PROFILE ONLY SUMMARY"],
+        "experience":[{"evidence":["PROFILE ONLY BULLET"]}],
     }
-    prompt=build_prompt(job,contaminated_profile,coverage_plan={"target_count":3,"must_cover_terms":["Python","SQL","Airflow"]})
+    prompt=build_prompt(job,profile_only,coverage_plan={"target_count":3,"must_cover_terms":["Python","SQL","Airflow"]})
     serialized=json.dumps(prompt)
-    assert "SECRET_MASTER_TOOL" not in serialized
-    assert "SECRET MASTER SUMMARY" not in serialized
-    assert "SECRET MASTER BULLET" not in serialized
+    assert "PROFILE_ONLY_TOOL" not in serialized
+    assert "PROFILE ONLY SUMMARY" not in serialized
+    assert "PROFILE ONLY BULLET" not in serialized
+    assert prompt["authoritative_master_resume_base"]["authority"]=="user_uploaded_master"
     policy=prompt["technical_source_policy"]
-    assert policy["job_description_is_primary_technical_source"] is True
-    assert policy["employer_cloud_credibility_exception_only"] is True
+    assert policy["master_is_truthful_fallback_and_supporting_source"] is True
+    assert policy["new_technology_absent_from_master_requires_jd_evidence"] is True
+    assert policy["profile_argument_is_not_a_technical_source"] is True
     assert prompt["employer_cloud_credibility_policy"]["hard_constraint"] is True
 
 
@@ -67,7 +77,6 @@ def test_renderer_reproduces_master_format_contract(monkeypatch,tmp_path):
     path=formatter.render_llm_resume(job,{},master_resume_payload(),output_dir="resumes")
     result=formatter.validate_master_format_contract(path)
     assert result["passed"],result["reasons"]
-
     doc=Document(path)
     assert doc.paragraphs[0].text=="Hemanth Kavula"
     assert doc.paragraphs[1].text=="Senior Data Engineer"
@@ -75,7 +84,7 @@ def test_renderer_reproduces_master_format_contract(monkeypatch,tmp_path):
     assert sum(p.text.startswith("Environment: ") for p in doc.paragraphs)==3
 
 
-def test_tailored_renderer_keeps_master_format_but_not_master_content(monkeypatch,tmp_path):
+def test_tailored_renderer_keeps_master_format(monkeypatch,tmp_path):
     monkeypatch.setattr(formatter,"ROOT",tmp_path)
     job=SimpleNamespace(company="Example Company",title="Senior Data Engineer")
     generated={
@@ -95,6 +104,4 @@ def test_tailored_renderer_keeps_master_format_but_not_master_content(monkeypatc
     result=formatter.validate_master_format_contract(path)
     assert result["passed"],result["reasons"]
     text="\n".join(p.text for p in Document(path).paragraphs)
-    assert "Great Expectations (70+ rules)" not in text
-    assert "~400–500GB" not in text
     assert "Python, SQL, Airflow" in text
