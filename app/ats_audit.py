@@ -5,6 +5,7 @@ from collections import Counter
 
 from docx import Document
 
+from app.cloud_policy import cloud_policy_violations, employer_cloud_modes
 from app.jd_coverage_plan import build_coverage_plan
 
 ATS_TARGET = 95
@@ -128,6 +129,24 @@ def _experience_bullets(paragraphs):
     return by_company
 
 
+def _experience_cloud_text(paragraphs):
+    """Collect employer bullets plus Environment line for cloud-policy auditing."""
+    by_company = {company: [] for company in EXPECTED_COUNTS}
+    current = None
+    for paragraph in paragraphs:
+        text = paragraph.text.strip()
+        matched_company = next((company for company in EXPECTED_COUNTS if text.startswith(company)), None)
+        if matched_company:
+            current = matched_company
+            continue
+        if not current:
+            continue
+        is_bullet = bool(paragraph.style and "List Bullet" in paragraph.style.name)
+        if is_bullet or text.startswith("Environment:"):
+            by_company[current].append(text)
+    return {company: "\n".join(rows) for company, rows in by_company.items()}
+
+
 def _technical_skills_text(paragraphs):
     collecting = False
     rows = []
@@ -240,6 +259,8 @@ def ats_audit(job, profile, resume_path):
     }
 
     domain_violations = _domain_coherence_violations(by_company)
+    cloud_modes = employer_cloud_modes(job.description or "")
+    cloud_violations = cloud_policy_violations(_experience_cloud_text(paragraphs), job.description or "")
     repeated_phrases, repeated_openings = _repetition_findings(bullets)
     repetition_score = max(
         40,
@@ -267,6 +288,7 @@ def ats_audit(job, profile, resume_path):
         "structure": counts == EXPECTED_COUNTS,
         "metrics": not metric_violations and not metric_findings,
         "domain_coherence": not domain_violations,
+        "cloud_credibility": not cloud_violations,
         "repetition": repetition_score >= 85,
         "human_quality": human_quality_score >= HUMAN_QUALITY_TARGET,
         "experience_depth": experience_gate,
@@ -304,6 +326,8 @@ def ats_audit(job, profile, resume_path):
         "metric_violations": metric_violations,
         "unapproved_metric_claims": metric_findings,
         "domain_coherence_violations": domain_violations,
+        "employer_cloud_modes": cloud_modes,
+        "cloud_policy_violations": cloud_violations,
         "approved_metric_patterns": {},
         "bullet_counts": counts,
         "bullet_count_score": bullet_count_score,
