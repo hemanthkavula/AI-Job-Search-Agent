@@ -25,10 +25,11 @@ def _has_skill(skill: str, text: str) -> bool:
 
 def analyze_job(job, profile: dict) -> dict:
     text=_norm(f"{job.title} {job.description}")
-    title=_norm(job.title)
-    target_roles=[_norm(r) for r in profile["preferences"]["target_roles"]]
-    from app.filters import title_is_target
-    role_match=title_is_target(job.title)
+    from app.filters import title_is_target, location_is_us
+    # Analytics Engineer and adjacent data-engineering titles are intentionally
+    # JD-aware. Calling the matcher with only the title incorrectly downgrades
+    # valid DE work even after the hard-filter stage has accepted it.
+    role_match=title_is_target(job.title,job.description)
 
     skills=profile["skills"]
     matched=[s for s in skills if _has_skill(s,text)]
@@ -45,8 +46,10 @@ def analyze_job(job, profile: dict) -> dict:
     employment_score=15 if not employment or any(x.lower() in employment for x in desired) else 0
 
     location_text=(job.location or "").lower()
-    preferred=profile["preferences"]["preferred_locations"]
-    location_score=10 if not location_text or any(x.lower() in location_text for x in preferred) or "remote" in location_text else 5
+    # All U.S. locations are equally acceptable. Do not preserve the old
+    # NJ/NY/PA preference bonus because production requirements allow remote,
+    # hybrid, and onsite roles anywhere in the United States.
+    location_score=10 if not location_text or location_is_us(job.location,description=job.description) else 5
 
     score=min(100,skill_score+role_score+employment_score+location_score)
     decision="PRIORITY" if score>=85 else "REVIEW" if score>=65 else "SKIP"
