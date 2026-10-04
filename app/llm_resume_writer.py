@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from urllib import error, request
 
-from app.cloud_policy import employer_cloud_modes
+from app.cloud_policy import cloud_signal_counts, employer_cloud_modes
 from app.master_resume import fixed_personal_facts, load_master_resume
 
 
@@ -19,9 +19,11 @@ You receive only fixed personal/history facts from the master resume: name, cont
 
 EMPLOYER CLOUD CREDIBILITY RULE — HARD CONSTRAINT:
 - Fidelity Investments must use exactly ONE cloud family in its generated experience and Environment line.
-- If the JD contains exactly one cloud family, Fidelity uses that family only: AWS-only, Azure-only, or GCP-only.
-- If the JD is multi-cloud (two or more cloud families are materially present), Fidelity uses AWS ONLY. Do not mix Azure or GCP into Fidelity merely because the JD is multi-cloud.
+- Select Fidelity's cloud from the JD's dominant cloud family: whichever of AWS, Azure, or GCP has the strongest/highest material provider/service signal in the current JD.
+- If AWS is tied for strongest, use AWS as the credibility tie-breaker because it matches the master-backed Fidelity history.
+- If only Azure and GCP are tied, use whichever tied family appears first in the JD.
 - If the JD is cloud-neutral, Fidelity defaults to AWS ONLY, matching the credible master history.
+- Never mix AWS, Azure, and GCP inside Fidelity experience after the cloud family has been selected.
 - Cigna Healthcare is Azure-only. Never put AWS or GCP cloud services into Cigna experience. If Azure is not relevant to the JD, use cloud-neutral JD-derived content rather than switching Cigna to another cloud.
 - Target Corporation is AWS-only. Never put Azure or GCP cloud services into Target experience. If AWS is not relevant to the JD, use cloud-neutral JD-derived content rather than switching Target to another cloud.
 - Cross-cloud technologies such as Python, SQL, Spark, Databricks, Kafka, Airflow, Snowflake, Kubernetes, Terraform, and dbt do not by themselves change the selected cloud family.
@@ -66,7 +68,8 @@ def _fixed_facts_for_prompt() -> dict:
 
 def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
     coverage_plan = coverage_plan or {}
-    cloud_modes = employer_cloud_modes(job.description or "")
+    description = job.description or ""
+    cloud_modes = employer_cloud_modes(description)
     prompt = {
         "task": "Create a JD-specific resume using the job description as the primary technical source while obeying the hard employer cloud credibility policy.",
         "job": {
@@ -78,8 +81,9 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
         "pre_generation_coverage_plan": coverage_plan,
         "employer_cloud_credibility_policy": {
             "hard_constraint": True,
+            "jd_cloud_signal_counts": cloud_signal_counts(description),
             "selected_cloud_by_employer": cloud_modes,
-            "fidelity_rule": "Exactly one JD cloud -> that cloud only. Multi-cloud or cloud-neutral JD -> AWS only.",
+            "fidelity_rule": "Use exactly one cloud family: the JD's strongest/highest cloud signal. AWS wins ties that include AWS; Azure/GCP-only ties use the first-mentioned tied cloud; cloud-neutral defaults to AWS.",
             "cigna_rule": "Azure only; never AWS or GCP in Cigna experience.",
             "target_rule": "AWS only; never Azure or GCP in Target experience.",
             "no_cloud_mixing_within_employer_experience": True,
