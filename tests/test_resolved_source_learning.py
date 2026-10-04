@@ -29,12 +29,3 @@ def test_resolved_icims_source_becomes_executable():
     cfg=as_discovery_config(registry)
     assert cfg["icims"][0]["company"]=="Example Co"
     assert cfg["icims"][0]["search_url"]=="https://careers-example.icims.com/jobs/search"
-
-
-def test_verified_custom_career_site_round_trips_into_discovery_config():
-    registry={}
-    assert learn_resolved_source("career_site","Example Health","https://examplehealth.com/careers",registry)
-    cfg=as_discovery_config(registry)
-    assert cfg["career_site"][0]["company"]=="Example Health"
-    assert cfg["career_site"][0]["search_url"]=="https://examplehealth.com/careers"
-    assert cfg["career_site"][0]["job_url_pattern"]

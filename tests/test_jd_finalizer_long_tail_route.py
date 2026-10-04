@@ -25,7 +25,7 @@ def test_verified_long_tail_ats_is_finalized_for_external_handoff(monkeypatch,tm
     assert "manual_application_required" not in raw
 
 
-def test_dice_discovery_date_never_replaces_missing_official_employer_date(monkeypatch,tmp_path):
+def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_path):
     from datetime import datetime, timezone
     report=tmp_path/"eligible_dice.json"; output=tmp_path/"finalized_dice.json"
     job={
@@ -46,6 +46,5 @@ def test_dice_discovery_date_never_replaces_missing_official_employer_date(monke
     monkeypatch.setattr(jd_finalizer,"two_category_filter",lambda j,p:{"eligible":True})
     monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
     result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
-    assert result["finalized"]==0
-    assert result["held_or_rejected"]==1
-    assert result["rejections"][0]["action"]=="HOLD_OFFICIAL_POST_DATE_UNVERIFIED"
+    assert result["finalized"]==1
+    assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_after_official_ats_resolution"

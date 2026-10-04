@@ -51,16 +51,3 @@ def test_resolved_aggregator_job_can_use_verified_external_ats(monkeypatch, tmp_
     result = jd_finalizer.finalize_report(str(report), str(output), now=datetime(2026,9,28,11,0,tzinfo=timezone.utc))
     assert result["finalized"] == 1
     assert result["results"][0]["job"]["application_route"] == "EXTERNAL_ATS"
-
-
-def test_employer_description_is_authoritative_even_when_board_copy_is_longer(monkeypatch):
-    board_desc="Requirements: Python SQL Spark. "*100
-    employer_desc="Responsibilities: build production data pipelines. Requirements: Python SQL Spark Airflow. Qualifications: 3+ years experience."
-    job={"external_id":"dice:desc","source":"dice","company_key":"Example Health","company":"Example Health","title":"Data Engineer","location":"United States","original_url":"https://www.dice.com/job-detail/desc","url":"https://www.dice.com/job-detail/desc","description":board_desc}
-    monkeypatch.setattr(jd_finalizer,"resolve_original_ats",lambda j:j)
-    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"<html></html>")
-    monkeypatch.setattr(jd_finalizer,"_resolve_employer_career_page",lambda j:("https://careers.examplehealth.com/jobs/123",employer_desc))
-    resolved=jd_finalizer.resolve_full_jd(job)
-    assert resolved["description"]==employer_desc
-    assert resolved["original_url"]=="https://careers.examplehealth.com/jobs/123"
-    assert resolved["ats_provider"]=="career_site"

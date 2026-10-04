@@ -1,25 +1,22 @@
 # AI Job Search Agent
 
-A production-oriented U.S. Data Engineering job-search system that discovers jobs, applies strict eligibility rules, resolves authoritative employer postings, generates or reuses resumes according to JD quality, validates artifacts, builds a manual application queue, and syncs the queue to a persistent hosted dashboard.
+A production-oriented U.S. Data Engineering job-search system that discovers jobs, applies strict eligibility rules, retrieves complete job descriptions, generates JD-specific resumes, validates resume quality, builds a manual application queue, and syncs the queue to a persistent hosted dashboard.
 
 ## Current production flow
 
 ```text
-05:30 ET employer/source enrichment
-→ scheduled production trigger
-→ broad configured + learned multi-source discovery
-→ source-specific freshness + canonical deduplication
+Scheduled cloud trigger
+→ broad multi-source discovery
+→ freshness + deduplication
 → U.S.-only / Data-Engineering-family eligibility
 → Full-Time / W-2 eligibility
-→ experience + sponsorship + citizenship + clearance checks
-→ authoritative employer/ATS resolution
-→ official employer posting-date + live-route verification
-→ complete/usable original JD retrieval
-→ final eligibility on resolved JD
-→ master-resume fallback OR JD-specific tailoring
+→ sponsorship / citizenship / clearance checks
+→ complete original JD retrieval and verification
+→ final eligibility
+→ JD-driven resume generation
 → ATS + evidence + recruiter + human-quality validation
 → targeted retry when a validation gate fails
-→ master-format DOCX + PDF parity validation
+→ validated DOCX/PDF artifacts
 → READY_TO_APPLY
 → persistent application queue
 → hosted dashboard sync
@@ -32,113 +29,101 @@ Application submission is intentionally manual. The production agent prepares qu
 
 ## Production schedule and reliability
 
-Production runs Monday-Friday in **America/New_York** at six requested slots:
+Production runs Monday-Friday in **America/New_York** at seven two-hour slots:
 
-**07:30, 10:00, 12:30, 15:30, 18:30, and 21:00 Eastern.**
+**7 AM, 9 AM, 11 AM, 1 PM, 3 PM, 5 PM, and 7 PM Eastern.**
 
-Cloudflare can dispatch the production workflow during each slot's recovery window, and GitHub Actions provides an independent DST-safe scheduled fallback. The Python scheduler applies the final America/New_York slot guard and `last_completed_slot` protection, so redundant heartbeats are safe no-ops after a completed slot.
+Each intended slot now has **six independent GitHub Actions trigger opportunities at :07, :17, :27, :37, :47, and :57**. The :07 event is the primary trigger. Every later event is a watchdog: it checks whether another run in that slot is already queued, running, or successful and exits as a no-op when the slot is healthy. If the earlier trigger was dropped or the run failed, the next watchdog executes recovery. This substantially reduces dependence on any single scheduled event.
 
-Each provider resumes from its own watermark. Workday tenants additionally maintain independent unit watermarks. A provider that returns `ERROR` or `PARTIAL` keeps the slot open for recovery and retains its previous watermark. A known-unhealthy quarantined source is reported as `DEGRADED`; its watermark is retained for later catch-up without repeatedly hammering the same blocked endpoint during the current slot.
+Persistent scheduler and per-source watermarks provide another recovery layer. A missed or failed discovery interval is resumed from the last successful watermark instead of silently advancing past it. Workday tenants maintain independent watermarks so one failing tenant does not prevent healthy tenants from advancing.
 
 The reliability model is therefore:
 
 ```text
-Cloudflare heartbeat + GitHub scheduled fallback
-→ America/New_York slot guard
-→ duplicate-completion protection
-→ provider/unit watermark catch-up
-→ recovery heartbeat for real partial failures
+Primary scheduled trigger
+→ watchdog recovery
+→ persistent watermark catch-up
 ```
 
 ## Eligibility policy
 
-The production pipeline targets appropriate individual-contributor Data Engineering roles, including Data Engineer, Senior/Staff/Principal Data Engineer, Analytics Engineer when the JD is truly Data Engineering, Data Platform Engineer, Data Infrastructure Engineer, Data Pipeline Engineer, Data Warehouse Engineer, ETL Engineer, Big Data Engineer, and related cloud-focused Data Engineering roles.
+The production pipeline targets U.S. Data Engineering roles, including Data Engineer, Senior Data Engineer, Staff Data Engineer, Principal Data Engineer, cloud-focused Data Engineer roles, and legitimate closely related individual-contributor Data Engineering roles.
 
 Hard filtering includes:
 
 - United States roles only. Onsite, hybrid, and U.S.-scoped remote roles are allowed.
-- Generic `Remote` requires U.S. evidence from the posting unless the discovery source itself is explicitly U.S.-scoped.
 - Data Engineering role family only.
-- Full-Time / W-2 focus.
-- The established required-experience window uses an inclusive minimum and exclusive configured upper boundary; with the current `3–7` configuration, 3–6 years qualifies and 7+ does not.
+- Full-time / W-2 focus.
 - Reject when the posting explicitly says current or future employment sponsorship is unavailable.
 - Reject explicit U.S.-citizenship requirements.
-- Reject roles requiring a security/public-trust clearance.
-- Reject non-IC Manager, Director, Architect, and Consultant role families even when Data Engineering terminology appears in the title.
+- Reject roles requiring a security clearance.
+- Reject non-IC Manager, Director, Architect, and Consultant role families even when the title contains Data Engineering terminology.
 - Unknown sponsorship status is not automatically rejected.
 
-## Discovery and employer universe
+## Discovery
 
 Discovery is employer/ATS-first and open-ended rather than an allowlist.
 
+- 82 recognized/configurable ATS and career-site provider families are supported by the source registry.
 - The static source catalog is seed coverage, not the complete employer universe.
-- A weekday **05:30 ET** enrichment workflow expands the employer universe before the first 07:30 production slot using public/authoritative company feeds, evidence-backed domain resolution, career-page discovery, and ATS-tenant resolution.
-- Production discovery merges configured seeds with persisted learned sources before collecting current jobs.
-- Direct employer career pages and ATS boards are primary.
-- Dice, ZipRecruiter, Wellfound, Built In, YC Jobs and other enabled public adapters are supplemental discovery only.
-- LinkedIn Jobs, Indeed and Glassdoor remain disabled unless an authorized integration is available. Access controls are never bypassed.
-- Aggregator discoveries must resolve to an authoritative employer/ATS posting before paid resume work or application readiness.
-- The employer/ATS posting date is authoritative. Aggregator repost/refresh timestamps never override it.
+- At the 7 AM Eastern production slot, the slow enrichment layer expands the U.S. employer universe from public/authoritative company feeds, resolves evidence-backed official domains, finds employer career pages, detects hosted or embedded ATS platforms, and persists learned sources.
+- Fast production cycles merge configured seeds with those learned sources before collecting current jobs.
+- Direct employer career pages and ATS boards are primary. Dice and ZipRecruiter are supplemental discovery. Other aggregators remain supplemental/authorized-only unless an executable adapter exists.
+- Aggregator discoveries must resolve to a complete authoritative employer/ATS posting before eligibility, resume generation, or application.
+- Source health audits both configured and persistently learned sources.
 - Unknown employers are allowed; target-company lists are priorities/examples, never hard allowlists.
-- Fidelity Investments, Cigna Healthcare/The Cigna Group, and Target Corporation are explicit prior-employer exclusions.
+- Fidelity Investments, Cigna Healthcare, and Target Corporation are explicit hard exclusions from eligibility/application even if broad discovery sees their jobs.
 
-Discovery state is persisted across cloud runs. Provider-specific cutoffs are carried with each discovered job through final employer-date verification so catch-up jobs are not incorrectly rejected by a newer global window.
+Discovery state is persisted across cloud runs so providers resume from their own successful watermarks rather than relying on a single global time window.
 
-## Resume decisioning and tailoring
+## JD-specific resume generation
 
-The current master resume is the fixed visual and factual anchor. Its identity, chronology, education and employer history remain fixed, and its visual contract is preserved in every released resume.
+The complete verified job description is the primary source for the tailored resume's technical content.
 
-The current master visual contract includes:
+The master candidate profile is used as the factual identity and chronology anchor for fixed information such as contact information, employers/clients, job titles, locations, employment dates, education, and existing certifications.
 
-- two-page layout
-- Calibri typography
-- accent color `1F4E79`
-- master margins, spacing, section structure and right-aligned dates
-- selective phrase bolding
-- exactly 10 Fidelity bullets, 8 Cigna bullets and 8 Target bullets
-- Environment lines and the existing education structure
+For each eligible job, the resume generator:
 
-Resume content decisioning follows the verified JD:
+1. extracts the material requirements, technologies, tools, platforms, and responsibilities from the JD;
+2. prioritizes those requirements in the Summary and Technical Skills;
+3. demonstrates important JD technologies and responsibilities naturally within relevant experience sections while preserving employer/domain context;
+4. preserves fixed chronology and identity facts;
+5. does not invent employers, titles, dates, locations, education, certifications, unsupported numerical metrics, or named business/project outcomes.
 
-1. Resolve and verify the employer/ATS JD and application route.
-2. Build the safe JD coverage target set.
-3. If the JD is partial/short or yields only **0–2** safe tailoring targets, use the master/profile resume unchanged.
-4. If the JD is usable and yields **3 or more** meaningful targets, generate a JD-specific resume.
-5. Tailored Summary, Technical Skills and experience wording can reflect the JD while preserving employer/domain coherence and fixed candidate facts.
-6. Never invent employers, titles, dates, locations, education, certifications, unsupported numerical achievements or named business outcomes.
-
-The complete verified JD is the technical-content source for tailoring; the master resume is not a technical-keyword whitelist.
+The system does **not** use the master resume's existing technical bullet content as a whitelist for JD tailoring.
 
 ## Resume validation
 
-JD-tailored resumes pass automated quality gates before they can enter the application queue. Validation covers material JD coverage, ATS-oriented structure, experience depth, evidence consistency, recruiter readability, human-quality checks, repetition/metric controls and the master visual-format contract.
+Generated resumes pass through automated quality gates before they can enter the application queue. Validation covers JD requirement coverage, ATS-oriented structure/coverage, experience depth, evidence consistency, recruiter readability, human-quality checks, and DOCX/PDF artifact validation.
 
-Failed tailored resumes are retried against the specific failed gates, up to the configured maximum. Master fallback resumes do not spend an LLM generation call.
+Failed resumes are retried against the specific failed gates rather than blindly regenerated. A job reaches `READY_TO_APPLY` only after the required resume and artifact checks pass.
 
-Only an approved DOCX is promoted to the final resume tree. The corresponding PDF is generated from that same DOCX and must pass artifact/parity validation. A job reaches `READY_TO_APPLY` only after all required gates pass.
-
-There is no artificial production resume-count cap: all jobs that qualify in a production cycle can proceed, subject to normal runtime/API constraints.
+There is no artificial production resume-count cap: all jobs that qualify in a production cycle can proceed through resume generation and validation, subject to normal runtime/API constraints.
 
 ## Hosted application dashboard
 
-The persistent hosted dashboard is the user-facing application queue and run-history surface.
+The persistent hosted dashboard displays the application pipeline and remains available independently of the user's laptop.
 
-For each queued application it can show the role/company, application status, source/portal, pipeline/run context, validated resume PDF, employer application link, and applied date/status. Per-row actions operate on one application rather than globally deleting history.
+For each queued application it can show:
 
-The user opens the employer application, completes submission manually, then selects **Mark Applied**. Applied status is persisted independently of subsequent production syncs. The associated resume reference is preserved, with recovery support for older applied records whose current ledger entry no longer contains the PDF path.
+- company and role
+- application status
+- source / portal
+- validated resume PDF
+- employer application link
+- applied date/status
+
+The user opens **Open job / Apply**, completes the employer application manually, and then selects **Mark Applied**. Applied status is persisted independently of subsequent production syncs. The associated resume reference is also preserved, with recovery support for older applied records whose current ledger entry no longer contains the PDF path.
 
 ## Automation boundary
 
 The automated production boundary is:
 
 ```text
-Enrich sources
-→ discover
+Discover
 → qualify
-→ resolve employer posting
-→ verify posting date/live JD
-→ choose master or tailored resume
-→ validate resume + artifacts
+→ retrieve/verify JD
+→ generate + validate resume
 → queue
 → sync dashboard
 ```
@@ -147,18 +132,12 @@ The final employer submission remains a user action. The system does not run aut
 
 ## State and cloud operation
 
-Scheduled production runs in GitHub Actions. Generated scheduler state, provider/unit watermarks, discovery state, employer/source registries, ledger data, resume artifacts and queue data are carried across runs and synchronized to the hosted dashboard. The dashboard stores persistent application state on its attached volume.
+Scheduled production runs in GitHub Actions. Generated scheduler state, discovery state, ledger data, resume artifacts, and queue data are carried across runs and synchronized to the hosted dashboard. The dashboard stores its persistent state on its attached volume, so normal service deployments do not intentionally reset application history.
 
-The user's laptop does not need to remain on for scheduled enrichment, discovery, resume generation, artifact validation, queue creation, dashboard synchronization or scheduler recovery.
-
-## Release and validation policy
-
-Source Validation runs on pull requests targeting `main` and again on pushes to `main`. Production behavior changes should not be merged until the full repository test suite passes.
-
-Automated tests establish code-level behavior; they do not replace real-source operational evidence. Scheduled production cycles should continue to be inspected for source coverage, provider failures, watermark movement, eligibility reasons, finalization counts, resume outcomes and dashboard publication.
+The laptop does not need to remain on for scheduled discovery, resume generation, queue creation, dashboard synchronization, or watchdog recovery.
 
 ## Safety and accuracy
 
-The system must not fabricate fixed candidate facts, employers, chronology, education, certifications, numerical achievements, or screening-question answers. Eligibility decisions preserve explicit evidence from the posting. Failed or quarantined source scans retain their previous watermark so temporary provider problems do not silently create discovery gaps.
+The system must not fabricate fixed candidate facts, employers, chronology, education, certifications, numerical achievements, or screening-question answers. Eligibility decisions preserve explicit evidence from the posting, and failed source scans retain their previous watermark so transient provider failures do not silently create discovery gaps.
 
-See **[docs/IMPLEMENTATION_REVIEW_2026-10-03.md](docs/IMPLEMENTATION_REVIEW_2026-10-03.md)** for the current hardening review and **[PROJECT_STATUS.md](PROJECT_STATUS.md)** for implementation history.
+See **[PROJECT_STATUS.md](PROJECT_STATUS.md)** for implementation-level status and historical validation details.

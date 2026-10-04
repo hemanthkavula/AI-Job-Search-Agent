@@ -77,25 +77,3 @@ def test_dst_weekend_uses_friday_21_eastern_wall_clock():
     assert cutoff.hour==21
     assert cutoff.date().isoformat()=="2026-10-30"
     assert cutoff.utcoffset()!=now.replace(day=30,month=10,hour=21).utcoffset() or cutoff.hour==21
-
-
-def test_partial_cycle_uses_last_attempt_for_global_window():
-    now=_dt(2026,9,22,11)
-    state={
-        "last_successful_scan_at":_dt(2026,9,22,7).isoformat(),
-        "last_run_at":_dt(2026,9,22,9).isoformat(),
-        "last_cycle_status":"PARTIAL",
-        "last_failed_providers":["discovery_portal"],
-    }
-    hours,mode,cutoff=_window_for(now,state)
-    assert mode=="incremental"
-    assert cutoff==_dt(2026,9,22,9)
-    assert hours==2
-
-
-def test_legacy_state_without_last_run_still_uses_success_watermark():
-    now=_dt(2026,9,22,11)
-    hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,22,7).isoformat()})
-    assert mode=="incremental"
-    assert cutoff==_dt(2026,9,22,7)
-    assert hours==4

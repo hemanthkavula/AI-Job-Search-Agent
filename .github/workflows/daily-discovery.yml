@@ -1,16 +1,5 @@
 name: Two-Hour Production Job Cycle
 on:
-  # Cloudflare remains the primary scheduler. These UTC schedules are a native
-  # GitHub fallback so one missed external dispatch cannot drop a production
-  # window. The Python guard below converts to America/New_York and only allows
-  # the six requested ET slots, so the alternate EDT/EST heartbeat is a no-op.
-  schedule:
-    # 07:30, 12:30, 15:30 and 18:30 ET fallback heartbeats.
-    - cron: "37 11,12,16,17,19,20,22,23 * * 1-5"
-    # 10:00 ET fallback heartbeat.
-    - cron: "7 14,15 * * 1-5"
-    # 21:00 ET is already the next UTC day; Tue-Sat preserves Mon-Fri ET.
-    - cron: "7 1,2 * * 2-6"
   workflow_dispatch:
     inputs:
       force:
@@ -18,11 +7,6 @@ on:
         required: false
         default: false
         type: boolean
-      application_limit:
-        description: "Manual runs only: maximum READY applications to attempt (0 = normal/unlimited)"
-        required: false
-        default: "0"
-        type: string
 
 concurrency:
   group: production-job-cycle
@@ -35,7 +19,7 @@ permissions:
 jobs:
   production-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -75,9 +59,9 @@ jobs:
               state = {}
 
           due_slots = ((7, 30), (10, 0), (12, 30), (15, 30), (18, 30), (21, 0))
-          # Cloudflare sends repeated heartbeats during each 55-minute recovery
-          # window. GitHub schedule events are an independent fallback. Both
-          # paths share this same guard and last_completed_slot protection.
+          # Keep the existing Cloudflare heartbeat architecture. Each requested
+          # slot remains recoverable for 55 minutes, so repeated heartbeats can
+          # recover a delayed/dropped dispatch without running the slot twice.
           now_minutes = now.hour * 60 + now.minute
           active_slot = None
           for hour, minute in due_slots:
@@ -111,9 +95,9 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
-      - name: Normalize state and verify production requirements
+      - name: Run tests
         if: steps.guard.outputs.should_run == 'true'
-        run: python -m app.production_preflight --strict
+        run: python -m pytest -q
 
       - name: Install LibreOffice for resume PDF validation
         if: steps.guard.outputs.should_run == 'true'
@@ -122,12 +106,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends libreoffice-writer
           soffice --version
 
-      # Full regression tests run in source-validation when code changes. Source
-      # health is a cached advisory input with its own TTL and is normalized by
-      # production_preflight before discovery so persistent failures are actually
-      # quarantined and periodically retried instead of being silently ignored.
-      # Employer-universe enrichment remains a separate bounded workflow that runs
-      # before the first production slot.
+      # Employer-universe enrichment is intentionally NOT part of this critical
+      # production path. It performs thousands of external network probes and can
+      # take far longer than a two-hour job slot. Run the dedicated
+      # employer-universe-enrichment workflow independently; production consumes
+      # the latest persisted company/source registry without waiting for enrichment.
+
+      - name: Audit configured source health
+        if: steps.guard.outputs.should_run == 'true'
+        run: |
+          python -m app.source_health --sources data/job_sources.json --output state/source_health.json
 
       - name: Run scheduled production cycle
         if: steps.guard.outputs.should_run == 'true'
@@ -151,68 +139,6 @@ jobs:
       - name: Verify production acceptance invariants
         if: steps.guard.outputs.should_run == 'true'
         run: python -m app.production_acceptance
-
-      - name: Inspect ready application queue
-        if: steps.guard.outputs.should_run == 'true'
-        id: appqueue
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          summaries=sorted(Path("generated/cycles").glob("*_summary.json"))
-          count=0
-          queue=""
-          if summaries:
-              summary=json.loads(summaries[-1].read_text(encoding="utf-8"))
-              queue=str(summary.get("application_queue") or "")
-              if queue and Path(queue).exists():
-                  rows=json.loads(Path(queue).read_text(encoding="utf-8"))
-                  count=sum(1 for row in rows if row.get("status")=="READY_FOR_ATS_ADAPTER")
-          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as f:
-              f.write(f"count={count}\n")
-              f.write(f"queue={queue}\n")
-          print(f"Ready application rows: {count}; queue={queue or 'none'}")
-          PY
-
-      - name: Install application browser runtime
-        if: steps.guard.outputs.should_run == 'true' && steps.appqueue.outputs.count != '0'
-        continue-on-error: true
-        run: |
-          pip install -r requirements-application.txt
-          browser-use install
-
-      - name: Run guarded automatic application stage
-        if: steps.guard.outputs.should_run == 'true'
-        continue-on-error: true
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          APPLICATION_AGENT_MODEL: gpt-5.6-luna
-          APPLICATION_AGENT_MAX_STEPS: "80"
-          APPLICATION_AGENT_TIMEOUT_SECONDS: "600"
-          APPLICATION_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.application_limit || '0' }}
-          APPLICATION_QUEUE: ${{ steps.appqueue.outputs.queue }}
-        shell: bash
-        run: |
-          APP_ARGS=(--submit)
-          if [[ "${APPLICATION_LIMIT:-0}" =~ ^[1-9][0-9]*$ ]]; then
-            TEST_QUEUE="generated/manual_application_queue.json"
-            python - <<'PY'
-          import json, os
-          from pathlib import Path
-
-          source = Path(os.environ["APPLICATION_QUEUE"])
-          limit = int(os.environ["APPLICATION_LIMIT"])
-          rows = json.loads(source.read_text(encoding="utf-8")) if source.exists() else []
-          ready = [row for row in rows if row.get("status") == "READY_FOR_ATS_ADAPTER"][:limit]
-          out = Path("generated/manual_application_queue.json")
-          out.parent.mkdir(parents=True, exist_ok=True)
-          out.write_text(json.dumps(ready, indent=2), encoding="utf-8")
-          print(f"Controlled manual application queue: {len(ready)} of requested limit {limit}")
-          PY
-            APP_ARGS+=(--queue "$TEST_QUEUE" --limit "$APPLICATION_LIMIT")
-          fi
-          python -m app.application_stage "${APP_ARGS[@]}"
 
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'

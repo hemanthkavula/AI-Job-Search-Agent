@@ -11,21 +11,13 @@ from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
-from app.source_registry import detect_ats
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
 MIN_JD_SIGNAL_SCORE=3
 MIN_USABLE_JD_CHARS=250
 DICE_BOILERPLATE_MARKERS=("Search all similar jobs","Jobs Directory","Career Advice","Employers and Recruiters","Get the Dice app","Copyright ©","Apply Now To see how well you match")
-# Every board/portal in this set is discovery-only. None may become an
-# application destination or posting-date authority without resolving to the
-# employer's own career page or ATS posting first.
-AGGREGATOR_SOURCES={"dice","ziprecruiter","indeed","linkedin","monster","wellfound","builtin","yc_jobs"}
-AGGREGATOR_HOSTS=(
-    "dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com",
-    "wellfound.com","builtin.com","ycombinator.com","workatastartup.com",
-)
+AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com")
 
 def _is_aggregator_url(url):
     host=(parse.urlsplit(url or "").netloc or "").lower()
@@ -204,9 +196,7 @@ def _resolve_employer_career_page(job):
             if u in seen:continue
             seen.add(u)
             low=u.lower()
-            # Never "resolve" one discovery board to another discovery board.
-            # The terminal target must be the employer or an ATS/career site.
-            if _is_aggregator_url(u) or "google.com" in low:continue
+            if any(x in low for x in ("dice.com","indeed.com","linkedin.com","ziprecruiter.com","google.com")):continue
             p=_fetch_public_page(u)
             for node in _jsonld_jobpostings(p):
                 if not _jobposting_identity_matches(job,node,u):continue
@@ -224,7 +214,7 @@ def resolve_full_jd(job):
     current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
     lead_before_resolution=job.get("original_url") or job.get("url") or ""
-    aggregator_origin=bool(job.get("discovery_only")) or source in AGGREGATOR_SOURCES or _is_aggregator_url(lead_before_resolution)
+    aggregator_origin=bool(job.get("discovery_only")) or source in {"dice","ziprecruiter","indeed","linkedin","monster"} or _is_aggregator_url(lead_before_resolution)
     if job.get("description_complete") and _looks_like_complete_jd(current,source) and not aggregator_origin:return job
     fetch_url=job.get("original_url") or job.get("url")
     page=_fetch_public_page(fetch_url)
@@ -234,45 +224,28 @@ def resolve_full_jd(job):
     # Aggregators can expose only a teaser and omit the employer ATS link. In
     # that case, resolve the same company/title on the employer's public career
     # site rather than weakening JD quality requirements.
+    # Aggregator URLs are discovery leads, not preferred application targets.
+    # Always try to canonicalize Dice to the employer's own careers/ATS page,
+    # even when Dice already supplied a usable/full JD.
     lead_url=out.get("original_url") or out.get("url") or ""
     # Any aggregator-origin lead is discovery-only. It must resolve to the
     # employer/ATS job page before it can become eligible for paid resume work.
-    should_resolve_employer=(bool(out.get("discovery_only")) or source in AGGREGATOR_SOURCES or _is_aggregator_url(lead_url))
+    should_resolve_employer=(bool(out.get("discovery_only")) or source in {"dice","ziprecruiter"} or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
         employer_url,employer_desc=_resolve_employer_career_page(out)
+        if len(employer_desc)>len(resolved):resolved=employer_desc
         if employer_url:
-            # Employer/ATS content is authoritative even when a board copied a
-            # longer description. Never keep the aggregator copy because it is longer.
-            resolved=employer_desc or resolved
-            provider,identifier=detect_ats(employer_url)
             out["aggregator_url"]=out.get("original_url") or out.get("url")
             out["original_url"]=employer_url
-            out["ats_provider"]=provider or "career_site"
-            out["ats_identifier"]=identifier or parse.urlsplit(employer_url).netloc.lower()
             out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
-    if employer_url:
-        out["description"]=resolved
-    elif len(resolved)>len(current):out["description"]=resolved
+    if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
-    quality_source="" if employer_url else source
     out["description_length"]=len(final)
-    out["description_complete"]=_looks_like_complete_jd(final,quality_source)
-    out["description_usable"]=_looks_like_usable_jd(final,quality_source)
+    out["description_complete"]=_looks_like_complete_jd(final,source)
+    out["description_usable"]=_looks_like_usable_jd(final,source)
     out["jd_signal_score"]=_jd_signal_score(final)
     out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
-
-def _job_freshness_cutoff(job,fallback):
-    value=(job or {}).get("freshness_cutoff")
-    if value in (None,""):
-        return fallback
-    try:
-        parsed=datetime.fromisoformat(str(value).replace("Z","+00:00"))
-        if parsed.tzinfo is None:
-            parsed=parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-    except (TypeError,ValueError):
-        return fallback
 
 def finalize_report(report_path,output_path="generated/finalized_jobs.json",hours=24,now=None):
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile()
@@ -299,26 +272,23 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         if _is_aggregator_url(application_url):
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
-        aggregator_origin=bool(raw.get("aggregator_url")) or bool(raw.get("discovery_only")) or (raw.get("source") or "").lower() in AGGREGATOR_SOURCES
+        aggregator_origin=bool(raw.get("aggregator_url")) or (raw.get("source") or "").lower() in {"dice","ziprecruiter","indeed","linkedin","monster"}
         check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        global_cutoff=check_now-timedelta(hours=hours)
-        cutoff=_job_freshness_cutoff(raw,global_cutoff)
+        cutoff=check_now-timedelta(hours=hours)
         posting_fields=("posted_at","posted_on","date_posted","datePosted","published_at","publication_date")
         raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
         official_posted=None;official_label=None
-        provisional_updated_at=raw.get("freshness_basis")=="updated_at_fallback"
-        requires_official_post_date=aggregator_origin or provisional_updated_at
-        if requires_official_post_date:
-            # Aggregator timestamps and generic ATS updated_at values are discovery
-            # evidence only. Re-read the employer/ATS page and require a true
-            # publication date before the job can become Ready-to-Apply.
+        if aggregator_origin:
+            # Aggregator timestamps are discovery evidence only. Re-read the
+            # resolved employer/ATS page and enforce its authoritative date.
             official_page=_fetch_public_page(application_url)
             official_posted,official_label=_official_posted_at(official_page,now=check_now)
         else:
             # Direct ATS jobs can gain a more authoritative posting field during
             # detail resolution after the earlier freshness pass. Re-check that
-            # final value here so an older official posting cannot bypass the
-            # source-specific production window.
+            # final value here so e.g. Workday "Posted 4 Days Ago" cannot bypass
+            # a ~61-hour production window. If no posting field was added, retain
+            # the result of the earlier strict freshness gate.
             from app.freshness import _parse_posting_value
             for field in posting_fields:
                 value=raw.get(field)
@@ -330,12 +300,27 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["official_posted_at"]=official_posted.isoformat()
             raw["official_posted_label"]=official_label
             raw["freshness_basis"]="official_employer_posting_date"
-        if requires_official_post_date and official_posted is None:
-            reason=("Official employer/ATS posting date could not be verified at finalization. Aggregator/repost dates are discovery evidence only and are never used as freshness authority." if aggregator_origin else "The ATS updated_at timestamp is only a modification timestamp and cannot prove when the job was posted. An authoritative employer/ATS posting date could not be verified at finalization.")
-            held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":reason,"diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution"),"discovery_freshness_basis":raw.get("freshness_basis")}})
-            continue
+        if aggregator_origin and official_posted is None:
+            # The official employer/ATS page is always the primary freshness source.
+            # For a Dice-origin lead only, once that lead has been identity-resolved
+            # to an official employer/ATS application page, allow Dice's posting date
+            # as a fallback when the official page exposes no usable date.
+            # This never permits an unresolved Dice URL to become the application URL.
+            from app.freshness import _parse_posting_value
+            discovery_source=(raw.get("source") or "").lower()
+            fallback_value=raw.get("discovery_posted_at")
+            fallback_posted=_parse_posting_value(fallback_value,check_now) if discovery_source=="dice" and raw.get("aggregator_url") and fallback_value else None
+            if fallback_posted is not None:
+                official_posted=fallback_posted
+                official_label=str(fallback_value)
+                raw["official_posted_at"]=fallback_posted.isoformat()
+                raw["official_posted_label"]=official_label
+                raw["freshness_basis"]="dice_date_fallback_after_official_ats_resolution"
+            else:
+                held.append({"job":raw,"action":"HOLD_OFFICIAL_POST_DATE_UNVERIFIED","reason":"Official employer/ATS posting date could not be verified at finalization and no permitted Dice fallback date was available.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
+                continue
         if official_posted is not None and (official_posted<cutoff or official_posted>check_now+timedelta(minutes=10)):
-            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the source-specific freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_cutoff":cutoff.isoformat(),"global_freshness_hours":hours,"discovery_source":raw.get("source")}})
+            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Official employer/ATS posting date is outside the requested freshness window; discovery/repost/refresh dates were ignored.","diagnostics":{"url":application_url,"official_posted_at":official_posted.isoformat(),"official_posted_label":official_label,"freshness_hours":hours,"discovery_source":raw.get("source")}})
             continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
@@ -350,10 +335,17 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         eligibility=two_category_filter(raw,profile);ok,reasons=passes_hard_filters(raw,profile)
         if not eligibility.get("eligible") or not ok:
             held.append({"job":raw,"eligibility":eligibility,"action":"SKIP_FINAL_ELIGIBILITY","reasons":reasons,"diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source")}});continue
-        # Paid resume generation requires a known employer/ATS application route.
-        source_supported=set(ALL_ATS_PROVIDERS)|{"career_site"}
+        # Paid resume generation requires a known application route. A verified
+        # external ATS is preferred. Dice-hosted jobs remain eligible for a
+        # controlled Dice adapter; the adapter must inspect the Apply flow and
+        # This pipeline verifies the job/application destination but does not
+        # decide whether the separate Muse application system can automate it.
+        source_supported=set(ALL_ATS_PROVIDERS)
         if raw.get("ats_provider") in source_supported:
             raw["application_route"]="EXTERNAL_ATS"
+        elif (raw.get("source") or "").lower()=="dice" and "dice.com" in (raw.get("original_url") or raw.get("url") or "").lower():
+            raw["application_route"]="DICE"
+            raw["ats_provider"]="dice"
         else:
             held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue

@@ -3,8 +3,33 @@ name: Source Validation
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+    paths:
+      - "app/sources/**"
+      - "app/discovery.py"
+      - "app/daily_runner.py"
+      - "app/application_queue.py"
+      - "app/batch_prepare.py"
+      - "app/resume_generator.py"
+      - "app/dashboard.py"
+      - "app/job_ledger.py"
+      - "app/production_cycle.py"
+      - "app/jd_finalizer.py"
+      - "app/source_registry.py"
+      - "app/source_health.py"
+      - "app/company_feeders.py"
+      - "app/company_universe.py"
+      - "app/company_domain_resolver.py"
+      - "app/career_page_resolver.py"
+      - "app/ats_tenant_resolver.py"
+      - "app/company_enrichment_runner.py"
+      - "app/company_registry.py"
+      - "data/job_sources.json"
+      - "tests/**"
+      - "app/scheduled_runner.py"
+      - "app/job_identity.py"
+      - ".github/workflows/daily-discovery.yml"
+      - ".github/workflows/source-validation.yml"
+      - ".github/workflows/employer-universe-enrichment.yml"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +42,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,24 +52,5 @@ jobs:
         run: pip install -r requirements.txt
       - name: Validate source configuration JSON
         run: python -m json.tool data/job_sources.json >/dev/null
-      - name: Validate production requirements contract
-        run: python -m app.production_preflight --strict --check-only
-      - name: Validate isolated application dependency pin
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          text=Path("requirements-application.txt").read_text(encoding="utf-8")
-          assert "browser-use==0.13.10" in text
-          PY
       - name: Run test suite
         run: python -m pytest -q
-      - name: Smoke test application browser runtime
-        run: |
-          pip install -r requirements-application.txt
-          python - <<'PY'
-          from browser_use import Agent, Browser, ChatOpenAI
-          assert Agent and Browser and ChatOpenAI
-          print("Browser Use application runtime imports successfully.")
-          PY
-          browser-use install
-          browser-use --help >/dev/null

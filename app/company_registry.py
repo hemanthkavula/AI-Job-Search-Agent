@@ -24,8 +24,8 @@ def company_key(company):
     s=s.replace("&"," and ")
     s=re.sub(r"[^a-z0-9]+"," ",s)
     suffixes=r"(?:incorporated|corporation|company|limited|holdings|holding|group|inc|corp|llc|ltd|plc|lp|llp|co)"
-    s=re.sub(r"\b"+suffixes+r"\b"," ",s)
-    return re.sub(r"\s+"," ",s).strip()
+    s=re.sub(r"\\b"+suffixes+r"\\b"," ",s)
+    return re.sub(r"\\s+"," ",s).strip()
 
 def upsert(registry, company, official_domain=None, careers_url=None, ats_provider=None, ats_identifier=None, discovered_by=None):
     if not company:return
