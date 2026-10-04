@@ -13,7 +13,7 @@ def _paragraphs_with_direct_formatted_experience():
             # Deliberately keep the default Normal style. The authoritative
             # user-uploaded Word template uses direct paragraph formatting for
             # its visible bullets rather than the named List Bullet style.
-            doc.add_paragraph(f"{company} responsibility {index + 1}")
+            doc.add_paragraph(f"Built governed data pipeline responsibility {index + 1}")
         doc.add_paragraph(f"Environment: {company} tools")
     doc.add_paragraph("EDUCATION")
     return doc.paragraphs
