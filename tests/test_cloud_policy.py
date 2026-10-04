@@ -56,7 +56,7 @@ def test_fidelity_aws_wins_exact_tie_for_master_credibility():
 
 
 def test_fidelity_azure_gcp_tie_uses_first_mentioned_cloud_in_jd():
-    jd = "Azure Synapse and Google BigQuery are both required."
+    jd = "Azure and GCP are both required."
     counts = cloud_signal_counts(jd)
     assert counts[CLOUD_AZURE] == counts[CLOUD_GCP]
     assert fidelity_cloud_mode(jd) == CLOUD_AZURE
