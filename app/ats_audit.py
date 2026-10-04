@@ -7,16 +7,14 @@ from docx import Document
 
 from app.cloud_policy import cloud_policy_violations, employer_cloud_modes
 from app.jd_coverage_plan import build_coverage_plan
+from app.master_resume import load_master_resume
+from app.resume_tailoring_policy import determine_tailoring_policy, minimum_skill_rows
 
 ATS_TARGET = 95
 HUMAN_QUALITY_TARGET = 90
 MIN_EXPERIENCE_DEPTH = 85
-MIN_JD_SPECIFIC_BULLETS = 6
 EXPECTED_COUNTS = {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8}
 
-# Tailored resumes must not invent quantitative accomplishments. The zero-target
-# path uses the unchanged user-authoritative master, so its existing metrics are
-# treated as fixed master content rather than newly generated claims.
 METRIC_TOKEN_PATTERNS = [
     r"\b\d+(?:\.\d+)?\s*%",
     r"\b\d+(?:\.\d+)?\s*(?:k|m|b|million|billion)\b",
@@ -34,6 +32,8 @@ TERM_ALIASES = {
     "Airflow": ["Airflow", "Apache Airflow"],
     "Azure Data Factory": ["Azure Data Factory", "Data Factory", "ADF"],
     "Azure Synapse Analytics": ["Azure Synapse Analytics", "Azure Synapse", "Synapse Analytics"],
+    "ADLS Gen2": ["ADLS Gen2", "Azure Data Lake Storage Gen2", "ADLS"],
+    "Azure Event Hubs": ["Azure Event Hubs", "Azure Event Hub", "Event Hubs", "Event Hub"],
     "Amazon Redshift": ["Amazon Redshift", "Redshift"],
     "AWS Glue": ["AWS Glue", "Glue"],
     "Amazon S3": ["Amazon S3", "S3"],
@@ -71,7 +71,6 @@ DOMAIN_TERMS = {
     "retail": ("pos", "point of sale", "inventory", "merchandising", "e-commerce", "ecommerce", "orders", "product catalog", "store sales"),
 }
 EMPLOYER_DOMAIN = {"Fidelity Investments": "financial", "Cigna Healthcare": "healthcare", "Target Corporation": "retail"}
-OPTIONAL_LANGUAGE_ALTERNATIVES = {"Go", "Rust", "Scala", "Java"}
 
 
 def _norm(value):
@@ -130,7 +129,6 @@ def _experience_bullets(paragraphs):
 
 
 def _experience_cloud_text(paragraphs):
-    """Collect employer bullets plus Environment line for cloud-policy auditing."""
     by_company = {company: [] for company in EXPECTED_COUNTS}
     current = None
     for paragraph in paragraphs:
@@ -147,19 +145,23 @@ def _experience_cloud_text(paragraphs):
     return {company: "\n".join(rows) for company, rows in by_company.items()}
 
 
-def _technical_skills_text(paragraphs):
+def _section_rows(paragraphs, start_heading, end_heading):
     collecting = False
     rows = []
     for paragraph in paragraphs:
         text = paragraph.text.strip()
-        if text.upper() == "TECHNICAL SKILLS":
+        if text.upper() == start_heading.upper():
             collecting = True
             continue
-        if collecting and text.upper() == "PROFESSIONAL EXPERIENCE":
+        if collecting and text.upper() == end_heading.upper():
             break
         if collecting and text:
             rows.append(text)
-    return "\n".join(rows)
+    return rows
+
+
+def _technical_skills_text(paragraphs):
+    return "\n".join(_section_rows(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE"))
 
 
 def _metric_sanitized(text):
@@ -200,23 +202,52 @@ def _readability_score(bullets, repetition_score):
     return max(40, round(min(score, repetition_score)))
 
 
-def _required_target_terms(terms, text):
-    deduped = []
-    for term in terms:
-        if term not in deduped:
-            deduped.append(term)
-    python_present = _contains(text, "Python")
-    return [term for term in deduped if not (python_present and term in OPTIONAL_LANGUAGE_ALTERNATIVES)]
+def _required_target_terms(terms):
+    return list(dict.fromkeys(terms or []))
+
+
+def _master_bullet_sets(master):
+    return {
+        row["company"]: {_norm(bullet) for bullet in row.get("bullets", [])}
+        for row in master["experience"]
+    }
+
+
+def _retained_master_counts(by_company, master):
+    master_sets = _master_bullet_sets(master)
+    return {
+        company: sum(_norm(bullet) in master_sets.get(company, set()) for bullet in rows)
+        for company, rows in by_company.items()
+    }
+
+
+def _new_metric_findings(by_company, master, zero_target_master):
+    if zero_target_master:
+        return []
+    master_sets = _master_bullet_sets(master)
+    findings = []
+    for company, rows in by_company.items():
+        for bullet in rows:
+            metrics = _metric_tokens(bullet)
+            if not metrics:
+                continue
+            if _norm(bullet) in master_sets.get(company, set()):
+                continue
+            findings.append({"company": company, "metrics": metrics, "bullet": bullet})
+    return findings
 
 
 def ats_audit(job, profile, resume_path):
     text = document_text(resume_path)
     low = _norm(text)
     plan = build_coverage_plan(job, profile)
+    policy = determine_tailoring_policy(job, plan)
+    master = load_master_resume()
+
     must_cover_terms = plan.get("must_cover_terms", [])
     preferred_terms = plan.get("preferred_terms", [])
     alternative_terms = plan.get("alternative_terms", [])
-    targeted = _required_target_terms(must_cover_terms, low)
+    targeted = _required_target_terms(must_cover_terms)
     present = [term for term in targeted if _contains(low, term)]
     missing = [term for term in targeted if not _contains(low, term)]
     keyword_coverage = 100 if not targeted else 100 * len(present) / len(targeted)
@@ -240,23 +271,50 @@ def ats_audit(job, profile, resume_path):
 
     counts = {company: len(rows) for company, rows in by_company.items()}
     bullet_count_score = 100 if counts == EXPECTED_COUNTS else 60
-
     zero_target_master = not must_cover_terms and not plan.get("targeted_terms", [])
-    metric_findings = [] if zero_target_master else [
-        {"company": company, "metrics": _metric_tokens(bullet), "bullet": bullet}
-        for company, rows in by_company.items()
-        for bullet in rows
-        if _metric_tokens(bullet)
-    ]
-    metric_counts = {
-        company: 0 if zero_target_master else sum(bool(_metric_tokens(bullet)) for bullet in rows)
-        for company, rows in by_company.items()
+
+    retained_counts = _retained_master_counts(by_company, master)
+    retention_floors = policy["minimum_master_bullets_retained"]
+    retention_violations = {
+        company: {"retained": retained_counts.get(company, 0), "minimum": minimum}
+        for company, minimum in retention_floors.items()
+        if retained_counts.get(company, 0) < minimum
     }
-    metric_violations = {} if zero_target_master else {
+
+    metric_findings = _new_metric_findings(by_company, master, zero_target_master)
+    metric_counts = {
+        company: sum(item["company"] == company for item in metric_findings)
+        for company in EXPECTED_COUNTS
+    }
+    metric_violations = {
         company: {"count": count, "limit": 0}
         for company, count in metric_counts.items()
         if count > 0
     }
+
+    summary_rows = _section_rows(paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS")
+    summary_text = " ".join(summary_rows)
+    master_summary_text = " ".join(master["summary"])
+    summary_density_ratio = len(_norm(summary_text)) / max(1, len(_norm(master_summary_text)))
+    summary_min = float(policy["summary_min_master_density_ratio"])
+    summary_max = float(policy["summary_max_master_density_ratio"])
+
+    skill_rows = _section_rows(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
+    master_skill_rows = len(master["skills"])
+    min_skill_rows = minimum_skill_rows(master_skill_rows, policy)
+    density_violations = {}
+    if not (summary_min <= summary_density_ratio <= summary_max):
+        density_violations["summary"] = {
+            "ratio": round(summary_density_ratio, 3),
+            "minimum": summary_min,
+            "maximum": summary_max,
+        }
+    if len(skill_rows) < min_skill_rows:
+        density_violations["technical_skills"] = {
+            "rows": len(skill_rows),
+            "minimum_rows": min_skill_rows,
+            "master_rows": master_skill_rows,
+        }
 
     domain_violations = _domain_coherence_violations(by_company)
     cloud_modes = employer_cloud_modes(job.description or "")
@@ -267,7 +325,7 @@ def ats_audit(job, profile, resume_path):
         100 - min(35, len(repeated_phrases) * 7) - min(20, sum(value - 4 for value in repeated_openings.values()) * 4),
     )
     readability_score = _readability_score(bullets, repetition_score)
-    accomplishment_score = 90 if zero_target_master else 85
+    accomplishment_score = 90 if zero_target_master else 88
     human_quality_score = round(readability_score * 0.45 + repetition_score * 0.25 + accomplishment_score * 0.15 + bullet_count_score * 0.15)
     compatibility_score = round(keyword_coverage * 0.60 + title_alignment * 0.15 + section_score * 0.10 + bullet_count_score * 0.10 + 5)
     recruiter_fit_score = round(keyword_coverage * 0.30 + experience_coverage * 0.35 + human_quality_score * 0.20 + title_alignment * 0.10 + section_score * 0.05)
@@ -278,14 +336,17 @@ def ats_audit(job, profile, resume_path):
         if must_cover_terms
         else len(bullets)
     )
+    minimum_jd_bullets = min(int(policy["minimum_jd_specific_experience_bullets"]), len(bullets))
     experience_gate = (not must_cover_terms) or (
         experience_coverage >= MIN_EXPERIENCE_DEPTH
-        and jd_specific_bullets >= min(MIN_JD_SPECIFIC_BULLETS, len(bullets))
+        and jd_specific_bullets >= minimum_jd_bullets
     )
     discovery_score = getattr(job, "discovery_score", None)
     gates = {
         "discovery": discovery_score is None or discovery_score >= 80,
         "structure": counts == EXPECTED_COUNTS,
+        "master_retention": not retention_violations,
+        "content_density": not density_violations,
         "metrics": not metric_violations and not metric_findings,
         "domain_coherence": not domain_violations,
         "cloud_credibility": not cloud_violations,
@@ -320,15 +381,22 @@ def ats_audit(job, profile, resume_path):
         "experience_depth_gaps": experience_gaps,
         "experience_depth_coverage": round(experience_coverage),
         "jd_specific_experience_bullets": jd_specific_bullets,
-        "minimum_jd_specific_experience_bullets": min(MIN_JD_SPECIFIC_BULLETS, len(bullets)),
-        "metric_bearing_bullets": sum(metric_counts.values()),
+        "minimum_jd_specific_experience_bullets": minimum_jd_bullets,
+        "tailoring_policy": policy,
+        "master_bullets_retained_by_employer": retained_counts,
+        "master_retention_violations": retention_violations,
+        "summary_density_ratio": round(summary_density_ratio, 3),
+        "technical_skill_rows": len(skill_rows),
+        "minimum_technical_skill_rows": min_skill_rows,
+        "content_density_violations": density_violations,
+        "metric_bearing_new_or_rewritten_bullets": sum(metric_counts.values()),
         "metric_counts_by_employer": metric_counts,
         "metric_violations": metric_violations,
         "unapproved_metric_claims": metric_findings,
         "domain_coherence_violations": domain_violations,
         "employer_cloud_modes": cloud_modes,
         "cloud_policy_violations": cloud_violations,
-        "approved_metric_patterns": {},
+        "approved_metric_patterns": {"verbatim_master_bullets": "user-authoritative existing metrics only"},
         "bullet_counts": counts,
         "bullet_count_score": bullet_count_score,
         "skills_taxonomy_score": 100,
