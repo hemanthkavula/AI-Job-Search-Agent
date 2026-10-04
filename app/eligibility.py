@@ -80,7 +80,9 @@ def experience_check(job: dict, profile: dict) -> dict:
     max_req=profile.get("preferences",{}).get("max_required_years",7)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    eligible=min_req <= req < max_req
+    # The configured experience window is inclusive at both boundaries.
+    # With the production profile (4, 7), 4+/5+/6+/7+ roles proceed; <=3 or >=8 do not.
+    eligible=min_req <= req <= max_req
     return {"category":"EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR"),"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
