@@ -9,7 +9,7 @@ def test_unresolved_ats_is_held_before_resume_generation(tmp_path, monkeypatch):
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==0
     assert result["held_or_rejected"]==1
@@ -23,7 +23,7 @@ def test_verified_ats_reaches_finalized_stage(tmp_path, monkeypatch):
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==1
     assert result["held_or_rejected"]==0
@@ -40,25 +40,27 @@ def test_short_usable_dice_jd_uses_conservative_tailoring(tmp_path, monkeypatch)
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==0
     assert result["held_or_rejected"]==1
     assert result["rejections"][0]["action"]=="HOLD_ATS_UNRESOLVED"
 
 
-def test_mckesson_explicit_no_future_immigration_support_is_rejected(tmp_path, monkeypatch):
-    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","description":"placeholder"}}]}
+def test_mckesson_explicit_no_future_immigration_support_still_finalizes(tmp_path, monkeypatch):
+    report={"results":[{"action":"ELIGIBLE_FOR_RESUME","job":{"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","location":"Irving, TX, United States","description":"placeholder"}}]}
     inp=tmp_path/"mckesson.json"; out=tmp_path/"mckesson_out.json"; inp.write_text(json.dumps(report),encoding="utf-8")
     description=("Requirements: Python SQL data pipelines. Applicants must be currently authorized to work in the United States on a fulltime basis without the need for employer support or sponsorship now or in the future. This includes F1 OPT, F1 STEM OPT and H1B. McKesson does not provide employer support or sponsorship for any immigration related employment benefit. "+"x"*1200)
-    resolved={"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"workday","original_url":"https://example.com/job"}
+    resolved={"external_id":"mckesson:test","source":"workday","company_key":"McKesson","title":"Data Engineer","location":"Irving, TX, United States","employment_type":"Full-Time","description":description,"description_complete":True,"description_length":len(description),"jd_signal_score":3,"ats_provider":"workday","original_url":"https://example.com/job"}
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_now":False,"requires_sponsorship_future":False},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
-    assert result["finalized"]==0
-    assert result["rejections"][0]["eligibility"]["sponsorship"]["category"]=="NO_SPONSORSHIP"
+    assert result["finalized"]==1
+    assert result["held_or_rejected"]==0
+    assert result["results"][0]["eligibility"]["sponsorship"]["eligible"] is True
+    assert result["results"][0]["eligibility"]["sponsorship"]["category"]=="SPONSORSHIP_UNAVAILABLE_INFORMATIONAL"
 
 
 def test_caci_degree_plus_15_years_is_rejected(tmp_path, monkeypatch):
@@ -69,7 +71,7 @@ def test_caci_degree_plus_15_years_is_rejected(tmp_path, monkeypatch):
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer"],"min_required_years":4,"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     result=finalize_report(str(inp),str(out))
     assert result["finalized"]==0
     assert result["rejections"][0]["eligibility"]["experience"]["category"]=="EXPERIENCE_TOO_SENIOR"
@@ -86,7 +88,7 @@ def test_direct_workday_relative_posting_is_rechecked_at_finalization(tmp_path, 
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     now=datetime(2026,9,28,12,0,tzinfo=timezone.utc)
     result=finalize_report(str(inp),str(out),hours=61,now=now)
     assert result["finalized"]==0
@@ -106,7 +108,7 @@ def test_direct_workday_one_day_relative_posting_remains_fresh(tmp_path, monkeyp
     monkeypatch.setattr("app.jd_finalizer.resolve_full_jd",lambda job:resolved)
     monkeypatch.setattr("app.jd_finalizer._live_public_job_page",lambda url:(True,"test_live"))
     monkeypatch.setattr("app.jd_finalizer.job_detail_is_live",lambda *args,**kwargs:(True,"test_live"))
-    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":True},"candidate_experience_years":5})
+    monkeypatch.setattr("app.jd_finalizer.load_profile",lambda:{"preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":8},"work_authorization":{"requires_sponsorship_future":False},"candidate_experience_years":5})
     now=datetime(2026,9,28,12,0,tzinfo=timezone.utc)
     result=finalize_report(str(inp),str(out),hours=61,now=now)
     assert result["finalized"]==1
