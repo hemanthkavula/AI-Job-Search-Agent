@@ -7,59 +7,64 @@ from pathlib import Path
 from urllib import error, request
 
 from app.cloud_policy import cloud_signal_counts, employer_cloud_modes
-from app.master_resume import fixed_personal_facts, load_master_resume, master_tailoring_base
+from app.master_resume import fixed_personal_facts, load_master_resume
 from app.resume_tailoring_policy import determine_tailoring_policy
 
+ROOT = Path(__file__).resolve().parents[1]
+WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
 
-SYSTEM_PROMPT = """You are an expert ATS resume writer for data engineering roles.
+EMPLOYER_DOMAIN_CONTEXT = {
+    "Fidelity Investments": "financial services, trading, market data, investment risk, compliance, and portfolio analytics",
+    "Cigna Healthcare": "healthcare claims, eligibility, provider/EHR data, clinical operations, privacy, and HIPAA-aware data handling",
+    "Target Corporation": "retail sales, POS, e-commerce, inventory, product, merchandising, orders, and store operations",
+}
 
-HYBRID MASTER/JD RULE — HARD CONSTRAINT:
-- The user-uploaded master resume is the truthful base and factual technical reservoir.
-- The current JD is the tailoring signal: it determines which master content should be emphasized, reordered, replaced, or supplemented.
-- Do NOT rewrite the whole resume merely because a few JD targets exist.
-- If the JD does not provide enough evidence to improve a section or bullet, retain the strong master content instead.
-- A technology that is absent from the master may be added ONLY when the current JD/coverage plan supports it. Example: Kubernetes may be added when the JD requires Kubernetes.
-- Never invent a technology that appears in neither the master nor the current JD/coverage plan.
-- Unchanged master bullets should be copied verbatim. Existing user-authoritative metrics may remain only inside a verbatim retained master bullet.
-- If you rewrite a master bullet, do not invent, transfer, alter, or manufacture numerical metrics/quantified outcomes.
-- Preserve the master document's information density: two summary paragraphs, a substantial skills section, exactly 10 Fidelity bullets, 8 Cigna bullets, 8 Target bullets, and one Environment line per employer.
-- The supplied tailoring-depth policy contains minimum counts of master bullets that must remain verbatim. These are retention floors, not rewrite quotas. Rewrite fewer bullets when fewer changes are needed.
+SYSTEM_PROMPT = """You are an expert ATS resume writer for U.S. data engineering roles.
 
-SECTION BEHAVIOR:
-- Professional Summary: start from the master summary, promote material JD themes, and keep approximately the same two-paragraph visual density. Do not shrink it into a keyword sentence.
-- Technical Skills: start from the master skills inventory. Promote JD-required skills into appropriate categories, add JD-supported new technologies, and keep useful truthful master skills as supporting content. If space becomes excessive, remove the least relevant supporting master terms first. Do not add unsupported skills.
-- Professional Experience: use the master bullets as the base. Rewrite only bullets that can credibly demonstrate material JD requirements; otherwise retain the original bullet verbatim. Keep each employer's domain coherent.
-- Environment: use the master environment as the base, add JD-supported terms when useful, and remove/swap cloud-specific terms as required by the employer cloud policy.
+SOURCE-OF-TRUTH RULE — HARD CONSTRAINT:
+- The uploaded Word/PDF resume is a FORMAT TEMPLATE ONLY for JD-tailored resumes.
+- Do NOT copy or infer technical skills, technologies, architectures, technical bullets, environments, metrics, or accomplishments from that template.
+- For every nonzero-target tailored resume, the CURRENT JOB DESCRIPTION and deterministic JD coverage plan are the only technical-content sources.
+- Fixed personal/history facts are supplied separately and must be preserved exactly: name, contact details, employer names, job titles, locations, dates, and education.
+- User-authorized employer domain context may be used to place JD responsibilities naturally: Fidelity = financial/trading; Cigna = healthcare; Target = retail.
+- Employer cloud constraints are user rules, not permission to invent cloud services. If an allowed cloud is absent from the JD, use cloud-neutral JD content instead of adding unsupported services.
+- Never introduce a technology, framework, platform, database, methodology, AI concept, or tool that is absent from the current JD/coverage plan.
+
+JD-DRIVEN CONTENT RULES:
+- Professional Summary: exactly 2 concise paragraphs. Use current-JD responsibilities and technologies only, plus fixed role/history facts. Keep the total length within the supplied Word content budget.
+- Technical Skills: include only technologies/concepts explicitly supported by the current JD/coverage plan. Use clear ATS categories. Maximum 12 rows, maximum 7 terms per row, and stay within the supplied total-character budget. Prioritize required/material terms; do not reproduce a large generic master skill inventory.
+- Professional Experience: preserve the fixed three employers, titles, locations, dates, and chronology. Write exactly 10 Fidelity bullets, 8 Cigna bullets, and 8 Target bullets. Translate the current JD into natural employer-domain bullets without copying JD sentences verbatim.
+- Distribute JD requirements intelligently instead of repeating the same stack in every employer. Fidelity should carry the strongest/current JD coverage; Cigna and Target should support relevant JD concepts while remaining domain coherent.
+- Each bullet must be concise and no more than the supplied maximum word count.
+- Environment lines must contain only JD-supported technologies that are credible for that employer and must obey cloud constraints. Keep each Environment line within the supplied character budget.
+
+NO-FABRICATION RULES — HARD CONSTRAINT:
+- Do not invent or reuse numerical business outcomes, percentages, dataset volumes, event counts, latencies, member counts, throughput, cost savings, performance improvements, or other quantified accomplishments.
+- Technology names that contain numbers (for example SCD Type 2, ADLS Gen2, Python 3) are allowed; quantified achievement claims are not.
+- Do not invent certifications, degrees, employers, dates, locations, team sizes, security clearances, project names, customer names, or awards.
+- Do not claim a technology just because it existed in the uploaded Word/PDF template. It must be in the current JD/coverage plan.
+- Do not keyword-stuff. Use exact JD terminology when natural and write human-readable accomplishment/responsibility bullets without fabricated metrics.
 
 EMPLOYER CLOUD CREDIBILITY RULE — HARD CONSTRAINT:
-- Fidelity Investments must use exactly ONE cloud family in its experience bullets and Environment line.
-- Select Fidelity's cloud from the JD's dominant cloud family: whichever of AWS, Azure, or GCP has the strongest/highest material provider/service signal in the current JD.
-- If AWS is tied for strongest, use AWS as the credibility tie-breaker because it matches the master-backed Fidelity history.
-- If only Azure and GCP are tied, use whichever tied family appears first in the JD.
-- If the JD is cloud-neutral, Fidelity defaults to AWS only.
-- If Fidelity's selected cloud differs from master AWS, rewrite/remove the master Fidelity cloud-specific bullets needed to eliminate the forbidden cloud. Do not mix cloud families.
-- Cigna Healthcare is Azure-only. Never put AWS or GCP cloud services into Cigna experience. Cigna may retain Azure master evidence even when Azure is not named in the JD.
-- Target Corporation is AWS-only. Never put Azure or GCP cloud services into Target experience. Target may retain AWS master evidence even when AWS is not named in the JD.
-- Cross-cloud technologies such as Python, SQL, Spark, Databricks, Kafka, Airflow, Snowflake, Kubernetes, Terraform, and dbt do not by themselves select a cloud family.
-- The global Technical Skills section may contain multiple cloud families when they are truthful master skills and/or genuinely requested by the JD. The single-cloud restriction applies to each employer's experience and Environment line.
+- Fidelity Investments must use at most ONE cloud family in its experience/environment. Select it from the JD's dominant cloud signal. AWS wins ties that include AWS; Azure/GCP-only ties use the first-mentioned tied cloud; cloud-neutral JDs default to an AWS credibility mode, but this does NOT authorize adding AWS technologies absent from the JD.
+- Cigna Healthcare may use Azure cloud services only when those Azure services are supported by the JD. Never put AWS or GCP cloud services into Cigna experience/environment.
+- Target Corporation may use AWS cloud services only when those AWS services are supported by the JD. Never put Azure or GCP cloud services into Target experience/environment.
+- Cross-cloud technologies such as Python, SQL, Spark, Kafka, Airflow, Snowflake, Kubernetes, Terraform, Docker, dbt, and Databricks do not select a cloud family by themselves.
+- The global Technical Skills section may include multiple cloud families only when each family is explicitly present in the current JD.
 
-GENERAL QUALITY RULES:
-- Preserve fixed identity/history exactly: name, contact details, employer names, job titles, locations, employment dates, and education.
-- Keep employer chronology fixed.
-- Do not copy JD sentences verbatim. Convert JD requirements into natural data-engineering wording when a rewrite is justified.
-- Do not invent certifications, degrees, employers, dates, locations, security clearances, team sizes, project names, or numerical outcomes.
-- Avoid keyword stuffing and repetitive bullets.
-- Use exact JD terminology when natural.
-- Return valid JSON only.
+WORD-LAYOUT CONTENT BUDGET — HARD CONSTRAINT:
+- The downstream renderer uses the user's exact Word font sizes, colors, margins, and spacing and will not shrink them to rescue oversized content.
+- Keep the resume concise enough to render to exactly 2 pages.
+- Obey the supplied limits for summary characters, skill rows/characters, bullet word count, and Environment length.
 
-Return this schema:
+Return valid JSON only using this schema:
 {
   "summary": "two paragraphs separated by \\n\\n",
-  "skills": {"Professional Category": ["skill", "skill"]},
+  "skills": {"ATS Category": ["JD term", "JD term"]},
   "experience": [
-    {"company": "Fidelity Investments", "bullets": [10 strings], "environment": "single-cloud-compliant environment"},
-    {"company": "Cigna Healthcare", "bullets": [8 strings], "environment": "Azure-only environment"},
-    {"company": "Target Corporation", "bullets": [8 strings], "environment": "AWS-only environment"}
+    {"company": "Fidelity Investments", "bullets": [10 strings], "environment": "JD-supported, cloud-compliant technologies"},
+    {"company": "Cigna Healthcare", "bullets": [8 strings], "environment": "JD-supported technologies; Azure cloud only if JD-supported"},
+    {"company": "Target Corporation", "bullets": [8 strings], "environment": "JD-supported technologies; AWS cloud only if JD-supported"}
   ],
   "education": "renderer preserves fixed education"
 }
@@ -72,8 +77,9 @@ def _fixed_facts_for_prompt() -> dict:
     return fixed_personal_facts(load_master_resume())
 
 
-def _master_base_for_prompt() -> dict:
-    return master_tailoring_base(load_master_resume())
+def _word_content_budget() -> dict:
+    data = json.loads(WORD_FORMAT_PATH.read_text(encoding="utf-8"))
+    return dict(data["content_budget"])
 
 
 def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
@@ -81,35 +87,36 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
     description = job.description or ""
     cloud_modes = employer_cloud_modes(description)
     tailoring_policy = determine_tailoring_policy(job, coverage_plan)
+    budget = _word_content_budget()
     prompt = {
-        "task": "Create a hybrid JD-tailored resume using the uploaded master as the truthful base and the current JD as the tailoring signal.",
+        "task": "Create a JD-driven resume. Use the uploaded Word resume only for layout downstream; do not use its technical content.",
         "job": {
             "company": job.company,
             "title": job.title,
             "description": job.description,
         },
         "candidate_fixed_personal_history": _fixed_facts_for_prompt(),
-        "authoritative_master_resume_base": _master_base_for_prompt(),
+        "authorized_employer_domain_context": EMPLOYER_DOMAIN_CONTEXT,
         "pre_generation_coverage_plan": coverage_plan,
-        "tailoring_depth_policy": tailoring_policy,
+        "jd_evidence_depth_policy": tailoring_policy,
+        "word_layout_content_budget": budget,
+        "technical_source_policy": {
+            "allowed_technical_sources": ["current_job_description", "pre_generation_coverage_plan"],
+            "word_or_pdf_template_is_format_only": True,
+            "template_technical_content_must_not_be_used": True,
+            "profile_argument_is_not_a_technical_source": True,
+            "every_technology_requires_current_jd_evidence": True,
+            "fixed_personal_history_must_be_preserved": True,
+            "employer_domain_context_is_context_only_not_a_technology_source": True,
+        },
         "employer_cloud_credibility_policy": {
             "hard_constraint": True,
             "jd_cloud_signal_counts": cloud_signal_counts(description),
             "selected_cloud_by_employer": cloud_modes,
-            "fidelity_rule": "Use exactly one cloud family: the JD's strongest/highest cloud signal. AWS wins ties that include AWS; Azure/GCP-only ties use the first-mentioned tied cloud; cloud-neutral defaults to AWS.",
-            "cigna_rule": "Azure only; never AWS or GCP in Cigna experience.",
-            "target_rule": "AWS only; never Azure or GCP in Target experience.",
+            "fidelity_rule": "At most one JD-supported cloud family in Fidelity. Dominant JD cloud wins; AWS wins ties including AWS; Azure/GCP ties use first mention. Cloud-neutral default is only a prohibition mode and does not authorize adding AWS terms.",
+            "cigna_rule": "Never AWS/GCP in Cigna. Azure services may appear only when present in this JD; otherwise use cloud-neutral JD content.",
+            "target_rule": "Never Azure/GCP in Target. AWS services may appear only when present in this JD; otherwise use cloud-neutral JD content.",
             "no_cloud_mixing_within_employer_experience": True,
-            "global_skills_can_retain_truthful_master_clouds": True,
-        },
-        "technical_source_policy": {
-            "allowed_technical_sources": ["authoritative_master_resume_base", "current_job_description"],
-            "master_is_truthful_fallback_and_supporting_source": True,
-            "new_technology_absent_from_master_requires_jd_evidence": True,
-            "profile_argument_is_not_a_technical_source": True,
-            "unchanged_master_metrics_allowed_only_in_verbatim_master_bullets": True,
-            "rewritten_bullets_must_not_invent_or_move_metrics": True,
-            "fixed_personal_history_must_be_preserved": True,
         },
         "layout_content_contract": {
             "summary_paragraphs": 2,
@@ -117,30 +124,34 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "cigna_bullets": 8,
             "target_bullets": 8,
             "environment_per_employer": True,
-            "minimum_master_bullets_retained": tailoring_policy["minimum_master_bullets_retained"],
-            "summary_min_master_density_ratio": tailoring_policy["summary_min_master_density_ratio"],
-            "summary_max_master_density_ratio": tailoring_policy["summary_max_master_density_ratio"],
-            "skills_min_master_row_ratio": tailoring_policy["skills_min_master_row_ratio"],
+            "summary_total_max_chars": budget["summary_total_max_chars"],
+            "skills_max_rows": budget["skills_max_rows"],
+            "skills_total_max_chars": budget["skills_total_max_chars"],
+            "skills_max_terms_per_row": budget["skills_max_terms_per_row"],
+            "bullet_max_words": budget["bullet_max_words"],
+            "environment_max_chars": budget["environment_max_chars"],
+            "required_pdf_pages": budget["pdf_pages_required"],
         },
         "quality_contract": {
             "cover_required_and_material_jd_targets": True,
             "use_exact_jd_terminology_when_natural": True,
             "no_keyword_stuffing": True,
             "no_invented_metrics": True,
+            "no_reused_template_metrics": True,
             "no_invented_certifications": True,
             "no_invented_project_names": True,
-            "no_unsupported_new_technologies": True,
-            "retain_master_when_jd_cannot_improve_content": True,
+            "no_technical_terms_absent_from_current_jd": True,
             "fidelity_must_never_mix_cloud_families": True,
+            "domain_coherence_required": True,
         },
     }
     if audit_feedback:
         prompt["revision_mode"] = True
         prompt["audit_feedback"] = audit_feedback
         prompt["task"] = (
-            "Regenerate the hybrid resume for the same JD and correct every audit failure. Keep the uploaded master as the truthful base, "
-            "do not exceed the allowed tailoring depth, preserve the required number of verbatim master bullets, obey the hard employer cloud modes, "
-            "cover missing JD targets naturally, and do not invent new technologies or metrics."
+            "Regenerate the JD-driven resume for the same JD and correct every audit failure. "
+            "Do not use technical content from the Word/PDF template. Preserve fixed history, use only current-JD technical content, "
+            "cover missing JD targets naturally, obey employer domain/cloud rules, do not invent metrics, and remain within the exact two-page Word content budget."
         )
     return prompt
 
@@ -224,7 +235,9 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
 
     text = _extract_output_text(payload)
     if not text:
-        raise RuntimeError(f"OpenAI Responses API returned no output text: {json.dumps(payload)[:1200]}")
+        raise RuntimeError(
+            f"OpenAI Responses API returned no output text: {json.dumps(payload)[:1200]}"
+        )
     try:
         result = json.loads(text)
     except json.JSONDecodeError as exc:
