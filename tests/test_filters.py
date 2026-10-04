@@ -2,7 +2,7 @@ from app.filters import passes_hard_filters, employment_is_target
 
 PROFILE={
   "preferences":{"target_roles":["Data Engineer","Senior Data Engineer"],"max_required_years":7},
-  "work_authorization":{"requires_sponsorship_future":True},
+  "work_authorization":{"requires_sponsorship_now":False,"requires_sponsorship_future":False},
   "candidate_experience_years":5
 }
 
@@ -10,9 +10,15 @@ def test_data_engineer_passes():
     ok,_=passes_hard_filters({"title":"Senior Data Engineer","location":"Jersey City, NJ, United States","description":"Python AWS"},PROFILE)
     assert ok
 
-def test_no_sponsorship_rejected():
-    ok,r=passes_hard_filters({"title":"Senior Data Engineer","description":"Candidates must be eligible to work in the US without visa sponsorship."},PROFILE)
-    assert not ok and any("sponsorship" in x.lower() for x in r)
+def test_no_sponsorship_language_does_not_reject():
+    ok,r=passes_hard_filters({
+      "title":"Senior Data Engineer",
+      "location":"Jersey City, NJ, United States",
+      "employment_type":"Full-Time",
+      "description":"Candidates must be eligible to work in the US without current or future visa sponsorship."
+    },PROFILE)
+    assert ok
+    assert not any("sponsorship" in x.lower() for x in r)
 
 def test_excess_years_rejected():
     ok,r=passes_hard_filters({"title":"Senior Data Engineer","description":"10+ years of professional experience required."},PROFILE)
@@ -117,7 +123,6 @@ def test_data_platform_engineer_remains_target():
       "description":"Build Spark and Databricks data pipelines."
     },PROFILE)
     assert ok
-
 
 
 def test_excluded_prior_employers_are_hard_rejected():
