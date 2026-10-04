@@ -12,6 +12,8 @@ on:
       - "app/resume_generator.py"
       - "app/master_resume.py"
       - "app/llm_resume_writer.py"
+      - "app/resume_tailoring_policy.py"
+      - "app/cloud_policy.py"
       - "app/reference_resume_formatter.py"
       - "app/ats_audit.py"
       - "app/dashboard.py"
