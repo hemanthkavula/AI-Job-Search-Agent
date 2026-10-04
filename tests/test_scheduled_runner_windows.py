@@ -31,6 +31,17 @@ def test_two_hour_run_uses_last_successful_scan():
     assert hours==2
 
 
+def test_partial_cycle_uses_last_run_at_instead_of_replaying_stale_global_success():
+    now=_dt(2026,9,22,12)
+    hours,mode,cutoff=_window_for(now,{
+        "last_run_at":_dt(2026,9,22,10).isoformat(),
+        "last_successful_scan_at":_dt(2026,9,13,19).isoformat(),
+    })
+    assert mode=="incremental"
+    assert cutoff==_dt(2026,9,22,10)
+    assert hours==2
+
+
 def test_missed_two_hour_run_is_caught_up():
     now=_dt(2026,9,22,11)
     hours,mode,cutoff=_window_for(now,{"last_successful_scan_at":_dt(2026,9,22,7).isoformat()})
