@@ -3,7 +3,7 @@ import argparse,json
 from datetime import datetime,timezone
 from pathlib import Path
 from app.daily_runner import run as discover_and_filter
-from app.jd_finalizer import finalize_report
+from app.source_window_finalizer import finalize_report_by_source
 from app.batch_prepare import prepare
 from app.job_ledger import load_ledger,save_ledger,record_seen,retryable_jobs,retry_metadata,_lookup
 from app.application_queue import build as build_application_queue
@@ -87,7 +87,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  queue_rel=f"generated/cycles/{stamp}_application_queue.json"
  discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours)
  _write(eligible_rel,discovery)
- finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now)
+ finalized=finalize_report_by_source(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,source_hours=source_hours)
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
  retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
  finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
