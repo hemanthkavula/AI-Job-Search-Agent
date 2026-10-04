@@ -72,42 +72,19 @@ DATA_ENGINEERING_JD_SIGNALS=(
 
 def jd_is_data_engineering(description):
     text=_clean(description)
-    # Require several independent DE signals for adjacent titles so a single generic
-    # technology mention does not turn an unrelated role into a Data Engineering job.
     hits={signal for signal in DATA_ENGINEERING_JD_SIGNALS if signal in text}
     return len(hits)>=3
 
 def title_is_target(title,description=""):
     t=_title_for_match(title)
-    # Role-family exclusions take precedence over technology/specialty wording.
-    # Titles such as "Solutions Architect - Data Engineering" and "Engineering
-    # Manager - Pipelines" are not individual-contributor Data Engineer roles.
     if re.search(r"\b(manager|director|architect|consultant)\b",t,re.I):return False
-    # User's governing title rule: if the title contains the phrase "data engineer"
-    # anywhere as words, it belongs to the target family. Prefixes/suffixes and
-    # specializations do not disqualify it (e.g. Senior Data Engineer - Airflow,
-    # AWS Data Engineer, Data Engineer II, Lead Data Engineer / Snowflake).
     if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
-    # Explicit non-DE role families always lose, even when their JDs contain many
-    # data-platform keywords. This prevents sales/management/solutions roles from
-    # entering the resume/application pipeline merely because they discuss Spark,
-    # Databricks, warehouses, governance, etc.
-    # Analytics Engineer is part of the user's target family when the JD actually
-    # describes data-engineering work. Do not require the literal "Data Engineer"
-    # phrase when pipelines/ETL/warehousing/Spark/etc. provide strong evidence.
     if re.search(r"\banalytics engineer\b",t,re.I):
         return jd_is_data_engineering(description)
-    # Software/Platform engineering titles can also be DE work when both the title
-    # is explicitly data-oriented and the JD has strong independent DE signals.
     if re.search(r"\bsoftware engineer\b",t,re.I) and any(x in t for x in ("data platform","data infrastructure","data pipeline","data warehouse")):
         return jd_is_data_engineering(description)
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
-    # Keep a small adjacent DE-family set for titles that do not literally contain
-    # "data engineer", such as Data Platform Engineer.
     if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
-    # Only adjacent *engineering* titles may qualify from JD evidence. A generic
-    # consultant, sales, GTM, manager, or other non-engineering title must never
-    # enter the DE pipeline merely because its JD mentions Databricks/SQL/etc.
     adjacent_engineering_title = (
         "engineer" in t
         and any(marker in t for marker in ("data", "analytics", "etl", "warehouse", "pipeline", "integration"))
@@ -117,16 +94,12 @@ def title_is_target(title,description=""):
 def _description_has_us_location(description):
     text=_clean(description)
     if any(marker in text for marker in US_MARKERS):return True
-    # Do not scan arbitrary JD prose for two-letter state abbreviations: words such
-    # as IN/OR can look like state codes. Full state/city names are safe evidence.
     if any(re.search(rf"\b{re.escape(state)}\b",text) for state in US_STATE_NAMES):return True
     if any(re.search(rf"\b{re.escape(city)}\b",text) for city in US_CITY_MARKERS):return True
     return False
 
 def _description_has_non_us_location(description):
     text=_clean(description)
-    # Match whole location tokens/phrases so a country such as "india" does not
-    # accidentally match a valid U.S. city such as "Indianapolis".
     return any(_has_bounded_marker(text,marker) for marker in NON_US_MARKERS)
 
 def location_is_us(location,source=None,description=""):
@@ -137,18 +110,11 @@ def location_is_us(location,source=None,description=""):
         return src=="dice"
     loc=_clean(raw)
     if any(marker in loc for marker in US_MARKERS):return True
-    # Explicit foreign location metadata is stronger than incidental state-code-like
-    # text and must be rejected before abbreviation checks. Match on token boundaries
-    # so "india" does not falsely reject "Indianapolis, IN".
     if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):return False
     if US_STATE_RE.search(raw):return True
-    # Some ATS providers return only a US city (e.g. "San Francisco") without
-    # state/country. Accept known unambiguous US city names instead of rejecting them.
     parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
     if any(city in parts for city in US_CITY_MARKERS):return True
     if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
-    # Generic remote metadata is only acceptable when the JD establishes U.S.
-    # scope. Dice remains a special case because its configured search is U.S.-scoped.
     if loc in {"remote","remote - remote","multiple locations"} or loc.startswith("remote "):
         if _description_has_us_location(description):return True
         if _description_has_non_us_location(description):return False
@@ -158,17 +124,11 @@ def location_is_us(location,source=None,description=""):
 def employment_is_target(employment_type, description=""):
     employment=_clean(employment_type);text=_clean(f"{employment_type or ''} {description or ''}")
     if any(re.search(pattern,text) for pattern in EMPLOYMENT_REJECT_PATTERNS):return False
-    # Explicit contract metadata always loses to incidental W-2 wording. W-2 can
-    # describe payroll mechanics for a temporary contract; the target is permanent/full-time.
     if any(marker in employment for marker in CONTRACT_MARKERS):return False
     if re.search(r"\bw-?2\b",text):return True
     if any(marker in employment for marker in EMPLOYMENT_ACCEPT_MARKERS):return True
     if any(marker in employment for marker in CONTRACT_MARKERS):return False
     if any(marker in text for marker in ("full-time","full time","fulltime","regular employee","permanent position")):return True
-    # ATS metadata is often a department/category rather than an employment type
-    # (e.g. "Experienced", "Engineering", "New York"). Unknown metadata must not
-    # become a false rejection when the official JD contains no contract/temporary
-    # evidence. Treat it like unknown; explicit reject patterns above still win.
     return True
 
 def work_authorization_restriction(description="",title=""):
@@ -184,8 +144,10 @@ def passes_hard_filters(job:dict,profile:dict):
     2) United States location scope
     3) Full-time/W-2 employment target
     4) Experience requirement must fit the configured target window
-    5) Future sponsorship must not be explicitly unavailable
-    6) Explicit citizenship/clearance restrictions are rejected
+    5) Explicit citizenship/clearance restrictions are rejected
+
+    Sponsorship is deliberately not an eligibility criterion. Any sponsorship
+    wording in the posting is informational only and never rejects or holds a job.
     """
     reasons=[]
     if employer_is_excluded(job.get("company") or job.get("company_key")):
@@ -199,8 +161,6 @@ def passes_hard_filters(job:dict,profile:dict):
     eligibility=two_category_filter(job,profile)
     if not eligibility["experience"]["eligible"]:
         reasons.append(f"experience requirement not met: {eligibility['experience']['required_years']} years required")
-    if eligibility["sponsorship"]["eligible"] is False:
-        reasons.append("future H-1B sponsorship unavailable")
     if eligibility.get("citizenship",{}).get("eligible") is False:
         reasons.append("US citizenship required")
     if eligibility.get("clearance",{}).get("eligible") is False:
