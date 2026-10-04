@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import os
 import re
 import shutil
@@ -8,6 +9,9 @@ import subprocess
 import tempfile
 import time
 from docx import Document
+
+ROOT = Path(__file__).resolve().parents[1]
+WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
 
 
 def _find_office() -> str | None:
@@ -34,9 +38,6 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
         )
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    # Keep the LibreOffice user profile OUTSIDE the resume output directory.
-    # OneDrive-synced job folders can delay/lock profile files on Windows and cause
-    # soffice to exit successfully without leaving the requested PDF.
     profile_dir = Path(tempfile.mkdtemp(prefix="ai_job_resume_lo_"))
     profile_uri = profile_dir.resolve().as_uri()
     cmd = [
@@ -56,12 +57,18 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
     env = dict(os.environ)
     env["SAL_DISABLE_SYNCHRONOUS_PRINTER_DETECTION"] = "1"
     try:
-        proc = subprocess.run(cmd, check=False, timeout=90, capture_output=True, text=True, env=env)
-        detail = "\n".join(x.strip() for x in (proc.stdout, proc.stderr) if x and x.strip())
+        proc = subprocess.run(
+            cmd, check=False, timeout=90, capture_output=True, text=True, env=env
+        )
+        detail = "\n".join(
+            x.strip() for x in (proc.stdout, proc.stderr) if x and x.strip()
+        )
         if proc.returncode != 0:
-            return False, f"LibreOffice conversion failed (exit {proc.returncode}): {detail or 'no diagnostic output'}"
+            return False, (
+                f"LibreOffice conversion failed (exit {proc.returncode}): "
+                f"{detail or 'no diagnostic output'}"
+            )
 
-        # On Windows/OneDrive, filesystem visibility can lag behind soffice exit.
         for _ in range(20):
             if target.exists() and target.stat().st_size > 0:
                 return True, "ok"
@@ -81,6 +88,7 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
                 func(path)
             except OSError:
                 pass
+
         shutil.rmtree(profile_dir, onerror=_onerror)
 
 
@@ -94,7 +102,7 @@ def _conversion_attempt(src: Path, target: Path) -> tuple[bool, str]:
 
 
 def convert_docx_to_pdf_detailed(docx_path: str, attempts: int = 2) -> dict:
-    """Convert one approved DOCX and return persistent conversion diagnostics."""
+    """Convert the generated Word document to PDF and return conversion diagnostics."""
     src = Path(docx_path).resolve()
     max_attempts = max(1, attempts)
     result = {
@@ -102,6 +110,7 @@ def convert_docx_to_pdf_detailed(docx_path: str, attempts: int = 2) -> dict:
         "attempts": 0,
         "reason": None,
         "renderer": "libreoffice_headless",
+        "source_artifact": "docx",
     }
     if not src.exists() or src.stat().st_size == 0:
         result["reason"] = f"DOCX missing or empty: {src}"
@@ -133,30 +142,37 @@ def convert_docx_to_pdf(docx_path: str, attempts: int = 2) -> str | None:
 
 def _docx_signature(docx_path: str) -> dict:
     doc = Document(str(docx_path))
-    paragraphs = [re.sub(r"\s+", " ", p.text).strip() for p in doc.paragraphs if p.text.strip()]
+    paragraphs = [
+        re.sub(r"\s+", " ", p.text).strip()
+        for p in doc.paragraphs
+        if p.text.strip()
+    ]
     bullets = sum(
-        1 for p in doc.paragraphs
+        1
+        for p in doc.paragraphs
         if p.text.strip() and p.style and "List Bullet" in p.style.name
     )
-    names = {"PROFESSIONAL SUMMARY", "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE", "EDUCATION"}
+    names = {
+        "PROFESSIONAL SUMMARY",
+        "TECHNICAL SKILLS",
+        "PROFESSIONAL EXPERIENCE",
+        "EDUCATION",
+    }
     sections = [x.upper() for x in paragraphs if x.upper() in names]
     return {"paragraphs": paragraphs, "bullets": bullets, "sections": sections}
 
 
-def _pdf_text(pdf_path: str) -> tuple[str, int]:
+def _pdf_pages_text(pdf_path: str) -> list[str]:
     try:
         from pypdf import PdfReader
+
         reader = PdfReader(str(pdf_path))
-        text = "\n".join((p.extract_text() or "") for p in reader.pages)
-        return re.sub(r"\s+", " ", text).strip(), len(reader.pages)
+        return [re.sub(r"\s+", " ", (p.extract_text() or "")).strip() for p in reader.pages]
     except Exception:
-        return "", 0
+        return []
 
 
 def _tokens(text: str) -> list[str]:
-    # PDF extraction can split a source hyphenated word at a rendered line break
-    # (e.g. "e-commerce" -> "e- commerce"). Normalize only that extraction artifact
-    # before token comparison; real words/content are still required for parity.
     normalized = re.sub(r"(?<=[a-z0-9])-\s+(?=[a-z0-9])", "-", text.lower())
     return re.findall(r"[a-z0-9+#./%-]+", normalized)
 
@@ -166,26 +182,46 @@ def _paragraph_covered(paragraph: str, pdf_tokens: list[str]) -> bool:
     if not wanted:
         return True
     pdf_set = set(pdf_tokens)
-    # Short headings/labels should be exact token subsets. Longer material paragraphs
-    # may differ slightly in extraction while still containing the same rendered text.
     ratio = sum(1 for token in wanted if token in pdf_set) / len(wanted)
     threshold = 1.0 if len(wanted) <= 4 else 0.97
     return ratio >= threshold
 
 
+def _required_page_count() -> int:
+    try:
+        data = json.loads(WORD_FORMAT_PATH.read_text(encoding="utf-8"))
+        return int(data["content_budget"]["pdf_pages_required"])
+    except Exception:
+        return 2
+
+
 def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
+    """Validate that the PDF was created from the DOCX and preserves the two-page Word flow."""
+    required_pages = _required_page_count()
     if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size == 0:
         return {
-            "passed": False, "reason": "PDF was not created", "text_coverage": 0,
-            "sections_match": False, "page_count": 0,
+            "passed": False,
+            "reason": "PDF was not created",
+            "text_coverage": 0,
+            "sections_match": False,
+            "page_count": 0,
+            "required_page_count": required_pages,
+            "page_flow_match": False,
         }
 
     sig = _docx_signature(docx_path)
-    pdf_text, pages = _pdf_text(pdf_path)
+    page_texts = _pdf_pages_text(pdf_path)
+    pages = len(page_texts)
+    pdf_text = " ".join(page_texts).strip()
     if not pdf_text:
         return {
-            "passed": False, "reason": "PDF text could not be validated",
-            "text_coverage": 0, "sections_match": False, "page_count": pages,
+            "passed": False,
+            "reason": "PDF text could not be validated",
+            "text_coverage": 0,
+            "sections_match": False,
+            "page_count": pages,
+            "required_page_count": required_pages,
+            "page_flow_match": False,
         }
 
     pdf_tokens = _tokens(pdf_text)
@@ -194,16 +230,43 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     coverage = round(100 * matched / max(1, len(material)), 1)
 
     pdf_token_set = set(pdf_tokens)
-    sections_match = all(set(_tokens(s)).issubset(pdf_token_set) for s in sig["sections"])
-    passed = coverage >= 95 and sections_match and pages > 0
+    sections_match = all(
+        set(_tokens(section)).issubset(pdf_token_set) for section in sig["sections"]
+    )
+    page_count_match = pages == required_pages
 
+    first_page = page_texts[0].lower() if page_texts else ""
+    last_page = page_texts[-1].lower() if page_texts else ""
+    page_flow_match = bool(
+        page_count_match
+        and "professional experience" in first_page
+        and "fidelity investments" in first_page
+        and "target corporation" in last_page
+        and "education" in last_page
+    )
+
+    failures = []
+    if coverage < 95:
+        failures.append("DOCX/PDF material text mismatch")
+    if not sections_match:
+        failures.append("section mismatch")
+    if not page_count_match:
+        failures.append(f"expected exactly {required_pages} pages, got {pages}")
+    if page_count_match and not page_flow_match:
+        failures.append("two-page section flow does not match the Word template")
+
+    passed = not failures
     return {
         "passed": passed,
-        "reason": None if passed else "DOCX/PDF material text or section mismatch",
+        "reason": None if passed else "; ".join(failures),
         "text_coverage": coverage,
         "sections_match": sections_match,
         "docx_bullet_count": sig["bullets"],
         "sections": sig["sections"],
         "page_count": pages,
+        "required_page_count": required_pages,
+        "page_count_match": page_count_match,
+        "page_flow_match": page_flow_match,
         "renderer": "libreoffice_headless",
+        "source_artifact": "docx",
     }
