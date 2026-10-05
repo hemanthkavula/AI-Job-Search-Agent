@@ -21,5 +21,5 @@ def test_verified_long_tail_ats_becomes_ready_for_muse(monkeypatch,tmp_path):
     monkeypatch.setattr(batch_prepare,"validate_docx_pdf_parity",lambda docx,pdf:{"passed":True})
     rows=batch_prepare.prepare(str(report),str(out))
     assert rows[0]["next_action"]=="READY_TO_APPLY"
-    assert rows[0]["ats_audit"]["generation_source"]=="uploaded_master_zero_targets"
+    assert rows[0]["ats_audit"]["generation_source"]=="uploaded_master_conservative_fallback"
     assert "manual_application_required" not in rows[0]
