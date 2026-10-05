@@ -16,7 +16,7 @@ def test_uploaded_word_is_authoritative_format_record():
     assert record["source"]["authority"] == "user_uploaded_word_format_template"
     assert record["source"]["technical_content_authority"] is False
     assert record["source"]["sha256"] == EXPECTED_WORD_SHA256
-    assert record["source"]["pages"] == 2
+    assert record["source"]["pages"] == 2  # observation about the uploaded master, not a requirement
     assert record["style"]["font"] == "Calibri"
     assert record["style"]["body_pt"] == 10.0
     assert record["style"]["top_margin_in"] == 0.50
@@ -25,7 +25,10 @@ def test_uploaded_word_is_authoritative_format_record():
     assert record["style"]["right_margin_in"] == 0.50
     assert record["style"]["natural_pagination"] is True
     assert record["style"]["forced_page_breaks"] is False
-    assert record["content_budget"]["pdf_pages_required"] == 2
+    assert record["content_policy"]["hard_limits_enabled"] is False
+    assert record["content_policy"]["required_pdf_pages"] is None
+    assert record["content_policy"]["summary_character_limit"] is None
+    assert record["content_policy"]["skills_character_limit"] is None
 
 
 def test_fixed_personal_facts_exclude_master_technical_content():
@@ -103,9 +106,11 @@ def test_tailoring_prompt_uses_jd_not_template_technical_content():
     assert policy["every_technology_requires_current_jd_evidence"] is True
     assert policy["profile_argument_is_not_a_technical_source"] is True
     assert prompt["employer_cloud_credibility_policy"]["hard_constraint"] is True
+    assert prompt["structure_contract"]["fixed_page_count"] is None
+    assert prompt["structure_contract"]["skills_character_budget"] is None
 
 
-def test_master_payload_remains_zero_target_fallback_only():
+def test_master_payload_remains_conservative_fallback():
     payload = master_resume_payload()
     assert payload["_master_mode"] is True
     assert len(payload["experience"][0]["bullets"]) == 10
@@ -134,50 +139,89 @@ def test_renderer_reproduces_uploaded_word_format_contract(monkeypatch, tmp_path
     assert not any(p.paragraph_format.keep_with_next is True for p in doc.paragraphs)
 
 
-def test_jd_tailored_renderer_keeps_word_format_and_content_budget(monkeypatch, tmp_path):
-    monkeypatch.setattr(formatter, "ROOT", tmp_path)
-    monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
-    job = SimpleNamespace(company="Example Company", title="Senior Data Engineer")
-    generated = {
+def _generated_payload(long_content=False):
+    extra = (
+        " This additional detail is intentionally long so the renderer proves that content is not rejected merely because it wraps onto additional lines or pages."
+        if long_content
+        else ""
+    )
+    skills = {
+        "Programming & Query Languages": ["Python", "SQL"],
+        "ETL/ELT & Orchestration": ["Airflow", "ETL"],
+        "Data Quality": ["Data Quality"],
+    }
+    if long_content:
+        skills.update(
+            {
+                f"Additional Technical Category {i}": [
+                    "Apache Spark",
+                    "Kafka",
+                    "Snowflake",
+                    "Data Modeling",
+                    "Data Governance",
+                    "Data Lineage",
+                    "Performance Tuning",
+                ]
+                for i in range(1, 15)
+            }
+        )
+    return {
         "summary": (
-            "Senior Data Engineer focused on Python, SQL, and Airflow for reliable data pipelines and production integrations. Designs maintainable ETL workflows and data-quality controls.\n\n"
+            "Senior Data Engineer focused on Python, SQL, and Airflow for reliable data pipelines and production integrations. Designs maintainable ETL workflows and data-quality controls."
+            + extra
+            + "\n\n"
             "Builds batch and orchestration patterns with Python, SQL, and Airflow. Partners with engineering teams to deliver reliable, governed data products."
+            + extra
         ),
-        "skills": {
-            "Programming & Query Languages": ["Python", "SQL"],
-            "ETL/ELT & Orchestration": ["Airflow", "ETL"],
-            "Data Quality": ["Data Quality"],
-        },
+        "skills": skills,
         "experience": [
             {
                 "company": "Fidelity Investments",
                 "bullets": [
-                    f"Built Python and SQL ETL pipelines with Airflow for reliable financial data processing workflow {i}."
+                    f"Built Python and SQL ETL pipelines with Airflow for reliable financial data processing workflow {i}.{extra}"
                     for i in range(1, 11)
                 ],
-                "environment": "Python, SQL, Airflow, ETL",
+                "environment": "Python, SQL, Airflow, ETL" + (", Apache Spark, Kafka, Snowflake, Data Modeling, Data Governance" if long_content else ""),
             },
             {
                 "company": "Cigna Healthcare",
                 "bullets": [
-                    f"Developed Python and SQL data integrations with Airflow and data quality controls for healthcare workflow {i}."
+                    f"Developed Python and SQL data integrations with Airflow and data quality controls for healthcare workflow {i}.{extra}"
                     for i in range(1, 9)
                 ],
-                "environment": "Python, SQL, Airflow, Data Quality",
+                "environment": "Python, SQL, Airflow, Data Quality" + (", Apache Spark, Kafka, Snowflake, Data Modeling, Data Governance" if long_content else ""),
             },
             {
                 "company": "Target Corporation",
                 "bullets": [
-                    f"Implemented Python and SQL batch processing with Airflow for maintainable retail ETL workflow {i}."
+                    f"Implemented Python and SQL batch processing with Airflow for maintainable retail ETL workflow {i}.{extra}"
                     for i in range(1, 9)
                 ],
-                "environment": "Python, SQL, Airflow, ETL",
+                "environment": "Python, SQL, Airflow, ETL" + (", Apache Spark, Kafka, Snowflake, Data Modeling, Data Governance" if long_content else ""),
             },
         ],
     }
-    path = formatter.render_llm_resume(job, {}, generated, output_dir="resumes")
+
+
+def test_jd_tailored_renderer_keeps_word_format(monkeypatch, tmp_path):
+    monkeypatch.setattr(formatter, "ROOT", tmp_path)
+    monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
+    job = SimpleNamespace(company="Example Company", title="Senior Data Engineer")
+    path = formatter.render_llm_resume(job, {}, _generated_payload(), output_dir="resumes")
     result = formatter.validate_master_format_contract(path)
     assert result["passed"], result["reasons"]
     text = "\n".join(p.text for p in Document(path).paragraphs)
     assert "Python, SQL, Airflow" in text
     assert not any(p.paragraph_format.page_break_before is True for p in Document(path).paragraphs)
+
+
+def test_renderer_allows_long_content_and_extra_skill_rows(monkeypatch, tmp_path):
+    monkeypatch.setattr(formatter, "ROOT", tmp_path)
+    monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
+    job = SimpleNamespace(company="Example Company", title="Senior Data Engineer")
+    path = formatter.render_llm_resume(job, {}, _generated_payload(long_content=True), output_dir="resumes")
+    result = formatter.validate_master_format_contract(path)
+    assert result["passed"], result["reasons"]
+    assert result["content_length_policy"] == "unbounded_natural_pagination"
+    text = "\n".join(p.text for p in Document(path).paragraphs)
+    assert "Additional Technical Category 14" in text
