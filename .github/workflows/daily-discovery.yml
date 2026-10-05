@@ -149,13 +149,27 @@ jobs:
           if [ -z "$DASHBOARD_SYNC_TOKEN" ]; then
             echo "DASHBOARD_SYNC_TOKEN is not configured; skipping dashboard sync."
           else
-            tar -czf dashboard-sync.tgz generated/
-            curl --fail --show-error --silent --retry 3 --retry-delay 5 \
-              -X POST \
-              -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
-              -H "Content-Type: application/gzip" \
-              --data-binary @dashboard-sync.tgz \
-              "$DASHBOARD_SYNC_URL"
+            # The hosted dashboard only consumes the ledger, cycle snapshots and
+            # resume artifacts. Discovery state such as seen_jobs.json belongs on
+            # the runner/cache and must never be copied into the Railway volume.
+            SYNC_PATHS=()
+            [ -f generated/job_ledger.json ] && SYNC_PATHS+=(generated/job_ledger.json)
+            [ -d generated/cycles ] && SYNC_PATHS+=(generated/cycles)
+            [ -d generated/resumes ] && SYNC_PATHS+=(generated/resumes)
+
+            if [ ${#SYNC_PATHS[@]} -eq 0 ]; then
+              echo "No dashboard state exists to sync."
+            else
+              tar -czf dashboard-sync.tgz "${SYNC_PATHS[@]}"
+              if ! curl --fail --show-error --silent --retry 3 --retry-delay 5 \
+                -X POST \
+                -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
+                -H "Content-Type: application/gzip" \
+                --data-binary @dashboard-sync.tgz \
+                "$DASHBOARD_SYNC_URL"; then
+                echo "::warning::Hosted dashboard sync failed after retries. Production discovery and resume processing completed successfully; dashboard publishing can recover on the next run."
+              fi
+            fi
           fi
 
       - uses: actions/upload-artifact@v4
