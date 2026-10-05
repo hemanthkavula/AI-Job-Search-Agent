@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
 import time
-from docx import Document
 
-ROOT = Path(__file__).resolve().parents[1]
-WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
+from docx import Document
 
 
 def _find_office() -> str | None:
@@ -19,8 +16,8 @@ def _find_office() -> str | None:
     candidates = [
         shutil.which("libreoffice"),
         shutil.which("soffice"),
-        r"C:\\Program Files\\LibreOffice\\program\\soffice.exe",
-        r"C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
+        r"C:\Program Files\LibreOffice\program\soffice.exe",
+        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
     ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
@@ -58,7 +55,12 @@ def _native_convert(src: Path, target: Path) -> tuple[bool, str]:
     env["SAL_DISABLE_SYNCHRONOUS_PRINTER_DETECTION"] = "1"
     try:
         proc = subprocess.run(
-            cmd, check=False, timeout=90, capture_output=True, text=True, env=env
+            cmd,
+            check=False,
+            timeout=90,
+            capture_output=True,
+            text=True,
+            env=env,
         )
         detail = "\n".join(
             x.strip() for x in (proc.stdout, proc.stderr) if x and x.strip()
@@ -147,11 +149,6 @@ def _docx_signature(docx_path: str) -> dict:
         for p in doc.paragraphs
         if p.text.strip()
     ]
-    bullets = sum(
-        1
-        for p in doc.paragraphs
-        if p.text.strip() and p.style and "List Bullet" in p.style.name
-    )
     names = {
         "PROFESSIONAL SUMMARY",
         "TECHNICAL SKILLS",
@@ -159,7 +156,7 @@ def _docx_signature(docx_path: str) -> dict:
         "EDUCATION",
     }
     sections = [x.upper() for x in paragraphs if x.upper() in names]
-    return {"paragraphs": paragraphs, "bullets": bullets, "sections": sections}
+    return {"paragraphs": paragraphs, "sections": sections}
 
 
 def _pdf_pages_text(pdf_path: str) -> list[str]:
@@ -167,7 +164,10 @@ def _pdf_pages_text(pdf_path: str) -> list[str]:
         from pypdf import PdfReader
 
         reader = PdfReader(str(pdf_path))
-        return [re.sub(r"\s+", " ", (p.extract_text() or "")).strip() for p in reader.pages]
+        return [
+            re.sub(r"\s+", " ", (page.extract_text() or "")).strip()
+            for page in reader.pages
+        ]
     except Exception:
         return []
 
@@ -187,17 +187,13 @@ def _paragraph_covered(paragraph: str, pdf_tokens: list[str]) -> bool:
     return ratio >= threshold
 
 
-def _required_page_count() -> int:
-    try:
-        data = json.loads(WORD_FORMAT_PATH.read_text(encoding="utf-8"))
-        return int(data["content_budget"]["pdf_pages_required"])
-    except Exception:
-        return 2
-
-
 def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
-    """Validate that the PDF was created from the DOCX and preserves the two-page Word flow."""
-    required_pages = _required_page_count()
+    """Validate DOCX→PDF integrity without imposing a page-count requirement.
+
+    The user's master resume controls visual formatting (font, color, margins,
+    paragraph spacing, section structure). Pagination is natural: 2, 3, or more
+    pages are all acceptable when the tailored content needs them.
+    """
     if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size == 0:
         return {
             "passed": False,
@@ -205,8 +201,10 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "text_coverage": 0,
             "sections_match": False,
             "page_count": 0,
-            "required_page_count": required_pages,
-            "page_flow_match": False,
+            "required_page_count": None,
+            "page_count_match": True,
+            "page_flow_match": True,
+            "pagination_policy": "natural_non_blocking",
         }
 
     sig = _docx_signature(docx_path)
@@ -220,29 +218,20 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "text_coverage": 0,
             "sections_match": False,
             "page_count": pages,
-            "required_page_count": required_pages,
-            "page_flow_match": False,
+            "required_page_count": None,
+            "page_count_match": True,
+            "page_flow_match": True,
+            "pagination_policy": "natural_non_blocking",
         }
 
     pdf_tokens = _tokens(pdf_text)
-    material = [p for p in sig["paragraphs"] if len(p) >= 8]
-    matched = sum(1 for p in material if _paragraph_covered(p, pdf_tokens))
+    material = [paragraph for paragraph in sig["paragraphs"] if len(paragraph) >= 8]
+    matched = sum(1 for paragraph in material if _paragraph_covered(paragraph, pdf_tokens))
     coverage = round(100 * matched / max(1, len(material)), 1)
 
     pdf_token_set = set(pdf_tokens)
     sections_match = all(
         set(_tokens(section)).issubset(pdf_token_set) for section in sig["sections"]
-    )
-    page_count_match = pages == required_pages
-
-    first_page = page_texts[0].lower() if page_texts else ""
-    last_page = page_texts[-1].lower() if page_texts else ""
-    page_flow_match = bool(
-        page_count_match
-        and "professional experience" in first_page
-        and "fidelity investments" in first_page
-        and "target corporation" in last_page
-        and "education" in last_page
     )
 
     failures = []
@@ -250,10 +239,6 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         failures.append("DOCX/PDF material text mismatch")
     if not sections_match:
         failures.append("section mismatch")
-    if not page_count_match:
-        failures.append(f"expected exactly {required_pages} pages, got {pages}")
-    if page_count_match and not page_flow_match:
-        failures.append("two-page section flow does not match the Word template")
 
     passed = not failures
     return {
@@ -261,12 +246,12 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "reason": None if passed else "; ".join(failures),
         "text_coverage": coverage,
         "sections_match": sections_match,
-        "docx_bullet_count": sig["bullets"],
         "sections": sig["sections"],
         "page_count": pages,
-        "required_page_count": required_pages,
-        "page_count_match": page_count_match,
-        "page_flow_match": page_flow_match,
+        "required_page_count": None,
+        "page_count_match": True,
+        "page_flow_match": True,
+        "pagination_policy": "natural_non_blocking",
         "renderer": "libreoffice_headless",
         "source_artifact": "docx",
     }
