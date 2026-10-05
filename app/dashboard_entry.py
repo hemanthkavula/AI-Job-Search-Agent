@@ -9,6 +9,23 @@ import uvicorn
 from app.dashboard import STATE_DIR, app
 
 
+def _path_size(path: Path) -> int:
+    if path.is_file():
+        try:
+            return path.stat().st_size
+        except OSError:
+            return 0
+    total = 0
+    if path.is_dir():
+        for child in path.rglob("*"):
+            if child.is_file():
+                try:
+                    total += child.stat().st_size
+                except OSError:
+                    pass
+    return total
+
+
 @app.on_event("startup")
 def cleanup_dashboard_persistent_state() -> None:
     """Remove discovery-only state that older dashboard syncs persisted by mistake."""
@@ -23,15 +40,25 @@ def cleanup_dashboard_persistent_state() -> None:
             path.unlink()
             removed.append({"name": name, "bytes": size})
 
+    storage_breakdown = []
+    try:
+        for path in sorted(state_dir.iterdir(), key=lambda item: item.name):
+            storage_breakdown.append({"name": path.name, "bytes": _path_size(path)})
+    except OSError as exc:
+        storage_breakdown = [{"error": str(exc)}]
+
     try:
         usage = shutil.disk_usage(state_dir)
         free_bytes = usage.free
+        total_bytes = usage.total
     except OSError:
         free_bytes = None
+        total_bytes = None
 
     print(
         "Dashboard mounted-volume cleanup: "
-        f"removed={removed or 'none'}; free_bytes={free_bytes}"
+        f"removed={removed or 'none'}; free_bytes={free_bytes}; total_bytes={total_bytes}; "
+        f"top_level={storage_breakdown}"
     )
 
 
