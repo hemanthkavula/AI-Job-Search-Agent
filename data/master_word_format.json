@@ -67,17 +67,20 @@
     "right_aligned_dates": true,
     "selective_phrase_bold": true
   },
-  "content_budget": {
+  "content_policy": {
+    "hard_limits_enabled": false,
+    "pagination": "natural",
+    "required_pdf_pages": null,
+    "summary_density_threshold": null,
+    "summary_character_limit": null,
+    "skills_character_limit": null,
+    "skills_row_limit": null,
+    "bullet_word_limit": null,
+    "environment_character_limit": null,
     "summary_paragraphs": 2,
-    "summary_total_max_chars": 950,
-    "skills_max_rows": 12,
-    "skills_total_max_chars": 1050,
-    "skills_max_terms_per_row": 7,
     "fidelity_bullets": 10,
     "cigna_bullets": 8,
     "target_bullets": 8,
-    "bullet_max_words": 34,
-    "environment_max_chars": 170,
-    "pdf_pages_required": 2
+    "note": "The master Word document is authoritative for visual formatting and structural shape only. Tailored content may expand naturally to any page count."
   }
 }
