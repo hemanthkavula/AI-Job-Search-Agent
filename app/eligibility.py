@@ -111,10 +111,10 @@ CLEARANCE_PATTERNS=(
 )
 
 CLEARANCE_REGEX_PATTERNS=(
- r"requires?[^.]{0,100}(?:candidate|applicant|employee|hired candidate)?[^.]{0,80}(?:to )?(?:have|hold|possess|obtain|maintain)[^.]{0,100}(?:security )?clearance",
- r"(?:have|hold|possess|obtain|maintain)[^.]{0,80}(?:top secret(?:/sci)?|ts/sci|secret|sci)[^.]{0,60}(?:clearance)?",
- r"(?:minimum|following|required)[^.]{0,100}clearance(?:\(s\))?[^.]{0,120}(?:top secret|ts/sci|secret|sci|polygraph)",
- r"(?:top secret(?:/sci)?|ts/sci|secret|sci)[^.;]{0,80}(?:polygraph|security clearance|clearance required)",
+ r"\brequires?\b[^.]{0,100}(?:candidate|applicant|employee|hired candidate)?[^.]{0,80}(?:to )?\b(?:have|hold|possess|obtain|maintain)\b[^.]{0,100}(?:security )?\bclearance\b",
+ r"\b(?:have|hold|possess|obtain|maintain)\b[^.]{0,80}(?:\btop secret\b(?:/sci)?|\bts/sci\b|\bsecret\b|\bsci\b)[^.]{0,60}(?:\bclearance\b)?",
+ r"\b(?:minimum|following|required)\b[^.]{0,100}\bclearance(?:\(s\))?\b[^.]{0,120}(?:\btop secret\b|\bts/sci\b|\bsecret\b|\bsci\b|\bpolygraph\b)",
+ r"(?:\btop secret\b(?:/sci)?|\bts/sci\b|\bsecret\b|\bsci\b)[^.;]{0,80}(?:\bpolygraph\b|\bsecurity clearance\b|\bclearance required\b)",
 )
 
 def citizenship_check(job: dict, profile: dict) -> dict:
