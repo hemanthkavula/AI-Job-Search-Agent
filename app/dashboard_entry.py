@@ -26,19 +26,37 @@ def _path_size(path: Path) -> int:
     return total
 
 
+def _remove_file(path: Path, removed: list[dict]) -> None:
+    if not path.exists() or not path.is_file():
+        return
+    try:
+        size = path.stat().st_size
+        path.unlink()
+        removed.append({"name": str(path.relative_to(STATE_DIR)), "bytes": size})
+    except OSError as exc:
+        print(f"WARNING: dashboard storage cleanup could not remove {path}: {exc}")
+
+
 @app.on_event("startup")
 def cleanup_dashboard_persistent_state() -> None:
-    """Remove discovery-only state that older dashboard syncs persisted by mistake."""
+    """Keep Railway dashboard state bounded without deleting dashboard history.
+
+    Production/debug discovery snapshots (*_eligible.json and *_finalized.json)
+    can be hundreds of MB and are retained in GitHub run artifacts. The hosted
+    dashboard only needs cycle summaries, manifests/application queues, the
+    ledger and generated resume artifacts.
+    """
     state_dir = Path(STATE_DIR)
     state_dir.mkdir(parents=True, exist_ok=True)
 
-    removed = []
-    for name in ("seen_jobs.json",):
-        path = state_dir / name
-        if path.exists() and path.is_file():
-            size = path.stat().st_size
-            path.unlink()
-            removed.append({"name": name, "bytes": size})
+    removed: list[dict] = []
+    _remove_file(state_dir / "seen_jobs.json", removed)
+
+    cycles = state_dir / "cycles"
+    if cycles.exists():
+        for pattern in ("*_eligible.json", "*_finalized.json"):
+            for path in cycles.glob(pattern):
+                _remove_file(path, removed)
 
     storage_breakdown = []
     try:
@@ -55,9 +73,11 @@ def cleanup_dashboard_persistent_state() -> None:
         free_bytes = None
         total_bytes = None
 
+    removed_bytes = sum(item.get("bytes", 0) for item in removed)
     print(
         "Dashboard mounted-volume cleanup: "
-        f"removed={removed or 'none'}; free_bytes={free_bytes}; total_bytes={total_bytes}; "
+        f"removed_files={len(removed)}; removed_bytes={removed_bytes}; "
+        f"free_bytes={free_bytes}; total_bytes={total_bytes}; "
         f"top_level={storage_breakdown}"
     )
 
