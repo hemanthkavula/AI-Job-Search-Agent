@@ -38,10 +38,10 @@ def test_base_resume_fallback_uses_current_job_metadata(monkeypatch):
     assert "Lead_Data_Engineer" in path
 
 
-def test_incomplete_but_usable_jd_with_targets_requires_tailoring():
+def test_incomplete_but_usable_jd_uses_master_resume():
     raw={"tailoring_mode":"BASE_RESUME_CONSERVATIVE","description_usable":True}
     coverage_plan={"target_count":4,"must_cover_terms":["Python","SQL"],"preferred_terms":["AWS Glue","S3"]}
-    assert batch_prepare._should_use_master_resume(raw,coverage_plan) is False
+    assert batch_prepare._should_use_master_resume(raw,coverage_plan) is True
 
 
 def test_zero_target_jd_may_use_master_resume():
