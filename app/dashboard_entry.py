@@ -3,10 +3,16 @@ from __future__ import annotations
 import argparse
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 import uvicorn
 
-from app.dashboard import STATE_DIR, app
+import app.dashboard as dashboard
+from app.job_identity import identity_keys
+
+STATE_DIR = dashboard.STATE_DIR
+app = dashboard.app
+_ORIGINAL_JOBS = dashboard._jobs
 
 
 def _path_size(path: Path) -> int:
@@ -35,6 +41,170 @@ def _remove_file(path: Path, removed: list[dict]) -> None:
         removed.append({"name": str(path.relative_to(STATE_DIR)), "bytes": size})
     except OSError as exc:
         print(f"WARNING: dashboard storage cleanup could not remove {path}: {exc}")
+
+
+def _history_identity(row: dict) -> str:
+    """Prefer immutable stored job IDs; fall back to normal cross-source identity."""
+    explicit = str(
+        row.get("key")
+        or row.get("job_key")
+        or row.get("external_id")
+        or row.get("job_id")
+        or ""
+    ).strip()
+    if explicit:
+        return f"key:{explicit}"
+    try:
+        aliases = identity_keys(row)
+    except Exception:
+        aliases = []
+    if aliases:
+        return aliases[0]
+    company = str(row.get("company") or row.get("company_name") or "").strip().lower()
+    title = str(row.get("title") or row.get("job_title") or "").strip().lower()
+    return f"name:{company}|{title}"
+
+
+def _jobs_with_history() -> list[dict]:
+    """Return current jobs plus preserved historical dashboard application rows.
+
+    The production ledger is a moving operational state and can legitimately have
+    zero active rows after a later run. The dashboard, however, is an application
+    manager: All Dates must continue to show applied jobs and jobs that previously
+    reached READY_TO_APPLY. Those immutable rows live in confirmed_applications.json
+    and per-cycle manifest/application-queue snapshots.
+    """
+    current = list(_ORIGINAL_JOBS())
+    hidden = dashboard._hidden_keys()
+    ledger = dashboard._json(dashboard.LEDGER, {"jobs": {}})
+    ledger_jobs = ledger.get("jobs") or {}
+    runs = dashboard._pipeline_runs()
+    _, confirmed = dashboard._confirmed_map()
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def add(item: dict, identity_row: dict | None = None) -> None:
+        identity = _history_identity(identity_row or item)
+        if identity in seen:
+            return
+        explicit_key = str(item.get("key") or "")
+        if explicit_key and explicit_key in hidden:
+            return
+        seen.add(identity)
+        out.append(item)
+
+    # 1) Live/current operational rows keep their current status and metadata.
+    for item in current:
+        key = str(item.get("key") or "")
+        add(item, ledger_jobs.get(key) or item)
+
+    # 2) Applied history is authoritative even if a later ledger no longer has
+    # an active copy of that job.
+    for hist in confirmed:
+        key = str(hist.get("job_key") or "").strip()
+        if not key or key in hidden:
+            continue
+        ledger_row = ledger_jobs.get(key) or {}
+        rp = dashboard._resume_path(ledger_row) or dashboard._resume_path_from_confirmed(hist)
+        status = str(hist.get("status") or "SUBMITTED_CONFIRMED")
+        submitted_at = hist.get("submitted_at") or ledger_row.get("submitted_at")
+        source = ledger_row.get("source") or hist.get("source") or ""
+        url = hist.get("url") or ledger_row.get("url") or (ledger_row.get("queue_item") or {}).get("url") or ""
+        portal_row = dict(ledger_row)
+        portal_row.setdefault("source", source)
+        portal_row.setdefault("url", url)
+        item = {
+            "key": key,
+            "company": hist.get("company") or ledger_row.get("company") or "Unknown company",
+            "title": hist.get("title") or ledger_row.get("title") or "Unknown role",
+            "status": status,
+            "stage": dashboard._stage(status),
+            "source": source,
+            "portal": dashboard._portal(portal_row),
+            "url": url,
+            "resume": rp.name if rp else None,
+            "resume_url": "/resume/" + quote(key, safe="") if rp else None,
+            "resume_available": bool(rp),
+            "updated": submitted_at or ledger_row.get("last_seen") or ledger_row.get("first_seen"),
+            "created": ledger_row.get("first_seen") or submitted_at,
+            "location": ledger_row.get("location") or hist.get("location") or "",
+            "pipeline": ledger_row.get("cycle_id") or dashboard._pipeline_for(submitted_at, runs),
+            "applied_at": submitted_at,
+            "reason": hist.get("reason") or ledger_row.get("application_reason") or "",
+        }
+        add(item, {**ledger_row, **hist, "key": key})
+
+    # 3) Preserve every historical application-ready row from cycle snapshots.
+    # Iterate newest first so duplicate identities keep their most recent copy.
+    for run in reversed(runs):
+        cycle_id = run.get("cycle_id")
+        if not cycle_id:
+            continue
+        for index, row in enumerate(dashboard._cycle_snapshot(cycle_id)):
+            if not isinstance(row, dict):
+                continue
+            stored_key = str(
+                row.get("job_key")
+                or row.get("key")
+                or row.get("external_id")
+                or row.get("job_id")
+                or ""
+            ).strip()
+            if stored_key and stored_key in hidden:
+                continue
+            ledger_row = ledger_jobs.get(stored_key) or {}
+            rp = dashboard._resume_path(row) or dashboard._resume_path(ledger_row)
+            status = str(row.get("next_action") or "READY_TO_APPLY")
+            created = (
+                row.get("created")
+                or row.get("first_seen")
+                or row.get("created_at")
+                or run.get("created")
+            )
+            source = row.get("source") or ledger_row.get("source") or ""
+            url = (
+                row.get("url")
+                or row.get("job_url")
+                or row.get("apply_url")
+                or ledger_row.get("url")
+                or (ledger_row.get("queue_item") or {}).get("url")
+                or ""
+            )
+            display_key = stored_key or f"historical:{cycle_id}:{index}"
+            portal_row = dict(ledger_row)
+            portal_row.update({"source": source, "url": url})
+            item = {
+                "key": display_key,
+                "company": row.get("company") or row.get("company_name") or ledger_row.get("company") or "Unknown company",
+                "title": row.get("title") or row.get("job_title") or ledger_row.get("title") or "Unknown role",
+                "status": status,
+                "stage": dashboard._stage(status),
+                "source": source,
+                "portal": dashboard._portal(portal_row),
+                "url": url,
+                "resume": rp.name if rp else None,
+                "resume_url": "/resume/" + quote(stored_key, safe="") if rp and stored_key else None,
+                "resume_available": bool(rp),
+                "updated": ledger_row.get("last_seen") or created,
+                "created": created,
+                "location": row.get("location") or ledger_row.get("location") or "",
+                "pipeline": cycle_id,
+                "applied_at": None,
+                "reason": ledger_row.get("application_reason") or "",
+            }
+            add(item, {**ledger_row, **row, "key": stored_key} if stored_key else row)
+
+    out.sort(
+        key=lambda item: item.get("updated") or item.get("applied_at") or item.get("created") or "",
+        reverse=True,
+    )
+    return out
+
+
+# dashboard.py's routes resolve the module-level _jobs symbol at request time, so
+# replacing it here repairs All Dates without duplicating or replacing API routes.
+dashboard._jobs = _jobs_with_history
 
 
 @app.on_event("startup")
