@@ -149,18 +149,35 @@ jobs:
           if [ -z "$DASHBOARD_SYNC_TOKEN" ]; then
             echo "DASHBOARD_SYNC_TOKEN is not configured; skipping dashboard sync."
           else
-            # The hosted dashboard only consumes the ledger, cycle snapshots and
-            # resume artifacts. Discovery state such as seen_jobs.json belongs on
-            # the runner/cache and must never be copied into the Railway volume.
-            SYNC_PATHS=()
-            [ -f generated/job_ledger.json ] && SYNC_PATHS+=(generated/job_ledger.json)
-            [ -d generated/cycles ] && SYNC_PATHS+=(generated/cycles)
-            [ -d generated/resumes ] && SYNC_PATHS+=(generated/resumes)
+            # Build a dashboard-only payload. Large eligible/finalized discovery
+            # reports remain in the GitHub cache/artifact and must never consume
+            # the small Railway dashboard volume.
+            rm -rf dashboard-sync
+            mkdir -p dashboard-sync/generated/cycles
 
-            if [ ${#SYNC_PATHS[@]} -eq 0 ]; then
+            if [ -f generated/job_ledger.json ]; then
+              cp generated/job_ledger.json dashboard-sync/generated/job_ledger.json
+            fi
+            if [ -d generated/resumes ]; then
+              cp -a generated/resumes dashboard-sync/generated/resumes
+            fi
+            if [ -d generated/cycles ]; then
+              shopt -s nullglob
+              for file in \
+                generated/cycles/*_summary.json \
+                generated/cycles/*_manifest.json \
+                generated/cycles/*_application_queue.json; do
+                cp "$file" dashboard-sync/generated/cycles/
+              done
+              shopt -u nullglob
+            fi
+
+            if [ ! -f dashboard-sync/generated/job_ledger.json ] && \
+               [ ! -d dashboard-sync/generated/resumes ] && \
+               [ -z "$(find dashboard-sync/generated/cycles -type f -print -quit)" ]; then
               echo "No dashboard state exists to sync."
             else
-              tar -czf dashboard-sync.tgz "${SYNC_PATHS[@]}"
+              tar -czf dashboard-sync.tgz -C dashboard-sync generated
               if ! curl --fail --show-error --silent --retry 3 --retry-delay 5 \
                 -X POST \
                 -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
