@@ -47,4 +47,4 @@ def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_p
     monkeypatch.setattr(jd_finalizer,"passes_hard_filters",lambda j,p:(True,[]))
     result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
     assert result["finalized"]==1
-    assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_after_official_ats_resolution"
+    assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_official_date_unavailable"
