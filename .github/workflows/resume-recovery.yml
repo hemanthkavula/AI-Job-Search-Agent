@@ -2,9 +2,6 @@ name: One-Time Resume Recovery
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/alpaca-title-date-repair.trigger
 
 permissions:
   actions: read
@@ -14,220 +11,33 @@ jobs:
   recover:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current project
-        uses: actions/checkout@v4
-
-      - name: Download run 264 artifact
+      - name: Download preserved production artifact
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 37445767864
-          artifact-ids: 11404468951
+          run-id: 36351041431
+          artifact-ids: 10942847714
           path: recovery
 
-      - name: Install document tooling
+      - name: Package resumes only
         run: |
-          python -m pip install --quiet lxml
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libreoffice-writer poppler-utils >/dev/null
+          test -d recovery/job-cycle-145/generated/resumes
+          cd recovery/job-cycle-145
+          zip -qr ../../resume-recovery.zip generated/resumes
+          echo "PDF_COUNT=$(find generated/resumes -type f -iname '*.pdf' | wc -l)" >> "$GITHUB_ENV"
+          echo "DOCX_COUNT=$(find generated/resumes -type f -iname '*.docx' | wc -l)" >> "$GITHUB_ENV"
 
-      - name: Rebuild Alpaca resume title and date rows
-        shell: bash
-        run: |
-          set -euo pipefail
-          DOCX=$(find recovery -type f -path '*/generated/resumes/alpaca_Staff_Analytics_Engineer_20261006_062226/Hemanth_Kavula_alpaca_Staff_Analytics_Engineer.docx' | head -1)
-          test -n "$DOCX"
-          export DOCX
-          python <<'PY'
-          import os, zipfile
-          from copy import deepcopy
-          from pathlib import Path
-          from lxml import etree
-
-          W_URI = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-          W = '{' + W_URI + '}'
-          NS = {'w': W_URI}
-          XMLSPACE = '{http://www.w3.org/XML/1998/namespace}space'
-          RIGHT_TAB_TWIPS = str(round(7.45 * 1440))
-
-          docx = Path(os.environ['DOCX'])
-          with zipfile.ZipFile(docx) as z:
-              out_root = etree.fromstring(z.read('word/document.xml'))
-
-          def paragraphs(root):
-              return root.xpath('.//w:body/w:p', namespaces=NS)
-
-          def text(p):
-              return ''.join(p.xpath('.//w:t/text()', namespaces=NS)).strip()
-
-          def run_style(p, bold=None):
-              fallback = None
-              for r in p.xpath('./w:r', namespaces=NS):
-                  if not r.xpath('./w:t', namespaces=NS):
-                      continue
-                  rp = r.find(W+'rPr')
-                  style = deepcopy(rp) if rp is not None else None
-                  if fallback is None:
-                      fallback = style
-                  if bold is None:
-                      return style
-                  has_bold = bool(r.xpath('./w:rPr/w:b|./w:rPr/w:bCs', namespaces=NS))
-                  if has_bold == bold:
-                      return style
-              return fallback
-
-          def ppr(p):
-              node = p.find(W+'pPr')
-              if node is None:
-                  node = etree.Element(W+'pPr')
-                  p.insert(0, node)
-              return node
-
-          def clear_runs(p):
-              for child in list(p):
-                  if child.tag != W+'pPr':
-                      p.remove(child)
-
-          def add_run(p, value, style=None):
-              r = etree.SubElement(p, W+'r')
-              if style is not None:
-                  r.append(deepcopy(style))
-              t = etree.SubElement(r, W+'t')
-              t.text = value
-              if value[:1].isspace() or value[-1:].isspace():
-                  t.set(XMLSPACE, 'preserve')
-
-          def add_tab(p):
-              r = etree.SubElement(p, W+'r')
-              etree.SubElement(r, W+'tab')
-
-          def set_right_tab(p):
-              pp = ppr(p)
-              old = pp.find(W+'tabs')
-              if old is not None:
-                  pp.remove(old)
-              tabs = etree.SubElement(pp, W+'tabs')
-              tab = etree.SubElement(tabs, W+'tab')
-              tab.set(W+'val', 'right')
-              tab.set(W+'pos', RIGHT_TAB_TWIPS)
-              jc = pp.find(W+'jc')
-              if jc is None:
-                  jc = etree.SubElement(pp, W+'jc')
-              jc.set(W+'val', 'left')
-              spacing = pp.find(W+'spacing')
-              if spacing is None:
-                  spacing = etree.SubElement(pp, W+'spacing')
-              spacing.set(W+'before', '0')
-              spacing.set(W+'after', '0')
-
-          def indices_for(company):
-              ps = paragraphs(out_root)
-              h = next(i for i,p in enumerate(ps) if text(p).startswith(company))
-              r = next(i for i in range(h+1, len(ps)) if text(ps[i]) == 'Roles & Responsibilities:')
-              return ps, h, r
-
-          experience = [
-              ('Fidelity Investments', 'Senior Data Engineer', 'Jan 2025 – Present'),
-              ('Cigna Healthcare', 'Data Engineer', 'Jan 2022 – Dec 2023'),
-              ('Target Corporation', 'Data Engineer', 'Jan 2020 – Dec 2021'),
-          ]
-          for company, title, dates in experience:
-              ps, h, r = indices_for(company)
-              title_p = next(p for p in ps[h+1:r] if text(p) == title)
-              header = ps[h]
-              title_style = run_style(title_p)
-              date_style = run_style(header, bold=False) or run_style(header)
-              set_right_tab(title_p)
-              clear_runs(title_p)
-              add_run(title_p, title, title_style)
-              add_tab(title_p)
-              add_run(title_p, dates, date_style)
-
-          school_p = next(p for p in paragraphs(out_root) if text(p).startswith('Rowan University'))
-          school_text = text(school_p)
-          school_style = run_style(school_p)
-          set_right_tab(school_p)
-          clear_runs(school_p)
-          add_run(school_p, school_text, school_style)
-          add_tab(school_p)
-          add_run(school_p, 'Jan 2024 – Dec 2025', school_style)
-
-          changed = 0
-          for p in paragraphs(out_root):
-              if not text(p).startswith('Skills:'):
-                  continue
-              for node in p.xpath('.//w:t', namespaces=NS):
-                  if (node.text or '') == 'Skills':
-                      node.text = 'Environment'
-                      changed += 1
-                      break
-          if changed != 3:
-              raise RuntimeError(f'Expected 3 Skills footers, changed {changed}')
-
-          # Structural assertions: title/date and education date share one paragraph with a right tab.
-          for company, title, dates in experience:
-              ps, h, r = indices_for(company)
-              tp = next(p for p in ps[h+1:r] if text(p) == title + dates)
-              if not tp.xpath('.//w:tab', namespaces=NS):
-                  raise RuntimeError(f'Missing right tab for {company}')
-          if text(school_p) != 'Rowan University | Glassboro, NJJan 2024 – Dec 2025':
-              raise RuntimeError('Education date row did not rebuild as expected')
-          if not school_p.xpath('.//w:tab', namespaces=NS):
-              raise RuntimeError('Missing right tab for education date')
-
-          xml = etree.tostring(out_root, xml_declaration=True, encoding='UTF-8', standalone='yes')
-          patched = docx.with_suffix('.patched.docx')
-          with zipfile.ZipFile(docx, 'r') as zin, zipfile.ZipFile(patched, 'w') as zout:
-              for info in zin.infolist():
-                  zout.writestr(info, xml if info.filename == 'word/document.xml' else zin.read(info.filename))
-          patched.replace(docx)
-          PY
-
-          DIR=$(dirname "$DOCX")
-          PDF="${DOCX%.docx}.pdf"
-          rm -f "$PDF"
-          libreoffice --headless --convert-to pdf --outdir "$DIR" "$DOCX" >/tmp/lo.log 2>&1 || { cat /tmp/lo.log; exit 1; }
-          test -s "$PDF"
-          PAGES=$(pdfinfo "$PDF" | awk '/^Pages:/ {print $2}')
-          test "$PAGES" = "2"
-          pdftotext -layout "$PDF" /tmp/alpaca.txt
-          grep -Fq 'Jan 2025' /tmp/alpaca.txt
-          grep -Fq 'Jan 2022' /tmp/alpaca.txt
-          grep -Fq 'Jan 2020' /tmp/alpaca.txt
-          grep -Fq 'Jan 2024' /tmp/alpaca.txt
-          test "$(grep -o 'Environment:' /tmp/alpaca.txt | wc -l)" -eq 3
-          ! grep -Fq 'Skills:' /tmp/alpaca.txt
-
-          BASE="${DOCX%%/generated/resumes/*}"
-          REL="${DOCX#${BASE}/}"
-          FOLDER=$(dirname "$REL")
-          (cd "$BASE" && zip -qr "$GITHUB_WORKSPACE/alpaca-resume-recovery.zip" "$FOLDER")
-          echo "LOCAL_SHA=$(sha256sum "$PDF" | awk '{print $1}')" >> "$GITHUB_ENV"
-
-      - name: Replace Alpaca resume on dashboard
+      - name: Restore resumes to dashboard
         env:
           DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
         run: |
-          set -euo pipefail
           test -n "$DASHBOARD_SYNC_TOKEN"
           RESPONSE=$(curl --fail --show-error --silent \
             -X POST \
             -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
             -H "Content-Type: application/zip" \
-            --data-binary @alpaca-resume-recovery.zip \
+            --data-binary @resume-recovery.zip \
             https://job-dashboard-production-7436.up.railway.app/api/recover-resumes)
           echo "$RESPONSE"
           export RESPONSE
-          python -c 'import json,os; d=json.loads(os.environ["RESPONSE"]); assert d.get("ok") is True and d.get("restored_files")==2, d'
-
-      - name: Verify dashboard serves regenerated Alpaca PDF
-        run: |
-          set -euo pipefail
-          curl --fail --show-error --silent \
-            'https://job-dashboard-production-7436.up.railway.app/resume/req%3Aalpaca%3An260224?title_date_repair=2' \
-            -o /tmp/dashboard-alpaca.pdf
-          REMOTE_SHA=$(sha256sum /tmp/dashboard-alpaca.pdf | awk '{print $1}')
-          echo "Local SHA:  $LOCAL_SHA"
-          echo "Remote SHA: $REMOTE_SHA"
-          test "$REMOTE_SHA" = "$LOCAL_SHA"
-          pdfinfo /tmp/dashboard-alpaca.pdf | grep '^Pages:'
+          python -c 'import json,os; d=json.loads(os.environ["RESPONSE"]); expected=int(os.environ["PDF_COUNT"])+int(os.environ["DOCX_COUNT"]); assert d.get("ok") is True and d.get("restored_files")==expected, (d,expected)'
