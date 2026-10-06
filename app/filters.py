@@ -153,30 +153,47 @@ def _questions_show_us_scope(text):
 def location_is_us(location,source=None,description="",application_questions=""):
     """Return True only when the vacancy itself is demonstrably U.S.-based.
 
-    Priority is explicit job location -> JD evidence for ambiguous/missing labels ->
-    application screening questions when supplied by the ATS. Explicit foreign
-    regions always win over incidental U.S. mentions in the description.
+    A source location label is useful evidence but is not always authoritative.
+    If a label is ambiguous, regional, global, or conflicts with richer posting
+    data, inspect the full JD and ATS application questions for explicit U.S.
+    vacancy scope. Incidental company/team/customer mentions of the U.S. never
+    count. If U.S. scope still cannot be demonstrated, reject the role.
     """
     raw=(location or "").strip()
     loc=_clean(raw)
+    richer_us_evidence=(
+        _description_has_us_location(description)
+        or _questions_show_us_scope(application_questions)
+    )
 
     if raw:
-        # Explicit non-U.S. or global labels are authoritative and must never be
-        # overridden by a company/team mention of the United States in the JD.
-        if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):return False
-        if any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS):return False
+        # Clear U.S. labels are sufficient by themselves.
         if any(marker in loc for marker in US_MARKERS):return True
         if US_STATE_RE.search(raw):return True
         parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
         if any(city in parts for city in US_CITY_MARKERS):return True
         if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
-        # Generic remote/multiple-location labels need positive U.S. evidence.
-        if loc in {"remote","remote - remote","multiple locations","various locations"} or loc.startswith("remote "):
-            return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
-        return False
 
-    # Missing location is never assumed U.S. based, including for job boards.
-    return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
+        # Regional/global/foreign source labels can be stale, coarse, or describe
+        # a posting family rather than the actual vacancy. Do not accept them on
+        # company nationality alone, but allow explicit vacancy-level evidence in
+        # the full JD or application questions to establish that this opening is
+        # U.S.-based. A generic "we have offices/employees in the USA" mention is
+        # deliberately ignored by _description_has_us_location().
+        if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):
+            return richer_us_evidence
+        if any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS):
+            return richer_us_evidence
+
+        # Generic remote/multiple-location and otherwise unclear labels also need
+        # positive U.S. vacancy evidence before they can pass.
+        if loc in {"remote","remote - remote","multiple locations","various locations"} or loc.startswith("remote "):
+            return richer_us_evidence
+        return richer_us_evidence
+
+    # Missing location is never assumed U.S.-based. It must be established from
+    # the richer employer posting or ATS application questions.
+    return richer_us_evidence
 
 def employment_is_target(employment_type, description=""):
     employment=_clean(employment_type);text=_clean(f"{employment_type or ''} {description or ''}")
