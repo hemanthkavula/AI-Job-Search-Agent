@@ -61,8 +61,16 @@ def _history_signature() -> tuple:
     return tuple(signature)
 
 
-def _history_identity(row: dict) -> str:
-    """Prefer immutable stored job IDs; fall back to normal cross-source identity."""
+def _history_identities(row: dict) -> list[str]:
+    """Return every useful alias so history/current copies collapse together.
+
+    Stored keys can change between pipeline stages (for example an ATS external
+    ID versus the canonical requisition key).  Treating the first explicit key
+    as the entire identity allowed the same Greenhouse job to appear twice in
+    All Dates.  Keep all aliases -- stored key, requisition, normalized URL and
+    semantic identity -- and consider a row duplicate when any alias matches.
+    """
+    identities: list[str] = []
     explicit = str(
         row.get("key")
         or row.get("job_key")
@@ -71,16 +79,16 @@ def _history_identity(row: dict) -> str:
         or ""
     ).strip()
     if explicit:
-        return f"key:{explicit}"
+        identities.append(f"key:{explicit}")
     try:
-        aliases = identity_keys(row)
+        identities.extend(identity_keys(row))
     except Exception:
-        aliases = []
-    if aliases:
-        return aliases[0]
+        pass
     company = str(row.get("company") or row.get("company_name") or "").strip().lower()
     title = str(row.get("title") or row.get("job_title") or "").strip().lower()
-    return f"name:{company}|{title}"
+    if company or title:
+        identities.append(f"name:{company}|{title}")
+    return list(dict.fromkeys(identity for identity in identities if identity))
 
 
 def _build_jobs_with_history() -> list[dict]:
@@ -96,13 +104,13 @@ def _build_jobs_with_history() -> list[dict]:
     seen: set[str] = set()
 
     def add(item: dict, identity_row: dict | None = None) -> None:
-        identity = _history_identity(identity_row or item)
-        if identity in seen:
+        identities = _history_identities(identity_row or item)
+        if identities and any(identity in seen for identity in identities):
             return
         explicit_key = str(item.get("key") or "")
         if explicit_key and explicit_key in hidden:
             return
-        seen.add(identity)
+        seen.update(identities)
         out.append(item)
 
     # 1) Live/current operational rows keep their current status and metadata.
