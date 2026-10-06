@@ -3,6 +3,10 @@ from pathlib import Path
 import app.pdf_export as pdf_export
 
 
+def _pagination_ok(_):
+    return {"passed": True, "reasons": [], "policy": "test pagination stub"}
+
+
 def test_pdf_conversion_retries_same_docx(monkeypatch,tmp_path):
     src=tmp_path/"resume.docx"
     src.write_bytes(b"docx")
@@ -15,6 +19,7 @@ def test_pdf_conversion_retries_same_docx(monkeypatch,tmp_path):
         target.write_bytes(b"%PDF-test")
         return True,"ok"
 
+    monkeypatch.setattr(pdf_export,"enforce_experience_start_rule",_pagination_ok)
     monkeypatch.setattr(pdf_export,"_conversion_attempt",fake_attempt)
     monkeypatch.setattr(pdf_export.time,"sleep",lambda _:None)
 
@@ -29,6 +34,7 @@ def test_pdf_conversion_retries_same_docx(monkeypatch,tmp_path):
 def test_pdf_conversion_does_not_claim_success_without_pdf(monkeypatch,tmp_path):
     src=tmp_path/"resume.docx"
     src.write_bytes(b"docx")
+    monkeypatch.setattr(pdf_export,"enforce_experience_start_rule",_pagination_ok)
     monkeypatch.setattr(
         pdf_export,
         "_conversion_attempt",
