@@ -28,19 +28,22 @@ ACTION_PATTERNS = (
     r"\bintegrat(?:e|ed|ing|ion)\b",
 )
 
-# The uploaded Word/PDF resume is a formatting template, not a technical-content
-# reservoir for JD-tailored resumes. Nonzero-target modes therefore have no
-# requirement to retain technical bullets from the template.
+# Hybrid historical-credibility policy:
+# - Fidelity is the current employer and is the primary JD-tailored section.
+# - Cigna and Target remain anchored to the user's master-resume history.
+# - Non-master modes may lightly reword older experience, but a majority of the
+#   historical bullets must remain verbatim so the LLM cannot rewrite the entire
+#   employment history simply to chase JD keywords.
 RETENTION_FLOORS = {
     MODE_MASTER: {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8},
-    MODE_LIGHT: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
-    MODE_MODERATE: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
-    MODE_STRONG: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
-    MODE_FULL: {"Fidelity Investments": 0, "Cigna Healthcare": 0, "Target Corporation": 0},
+    MODE_LIGHT: {"Fidelity Investments": 0, "Cigna Healthcare": 6, "Target Corporation": 6},
+    MODE_MODERATE: {"Fidelity Investments": 0, "Cigna Healthcare": 5, "Target Corporation": 5},
+    MODE_STRONG: {"Fidelity Investments": 0, "Cigna Healthcare": 5, "Target Corporation": 5},
+    MODE_FULL: {"Fidelity Investments": 0, "Cigna Healthcare": 5, "Target Corporation": 5},
 }
 
-# These ratios preserve roughly the same visual density as the two-page Word
-# template while allowing all technical wording to come from the current JD.
+# Preserve roughly the same visual density as the two-page Word master while
+# still allowing the current Fidelity section to carry JD-specific emphasis.
 SUMMARY_MIN_RATIO = {
     MODE_MASTER: 0.95,
     MODE_LIGHT: 0.65,
@@ -103,12 +106,13 @@ def jd_richness(job, coverage_plan: dict) -> dict:
 
 
 def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
-    """Choose how much JD evidence is available for a JD-driven tailored resume.
+    """Choose the JD-tailoring strength while preserving truthful history.
 
-    For any nonzero target count, the current JD is the technical-content source.
-    The uploaded Word/PDF resume supplies format only. Zero targets retain the
-    existing unchanged-master fallback so a weak/empty JD cannot manufacture
-    unsupported technical content.
+    Zero meaningful JD targets use the unchanged master fallback. For nonzero
+    targets, Fidelity is JD-driven, while Cigna and Target stay anchored to the
+    master-resume historical baseline and may only be lightly aligned. New
+    technologies require JD evidence and belong primarily in Fidelity; older
+    employer cloud/timeline restrictions are enforced by the writer and audit.
     """
     richness = jd_richness(job, coverage_plan)
     target_count = richness["target_count"]
@@ -126,16 +130,16 @@ def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
 
         if target_count <= 2 or partial or (words < 180 and actions < 3):
             mode = MODE_LIGHT
-            reason = "Limited JD evidence; create a conservative JD-driven resume using only explicit JD technical content."
+            reason = "Limited JD evidence; tailor Fidelity conservatively and keep Cigna/Target strongly master-backed."
         elif target_count <= 5 or (words < 350 and actions < 5):
             mode = MODE_MODERATE
-            reason = "Moderate JD evidence; use the JD to drive the technical summary, skills, and selected experience coverage."
+            reason = "Moderate JD evidence; tailor Fidelity to the JD while preserving the majority of Cigna/Target master bullets."
         elif target_count <= 9 or (words < 600 and actions < 8):
             mode = MODE_STRONG
-            reason = "Rich JD evidence; use broad JD-driven technical coverage while preserving fixed history and employer domains."
+            reason = "Rich JD evidence; use broad Fidelity coverage while preserving historical Cigna/Target credibility and domains."
         else:
             mode = MODE_FULL
-            reason = "Rich, detailed JD; drive the technical resume from the JD while preserving fixed history, domain locks, and Word formatting."
+            reason = "Rich, detailed JD; fully tailor Fidelity while retaining master-backed Cigna/Target history, cloud locks, and layout."
 
     return {
         "mode": mode,
@@ -146,11 +150,21 @@ def determine_tailoring_policy(job, coverage_plan: dict) -> dict:
         "summary_max_master_density_ratio": 1.15,
         "skills_min_master_row_ratio": SKILLS_ROW_MIN_RATIO[mode],
         "minimum_jd_specific_experience_bullets": MIN_JD_EXPERIENCE_BULLETS[mode],
-        "master_is_base": mode == MODE_MASTER,
-        "word_template_is_format_only": mode != MODE_MASTER,
-        "technical_content_source": "current_job_description" if mode != MODE_MASTER else "unchanged_master_fallback",
+        "master_is_base": True,
+        "word_template_is_format_only": True,
+        "technical_content_source": (
+            "unchanged_master_fallback"
+            if mode == MODE_MASTER
+            else "hybrid_master_history_plus_current_jd"
+        ),
         "new_technology_requires_jd_evidence": mode != MODE_MASTER,
         "unchanged_master_bullets_should_be_verbatim": mode == MODE_MASTER,
+        "employer_tailoring_policy": {
+            "Fidelity Investments": "primary_jd_tailored_current_employer",
+            "Cigna Healthcare": "azure_master_baseline_light_alignment_only",
+            "Target Corporation": "aws_master_baseline_light_alignment_only",
+        },
+        "historical_ai_policy": "AI-era technologies are allowed only in Fidelity when JD-supported",
     }
 
 
