@@ -14,6 +14,11 @@ W = f"{{{W_URI}}}"
 NS = {"w": W_URI}
 
 
+FULL_TEXT_WIDTH_TWIPS = 10800
+LEFT_COLUMN_TWIPS = 8352
+RIGHT_COLUMN_TWIPS = 2448
+
+
 def _text(node) -> str:
     return "".join(node.xpath(".//w:t/text()", namespaces=NS)).strip()
 
@@ -42,7 +47,7 @@ def _has_flag(paragraph, tag: str) -> bool:
 
 
 def _set_zero_left_indent(paragraph) -> None:
-    """Make employer header/title/roles share one exact left edge."""
+    """Make fixed resume rows share one exact left edge."""
     ppr = _ppr(paragraph)
     ind = ppr.find(W + "ind")
     if ind is None:
@@ -91,14 +96,29 @@ def _set_row_cant_split(row) -> None:
         etree.SubElement(trpr, W + "cantSplit")
 
 
+def _set_zero_cell_margins(container) -> None:
+    for side in ("top", "left", "bottom", "right"):
+        node = container.find(W + side)
+        if node is None:
+            node = etree.SubElement(container, W + side)
+        node.set(W + "type", "dxa")
+        node.set(W + "w", "0")
+
+
 def _normalize_header_table(table) -> None:
-    """Remove table centering/cell padding that can visually offset company rows."""
+    """Match the final approved resume's full-width, flush-left two-column rows."""
     if table is None:
         return
     tblpr = table.find(W + "tblPr")
     if tblpr is None:
         tblpr = etree.Element(W + "tblPr")
         table.insert(0, tblpr)
+
+    tblw = tblpr.find(W + "tblW")
+    if tblw is None:
+        tblw = etree.SubElement(tblpr, W + "tblW")
+    tblw.set(W + "type", "dxa")
+    tblw.set(W + "w", str(FULL_TEXT_WIDTH_TWIPS))
 
     jc = tblpr.find(W + "jc")
     if jc is None:
@@ -114,27 +134,42 @@ def _normalize_header_table(table) -> None:
     tbl_cell_mar = tblpr.find(W + "tblCellMar")
     if tbl_cell_mar is None:
         tbl_cell_mar = etree.SubElement(tblpr, W + "tblCellMar")
-    for side in ("left", "right"):
-        node = tbl_cell_mar.find(W + side)
-        if node is None:
-            node = etree.SubElement(tbl_cell_mar, W + side)
-        node.set(W + "type", "dxa")
-        node.set(W + "w", "0")
+    _set_zero_cell_margins(tbl_cell_mar)
 
-    for cell in table.xpath(".//w:tr[1]/w:tc", namespaces=NS):
+    cells = table.xpath(".//w:tr[1]/w:tc", namespaces=NS)
+    if len(cells) >= 2:
+        grid = table.find(W + "tblGrid")
+        if grid is None:
+            grid = etree.SubElement(table, W + "tblGrid")
+        for child in list(grid):
+            grid.remove(child)
+        for width in (LEFT_COLUMN_TWIPS, RIGHT_COLUMN_TWIPS):
+            col = etree.SubElement(grid, W + "gridCol")
+            col.set(W + "w", str(width))
+
+    for index, cell in enumerate(cells[:2]):
         tcpr = cell.find(W + "tcPr")
         if tcpr is None:
             tcpr = etree.Element(W + "tcPr")
             cell.insert(0, tcpr)
+        tcw = tcpr.find(W + "tcW")
+        if tcw is None:
+            tcw = etree.SubElement(tcpr, W + "tcW")
+        tcw.set(W + "type", "dxa")
+        tcw.set(W + "w", str(LEFT_COLUMN_TWIPS if index == 0 else RIGHT_COLUMN_TWIPS))
+
         tcmar = tcpr.find(W + "tcMar")
         if tcmar is None:
             tcmar = etree.SubElement(tcpr, W + "tcMar")
-        for side in ("left", "right"):
+        for side in ("top", "start", "bottom", "end", "left", "right"):
             node = tcmar.find(W + side)
             if node is None:
                 node = etree.SubElement(tcmar, W + side)
             node.set(W + "type", "dxa")
             node.set(W + "w", "0")
+
+        for paragraph in cell.xpath("./w:p", namespaces=NS):
+            _set_zero_left_indent(paragraph)
 
 
 def _header_table_is_left_aligned(table) -> bool:
@@ -148,6 +183,9 @@ def _header_table_is_left_aligned(table) -> bool:
         return False
     tblind = tblpr.find(W + "tblInd")
     if tblind is not None and tblind.get(W + "w") not in (None, "0"):
+        return False
+    tblw = tblpr.find(W + "tblW")
+    if tblw is not None and tblw.get(W + "type") == "dxa" and tblw.get(W + "w") not in (None, str(FULL_TEXT_WIDTH_TWIPS)):
         return False
     return True
 
@@ -298,6 +336,95 @@ def _validate_block(block, company: str) -> list[str]:
     return reasons
 
 
+def _locate_education(root, row):
+    body = root.find(".//" + W + "body")
+    if body is None:
+        return None
+    degree = str(row.get("degree") or "").strip()
+    school = str(row.get("school") or "").strip()
+    children = list(body)
+    degree_paragraph = next(
+        (child for child in children if child.tag == W + "p" and _text(child) == degree),
+        None,
+    )
+    school_paragraph = next(
+        (child for child in children if child.tag == W + "p" and _text(child).startswith(school)),
+        None,
+    )
+    school_table = next(
+        (child for child in children if child.tag == W + "tbl" and _text(child).startswith(school)),
+        None,
+    )
+    table_paragraphs = [] if school_table is None else school_table.xpath(".//w:tr[1]/w:tc/w:p", namespaces=NS)
+    return {
+        "degree": degree_paragraph,
+        "school_paragraph": school_paragraph,
+        "school_table": school_table,
+        "table_paragraphs": table_paragraphs,
+    }
+
+
+def _apply_education_layout(root) -> list[str]:
+    reasons = []
+    for row in load_master_resume().get("education") or []:
+        layout = _locate_education(root, row)
+        if not layout or layout["degree"] is None:
+            reasons.append("education: degree row not found")
+            continue
+        degree = layout["degree"]
+        _remove_forced_breaks(degree)
+        _set_zero_left_indent(degree)
+        _set_flag(degree, "keepNext", True)
+        _set_flag(degree, "keepLines", True)
+
+        table = layout["school_table"]
+        paragraph = layout["school_paragraph"]
+        if table is not None:
+            _normalize_header_table(table)
+            first_row = table.find(".//" + W + "tr")
+            if first_row is not None:
+                _set_row_cant_split(first_row)
+            for item in layout["table_paragraphs"]:
+                _remove_forced_breaks(item)
+                _set_zero_left_indent(item)
+                _set_flag(item, "keepLines", True)
+        elif paragraph is not None:
+            _remove_forced_breaks(paragraph)
+            _set_zero_left_indent(paragraph)
+            _set_flag(paragraph, "keepLines", True)
+        else:
+            reasons.append("education: university/location/date row not found")
+    return reasons
+
+
+def _validate_education_layout(root) -> list[str]:
+    reasons = []
+    for row in load_master_resume().get("education") or []:
+        layout = _locate_education(root, row)
+        if not layout or layout["degree"] is None:
+            reasons.append("education: degree row not found")
+            continue
+        if not _has_zero_left_indent(layout["degree"]):
+            reasons.append("education: degree left alignment is inconsistent")
+        if not _has_flag(layout["degree"], "keepNext"):
+            reasons.append("education: degree is not kept with university row")
+
+        table = layout["school_table"]
+        paragraph = layout["school_paragraph"]
+        if table is not None:
+            if not _header_table_is_left_aligned(table):
+                reasons.append("education: university/date table is not flush left/full width")
+            for item in layout["table_paragraphs"]:
+                if not _has_zero_left_indent(item):
+                    reasons.append("education: university/date cell alignment is inconsistent")
+        elif paragraph is not None:
+            if not _has_zero_left_indent(paragraph):
+                reasons.append("education: university/location/date left alignment is inconsistent")
+        else:
+            reasons.append("education: university/location/date row not found")
+    return reasons
+
+
 def _read_root(path: Path):
     with zipfile.ZipFile(path) as archive:
         return etree.fromstring(archive.read("word/document.xml"))
@@ -326,21 +453,24 @@ def validate_experience_start_rule(docx_path: str | Path) -> dict:
     companies = [row["company"] for row in load_master_resume()["experience"]]
     for company in companies:
         reasons.extend(_validate_block(_locate_block(root, company), company))
+    reasons.extend(_validate_education_layout(root))
     return {
         "passed": not reasons,
         "reasons": reasons,
         "policy": "aligned employer header/title/roles plus complete first bullet must start together",
+        "education_policy": "degree and university/location share the same left edge; dates remain right aligned",
     }
 
 
 def enforce_experience_start_rule(docx_path: str | Path) -> dict:
-    """Normalize employer alignment and prevent orphaned employer starts.
+    """Apply the final approved resume alignment and pagination rules.
 
-    Company/location, title/date, and Roles & Responsibilities are normalized to
-    the same left edge. Word/LibreOffice may begin an employer on the current page
-    only when that start block and the complete first bullet fit there. Otherwise
-    the start block moves to the next page. Later bullets remain free to continue
-    on following pages.
+    Employer company/location, title/date, and Roles & Responsibilities share one
+    left edge. An employer may begin on the current page only when that start block
+    plus the complete first bullet fit. Later bullets may continue naturally.
+
+    Education is normalized to the same visual system: the degree and university /
+    location row share one left edge and any date column remains right aligned.
     """
     path = Path(docx_path)
     if not path.exists() or path.stat().st_size == 0:
@@ -354,6 +484,7 @@ def enforce_experience_start_rule(docx_path: str | Path) -> dict:
             missing.append(f"{company}: employer start block not found")
             continue
         _apply_block(block)
+    missing.extend(_apply_education_layout(root))
     if missing:
         return {"passed": False, "reasons": missing}
     _write_root(path, root)
