@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 import hashlib
 import json
 import re
-import shutil
 import zipfile
 
 from lxml import etree
@@ -18,7 +17,7 @@ WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
 WORD_TEMPLATE_PATH = ROOT / "data" / "Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
 W_URI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{W_URI}}}"
-XMLSPACE = "{http://www.w3.org/XML/namespace}space"
+XMLSPACE = "{http://www.w3.org/XML/1998/namespace}space"
 NS = {"w": W_URI}
 
 
@@ -77,17 +76,11 @@ def canonical_resume_title(title):
 
 
 def _summary_parts(text):
-    """Keep the master's two-paragraph structure without truncating long content."""
     text = str(text or "").strip()
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
     if len(paragraphs) >= 2:
         return [paragraphs[0], " ".join(paragraphs[1:])]
-
-    sentences = [
-        sentence.strip()
-        for sentence in re.split(r"(?<=[.!?])\s+", text)
-        if sentence.strip()
-    ]
+    sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
     if len(sentences) >= 2:
         split_at = max(1, len(sentences) // 2)
         return [" ".join(sentences[:split_at]), " ".join(sentences[split_at:])]
@@ -110,9 +103,7 @@ def _emphasis(text, generated, limit):
     out = []
     for term in _terms(generated):
         if len(term) >= 3 and re.search(
-            r"(?<![A-Za-z0-9])" + re.escape(term) + r"(?![A-Za-z0-9])",
-            text,
-            re.I,
+            r"(?<![A-Za-z0-9])" + re.escape(term) + r"(?![A-Za-z0-9])", text, re.I
         ):
             out.append(term)
         if len(out) >= limit:
@@ -120,25 +111,12 @@ def _emphasis(text, generated, limit):
     if not out:
         words = re.findall(r"\S+", text)
         start = 1 if words and words[0].rstrip(".,:;").lower() in {
-            "built",
-            "developed",
-            "designed",
-            "implemented",
-            "modeled",
-            "architected",
-            "automated",
-            "enabled",
-            "optimized",
-            "established",
-            "supported",
-            "created",
-            "engineered",
-            "delivered",
-            "owned",
-            "maintained",
+            "built", "developed", "designed", "implemented", "modeled", "architected",
+            "automated", "enabled", "optimized", "established", "supported", "created",
+            "engineered", "delivered", "owned", "maintained",
         } else 0
         if words:
-            out = [" ".join(words[start : start + 5]).strip(" ,.;:")]
+            out = [" ".join(words[start:start + 5]).strip(" ,.;:")]
     return out[:limit]
 
 
@@ -152,12 +130,8 @@ def _text(paragraph):
 
 def _between(paragraphs, start_heading, end_heading):
     start = next(i for i, p in enumerate(paragraphs) if _text(p).upper() == start_heading)
-    end = next(
-        i
-        for i, p in enumerate(paragraphs)
-        if i > start and _text(p).upper() == end_heading
-    )
-    return paragraphs[start + 1 : end]
+    end = next(i for i, p in enumerate(paragraphs) if i > start and _text(p).upper() == end_heading)
+    return paragraphs[start + 1:end]
 
 
 def _rpr(paragraph, bold):
@@ -209,17 +183,14 @@ def _exp(paragraphs):
     out = {}
     for row in master["experience"]:
         company = row["company"]
-        header_index = next(
-            i for i, paragraph in enumerate(paragraphs) if _text(paragraph).startswith(company)
-        )
+        header_index = next(i for i, paragraph in enumerate(paragraphs) if _text(paragraph).startswith(company))
         roles_index = next(
-            i
-            for i in range(header_index + 1, len(paragraphs))
+            i for i in range(header_index + 1, len(paragraphs))
             if _text(paragraphs[i]) == "Roles & Responsibilities:"
         )
         bullets = []
         footer = None
-        for paragraph in paragraphs[roles_index + 1 :]:
+        for paragraph in paragraphs[roles_index + 1:]:
             value = _text(paragraph)
             if _is_employer_footer(value):
                 footer = paragraph
@@ -235,10 +206,7 @@ def _exp(paragraphs):
 def _write_docx(template, out, xml):
     with zipfile.ZipFile(template, "r") as zin, zipfile.ZipFile(out, "w") as zout:
         for info in zin.infolist():
-            zout.writestr(
-                info,
-                xml if info.filename == "word/document.xml" else zin.read(info.filename),
-            )
+            zout.writestr(info, xml if info.filename == "word/document.xml" else zin.read(info.filename))
 
 
 def _same_non_document_parts(a, b):
@@ -247,18 +215,11 @@ def _same_non_document_parts(a, b):
         names_b = {x.filename for x in zb.infolist()}
         if names_a != names_b:
             return False
-        return all(
-            za.read(name) == zb.read(name)
-            for name in names_a
-            if name != "word/document.xml"
-        )
+        return all(za.read(name) == zb.read(name) for name in names_a if name != "word/document.xml")
 
 
 def _no_page_breaks(root):
-    return not root.xpath(
-        ".//w:pageBreakBefore|.//w:br[@w:type='page']",
-        namespaces=NS,
-    )
+    return not root.xpath(".//w:pageBreakBefore|.//w:br[@w:type='page']", namespaces=NS)
 
 
 def _ppr(paragraph):
@@ -282,70 +243,39 @@ def _paragraph_formats_match(rows, template_rows):
 
 
 def validate_master_format_contract(path, master=None, word_format=None):
-    """Validate the master layout contract while allowing Environment -> Skills relabeling."""
     master = master or load_master_resume()
     fmt = word_format or load_word_format()
     template = _template(fmt)
     reasons = []
-
     if not _same_non_document_parts(template, path):
         reasons.append("non_document_word_package_changed")
-
     source_root = _xml(template)
     output_root = _xml(path)
     source_paragraphs = _pt(source_root)
     output_paragraphs = _pt(output_root)
-
-    if etree.tostring(source_root.find(".//" + W + "sectPr")) != etree.tostring(
-        output_root.find(".//" + W + "sectPr")
-    ):
+    if etree.tostring(source_root.find(".//" + W + "sectPr")) != etree.tostring(output_root.find(".//" + W + "sectPr")):
         reasons.append("section_properties_changed")
     if not _no_page_breaks(output_root):
         reasons.append("forced_page_break")
-
-    for heading in (
-        "PROFESSIONAL SUMMARY",
-        "TECHNICAL SKILLS",
-        "PROFESSIONAL EXPERIENCE",
-        "EDUCATION",
-    ):
+    for heading in ("PROFESSIONAL SUMMARY", "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE", "EDUCATION"):
         source = next((p for p in source_paragraphs if _text(p).upper() == heading), None)
         output = next((p for p in output_paragraphs if _text(p).upper() == heading), None)
         if source is None or output is None:
             reasons.append("heading_" + heading)
         elif etree.tostring(source) != etree.tostring(output):
             reasons.append("heading_format_" + heading)
-
-    summary_rows = [
-        p
-        for p in _between(output_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS")
-        if _text(p)
-    ]
-    source_summary_rows = [
-        p
-        for p in _between(source_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS")
-        if _text(p)
-    ]
+    summary_rows = [p for p in _between(output_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
+    source_summary_rows = [p for p in _between(source_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     if len(summary_rows) != 2:
         reasons.append("summary_structure")
     elif not _paragraph_formats_match(summary_rows, source_summary_rows):
         reasons.append("summary_paragraph_format")
-
-    skill_rows = [
-        p
-        for p in _between(output_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
-        if _text(p)
-    ]
-    source_skill_rows = [
-        p
-        for p in _between(source_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
-        if _text(p)
-    ]
+    skill_rows = [p for p in _between(output_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
+    source_skill_rows = [p for p in _between(source_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
     if not skill_rows:
         reasons.append("skills_structure")
     elif not _paragraph_formats_match(skill_rows, source_skill_rows):
         reasons.append("skills_paragraph_format")
-
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)
     for row in master["experience"]:
@@ -357,11 +287,8 @@ def validate_master_format_contract(path, master=None, word_format=None):
             for index, paragraph in enumerate(output_experience[company]["bullets"])
         ):
             reasons.append(company + "_bullet_format")
-        if _ppr(output_experience[company]["footer"]) != _ppr(
-            source_experience[company]["footer"]
-        ):
+        if _ppr(output_experience[company]["footer"]) != _ppr(source_experience[company]["footer"]):
             reasons.append(company + "_skills_footer_format")
-
     return {
         "passed": not reasons,
         "reasons": list(dict.fromkeys(reasons)),
@@ -386,19 +313,12 @@ def _out(job, directory):
 
 def _ensure_skill_rows(root, needed):
     paragraphs = _pt(root)
-    skill_rows = [
-        p
-        for p in _between(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
-        if _text(p)
-    ]
+    skill_rows = [p for p in _between(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
     if not skill_rows:
         raise RuntimeError("Word template has no Technical Skills rows")
-
     body = root.find(".//" + W + "body")
     if needed > len(skill_rows):
-        anchor = next(
-            p for p in _pt(root) if _text(p).upper() == "PROFESSIONAL EXPERIENCE"
-        )
+        anchor = next(p for p in _pt(root) if _text(p).upper() == "PROFESSIONAL EXPERIENCE")
         insert_at = body.index(anchor)
         source = skill_rows[-1]
         for _ in range(needed - len(skill_rows)):
@@ -406,11 +326,9 @@ def _ensure_skill_rows(root, needed):
             _clear(clone)
             body.insert(insert_at, clone)
             insert_at += 1
-
     paragraphs = _pt(root)
     return [
-        p
-        for p in _between(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
+        p for p in _between(paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE")
         if _text(p) or p.find(W + "pPr") is not None
     ]
 
@@ -432,7 +350,6 @@ def _write_skills_footer(paragraph, values, bold_style, normal_style):
 
 
 def _master_mode_with_skills_footer(template, out):
-    """Use the exact master content but relabel the old Environment rows as concise Skills rows."""
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
@@ -449,52 +366,30 @@ def _master_mode_with_skills_footer(template, out):
 
 
 def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
-    """Render tailored content into the live master Word formatting.
-
-    The master DOCX controls fonts, colors, margins, tabs, indentation, section
-    spacing, company headers and education. Tailored content is kept compact and
-    each employer ends with a Skills-only line rather than an Environment paragraph.
-    """
     fmt = load_word_format()
     template = _template(fmt)
     out = _out(job, output_dir)
-
     if generated.get("_master_mode"):
         return _master_mode_with_skills_footer(template, out)
-
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
-
     paragraphs = _pt(root)
     header = paragraphs[1]
     normal = _rpr(header, False)
     _clear(header)
     _run(header, canonical_resume_title(job.title), normal)
-
-    summary_rows = [
-        p
-        for p in _between(paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS")
-        if _text(p)
-    ]
+    summary_rows = [p for p in _between(paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     parts = _summary_parts(generated.get("summary", ""))
     if len(summary_rows) < 2:
         raise RuntimeError("Word template must contain two Professional Summary paragraphs")
     summary_normal = _rpr(summary_rows[0], False) or _rpr(summary_rows[1], False)
     summary_bold = _rpr(summary_rows[0], True) or _rpr(summary_rows[1], True)
     for paragraph, text in zip(summary_rows[:2], parts):
-        _replace(
-            paragraph,
-            text,
-            _emphasis(text, generated, 5),
-            summary_normal,
-            summary_bold,
-        )
-
+        _replace(paragraph, text, _emphasis(text, generated, 5), summary_normal, summary_bold)
     items = list((generated.get("skills") or {}).items())
     if not items:
         raise RuntimeError("Generated Technical Skills section is empty")
-
     skill_rows = _ensure_skill_rows(root, len(items))
     skill_bold = _rpr(skill_rows[0], True)
     skill_normal = _rpr(skill_rows[0], False)
@@ -503,76 +398,38 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         _run(paragraph, str(category), skill_bold)
         _run(paragraph, ": ", skill_normal)
         _run(paragraph, ", ".join(str(value) for value in values or []), skill_normal)
-
     body = root.find(".//" + W + "body")
-    for paragraph in skill_rows[len(items) :]:
+    for paragraph in skill_rows[len(items):]:
         body.remove(paragraph)
-
     paragraphs = _pt(root)
     layout = _exp(paragraphs)
     source_root = _xml(template)
     source_layout = _exp(_pt(source_root))
-    all_source_bullets = [
-        paragraph
-        for employer in source_layout.values()
-        for paragraph in employer["bullets"]
-    ]
-    bullet_normal = next(
-        (_rpr(p, False) for p in all_source_bullets if _rpr(p, False) is not None),
-        None,
-    )
-    bullet_bold = next(
-        (_rpr(p, True) for p in all_source_bullets if _rpr(p, True) is not None),
-        None,
-    )
+    all_source_bullets = [paragraph for employer in source_layout.values() for paragraph in employer["bullets"]]
+    bullet_normal = next((_rpr(p, False) for p in all_source_bullets if _rpr(p, False) is not None), None)
+    bullet_bold = next((_rpr(p, True) for p in all_source_bullets if _rpr(p, True) is not None), None)
     footer_bold, footer_normal = _footer_styles(source_layout)
-
-    generated_by_company = {
-        item.get("company"): item for item in generated.get("experience") or []
-    }
+    generated_by_company = {item.get("company"): item for item in generated.get("experience") or []}
     for row in master["experience"]:
         company = row["company"]
         item = generated_by_company.get(company)
         if not item:
             raise RuntimeError(f"Generated experience missing {company}")
-
         bullets = [str(value).strip() for value in item.get("bullets") or []]
         if len(bullets) != len(row["bullets"]):
-            raise RuntimeError(
-                f"{company} must contain exactly {len(row['bullets'])} bullets"
-            )
+            raise RuntimeError(f"{company} must contain exactly {len(row['bullets'])} bullets")
         for paragraph, text in zip(layout[company]["bullets"], bullets):
-            _replace(
-                paragraph,
-                text,
-                _emphasis(text, generated, 2),
-                bullet_normal,
-                bullet_bold,
-            )
-
+            _replace(paragraph, text, _emphasis(text, generated, 2), bullet_normal, bullet_bold)
         skills_used = item.get("skills_used")
         if not skills_used:
             legacy = str(item.get("environment") or "").strip()
             skills_used = [legacy] if legacy else []
-        _write_skills_footer(
-            layout[company]["footer"],
-            skills_used,
-            footer_bold,
-            footer_normal,
-        )
-
-    xml = etree.tostring(
-        root,
-        xml_declaration=True,
-        encoding="UTF-8",
-        standalone="yes",
-    )
+        _write_skills_footer(layout[company]["footer"], skills_used, footer_bold, footer_normal)
+    xml = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone="yes")
     _write_docx(template, out, xml)
-
     check = validate_master_format_contract(out, master, fmt)
     if not check["passed"]:
         raise RuntimeError(
-            "Generated resume violated live Word-template format contract: "
-            + "; ".join(check["reasons"])
+            "Generated resume violated live Word-template format contract: " + "; ".join(check["reasons"])
         )
     return str(out)
