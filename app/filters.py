@@ -171,13 +171,46 @@ def location_is_us(location,source=None,description="",application_questions="")
     return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
 
 def employment_is_target(employment_type, description=""):
-    employment=_clean(employment_type);text=_clean(f"{employment_type or ''} {description or ''}")
-    if any(re.search(pattern,text) for pattern in EMPLOYMENT_REJECT_PATTERNS):return False
+    """Return whether the vacancy is compatible with the Full-Time/W-2 policy.
+
+    Structured ATS employment metadata is more authoritative than unrelated text
+    elsewhere on a job page.  A trusted Full-Time/Regular/Permanent value must
+    not be overturned by navigation/footer copy mentioning other part-time roles.
+    We still reject when either the structured metadata is non-target or the JD
+    explicitly describes *this* role as contract/part-time/temporary.
+    """
+    employment=_clean(employment_type)
+    description_text=_clean(description)
+
+    # The ATS employment field is role-scoped, so broad rejection terms are safe
+    # here and take precedence over any positive marker in the same field.
+    if any(re.search(pattern,employment) for pattern in EMPLOYMENT_REJECT_PATTERNS):return False
     if any(marker in employment for marker in CONTRACT_MARKERS):return False
-    if re.search(r"\bw-?2\b",text):return True
+
+    # Even trusted Full-Time metadata should not win over an explicit statement
+    # that this actual role is contract/part-time/temporary.  Keep these patterns
+    # intentionally role-scoped so footer/navigation text cannot cause rejection.
+    scoped_description_reject_patterns=(
+        r"\b(?:this|the)\s+(?:role|job|position)\s+(?:is|will be)\s+(?:a\s+)?(?:part[- ]time|temporary|seasonal)\b",
+        r"\b(?:part[- ]time|temporary|seasonal)\s+(?:role|job|position)\b",
+        r"\b(?:employment type|job type|position type)\s*:?\s*(?:w-?2\s+)?(?:contract|part[- ]time|temporary|seasonal)\b",
+        r"\bcontract duration\s*:",
+        r"\b\d+\s*(?:month|months|mo)\s+contract\b",
+        r"\bcontract position\b",
+        r"\bon a contract basis\b",
+    )
+    if any(re.search(pattern,description_text) for pattern in scoped_description_reject_patterns):return False
+
+    # Once the structured ATS field explicitly says this is a target employment
+    # type, unrelated body/footer occurrences such as "Field Experience Roles
+    # (Part-time & Intermittent)" must not override it.
     if any(marker in employment for marker in EMPLOYMENT_ACCEPT_MARKERS):return True
-    if any(marker in employment for marker in CONTRACT_MARKERS):return False
-    if any(marker in text for marker in ("full-time","full time","fulltime","regular employee","permanent position")):return True
+
+    # For missing/ambiguous structured metadata, retain the conservative legacy
+    # behavior and use the JD itself as the deciding evidence.
+    if any(re.search(pattern,description_text) for pattern in EMPLOYMENT_REJECT_PATTERNS):return False
+    if re.search(r"\bw-?2\b",description_text):return True
+    if any(marker in description_text for marker in ("full-time","full time","fulltime","regular employee","permanent position")):return True
     return True
 
 def work_authorization_restriction(description="",title=""):
