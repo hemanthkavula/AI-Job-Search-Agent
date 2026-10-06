@@ -11,6 +11,19 @@ import time
 from docx import Document
 
 
+REQUIRED_PRODUCTION_PAGES = 2
+MIN_PAGE_TEXT_BALANCE = 0.50
+EXPECTED_PAGE_PLACEMENT = {
+    "PROFESSIONAL SUMMARY": 0,
+    "TECHNICAL SKILLS": 0,
+    "PROFESSIONAL EXPERIENCE": 0,
+    "Fidelity Investments": 0,
+    "Cigna Healthcare": 1,
+    "Target Corporation": 1,
+    "EDUCATION": 1,
+}
+
+
 def _find_office() -> str | None:
     """Find a LibreOffice/soffice executable without launching Microsoft Word."""
     candidates = [
@@ -187,12 +200,29 @@ def _paragraph_covered(paragraph: str, pdf_tokens: list[str]) -> bool:
     return ratio >= threshold
 
 
-def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
-    """Validate DOCX→PDF integrity without imposing a page-count requirement.
+def _page_index(page_texts: list[str], needle: str) -> int | None:
+    wanted = re.sub(r"\s+", " ", needle).strip().casefold()
+    for index, page in enumerate(page_texts):
+        normalized = re.sub(r"\s+", " ", page).strip().casefold()
+        if wanted in normalized:
+            return index
+    return None
 
-    The user's master resume controls visual formatting (font, color, margins,
-    paragraph spacing, section structure). Pagination is natural: 2, 3, or more
-    pages are all acceptable when the tailored content needs them.
+
+def _page_text_balance(page_texts: list[str]) -> tuple[float, list[int]]:
+    counts = [len(re.sub(r"\s+", "", page or "")) for page in page_texts]
+    if not counts or max(counts) == 0:
+        return 0.0, counts
+    return round(min(counts) / max(counts), 3), counts
+
+
+def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
+    """Validate DOCX→PDF integrity and the hard production layout contract.
+
+    The uploaded master resume is a two-page document. Production resumes must
+    remain two pages and preserve the same high-level flow so a bloated third page,
+    an almost-empty trailing page, or a displaced employer/education section can
+    never become READY_TO_APPLY.
     """
     if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size == 0:
         return {
@@ -201,10 +231,13 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "text_coverage": 0,
             "sections_match": False,
             "page_count": 0,
-            "required_page_count": None,
-            "page_count_match": True,
-            "page_flow_match": True,
-            "pagination_policy": "natural_non_blocking",
+            "required_page_count": REQUIRED_PRODUCTION_PAGES,
+            "page_count_match": False,
+            "page_flow_match": False,
+            "page_text_balance": 0.0,
+            "page_text_counts": [],
+            "environment_removed": False,
+            "pagination_policy": "hard_master_like_two_page_contract",
         }
 
     sig = _docx_signature(docx_path)
@@ -218,10 +251,13 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "text_coverage": 0,
             "sections_match": False,
             "page_count": pages,
-            "required_page_count": None,
-            "page_count_match": True,
-            "page_flow_match": True,
-            "pagination_policy": "natural_non_blocking",
+            "required_page_count": REQUIRED_PRODUCTION_PAGES,
+            "page_count_match": pages == REQUIRED_PRODUCTION_PAGES,
+            "page_flow_match": False,
+            "page_text_balance": 0.0,
+            "page_text_counts": [],
+            "environment_removed": False,
+            "pagination_policy": "hard_master_like_two_page_contract",
         }
 
     pdf_tokens = _tokens(pdf_text)
@@ -234,11 +270,46 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         set(_tokens(section)).issubset(pdf_token_set) for section in sig["sections"]
     )
 
+    page_count_match = pages == REQUIRED_PRODUCTION_PAGES
+    placements = {
+        label: _page_index(page_texts, label)
+        for label in EXPECTED_PAGE_PLACEMENT
+    }
+    page_flow_match = page_count_match and all(
+        placements.get(label) == expected_page
+        for label, expected_page in EXPECTED_PAGE_PLACEMENT.items()
+    )
+
+    balance, page_text_counts = _page_text_balance(page_texts)
+    page_balance_match = (
+        page_count_match
+        and len(page_text_counts) == REQUIRED_PRODUCTION_PAGES
+        and balance >= MIN_PAGE_TEXT_BALANCE
+    )
+
+    environment_removed = "environment:" not in pdf_text.casefold()
+    skills_footer_count = pdf_text.casefold().count("skills:")
+    skills_footers_match = skills_footer_count >= 3
+
     failures = []
     if coverage < 95:
         failures.append("DOCX/PDF material text mismatch")
     if not sections_match:
         failures.append("section mismatch")
+    if not page_count_match:
+        failures.append(
+            f"production resume must be exactly {REQUIRED_PRODUCTION_PAGES} pages; got {pages}"
+        )
+    if page_count_match and not page_flow_match:
+        failures.append("master-like section/employer page flow mismatch")
+    if page_count_match and not page_balance_match:
+        failures.append(
+            f"page content is too unbalanced/sparse (balance={balance}, minimum={MIN_PAGE_TEXT_BALANCE})"
+        )
+    if not environment_removed:
+        failures.append("legacy Environment footer is still present")
+    if not skills_footers_match:
+        failures.append("expected compact Skills footers were not found for all employers")
 
     passed = not failures
     return {
@@ -248,10 +319,19 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "sections_match": sections_match,
         "sections": sig["sections"],
         "page_count": pages,
-        "required_page_count": None,
-        "page_count_match": True,
-        "page_flow_match": True,
-        "pagination_policy": "natural_non_blocking",
+        "required_page_count": REQUIRED_PRODUCTION_PAGES,
+        "page_count_match": page_count_match,
+        "page_flow_match": page_flow_match,
+        "expected_page_placement": EXPECTED_PAGE_PLACEMENT,
+        "actual_page_placement": placements,
+        "page_text_balance": balance,
+        "page_text_counts": page_text_counts,
+        "minimum_page_text_balance": MIN_PAGE_TEXT_BALANCE,
+        "page_balance_match": page_balance_match,
+        "environment_removed": environment_removed,
+        "skills_footer_count": skills_footer_count,
+        "skills_footers_match": skills_footers_match,
+        "pagination_policy": "hard_master_like_two_page_contract",
         "renderer": "libreoffice_headless",
         "source_artifact": "docx",
     }
