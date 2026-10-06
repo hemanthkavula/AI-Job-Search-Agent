@@ -8,11 +8,13 @@ from urllib.parse import quote
 import uvicorn
 
 import app.dashboard as dashboard
+from app.filters import GLOBAL_LOCATION_MARKERS, NON_US_MARKERS, _clean, _has_bounded_marker
 from app.job_identity import identity_keys
 
 STATE_DIR = dashboard.STATE_DIR
 app = dashboard.app
 _ORIGINAL_JOBS = dashboard._jobs
+_ORIGINAL_CYCLE_SNAPSHOT = dashboard._cycle_snapshot
 _HISTORY_CACHE: dict = {"signature": None, "rows": []}
 
 
@@ -59,6 +61,50 @@ def _history_signature() -> tuple:
         except OSError:
             signature.append((str(path), 0, 0))
     return tuple(signature)
+
+
+def _explicitly_non_us_location(row: dict) -> bool:
+    """True only when a stored location explicitly names a foreign/global scope."""
+    location = _clean(row.get("location") or "")
+    if not location:
+        return False
+    markers = NON_US_MARKERS | GLOBAL_LOCATION_MARKERS
+    return any(_has_bounded_marker(location, marker) for marker in markers)
+
+
+def _cycle_snapshot_us_only(cycle_id: str) -> list[dict]:
+    """Hide historical ready rows that are explicitly outside the U.S.
+
+    This preserves applied history while making Today/View Jobs obey the same
+    U.S.-only rule as new production filtering.  Unknown historical locations are
+    not rewritten here; only explicit foreign/global labels are excluded.
+    """
+    rows = _ORIGINAL_CYCLE_SNAPSHOT(cycle_id)
+    ledger = dashboard._json(dashboard.LEDGER, {"jobs": {}})
+    ledger_jobs = ledger.get("jobs") or {}
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        stored_key = str(
+            row.get("job_key")
+            or row.get("key")
+            or row.get("external_id")
+            or row.get("job_id")
+            or ""
+        ).strip()
+        ledger_row = ledger_jobs.get(stored_key) or {}
+        combined = dict(ledger_row)
+        combined.update(row)
+        if _explicitly_non_us_location(combined):
+            continue
+        out.append(row)
+    return out
+
+
+# dashboard.py resolves this module-level symbol at request time, so this also
+# fixes Today and per-pipeline View Jobs for old explicitly foreign ready rows.
+dashboard._cycle_snapshot = _cycle_snapshot_us_only
 
 
 def _history_identities(row: dict) -> list[str]:
@@ -125,7 +171,10 @@ def _build_jobs_with_history() -> list[dict]:
     # 1) Live/current operational rows keep their current status and metadata.
     for item in current:
         key = str(item.get("key") or "")
-        add(item, ledger_jobs.get(key) or item)
+        identity_row = ledger_jobs.get(key) or item
+        if item.get("stage") in {"Ready to apply", "Manual apply"} and _explicitly_non_us_location(identity_row):
+            continue
+        add(item, identity_row)
 
     # 2) Applied history is authoritative even if a later ledger no longer has
     # an active copy of that job.
