@@ -43,7 +43,10 @@ TERM_ALIASES = {
     "Snowflake": ["Snowflake"],
     "Databricks": ["Databricks"],
     "BigQuery": ["BigQuery", "Google BigQuery"],
-    "Dagster": ["Dagster"],
+    "Dataflow": ["Dataflow", "Google Cloud Dataflow"],
+    "Pub/Sub": ["Pub/Sub", "PubSub", "Google Pub/Sub"],
+    "Dataproc": ["Dataproc", "Google Cloud Dataproc"],
+    "Cloud Composer": ["Cloud Composer", "Google Cloud Composer"],
     "Kubernetes": ["Kubernetes", "K8s"],
     "Terraform": ["Terraform"],
     "Docker": ["Docker"],
@@ -71,6 +74,15 @@ DOMAIN_TERMS = {
     "retail": ("pos", "point of sale", "inventory", "merchandising", "e-commerce", "ecommerce", "orders", "product catalog", "store sales"),
 }
 EMPLOYER_DOMAIN = {"Fidelity Investments": "financial", "Cigna Healthcare": "healthcare", "Target Corporation": "retail"}
+
+# User historical-timeline rule: AI-era technologies are valid only in the
+# current Fidelity role, never in Cigna (2022-2023) or Target (2020-2021).
+OLDER_EMPLOYER_AI_PATTERN = re.compile(
+    r"(?i)(?:\bartificial intelligence\b|\bAI/ML\b|\bgenerative AI\b|\bgenAI\b|"
+    r"\blarge language models?\b|\bLLMs?\b|\bretrieval[- ]augmented generation\b|\bRAG\b|"
+    r"\bvector stores?\b|\bvector search\b|\bembeddings?\b|\bMLOps\b|\bmodel serving\b|"
+    r"\bmodel inference\b|\bfeature stores?\b|\bClaude\b|\bCursor\b)"
+)
 
 
 def _norm(value):
@@ -108,23 +120,32 @@ def _domain_coherence_violations(by_company):
     return findings
 
 
+def _temporal_credibility_violations(by_company):
+    findings = []
+    for company in ("Cigna Healthcare", "Target Corporation"):
+        for bullet in by_company.get(company, []):
+            hits = list(dict.fromkeys(match.group(0) for match in OLDER_EMPLOYER_AI_PATTERN.finditer(bullet)))
+            if hits:
+                findings.append(
+                    {
+                        "company": company,
+                        "reason": "AI-era technology is not permitted in historical pre-current-employer experience",
+                        "terms": hits,
+                        "bullet": bullet,
+                    }
+                )
+    return findings
+
+
 def document_text(path):
     doc = Document(path)
     return "\n".join(p.text for p in doc.paragraphs)
 
 
 def _experience_sections(paragraphs):
-    """Read experience rows from the authoritative Word layout, not a style name.
-
-    The user-uploaded master DOCX uses direct paragraph formatting for its visible
-    experience bullets rather than Word's named ``List Bullet`` style.  The
-    structure is stable and authoritative: company header -> Roles &
-    Responsibilities -> bullet paragraphs -> Environment.  Audit that structure
-    directly so preserving the user's native Word formatting never makes valid
-    bullets disappear from ATS validation.
-    """
+    """Read company bullets and the compact employer Skills footer from the Word layout."""
     by_company = {company: [] for company in EXPECTED_COUNTS}
-    environments = {company: "" for company in EXPECTED_COUNTS}
+    footers = {company: "" for company in EXPECTED_COUNTS}
     current = None
     in_roles = False
     for paragraph in paragraphs:
@@ -139,13 +160,13 @@ def _experience_sections(paragraphs):
         if text == "Roles & Responsibilities:":
             in_roles = True
             continue
-        if text.startswith("Environment:"):
-            environments[current] = text
+        if text.startswith("Environment:") or text.startswith("Skills:"):
+            footers[current] = text
             in_roles = False
             continue
         if in_roles and text:
             by_company[current].append(text)
-    return by_company, environments
+    return by_company, footers
 
 
 def _experience_bullets(paragraphs):
@@ -154,9 +175,9 @@ def _experience_bullets(paragraphs):
 
 
 def _experience_cloud_text(paragraphs):
-    by_company, environments = _experience_sections(paragraphs)
+    by_company, footers = _experience_sections(paragraphs)
     return {
-        company: "\n".join(rows + ([environments[company]] if environments.get(company) else []))
+        company: "\n".join(rows + ([footers[company]] if footers.get(company) else []))
         for company, rows in by_company.items()
     }
 
@@ -333,6 +354,7 @@ def ats_audit(job, profile, resume_path):
         }
 
     domain_violations = _domain_coherence_violations(by_company)
+    temporal_violations = _temporal_credibility_violations(by_company)
     cloud_modes = employer_cloud_modes(job.description or "")
     cloud_violations = cloud_policy_violations(_experience_cloud_text(paragraphs), job.description or "")
     repeated_phrases, repeated_openings = _repetition_findings(bullets)
@@ -364,7 +386,9 @@ def ats_audit(job, profile, resume_path):
         "master_retention": not retention_violations,
         "content_density": not density_violations,
         "metrics": not metric_violations and not metric_findings,
-        "domain_coherence": not domain_violations,
+        # Temporal credibility is deliberately folded into the existing blocking
+        # domain gate so older-employer AI claims can never become Ready to Apply.
+        "domain_coherence": not domain_violations and not temporal_violations,
         "cloud_credibility": not cloud_violations,
         "repetition": repetition_score >= 85,
         "human_quality": human_quality_score >= HUMAN_QUALITY_TARGET,
@@ -410,6 +434,7 @@ def ats_audit(job, profile, resume_path):
         "metric_violations": metric_violations,
         "unapproved_metric_claims": metric_findings,
         "domain_coherence_violations": domain_violations,
+        "temporal_credibility_violations": temporal_violations,
         "employer_cloud_modes": cloud_modes,
         "cloud_policy_violations": cloud_violations,
         "approved_metric_patterns": {"verbatim_master_bullets": "user-authoritative existing metrics only"},
