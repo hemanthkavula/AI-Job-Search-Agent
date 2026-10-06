@@ -55,7 +55,34 @@ def _discard_resume_artifact(resume_path):
 
 
 def _render_draft(job, profile, payload):
-    return render_llm_resume(job, profile, payload, output_dir=DRAFT_RESUME_DIR)
+    """Render and hard-validate layout before a draft can enter ATS review.
+
+    A screenshot-style artifact with a third page, sparse trailing page, displaced
+    employer/education section, or legacy Environment footer is rejected here while
+    it is still temporary. JD-tailored resumes can then be regenerated within the
+    normal three-attempt loop instead of being promoted to production.
+    """
+    resume = render_llm_resume(job, profile, payload, output_dir=DRAFT_RESUME_DIR)
+    conversion = convert_docx_to_pdf_detailed(resume, attempts=2)
+    draft_pdf = conversion.get("pdf_path")
+    validation = validate_docx_pdf_parity(resume, draft_pdf)
+    validation["attempts"] = conversion.get("attempts", 0)
+    validation["conversion_reason"] = conversion.get("reason")
+    validation["renderer"] = conversion.get("renderer")
+
+    if not validation.get("passed"):
+        reason = validation.get("reason") or "unknown layout validation failure"
+        _discard_resume_artifact(resume)
+        raise RuntimeError(f"Resume layout contract failed before promotion: {reason}")
+
+    # The preflight PDF is disposable. Production creates a fresh PDF only after
+    # the DOCX also clears the content audit and is promoted to the final directory.
+    if draft_pdf:
+        try:
+            Path(draft_pdf).unlink(missing_ok=True)
+        except Exception:
+            pass
+    return resume
 
 
 def _promote_approved_resume(draft_path):
@@ -119,7 +146,7 @@ def _blocking_audit_failures(audit):
 
 
 def _make_quality_heuristics_advisory(audit):
-    """Convert internal scoring heuristics into diagnostics, not production holds."""
+    """Keep scoring heuristics advisory while layout remains a separate hard gate."""
     strict_passed = bool(audit.get("passed"))
     gates = dict(audit.get("quality_gates", {}) or {})
     blocking_failures = _blocking_audit_failures(audit)
@@ -132,14 +159,14 @@ def _make_quality_heuristics_advisory(audit):
     audit["blocking_quality_gates"] = blocking_failures
     audit["advisory_quality_gates"] = advisory_failures
     audit["quality_heuristics_are_advisory"] = True
-    audit["page_count_is_advisory"] = True
+    audit["page_count_is_advisory"] = False
     audit["passed"] = not blocking_failures
     audit["quality_gate_passed"] = not blocking_failures
     audit["status"] = "ATS_PASS" if audit["passed"] else "HOLD_CONTENT_CORRECTNESS"
     audit["decision_note"] = (
         "Internal ATS score, summary/skills density, experience-depth score, readability, "
-        "repetition, master-retention score, and pagination are advisory only. Production "
-        "blocks only structural or factual-content correctness failures."
+        "repetition, and master-retention score are advisory. Structural/factual correctness "
+        "and the separate two-page master-like PDF layout contract are hard production gates."
     )
     return audit
 
@@ -156,8 +183,7 @@ def _critical_audit_feedback(audit):
             "Correct only the blocking factual/structural issues. Preserve the JD-tailored "
             "content that is already valid. Keep exactly 10 Fidelity, 8 Cigna, and 8 Target "
             "bullets; preserve employer domains and cloud rules; do not invent numerical "
-            "claims. Do not optimize for page count, summary density, skills character count, "
-            "experience-depth score, readability score, or master-retention score."
+            "claims. Keep wording concise enough to preserve the master-like two-page layout."
         ),
     }
 
@@ -166,10 +192,11 @@ def _render_error_feedback(exc):
     return {
         "render_error": str(exc),
         "retry_instruction": (
-            "Correct the structural JSON/output error only. Return two summary paragraphs, "
-            "Technical Skills categories, exactly 10 Fidelity bullets, 8 Cigna bullets, and "
-            "8 Target bullets, plus one Environment value for each employer. There is no page, "
-            "character, bullet-word, or environment-length budget."
+            "Correct the structural or layout error. Return two concise summary paragraphs, "
+            "compact Technical Skills categories, exactly 10 Fidelity bullets, 8 Cigna bullets, "
+            "and 8 Target bullets, plus a concise skills_used technology list for each employer. "
+            "Do not return Environment paragraphs. Keep each bullet to one concise engineering "
+            "sentence and preserve the two-page master-like layout without sparse trailing pages."
         ),
     }
 
@@ -303,7 +330,7 @@ def prepare(
                         resume = _render_draft(job, profile, generated)
                     except Exception as exc:
                         last_error = exc
-                        print(f"V{attempts} render error | {exc}", flush=True)
+                        print(f"V{attempts} render/layout error | {exc}", flush=True)
                         if attempts >= MAX_RESUME_ATTEMPTS:
                             raise
                         feedback = _render_error_feedback(exc)
@@ -359,8 +386,11 @@ def prepare(
                 pdf_path = None
                 next_action = "HOLD_ATS_REVIEW"
             elif not artifact_validation["passed"]:
-                # Artifact holds are now reserved for real conversion/text-integrity failures.
-                # Page count alone can never produce this state.
+                # The final conversion must independently re-pass the same hard
+                # two-page master-like layout contract used during draft preflight.
+                _discard_resume_artifact(resume)
+                resume = None
+                pdf_path = None
                 next_action = "HOLD_ARTIFACT_VALIDATION"
             else:
                 next_action = "READY_TO_APPLY"
