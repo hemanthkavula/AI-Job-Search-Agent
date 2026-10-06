@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import re
 from app.eligibility import two_category_filter
 
@@ -26,10 +27,13 @@ US_STATE_NAMES={
  "alabama","alaska","arizona","arkansas","california","colorado","connecticut","delaware","florida","georgia","hawaii","idaho","illinois","indiana","iowa","kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan","minnesota","mississippi","missouri","montana","nebraska","nevada","new hampshire","new jersey","new mexico","new york","north carolina","north dakota","ohio","oklahoma","oregon","pennsylvania","rhode island","south carolina","south dakota","tennessee","texas","utah","vermont","virginia","washington","west virginia","wisconsin","wyoming","district of columbia"
 }
 NON_US_MARKERS={
+ "emea","apac","latam","europe","european union","asia pacific","middle east","africa","australia and new zealand","australia & new zealand","anz",
  "romania","bucharest","canada","toronto","vancouver","india","bangalore","bengaluru","hyderabad","pune","chennai","mumbai","delhi",
  "united kingdom","london","ireland","dublin","germany","berlin","munich","france","paris","spain","madrid","netherlands","amsterdam",
  "poland","warsaw","portugal","lisbon","italy","milan","australia","sydney","melbourne","singapore","japan","tokyo","mexico","brazil"
 }
+# The user wants U.S.-based roles only, not generic worldwide/global openings.
+GLOBAL_LOCATION_MARKERS={"global","worldwide","anywhere","international","remote worldwide","remote - global","remote global"}
 US_CITY_MARKERS={
  "san francisco","san jose","seattle","new york","jersey city","glassboro","philadelphia","austin","dallas","houston",
  "chicago","boston","atlanta","charlotte","raleigh","denver","phoenix","los angeles","san diego","portland","miami",
@@ -91,35 +95,88 @@ def title_is_target(title,description=""):
     )
     return adjacent_engineering_title and jd_is_data_engineering(description)
 
-def _description_has_us_location(description):
-    text=_clean(description)
-    if any(marker in text for marker in US_MARKERS):return True
-    if any(re.search(rf"\b{re.escape(state)}\b",text) for state in US_STATE_NAMES):return True
-    if any(re.search(rf"\b{re.escape(city)}\b",text) for city in US_CITY_MARKERS):return True
-    return False
-
 def _description_has_non_us_location(description):
     text=_clean(description)
     return any(_has_bounded_marker(text,marker) for marker in NON_US_MARKERS)
 
-def location_is_us(location,source=None,description=""):
-    raw=(location or "").strip();src=_clean(source)
-    if not raw:
-        if _description_has_us_location(description):return True
-        if _description_has_non_us_location(description):return False
-        return src=="dice"
-    loc=_clean(raw)
-    if any(marker in loc for marker in US_MARKERS):return True
-    if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):return False
-    if US_STATE_RE.search(raw):return True
-    parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
-    if any(city in parts for city in US_CITY_MARKERS):return True
-    if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
-    if loc in {"remote","remote - remote","multiple locations"} or loc.startswith("remote "):
-        if _description_has_us_location(description):return True
-        if _description_has_non_us_location(description):return False
-        return src=="dice"
+def _description_has_us_location(description):
+    """Require U.S. work-location evidence, not a casual mention of the U.S.
+
+    This intentionally does not treat any occurrence of USA, a U.S. city, or a
+    state name as proof. Company footprint/team-distribution text can mention the
+    U.S. even when the actual vacancy is EMEA/APAC.
+    """
+    text=_clean(description)
+    if not text:return False
+    us=r"(?:united states(?: of america)?|u\.?s\.?a?\.?|usa)"
+    scoped_patterns=(
+        rf"\b(?:job|role|position|work)\s+location\s*(?:is|:|-)?\s*(?:remote\s*[-,:]?\s*)?{us}\b",
+        rf"\b(?:this|the)\s+(?:job|role|position)\s+(?:is\s+)?(?:based|located)\s+(?:in|within)\s+(?:the\s+)?{us}\b",
+        rf"\b(?:must|should)\s+(?:be\s+)?(?:based|located|reside|live)\s+(?:in|within)\s+(?:the\s+)?{us}\b",
+        rf"\b(?:candidates?|applicants?)\s+(?:must\s+)?(?:be\s+)?(?:based|located|residing|living)\s+(?:in|within)\s+(?:the\s+)?{us}\b",
+        rf"\bremote(?:\s+(?:job|role|position|opportunity))?\s*(?:[-,:|]\s*|\s+(?:in|within)\s+)(?:the\s+)?{us}\b",
+        rf"\b(?:open|available)\s+to\s+(?:candidates?|applicants?)\s+(?:based|located|residing|living)?\s*(?:in|within)?\s*(?:the\s+)?{us}\b",
+        rf"\bwork(?:ing)?\s+(?:remotely\s+)?(?:from|in|within)\s+(?:the\s+)?{us}\b",
+    )
+    if any(re.search(pattern,text,re.I) for pattern in scoped_patterns):return True
+
+    # Also accept explicitly scoped U.S. state/city locations from the JD.
+    scope_words=r"(?:location|based|located|reside|residing|live|living|office|work from|work in)"
+    for state in US_STATE_NAMES:
+        if re.search(rf"\b{scope_words}\b.{{0,35}}\b{re.escape(state)}\b",text,re.I):return True
+    for city in US_CITY_MARKERS:
+        if re.search(rf"\b{scope_words}\b.{{0,35}}\b{re.escape(city)}\b",text,re.I):return True
     return False
+
+def _flatten_application_questions(job:dict) -> str:
+    """Return screening/application-question text when a collector supplies it."""
+    values=[]
+    for key in ("application_questions","screening_questions","questions","application_form"):
+        value=job.get(key)
+        if value in (None,"",[],{}):continue
+        if isinstance(value,str):values.append(value)
+        else:
+            try:values.append(json.dumps(value,ensure_ascii=False))
+            except Exception:values.append(str(value))
+    return " ".join(values)
+
+def _questions_show_us_scope(text):
+    cleaned=_clean(text)
+    if not cleaned:return False
+    patterns=(
+        r"\b(?:are|will) you (?:currently )?(?:based|located|residing|living) (?:in|within) (?:the )?(?:united states|u\.?s\.?a?\.?|usa)\b",
+        r"\bdo you (?:currently )?(?:reside|live) (?:in|within) (?:the )?(?:united states|u\.?s\.?a?\.?|usa)\b",
+        r"\bthis (?:job|role|position) (?:is )?(?:only )?(?:available|open) (?:in|to candidates in) (?:the )?(?:united states|u\.?s\.?a?\.?|usa)\b",
+    )
+    return any(re.search(pattern,cleaned,re.I) for pattern in patterns)
+
+def location_is_us(location,source=None,description="",application_questions=""):
+    """Return True only when the vacancy itself is demonstrably U.S.-based.
+
+    Priority is explicit job location -> JD evidence for ambiguous/missing labels ->
+    application screening questions when supplied by the ATS. Explicit foreign
+    regions always win over incidental U.S. mentions in the description.
+    """
+    raw=(location or "").strip()
+    loc=_clean(raw)
+
+    if raw:
+        # Explicit non-U.S. or global labels are authoritative and must never be
+        # overridden by a company/team mention of the United States in the JD.
+        if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):return False
+        if any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS):return False
+        if any(marker in loc for marker in US_MARKERS):return True
+        if US_STATE_RE.search(raw):return True
+        parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
+        if any(city in parts for city in US_CITY_MARKERS):return True
+        if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
+        # Generic remote/multiple-location labels need positive U.S. evidence.
+        if loc in {"remote","remote - remote","multiple locations","various locations"} or loc.startswith("remote "):
+            return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
+        return False
+
+    # Missing location is never assumed U.S. based, including for job boards.
+    return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
 
 def employment_is_target(employment_type, description=""):
     employment=_clean(employment_type);text=_clean(f"{employment_type or ''} {description or ''}")
@@ -154,7 +211,8 @@ def passes_hard_filters(job:dict,profile:dict):
         reasons.append("excluded prior employer")
     if not title_is_target(job.get("title"),job.get("description")):
         reasons.append("title/JD outside data-engineering job family")
-    if not location_is_us(job.get("location"),job.get("source"),job.get("description")):
+    application_questions=_flatten_application_questions(job)
+    if not location_is_us(job.get("location"),job.get("source"),job.get("description"),application_questions):
         reasons.append("location outside United States target")
     if not employment_is_target(job.get("employment_type"),job.get("description")):
         reasons.append("employment type outside Full-Time/W-2 target")
