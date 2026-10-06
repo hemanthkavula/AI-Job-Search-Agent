@@ -32,7 +32,6 @@ NON_US_MARKERS={
  "united kingdom","london","ireland","dublin","germany","berlin","munich","france","paris","spain","madrid","netherlands","amsterdam",
  "poland","warsaw","portugal","lisbon","italy","milan","australia","sydney","melbourne","singapore","japan","tokyo","mexico","brazil"
 }
-# The user wants U.S.-based roles only, not generic worldwide/global openings.
 GLOBAL_LOCATION_MARKERS={"global","worldwide","anywhere","international","remote worldwide","remote - global","remote global"}
 US_CITY_MARKERS={
  "san francisco","san jose","seattle","new york","jersey city","glassboro","philadelphia","austin","dallas","houston",
@@ -40,8 +39,6 @@ US_CITY_MARKERS={
  "tampa","orlando","minneapolis","columbus","cleveland","detroit","pittsburgh","princeton","newark","malvern","plano",
  "redmond","washington dc","washington, dc"
 }
-# Keep state abbreviations case-sensitive. With re.I, ordinary words such as "in"
-# and "or" become Indiana/Oregon and can incorrectly turn foreign locations into U.S. jobs.
 US_STATE_RE=re.compile(r"(?:^|[,|\s])(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)(?:\s|,|\||$)")
 
 EMPLOYMENT_ACCEPT_MARKERS=("full-time","full time","fulltime","regular","permanent","employee","w2","w-2")
@@ -66,7 +63,6 @@ def _has_bounded_marker(text,marker):
     return re.search(rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",text) is not None
 
 def _title_for_match(title):
-    # Parenthetical work-arrangement/location qualifiers do not change the role family.
     t=_clean(title)
     t=re.sub(r"\s*\((?:remote|hybrid|on[- ]?site|onsite)(?:[^)]*)\)\s*$","",t)
     return t.strip()
@@ -83,16 +79,12 @@ def title_is_target(title,description=""):
     t=_title_for_match(title)
     if re.search(r"\b(manager|director|architect|consultant)\b",t,re.I):return False
     if re.search(r"\bdata engineer(?:ing)?\b",t,re.I):return True
-    if re.search(r"\banalytics engineer\b",t,re.I):
-        return jd_is_data_engineering(description)
+    if re.search(r"\banalytics engineer\b",t,re.I):return jd_is_data_engineering(description)
     if re.search(r"\bsoftware engineer\b",t,re.I) and any(x in t for x in ("data platform","data infrastructure","data pipeline","data warehouse")):
         return jd_is_data_engineering(description)
     if any(x in t for x in EXCLUDED_TITLE_TERMS):return False
     if any(re.search(p,t,re.I) for p in ALLOWED_TITLE_PATTERNS[1:]):return True
-    adjacent_engineering_title = (
-        "engineer" in t
-        and any(marker in t for marker in ("data", "analytics", "etl", "warehouse", "pipeline", "integration"))
-    )
+    adjacent_engineering_title=("engineer" in t and any(marker in t for marker in ("data","analytics","etl","warehouse","pipeline","integration")))
     return adjacent_engineering_title and jd_is_data_engineering(description)
 
 def _description_has_non_us_location(description):
@@ -100,12 +92,6 @@ def _description_has_non_us_location(description):
     return any(_has_bounded_marker(text,marker) for marker in NON_US_MARKERS)
 
 def _description_has_us_location(description):
-    """Require U.S. work-location evidence, not a casual mention of the U.S.
-
-    This intentionally does not treat any occurrence of USA, a U.S. city, or a
-    state name as proof. Company footprint/team-distribution text can mention the
-    U.S. even when the actual vacancy is EMEA/APAC.
-    """
     text=_clean(description)
     if not text:return False
     us=r"(?:united states(?: of america)?|u\.?s\.?a?\.?|usa)"
@@ -119,8 +105,6 @@ def _description_has_us_location(description):
         rf"\bwork(?:ing)?\s+(?:remotely\s+)?(?:from|in|within)\s+(?:the\s+)?{us}\b",
     )
     if any(re.search(pattern,text,re.I) for pattern in scoped_patterns):return True
-
-    # Also accept explicitly scoped U.S. state/city locations from the JD.
     scope_words=r"(?:location|based|located|reside|residing|live|living|office|work from|work in)"
     for state in US_STATE_NAMES:
         if re.search(rf"\b{scope_words}\b.{{0,35}}\b{re.escape(state)}\b",text,re.I):return True
@@ -129,7 +113,6 @@ def _description_has_us_location(description):
     return False
 
 def _flatten_application_questions(job:dict) -> str:
-    """Return screening/application-question text when a collector supplies it."""
     values=[]
     for key in ("application_questions","screening_questions","questions","application_form"):
         value=job.get(key)
@@ -151,48 +134,42 @@ def _questions_show_us_scope(text):
     return any(re.search(pattern,cleaned,re.I) for pattern in patterns)
 
 def location_is_us(location,source=None,description="",application_questions=""):
-    """Return True only when the vacancy itself is demonstrably U.S.-based.
+    """Require positive vacancy-level evidence that the opening is U.S.-based.
 
-    A source location label is useful evidence but is not always authoritative.
-    If a label is ambiguous, regional, global, or conflicts with richer posting
-    data, inspect the full JD and ATS application questions for explicit U.S.
-    vacancy scope. Incidental company/team/customer mentions of the U.S. never
-    count. If U.S. scope still cannot be demonstrated, reject the role.
+    Source labels can be coarse or stale. For foreign/regional/global/ambiguous
+    labels, inspect the full JD and ATS application questions. Explicit U.S.
+    vacancy evidence may resolve a conflicting source label; generic mentions of
+    U.S. offices, teams, customers, or company nationality do not count.
     """
     raw=(location or "").strip()
     loc=_clean(raw)
-    richer_us_evidence=(
-        _description_has_us_location(description)
-        or _questions_show_us_scope(application_questions)
-    )
+    richer_us_evidence=_description_has_us_location(description) or _questions_show_us_scope(application_questions)
 
     if raw:
-        # Clear U.S. labels are sufficient by themselves.
-        if any(marker in loc for marker in US_MARKERS):return True
-        if US_STATE_RE.search(raw):return True
+        explicit_us_marker=any(marker in loc for marker in US_MARKERS)
         parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
-        if any(city in parts for city in US_CITY_MARKERS):return True
-        if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
+        explicit_us_city=any(city in parts for city in US_CITY_MARKERS)
+        explicit_us_state_name=any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES)
+        has_foreign_marker=any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS)
+        has_global_marker=any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS)
 
-        # Regional/global/foreign source labels can be stale, coarse, or describe
-        # a posting family rather than the actual vacancy. Do not accept them on
-        # company nationality alone, but allow explicit vacancy-level evidence in
-        # the full JD or application questions to establish that this opening is
-        # U.S.-based. A generic "we have offices/employees in the USA" mention is
-        # deliberately ignored by _description_has_us_location().
-        if any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS):
-            return richer_us_evidence
-        if any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS):
+        # Foreign/global evidence must be resolved before checking two-letter U.S.
+        # state abbreviations, because country codes such as IN can otherwise be
+        # misread as Indiana. A genuinely mixed label containing explicit U.S.
+        # wording/city/state-name can still pass.
+        if has_foreign_marker or has_global_marker:
+            if explicit_us_marker or explicit_us_city or explicit_us_state_name:return True
             return richer_us_evidence
 
-        # Generic remote/multiple-location and otherwise unclear labels also need
-        # positive U.S. vacancy evidence before they can pass.
+        if explicit_us_marker:return True
+        if US_STATE_RE.search(raw):return True
+        if explicit_us_city:return True
+        if explicit_us_state_name:return True
+
         if loc in {"remote","remote - remote","multiple locations","various locations"} or loc.startswith("remote "):
             return richer_us_evidence
         return richer_us_evidence
 
-    # Missing location is never assumed U.S.-based. It must be established from
-    # the richer employer posting or ATS application questions.
     return richer_us_evidence
 
 def employment_is_target(employment_type, description=""):
@@ -212,17 +189,6 @@ def work_authorization_restriction(description="",title=""):
     return None
 
 def passes_hard_filters(job:dict,profile:dict):
-    """Apply the governing eligibility criteria.
-
-    1) Data Engineering family (title, or adjacent title supported by JD evidence)
-    2) United States location scope
-    3) Full-time/W-2 employment target
-    4) Experience requirement must fit the configured target window
-    5) Explicit citizenship/clearance restrictions are rejected
-
-    Sponsorship is deliberately not an eligibility criterion. Any sponsorship
-    wording in the posting is informational only and never rejects or holds a job.
-    """
     reasons=[]
     if employer_is_excluded(job.get("company") or job.get("company_key")):
         reasons.append("excluded prior employer")
