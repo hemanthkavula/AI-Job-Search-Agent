@@ -37,7 +37,7 @@ def test_zero_targets_use_unchanged_master_fallback():
     assert policy["technical_content_source"] == "unchanged_master_fallback"
 
 
-def test_nonzero_targets_make_word_template_format_only():
+def test_nonzero_targets_use_hybrid_master_history_plus_current_jd():
     job = _job("Required: Java, Python, SQL, Airflow, and Databricks.")
     plan = {
         "target_count": 5,
@@ -50,12 +50,17 @@ def test_nonzero_targets_make_word_template_format_only():
     assert policy["mode"] == MODE_LIGHT
     assert policy["minimum_master_bullets_retained"] == {
         "Fidelity Investments": 0,
-        "Cigna Healthcare": 0,
-        "Target Corporation": 0,
+        "Cigna Healthcare": 6,
+        "Target Corporation": 6,
     }
-    assert policy["master_is_base"] is False
+    assert policy["master_is_base"] is True
     assert policy["word_template_is_format_only"] is True
-    assert policy["technical_content_source"] == "current_job_description"
+    assert policy["technical_content_source"] == "hybrid_master_history_plus_current_jd"
+    assert policy["employer_tailoring_policy"] == {
+        "Fidelity Investments": "primary_jd_tailored_current_employer",
+        "Cigna Healthcare": "azure_master_baseline_light_alignment_only",
+        "Target Corporation": "aws_master_baseline_light_alignment_only",
+    }
 
 
 def test_detailed_five_target_jd_is_moderate_jd_driven():
@@ -83,7 +88,10 @@ def test_detailed_five_target_jd_is_moderate_jd_driven():
             for x in ("Java", "Python", "SQL", "Airflow", "Databricks")
         ],
     }
-    assert determine_tailoring_policy(job, plan)["mode"] == MODE_MODERATE
+    policy = determine_tailoring_policy(job, plan)
+    assert policy["mode"] == MODE_MODERATE
+    assert policy["minimum_master_bullets_retained"]["Cigna Healthcare"] == 5
+    assert policy["minimum_master_bullets_retained"]["Target Corporation"] == 5
 
 
 def test_rich_eight_target_jd_is_strong_jd_driven():
@@ -98,7 +106,13 @@ def test_rich_eight_target_jd_is_strong_jd_driven():
             {"term": f"T{i}", "classification": "material"} for i in range(8)
         ],
     }
-    assert determine_tailoring_policy(job, plan)["mode"] == MODE_STRONG
+    policy = determine_tailoring_policy(job, plan)
+    assert policy["mode"] == MODE_STRONG
+    assert policy["minimum_master_bullets_retained"] == {
+        "Fidelity Investments": 0,
+        "Cigna Healthcare": 5,
+        "Target Corporation": 5,
+    }
 
 
 def test_rich_large_target_jd_can_be_full_jd_driven():
@@ -115,10 +129,14 @@ def test_rich_large_target_jd_can_be_full_jd_driven():
     }
     policy = determine_tailoring_policy(job, plan)
     assert policy["mode"] == MODE_FULL
-    assert policy["minimum_master_bullets_retained"]["Fidelity Investments"] == 0
+    assert policy["minimum_master_bullets_retained"] == {
+        "Fidelity Investments": 0,
+        "Cigna Healthcare": 5,
+        "Target Corporation": 5,
+    }
 
 
-def test_partial_jd_stays_light_and_still_uses_jd_as_technical_source():
+def test_partial_jd_stays_light_and_uses_hybrid_technical_source():
     job = _job(
         "Python SQL Java Airflow Databricks Snowflake Kafka Spark dbt Terraform are listed.",
         description_complete=False,
@@ -127,7 +145,9 @@ def test_partial_jd_stays_light_and_still_uses_jd_as_technical_source():
     plan = {"target_count": 10, "requirements": []}
     policy = determine_tailoring_policy(job, plan)
     assert policy["mode"] == MODE_LIGHT
-    assert policy["technical_content_source"] == "current_job_description"
+    assert policy["technical_content_source"] == "hybrid_master_history_plus_current_jd"
+    assert policy["minimum_master_bullets_retained"]["Cigna Healthcare"] == 6
+    assert policy["minimum_master_bullets_retained"]["Target Corporation"] == 6
 
 
 def test_java_and_python_are_both_kept_when_both_are_explicit_jd_targets():
@@ -140,7 +160,7 @@ def test_java_and_python_are_both_kept_when_both_are_explicit_jd_targets():
     assert "Databricks" in plan["targeted_terms"]
 
 
-def test_verbatim_master_metrics_are_allowed_only_for_zero_target_fallback():
+def test_verbatim_master_metrics_are_allowed_only_for_master_backed_bullets():
     master = load_master_resume()
     by_company = {row["company"]: list(row["bullets"]) for row in master["experience"]}
     assert _new_metric_findings(by_company, master, False) == []
@@ -154,7 +174,7 @@ def test_verbatim_master_metrics_are_allowed_only_for_zero_target_fallback():
     assert findings[0]["company"] == "Fidelity Investments"
 
 
-def test_master_retention_counter_still_supports_zero_target_fallback_audit():
+def test_master_retention_counter_enforces_historical_baseline():
     master = load_master_resume()
     by_company = {row["company"]: list(row["bullets"]) for row in master["experience"]}
     counts = _retained_master_counts(by_company, master)
