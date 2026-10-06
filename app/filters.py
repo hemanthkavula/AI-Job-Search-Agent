@@ -134,43 +134,41 @@ def _questions_show_us_scope(text):
     return any(re.search(pattern,cleaned,re.I) for pattern in patterns)
 
 def location_is_us(location,source=None,description="",application_questions=""):
-    """Require positive vacancy-level evidence that the opening is U.S.-based.
+    """Return True only when the vacancy itself is U.S.-based.
 
-    Source labels can be coarse or stale. For foreign/regional/global/ambiguous
-    labels, inspect the full JD and ATS application questions. Explicit U.S.
-    vacancy evidence may resolve a conflicting source label; generic mentions of
-    U.S. offices, teams, customers, or company nationality do not count.
+    Precedence is intentional and follows the user's search policy:
+    1) an explicit foreign/regional/global label (EMEA/APAC/Global/etc.) rejects;
+    2) an explicit U.S. label/city/state accepts;
+    3) only missing or ambiguous labels fall through to the full JD and ATS
+       application questions for positive U.S.-vacancy evidence.
+
+    A company/team/customer mention of the U.S. is never enough by itself.
     """
     raw=(location or "").strip()
     loc=_clean(raw)
-    richer_us_evidence=_description_has_us_location(description) or _questions_show_us_scope(application_questions)
 
     if raw:
-        explicit_us_marker=any(marker in loc for marker in US_MARKERS)
-        parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
-        explicit_us_city=any(city in parts for city in US_CITY_MARKERS)
-        explicit_us_state_name=any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES)
         has_foreign_marker=any(_has_bounded_marker(loc,marker) for marker in NON_US_MARKERS)
         has_global_marker=any(_has_bounded_marker(loc,marker) for marker in GLOBAL_LOCATION_MARKERS)
+        # These are already resolved labels, not ambiguous ones. Do not let a JD
+        # or screening question convert an EMEA/APAC/Global opening into a U.S. job.
+        if has_foreign_marker or has_global_marker:return False
 
-        # Foreign/global evidence must be resolved before checking two-letter U.S.
-        # state abbreviations, because country codes such as IN can otherwise be
-        # misread as Indiana. A genuinely mixed label containing explicit U.S.
-        # wording/city/state-name can still pass.
-        if has_foreign_marker or has_global_marker:
-            if explicit_us_marker or explicit_us_city or explicit_us_state_name:return True
-            return richer_us_evidence
-
-        if explicit_us_marker:return True
+        if any(marker in loc for marker in US_MARKERS):return True
         if US_STATE_RE.search(raw):return True
-        if explicit_us_city:return True
-        if explicit_us_state_name:return True
+        parts={p.strip() for p in re.split(r"[|,/]",loc) if p.strip()}
+        if any(city in parts for city in US_CITY_MARKERS):return True
+        if any(re.search(rf"\b{re.escape(state)}\b",loc) for state in US_STATE_NAMES):return True
 
-        if loc in {"remote","remote - remote","multiple locations","various locations"} or loc.startswith("remote "):
-            return richer_us_evidence
-        return richer_us_evidence
+        # Only coarse/ambiguous labels are allowed to consult richer posting data.
+        ambiguous=(
+            loc in {"remote","remote - remote","multiple locations","various locations","hybrid","onsite","on-site"}
+            or loc.startswith("remote ")
+            or loc.startswith("hybrid ")
+        )
+        if not ambiguous:return False
 
-    return richer_us_evidence
+    return _description_has_us_location(description) or _questions_show_us_scope(application_questions)
 
 def employment_is_target(employment_type, description=""):
     employment=_clean(employment_type);text=_clean(f"{employment_type or ''} {description or ''}")
