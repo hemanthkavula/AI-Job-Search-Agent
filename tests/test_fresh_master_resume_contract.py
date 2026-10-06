@@ -128,7 +128,18 @@ def _assert_compact_static_headers(doc):
         assert 'w:val="distribute"' not in xml
 
 
-def test_renderer_reproduces_uploaded_word_format_contract_with_skills_footer(monkeypatch, tmp_path):
+def _assert_authoritative_dates(doc):
+    text = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    for date_line in (
+        "Jan 2025 – Present",
+        "Jan 2022 – Dec 2023",
+        "Jan 2020 – Dec 2021",
+        "Jan 2024 – Dec 2025",
+    ):
+        assert text.count(date_line) == 1
+
+
+def test_renderer_reproduces_uploaded_word_format_contract_with_environment_footer(monkeypatch, tmp_path):
     monkeypatch.setattr(formatter, "ROOT", tmp_path)
     monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
     job = SimpleNamespace(company="Example Company", title="Data Engineer")
@@ -141,10 +152,11 @@ def test_renderer_reproduces_uploaded_word_format_contract_with_skills_footer(mo
     assert doc.paragraphs[0].text == "Hemanth Kavula"
     assert doc.paragraphs[1].text == "Senior Data Engineer"
     assert sum(p.text == "Roles & Responsibilities:" for p in doc.paragraphs) == 3
-    assert sum(p.text.startswith("Skills: ") for p in doc.paragraphs) == 3
-    assert sum(p.text.startswith("Environment: ") for p in doc.paragraphs) == 0
+    assert sum(p.text.startswith("Environment: ") for p in doc.paragraphs) == 3
+    assert sum(p.text.startswith("Skills: ") for p in doc.paragraphs) == 0
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
     _assert_compact_static_headers(doc)
+    _assert_authoritative_dates(doc)
 
 
 def _generated_payload(long_content=False):
@@ -197,7 +209,7 @@ def _generated_payload(long_content=False):
     }
 
 
-def test_jd_tailored_renderer_keeps_word_format_and_skills_footers(monkeypatch, tmp_path):
+def test_jd_tailored_renderer_keeps_word_format_and_environment_footers(monkeypatch, tmp_path):
     monkeypatch.setattr(formatter, "ROOT", tmp_path)
     monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
     job = SimpleNamespace(company="Example Company", title="Senior Data Engineer")
@@ -206,10 +218,11 @@ def test_jd_tailored_renderer_keeps_word_format_and_skills_footers(monkeypatch, 
     assert result["passed"], result["reasons"]
     doc = Document(path)
     text = "\n".join(p.text for p in doc.paragraphs)
-    assert "Skills: Python, SQL" in text
-    assert "Environment:" not in text
+    assert "Environment: Python, SQL" in text
+    assert "Skills: Python, SQL" not in text
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
     _assert_compact_static_headers(doc)
+    _assert_authoritative_dates(doc)
 
 
 def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypatch, tmp_path):
@@ -220,4 +233,6 @@ def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypat
     result = formatter.validate_master_format_contract(path)
     assert result["passed"], result["reasons"]
     assert result["content_length_policy"] == "compact_master_like_layout"
-    _assert_compact_static_headers(Document(path))
+    doc = Document(path)
+    _assert_compact_static_headers(doc)
+    _assert_authoritative_dates(doc)
