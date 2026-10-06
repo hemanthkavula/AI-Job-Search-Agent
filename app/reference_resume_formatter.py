@@ -145,6 +145,15 @@ def _rpr(paragraph, bold):
     return None
 
 
+def _date_rpr(paragraph):
+    for run in paragraph.xpath(".//w:r", namespaces=NS):
+        text = "".join(run.xpath("./w:t/text()", namespaces=NS))
+        if re.search(r"\b20\d{2}\b", text):
+            rpr = run.find(W + "rPr")
+            return deepcopy(rpr) if rpr is not None else None
+    return _rpr(paragraph, False) or _rpr(paragraph, True)
+
+
 def _clear(paragraph):
     for child in list(paragraph):
         if child.tag != W + "pPr":
@@ -211,13 +220,24 @@ def _clean_header_layout(paragraph):
     return not has_tabs and alignment not in {"both", "distribute", "thaiDistribute"}
 
 
-def _normalize_static_headers(root, master):
-    """Rebuild employer and education location rows as compact single-line headers.
+def _insert_compact_date_after(paragraph, date_text, date_style):
+    date_text = str(date_text or "").strip()
+    if not date_text:
+        return None
+    date_paragraph = deepcopy(paragraph)
+    _compact_left_paragraph(date_paragraph, after_twips=0)
+    _clear(date_paragraph)
+    _run(date_paragraph, date_text, date_style)
+    paragraph.addnext(date_paragraph)
+    return date_paragraph
 
-    The uploaded Word template contains paragraph/tab formatting that LibreOffice can
-    expand into large horizontal gaps (most visibly on Fidelity and Rowan University).
-    Content, font runs, and the master visual hierarchy are preserved; only the bad
-    tab/distributed paragraph behavior is removed.
+
+def _normalize_static_headers(root, master):
+    """Rebuild employer/education rows without the template's stretched tabs.
+
+    The original Word rows combine company/school, location, and dates using tabs.
+    We preserve the clean compact header, then restore the authoritative master date
+    as its own compact line immediately below it.
     """
     paragraphs = _pt(root)
     for row in master["experience"]:
@@ -225,10 +245,12 @@ def _normalize_static_headers(root, master):
         paragraph = next(p for p in paragraphs if _text(p).startswith(company))
         company_style = _rpr(paragraph, True) or _rpr(paragraph, False)
         detail_style = _rpr(paragraph, False) or company_style
-        _compact_left_paragraph(paragraph, after_twips=40)
+        date_style = _date_rpr(paragraph) or detail_style
+        _compact_left_paragraph(paragraph, after_twips=0)
         _clear(paragraph)
         _run(paragraph, company, company_style)
         _run(paragraph, f" | {row['location']}", detail_style)
+        _insert_compact_date_after(paragraph, row.get("dates"), date_style)
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
@@ -239,11 +261,16 @@ def _normalize_static_headers(root, master):
         if paragraph is None:
             continue
         style = _rpr(paragraph, False) or _rpr(paragraph, True)
-        _compact_left_paragraph(paragraph, after_twips=40)
+        date_style = _date_rpr(paragraph) or style
+        _compact_left_paragraph(paragraph, after_twips=0)
         _clear(paragraph)
         _run(paragraph, school, style)
         if location:
             _run(paragraph, f" | {location}", style)
+        start = str(row.get("start") or "").strip()
+        end = str(row.get("end") or "").strip()
+        dates = f"{start} – {end}" if start and end else (start or end)
+        _insert_compact_date_after(paragraph, dates, date_style)
 
 
 def _is_employer_footer(value):
@@ -351,21 +378,37 @@ def validate_master_format_contract(path, master=None, word_format=None):
 
     for row in master["experience"]:
         expected = f"{row['company']} | {row['location']}"
-        header = next((p for p in output_paragraphs if _text(p).startswith(row["company"])), None)
+        header_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(row["company"])), None)
+        header = None if header_index is None else output_paragraphs[header_index]
         if header is None or _text(header) != expected:
             reasons.append(row["company"] + "_header_text")
         elif not _clean_header_layout(header):
             reasons.append(row["company"] + "_header_spacing")
+        roles_index = next(
+            (i for i in range((header_index or 0) + 1, len(output_paragraphs)) if _text(output_paragraphs[i]) == "Roles & Responsibilities:"),
+            None,
+        )
+        date_found = False if header_index is None or roles_index is None else any(
+            _text(p) == row.get("dates") for p in output_paragraphs[header_index + 1:roles_index]
+        )
+        if not date_found:
+            reasons.append(row["company"] + "_dates")
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
         location = str(row.get("location") or "").strip()
         expected = f"{school} | {location}" if location else school
-        paragraph = next((p for p in output_paragraphs if _text(p).startswith(school)), None)
+        school_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(school)), None)
+        paragraph = None if school_index is None else output_paragraphs[school_index]
         if paragraph is None or _text(paragraph) != expected:
             reasons.append("education_school_location_text")
         elif not _clean_header_layout(paragraph):
             reasons.append("education_school_location_spacing")
+        start = str(row.get("start") or "").strip()
+        end = str(row.get("end") or "").strip()
+        dates = f"{start} – {end}" if start and end else (start or end)
+        if dates and not any(_text(p) == dates for p in output_paragraphs[(school_index or 0) + 1:]):
+            reasons.append("education_dates")
 
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)
@@ -379,7 +422,9 @@ def validate_master_format_contract(path, master=None, word_format=None):
         ):
             reasons.append(company + "_bullet_format")
         if _ppr(output_experience[company]["footer"]) != _ppr(source_experience[company]["footer"]):
-            reasons.append(company + "_skills_footer_format")
+            reasons.append(company + "_environment_footer_format")
+        if not _text(output_experience[company]["footer"]).startswith("Environment: "):
+            reasons.append(company + "_environment_footer_label")
     return {
         "passed": not reasons,
         "reasons": list(dict.fromkeys(reasons)),
@@ -434,9 +479,9 @@ def _footer_styles(source_layout):
 def _write_skills_footer(paragraph, values, bold_style, normal_style):
     values = [str(value).strip() for value in values or [] if str(value).strip()]
     if not values:
-        raise RuntimeError("Employer Skills list is empty")
+        raise RuntimeError("Employer environment technology list is empty")
     _clear(paragraph)
-    _run(paragraph, "Skills", bold_style)
+    _run(paragraph, "Environment", bold_style)
     _run(paragraph, ": " + ", ".join(values), normal_style)
 
 
