@@ -2,9 +2,6 @@ name: One-Time Resume Recovery
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/alpaca-resume-repair.trigger
 
 permissions:
   actions: read
@@ -14,136 +11,33 @@ jobs:
   recover:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current production renderer
-        uses: actions/checkout@v4
-
-      - name: Download run 264 artifact
+      - name: Download preserved production artifact
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 37445767864
-          artifact-ids: 11404468951
+          run-id: 36351041431
+          artifact-ids: 10942847714
           path: recovery
 
-      - name: Install document tooling
+      - name: Package resumes only
         run: |
-          python -m pip install --quiet -r requirements.txt
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libreoffice-writer poppler-utils >/dev/null
+          test -d recovery/job-cycle-145/generated/resumes
+          cd recovery/job-cycle-145
+          zip -qr ../../resume-recovery.zip generated/resumes
+          echo "PDF_COUNT=$(find generated/resumes -type f -iname '*.pdf' | wc -l)" >> "$GITHUB_ENV"
+          echo "DOCX_COUNT=$(find generated/resumes -type f -iname '*.docx' | wc -l)" >> "$GITHUB_ENV"
 
-      - name: Repair only the Alpaca resume
-        shell: bash
-        run: |
-          set -euo pipefail
-          DOCX=$(find recovery -type f -path '*/generated/resumes/alpaca_Staff_Analytics_Engineer_20261006_062226/Hemanth_Kavula_alpaca_Staff_Analytics_Engineer.docx' | head -1)
-          test -n "$DOCX"
-          export DOCX
-          python <<'PY'
-          import os
-          from copy import deepcopy
-          from pathlib import Path
-          from lxml import etree
-          from app.master_resume import load_master_resume
-          from app.reference_resume_formatter import (
-              NS, _xml, _pt, _text, _date_rpr, _rpr,
-              _compact_left_paragraph, _clear, _run, _write_docx, _template,
-          )
-
-          docx = Path(os.environ['DOCX'])
-          template_root = _xml(_template())
-          output_root = _xml(docx)
-          master = load_master_resume()
-
-          def insert_date(header_text: str, date_text: str) -> None:
-              paragraphs = _pt(output_root)
-              header = next(p for p in paragraphs if _text(p).startswith(header_text))
-              parent = header.getparent()
-              idx = parent.index(header)
-              if idx + 1 < len(parent):
-                  nxt = parent[idx + 1]
-                  if nxt.tag.endswith('}p') and _text(nxt) == date_text:
-                      return
-              template_header = next(p for p in _pt(template_root) if _text(p).startswith(header_text))
-              date_style = _date_rpr(template_header) or _rpr(template_header, False) or _rpr(header, False)
-              date_paragraph = deepcopy(header)
-              _compact_left_paragraph(date_paragraph, after_twips=0)
-              _clear(date_paragraph)
-              _run(date_paragraph, date_text, date_style)
-              header.addnext(date_paragraph)
-
-          for row in master['experience']:
-              insert_date(row['company'], row['dates'])
-
-          education = (master.get('education') or [])[0]
-          edu_date = f"{education['start']} – {education['end']}"
-          insert_date(education['school'], edu_date)
-
-          changed = 0
-          for paragraph in _pt(output_root):
-              if not _text(paragraph).startswith('Skills:'):
-                  continue
-              for node in paragraph.xpath('.//w:t', namespaces=NS):
-                  if (node.text or '') == 'Skills':
-                      node.text = 'Environment'
-                      changed += 1
-                      break
-          if changed != 3:
-              raise RuntimeError(f'Expected 3 Skills footers, changed {changed}')
-
-          patched = docx.with_suffix('.patched.docx')
-          xml = etree.tostring(output_root, xml_declaration=True, encoding='UTF-8', standalone='yes')
-          _write_docx(docx, patched, xml)
-          patched.replace(docx)
-          PY
-
-          DIR=$(dirname "$DOCX")
-          PDF="${DOCX%.docx}.pdf"
-          rm -f "$PDF"
-          libreoffice --headless --convert-to pdf --outdir "$DIR" "$DOCX" >/tmp/lo.log 2>&1 || { cat /tmp/lo.log; exit 1; }
-          test -s "$PDF"
-
-          PAGES=$(pdfinfo "$PDF" | awk '/^Pages:/ {print $2}')
-          test "$PAGES" = "2"
-          pdftotext "$PDF" /tmp/alpaca.txt
-          grep -Fq 'Jan 2025' /tmp/alpaca.txt
-          grep -Fq 'Jan 2022' /tmp/alpaca.txt
-          grep -Fq 'Jan 2020' /tmp/alpaca.txt
-          grep -Fq 'Jan 2024' /tmp/alpaca.txt
-          test "$(grep -o 'Environment:' /tmp/alpaca.txt | wc -l)" -eq 3
-          ! grep -Fq 'Skills:' /tmp/alpaca.txt
-
-          BASE="${DOCX%%/generated/resumes/*}"
-          REL="${DOCX#${BASE}/}"
-          FOLDER=$(dirname "$REL")
-          (cd "$BASE" && zip -qr "$GITHUB_WORKSPACE/alpaca-resume-recovery.zip" "$FOLDER")
-          echo "DOCX=$DOCX" >> "$GITHUB_ENV"
-          echo "PDF=$PDF" >> "$GITHUB_ENV"
-          echo "LOCAL_SHA=$(sha256sum "$PDF" | awk '{print $1}')" >> "$GITHUB_ENV"
-
-      - name: Replace Alpaca resume on dashboard
+      - name: Restore resumes to dashboard
         env:
           DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
         run: |
-          set -euo pipefail
           test -n "$DASHBOARD_SYNC_TOKEN"
           RESPONSE=$(curl --fail --show-error --silent \
             -X POST \
             -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
             -H "Content-Type: application/zip" \
-            --data-binary @alpaca-resume-recovery.zip \
+            --data-binary @resume-recovery.zip \
             https://job-dashboard-production-7436.up.railway.app/api/recover-resumes)
           echo "$RESPONSE"
           export RESPONSE
-          python -c 'import json,os; d=json.loads(os.environ["RESPONSE"]); assert d.get("ok") is True and d.get("restored_files")==2, d'
-
-      - name: Verify dashboard serves repaired Alpaca PDF
-        run: |
-          set -euo pipefail
-          curl --fail --show-error --silent \
-            'https://job-dashboard-production-7436.up.railway.app/resume/req%3Aalpaca%3An260224?manual_repair=1' \
-            -o /tmp/dashboard-alpaca.pdf
-          REMOTE_SHA=$(sha256sum /tmp/dashboard-alpaca.pdf | awk '{print $1}')
-          echo "Local SHA:  $LOCAL_SHA"
-          echo "Remote SHA: $REMOTE_SHA"
-          test "$REMOTE_SHA" = "$LOCAL_SHA"
-          pdfinfo /tmp/dashboard-alpaca.pdf | grep '^Pages:'
+          python -c 'import json,os; d=json.loads(os.environ["RESPONSE"]); expected=int(os.environ["PDF_COUNT"])+int(os.environ["DOCX_COUNT"]); assert d.get("ok") is True and d.get("restored_files")==expected, (d,expected)'
