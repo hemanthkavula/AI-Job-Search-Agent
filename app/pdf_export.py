@@ -10,16 +10,19 @@ import time
 
 from docx import Document
 
+from app.resume_pagination import enforce_experience_start_rule, validate_experience_start_rule
+
 
 REQUIRED_PRODUCTION_PAGES = 2
 MIN_PAGE_TEXT_BALANCE = 0.50
+# Employer placement is intentionally NOT hardcoded. An employer may begin on the
+# current page when its company/header, title/date, responsibilities label, and
+# complete first bullet fit there. Otherwise Word/LibreOffice moves that start block
+# to the next page. Only the high-level two-page section flow remains fixed.
 EXPECTED_PAGE_PLACEMENT = {
     "PROFESSIONAL SUMMARY": 0,
     "TECHNICAL SKILLS": 0,
     "PROFESSIONAL EXPERIENCE": 0,
-    "Fidelity Investments": 0,
-    "Cigna Healthcare": 1,
-    "Target Corporation": 1,
     "EDUCATION": 1,
 }
 
@@ -117,7 +120,7 @@ def _conversion_attempt(src: Path, target: Path) -> tuple[bool, str]:
 
 
 def convert_docx_to_pdf_detailed(docx_path: str, attempts: int = 2) -> dict:
-    """Convert the generated Word document to PDF and return conversion diagnostics."""
+    """Apply pagination policy, convert DOCX to PDF, and return diagnostics."""
     src = Path(docx_path).resolve()
     max_attempts = max(1, attempts)
     result = {
@@ -126,9 +129,19 @@ def convert_docx_to_pdf_detailed(docx_path: str, attempts: int = 2) -> dict:
         "reason": None,
         "renderer": "libreoffice_headless",
         "source_artifact": "docx",
+        "experience_start_pagination": None,
     }
     if not src.exists() or src.stat().st_size == 0:
         result["reason"] = f"DOCX missing or empty: {src}"
+        print(f"PDF conversion skipped | {result['reason']}", flush=True)
+        return result
+
+    pagination = enforce_experience_start_rule(src)
+    result["experience_start_pagination"] = pagination
+    if not pagination.get("passed"):
+        result["reason"] = "Resume pagination policy failed: " + "; ".join(
+            pagination.get("reasons") or ["unknown pagination error"]
+        )
         print(f"PDF conversion skipped | {result['reason']}", flush=True)
         return result
 
@@ -219,12 +232,12 @@ def _page_text_balance(page_texts: list[str]) -> tuple[float, list[int]]:
 def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     """Validate DOCX→PDF integrity and the hard production layout contract.
 
-    The uploaded master resume is a two-page document. Production resumes must
-    remain two pages and preserve the same high-level flow so a bloated third page,
-    an almost-empty trailing page, or a displaced employer/education section can
-    never become READY_TO_APPLY. Employer Environment lines must stay compact,
-    technology-only lists rather than paragraph-style prose.
+    Production remains a compact two-page resume. Employer placement is dynamic:
+    an employer may start on the current page only when its header, title/date,
+    responsibilities label, and complete first bullet fit together. Later bullets
+    may continue naturally onto following pages.
     """
+    pagination = validate_experience_start_rule(docx_path)
     if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size == 0:
         return {
             "passed": False,
@@ -238,7 +251,8 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "page_text_balance": 0.0,
             "page_text_counts": [],
             "environment_footers_match": False,
-            "pagination_policy": "hard_master_like_two_page_contract",
+            "experience_start_pagination": pagination,
+            "pagination_policy": "two_page_first_bullet_experience_start_contract",
         }
 
     sig = _docx_signature(docx_path)
@@ -258,7 +272,8 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "page_text_balance": 0.0,
             "page_text_counts": [],
             "environment_footers_match": False,
-            "pagination_policy": "hard_master_like_two_page_contract",
+            "experience_start_pagination": pagination,
+            "pagination_policy": "two_page_first_bullet_experience_start_contract",
         }
 
     pdf_tokens = _tokens(pdf_text)
@@ -293,6 +308,11 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     skills_footer_removed = "skills:" not in pdf_text.casefold()
 
     failures = []
+    if not pagination.get("passed"):
+        failures.append(
+            "employer start pagination rule failed: "
+            + "; ".join(pagination.get("reasons") or ["unknown pagination error"])
+        )
     if coverage < 95:
         failures.append("DOCX/PDF material text mismatch")
     if not sections_match:
@@ -302,7 +322,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             f"production resume must be exactly {REQUIRED_PRODUCTION_PAGES} pages; got {pages}"
         )
     if page_count_match and not page_flow_match:
-        failures.append("master-like section/employer page flow mismatch")
+        failures.append("master-like section page flow mismatch")
     if page_count_match and not page_balance_match:
         failures.append(
             f"page content is too unbalanced/sparse (balance={balance}, minimum={MIN_PAGE_TEXT_BALANCE})"
@@ -332,7 +352,8 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "environment_footer_count": environment_footer_count,
         "environment_footers_match": environment_footers_match,
         "skills_footer_removed": skills_footer_removed,
-        "pagination_policy": "hard_master_like_two_page_contract",
+        "experience_start_pagination": pagination,
+        "pagination_policy": "two_page_first_bullet_experience_start_contract",
         "renderer": "libreoffice_headless",
         "source_artifact": "docx",
     }
