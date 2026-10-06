@@ -3,6 +3,10 @@ from pathlib import Path
 from app import pdf_export
 
 
+def _pagination_ok(_):
+    return {"passed": True, "reasons": [], "policy": "test pagination stub"}
+
+
 def test_detailed_conversion_reports_recovery_attempt(monkeypatch, tmp_path):
     docx = tmp_path / "resume.docx"
     docx.write_bytes(b"approved-docx")
@@ -15,6 +19,7 @@ def test_detailed_conversion_reports_recovery_attempt(monkeypatch, tmp_path):
         target.write_bytes(b"%PDF-test")
         return True, "ok"
 
+    monkeypatch.setattr(pdf_export, "enforce_experience_start_rule", _pagination_ok)
     monkeypatch.setattr(pdf_export, "_conversion_attempt", fake_attempt)
     monkeypatch.setattr(pdf_export.time, "sleep", lambda _: None)
 
@@ -24,6 +29,7 @@ def test_detailed_conversion_reports_recovery_attempt(monkeypatch, tmp_path):
     assert result["attempts"] == 2
     assert result["reason"] is None
     assert result["renderer"] == "libreoffice_headless"
+    assert result["experience_start_pagination"]["passed"] is True
     assert calls[0][0] == calls[1][0]
 
 
@@ -32,6 +38,7 @@ def test_detailed_conversion_persists_final_failure_reason(monkeypatch, tmp_path
     docx.write_bytes(b"approved-docx")
     reasons = iter(["first failure", "second failure"])
 
+    monkeypatch.setattr(pdf_export, "enforce_experience_start_rule", _pagination_ok)
     monkeypatch.setattr(
         pdf_export,
         "_conversion_attempt",
