@@ -80,9 +80,9 @@ def test_three_page_pdf_is_rejected_by_hard_master_layout_contract(monkeypatch,t
         pdf_export,
         "_pdf_pages_text",
         lambda _: [
-            "Professional Summary Technical Skills Professional Experience Fidelity Investments Skills:",
-            "Cigna Healthcare Skills:",
-            "Target Corporation Skills: Education",
+            "Professional Summary Technical Skills Professional Experience Fidelity Investments Environment:",
+            "Cigna Healthcare Environment:",
+            "Target Corporation Environment: Education",
         ],
     )
 
@@ -119,6 +119,6 @@ def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer()
     assert contract["fidelity_bullets"] == 10
     assert contract["cigna_bullets"] == 8
     assert contract["target_bullets"] == 8
-    assert contract["employer_footer_label"] == "Skills"
+    assert contract["employer_footer_label"] == "Environment"
     assert contract["environment_paragraphs"] is False
     assert contract["compact_master_like_layout"] is True

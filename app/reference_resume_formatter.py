@@ -220,37 +220,77 @@ def _clean_header_layout(paragraph):
     return not has_tabs and alignment not in {"both", "distribute", "thaiDistribute"}
 
 
-def _insert_compact_date_after(paragraph, date_text, date_style):
-    date_text = str(date_text or "").strip()
-    if not date_text:
-        return None
-    date_paragraph = deepcopy(paragraph)
-    _compact_left_paragraph(date_paragraph, after_twips=0)
-    _clear(date_paragraph)
-    _run(date_paragraph, date_text, date_style)
-    paragraph.addnext(date_paragraph)
-    return date_paragraph
+def _set_right_tab(paragraph, position_twips=10728):
+    """Use one right-aligned tab stop for approved master-style title/date rows."""
+    ppr = _paragraph_properties(paragraph)
+    tabs = ppr.find(W + "tabs")
+    if tabs is not None:
+        ppr.remove(tabs)
+    tabs = etree.SubElement(ppr, W + "tabs")
+    tab = etree.SubElement(tabs, W + "tab")
+    tab.set(W + "val", "right")
+    tab.set(W + "pos", str(int(position_twips)))
+    jc = ppr.find(W + "jc")
+    if jc is None:
+        jc = etree.SubElement(ppr, W + "jc")
+    jc.set(W + "val", "left")
+    spacing = ppr.find(W + "spacing")
+    if spacing is None:
+        spacing = etree.SubElement(ppr, W + "spacing")
+    spacing.set(W + "before", "0")
+    spacing.set(W + "after", "0")
+
+
+def _tab(paragraph):
+    run = etree.SubElement(paragraph, W + "r")
+    etree.SubElement(run, W + "tab")
+
+
+def _has_right_tab(paragraph):
+    return bool(
+        paragraph.xpath("./w:pPr/w:tabs/w:tab[@w:val='right']", namespaces=NS)
+        and paragraph.xpath(".//w:tab", namespaces=NS)
+    )
 
 
 def _normalize_static_headers(root, master):
-    """Rebuild employer/education rows without the template's stretched tabs.
+    """Apply the approved Alpaca/master layout to all fixed-history rows.
 
-    The original Word rows combine company/school, location, and dates using tabs.
-    We preserve the clean compact header, then restore the authoritative master date
-    as its own compact line immediately below it.
+    Employer line: Company | Location
+    Next line:      Job Title                         Dates (right aligned)
+    Education:      School | Location                Dates (right aligned)
     """
-    paragraphs = _pt(root)
     for row in master["experience"]:
+        paragraphs = _pt(root)
         company = row["company"]
-        paragraph = next(p for p in paragraphs if _text(p).startswith(company))
-        company_style = _rpr(paragraph, True) or _rpr(paragraph, False)
-        detail_style = _rpr(paragraph, False) or company_style
-        date_style = _date_rpr(paragraph) or detail_style
-        _compact_left_paragraph(paragraph, after_twips=0)
-        _clear(paragraph)
-        _run(paragraph, company, company_style)
-        _run(paragraph, f" | {row['location']}", detail_style)
-        _insert_compact_date_after(paragraph, row.get("dates"), date_style)
+        header_index = next(i for i, p in enumerate(paragraphs) if _text(p).startswith(company))
+        header = paragraphs[header_index]
+        company_style = _rpr(header, True) or _rpr(header, False)
+        detail_style = _rpr(header, False) or company_style
+        date_style = _date_rpr(header) or detail_style
+
+        _compact_left_paragraph(header, after_twips=0)
+        _clear(header)
+        _run(header, company, company_style)
+        _run(header, f" | {row['location']}", detail_style)
+
+        paragraphs = _pt(root)
+        header_index = next(i for i, p in enumerate(paragraphs) if _text(p) == f"{company} | {row['location']}")
+        roles_index = next(
+            i for i in range(header_index + 1, len(paragraphs))
+            if _text(paragraphs[i]) == "Roles & Responsibilities:"
+        )
+        title = str(row.get("title") or "").strip()
+        title_paragraph = next(
+            p for p in paragraphs[header_index + 1:roles_index]
+            if _text(p) == title
+        )
+        title_style = _rpr(title_paragraph, False) or _rpr(title_paragraph, True)
+        _set_right_tab(title_paragraph)
+        _clear(title_paragraph)
+        _run(title_paragraph, title, title_style)
+        _tab(title_paragraph)
+        _run(title_paragraph, str(row.get("dates") or "").strip(), date_style)
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
@@ -262,15 +302,16 @@ def _normalize_static_headers(root, master):
             continue
         style = _rpr(paragraph, False) or _rpr(paragraph, True)
         date_style = _date_rpr(paragraph) or style
-        _compact_left_paragraph(paragraph, after_twips=0)
+        start = str(row.get("start") or "").strip()
+        end = str(row.get("end") or "").strip()
+        dates = f"{start} – {end}" if start and end else (start or end)
+        _set_right_tab(paragraph)
         _clear(paragraph)
         _run(paragraph, school, style)
         if location:
             _run(paragraph, f" | {location}", style)
-        start = str(row.get("start") or "").strip()
-        end = str(row.get("end") or "").strip()
-        dates = f"{start} – {end}" if start and end else (start or end)
-        _insert_compact_date_after(paragraph, dates, date_style)
+        _tab(paragraph)
+        _run(paragraph, dates, date_style)
 
 
 def _is_employer_footer(value):
@@ -388,27 +429,32 @@ def validate_master_format_contract(path, master=None, word_format=None):
             (i for i in range((header_index or 0) + 1, len(output_paragraphs)) if _text(output_paragraphs[i]) == "Roles & Responsibilities:"),
             None,
         )
-        date_found = False if header_index is None or roles_index is None else any(
-            _text(p) == row.get("dates") for p in output_paragraphs[header_index + 1:roles_index]
+        title_date = None if header_index is None or roles_index is None else next(
+            (
+                p for p in output_paragraphs[header_index + 1:roles_index]
+                if _text(p) == f"{row.get('title', '')}{row.get('dates', '')}"
+            ),
+            None,
         )
-        if not date_found:
-            reasons.append(row["company"] + "_dates")
+        if title_date is None:
+            reasons.append(row["company"] + "_title_date_text")
+        elif not _has_right_tab(title_date):
+            reasons.append(row["company"] + "_title_date_alignment")
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
         location = str(row.get("location") or "").strip()
-        expected = f"{school} | {location}" if location else school
-        school_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(school)), None)
-        paragraph = None if school_index is None else output_paragraphs[school_index]
-        if paragraph is None or _text(paragraph) != expected:
-            reasons.append("education_school_location_text")
-        elif not _clean_header_layout(paragraph):
-            reasons.append("education_school_location_spacing")
         start = str(row.get("start") or "").strip()
         end = str(row.get("end") or "").strip()
         dates = f"{start} – {end}" if start and end else (start or end)
-        if dates and not any(_text(p) == dates for p in output_paragraphs[(school_index or 0) + 1:]):
-            reasons.append("education_dates")
+        school_location = f"{school} | {location}" if location else school
+        expected = f"{school_location}{dates}"
+        school_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(school)), None)
+        paragraph = None if school_index is None else output_paragraphs[school_index]
+        if paragraph is None or _text(paragraph) != expected:
+            reasons.append("education_school_location_date_text")
+        elif not _has_right_tab(paragraph):
+            reasons.append("education_date_alignment")
 
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)

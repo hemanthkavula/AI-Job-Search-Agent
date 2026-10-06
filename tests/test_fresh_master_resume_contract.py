@@ -97,7 +97,7 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["skills_policy"]["retain_master_aws_group"] is True
     assert prompt["skills_policy"]["retain_master_azure_group"] is True
     assert prompt["skills_policy"]["add_gcp_group_when_fidelity_selects_gcp"] is True
-    assert prompt["structure_contract"]["employer_footer_label"] == "Skills"
+    assert prompt["structure_contract"]["employer_footer_label"] == "Environment"
     assert prompt["structure_contract"]["environment_paragraphs"] is False
 
 
@@ -116,7 +116,6 @@ def _assert_compact_static_headers(doc):
         "Fidelity Investments": "Fidelity Investments | Jersey City, NJ",
         "Cigna Healthcare": "Cigna Healthcare | Bangalore, India",
         "Target Corporation": "Target Corporation | Bangalore, India",
-        "Rowan University": "Rowan University | Glassboro, NJ",
     }
     for prefix, exact in expected.items():
         paragraph = next(p for p in doc.paragraphs if p.text.startswith(prefix))
@@ -129,14 +128,23 @@ def _assert_compact_static_headers(doc):
 
 
 def _assert_authoritative_dates(doc):
-    text = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    for date_line in (
-        "Jan 2025 – Present",
-        "Jan 2022 – Dec 2023",
-        "Jan 2020 – Dec 2021",
-        "Jan 2024 – Dec 2025",
-    ):
-        assert text.count(date_line) == 1
+    expected = {
+        "Fidelity Investments": ("Senior Data Engineer", "Jan 2025 – Present"),
+        "Cigna Healthcare": ("Data Engineer", "Jan 2022 – Dec 2023"),
+        "Target Corporation": ("Data Engineer", "Jan 2020 – Dec 2021"),
+    }
+    for company, (title, dates) in expected.items():
+        company_index = next(i for i, p in enumerate(doc.paragraphs) if p.text.startswith(company))
+        roles_index = next(i for i in range(company_index + 1, len(doc.paragraphs)) if doc.paragraphs[i].text == "Roles & Responsibilities:")
+        row = next(p for p in doc.paragraphs[company_index + 1:roles_index] if title in p.text and dates in p.text)
+        assert row.text == f"{title}	{dates}"
+        assert "<w:tab" in row._p.xml
+        assert 'w:val="right"' in row._p.xml
+
+    education = next(p for p in doc.paragraphs if p.text.startswith("Rowan University"))
+    assert education.text == "Rowan University | Glassboro, NJ	Jan 2024 – Dec 2025"
+    assert "<w:tab" in education._p.xml
+    assert 'w:val="right"' in education._p.xml
 
 
 def test_renderer_reproduces_uploaded_word_format_contract_with_environment_footer(monkeypatch, tmp_path):

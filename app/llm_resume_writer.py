@@ -183,8 +183,8 @@ NO FABRICATION:
 - Technology names containing numbers such as SCD Type 2 or ADLS Gen2 are allowed.
 
 FORMAT / LAYOUT:
-- Preserve the master's visual structure downstream: section order, two summary paragraphs, Technical Skills rows, three employers, Roles & Responsibilities blocks, concise Skills lines, and education.
-- Do not create Environment paragraphs. The renderer will display a compact Skills: line after each employer.
+- Preserve the master's visual structure downstream: section order, two summary paragraphs, Technical Skills rows, three employers, Roles & Responsibilities blocks, compact Environment technology-only lines, and education.
+- Do not create prose Environment paragraphs. The renderer will display a compact Environment: technology-only line after each employer.
 - Keep the resume visually close to the master: concise summary, concise skills rows, compact bullets, no artificial page breaks, no bloated extra page.
 
 Return valid JSON only using this schema:
@@ -302,14 +302,14 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "retain_master_azure_group": True,
             "add_gcp_group_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
             "new_fidelity_jd_tools_may_be_added": True,
-            "employer_footer_is_skills_only": True,
+            "employer_footer_is_environment_technology_only": True,
         },
         "structure_contract": {
             "summary_paragraphs": 2,
             "fidelity_bullets": 10,
             "cigna_bullets": 8,
             "target_bullets": 8,
-            "employer_footer_label": "Skills",
+            "employer_footer_label": "Environment",
             "environment_paragraphs": False,
             "compact_master_like_layout": True,
         },
