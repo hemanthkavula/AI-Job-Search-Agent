@@ -111,6 +111,23 @@ def test_master_payload_remains_conservative_fallback():
     assert "AI/ML-driven analytics" in payload["experience"][0]["bullets"][6]
 
 
+def _assert_compact_static_headers(doc):
+    expected = {
+        "Fidelity Investments": "Fidelity Investments | Jersey City, NJ",
+        "Cigna Healthcare": "Cigna Healthcare | Bangalore, India",
+        "Target Corporation": "Target Corporation | Bangalore, India",
+        "Rowan University": "Rowan University | Glassboro, NJ",
+    }
+    for prefix, exact in expected.items():
+        paragraph = next(p for p in doc.paragraphs if p.text.startswith(prefix))
+        assert paragraph.text == exact
+        assert paragraph.alignment is None or int(paragraph.alignment) == 0
+        xml = paragraph._p.xml
+        assert "<w:tab" not in xml
+        assert 'w:val="both"' not in xml
+        assert 'w:val="distribute"' not in xml
+
+
 def test_renderer_reproduces_uploaded_word_format_contract_with_skills_footer(monkeypatch, tmp_path):
     monkeypatch.setattr(formatter, "ROOT", tmp_path)
     monkeypatch.setattr(formatter, "WORD_FORMAT_PATH", formatter.WORD_FORMAT_PATH)
@@ -127,6 +144,7 @@ def test_renderer_reproduces_uploaded_word_format_contract_with_skills_footer(mo
     assert sum(p.text.startswith("Skills: ") for p in doc.paragraphs) == 3
     assert sum(p.text.startswith("Environment: ") for p in doc.paragraphs) == 0
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
+    _assert_compact_static_headers(doc)
 
 
 def _generated_payload(long_content=False):
@@ -186,10 +204,12 @@ def test_jd_tailored_renderer_keeps_word_format_and_skills_footers(monkeypatch, 
     path = formatter.render_llm_resume(job, {}, _generated_payload(), output_dir="resumes")
     result = formatter.validate_master_format_contract(path)
     assert result["passed"], result["reasons"]
-    text = "\n".join(p.text for p in Document(path).paragraphs)
+    doc = Document(path)
+    text = "\n".join(p.text for p in doc.paragraphs)
     assert "Skills: Python, SQL" in text
     assert "Environment:" not in text
-    assert not any(p.paragraph_format.page_break_before is True for p in Document(path).paragraphs)
+    assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
+    _assert_compact_static_headers(doc)
 
 
 def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypatch, tmp_path):
@@ -200,3 +220,4 @@ def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypat
     result = formatter.validate_master_format_contract(path)
     assert result["passed"], result["reasons"]
     assert result["content_length_policy"] == "compact_master_like_layout"
+    _assert_compact_static_headers(Document(path))
