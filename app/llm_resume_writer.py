@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 from urllib import error, request
 
-from app.cloud_policy import cloud_signal_counts, employer_cloud_modes
+from app.cloud_policy import (
+    CLOUD_AWS,
+    CLOUD_AZURE,
+    CLOUD_GCP,
+    cloud_signal_counts,
+    detect_cloud_families,
+    employer_cloud_modes,
+)
 from app.master_resume import fixed_personal_facts, load_master_resume
 from app.resume_tailoring_policy import determine_tailoring_policy
 
@@ -16,45 +25,176 @@ EMPLOYER_DOMAIN_CONTEXT = {
     "Target Corporation": "retail sales, POS, e-commerce, inventory, product, merchandising, orders, and store operations",
 }
 
+OLDER_EMPLOYERS = {"Cigna Healthcare", "Target Corporation"}
+
+# User rule: AI-era technologies belong only in the current Fidelity experience.
+# Cigna (2022-2023) and Target (2020-2021) must never be retrofitted with them.
+OLDER_EMPLOYER_AI_PATTERN = re.compile(
+    r"(?i)(?:\bartificial intelligence\b|\bAI/ML\b|\bgenerative AI\b|\bgenAI\b|"
+    r"\blarge language models?\b|\bLLMs?\b|\bretrieval[- ]augmented generation\b|\bRAG\b|"
+    r"\bvector stores?\b|\bvector search\b|\bembeddings?\b|\bMLOps\b|\bmodel serving\b|"
+    r"\bmodel inference\b|\bfeature stores?\b|\bClaude\b|\bCursor\b)"
+)
+
+CLOUD_SERVICE_CATALOG = {
+    CLOUD_AWS: (
+        ("AWS", r"\baws\b|amazon web services"),
+        ("AWS Glue", r"\baws glue\b|\bglue\b"),
+        ("Amazon S3", r"\bamazon s3\b|\bs3\b"),
+        ("Amazon EMR", r"\bamazon emr\b|\bemr\b"),
+        ("Amazon Redshift", r"\bamazon redshift\b|\bredshift\b"),
+        ("AWS Lambda", r"\baws lambda\b|\blambda\b"),
+        ("Amazon Kinesis", r"\bamazon kinesis\b|\bkinesis\b"),
+        ("AWS Step Functions", r"\baws step functions?\b|\bstep functions?\b"),
+        ("Amazon Athena", r"\bamazon athena\b|\bathena\b"),
+        ("Amazon DynamoDB", r"\bamazon dynamodb\b|\bdynamodb\b"),
+        ("Amazon ECS", r"\bamazon ecs\b|\becs\b"),
+        ("Amazon EKS", r"\bamazon eks\b|\beks\b"),
+        ("AWS Lake Formation", r"\b(?:aws )?lake formation\b"),
+    ),
+    CLOUD_AZURE: (
+        ("Microsoft Azure", r"\bmicrosoft azure\b|\bazure\b"),
+        ("Azure Data Factory", r"\bazure data factory\b|\badf\b"),
+        ("Azure Synapse Analytics", r"\bazure synapse(?: analytics)?\b|\bsynapse analytics\b"),
+        ("ADLS Gen2", r"\badls(?:\s*gen\s*2)?\b|azure data lake storage(?: gen2)?"),
+        ("Azure Event Hubs", r"\bazure event hubs?\b|\bevent hubs?\b"),
+        ("Azure Functions", r"\bazure functions?\b"),
+        ("Microsoft Purview", r"\b(?:azure|microsoft) purview\b|\bpurview\b"),
+        ("Azure Stream Analytics", r"\bazure stream analytics\b"),
+        ("Azure Data Explorer", r"\bazure data explorer\b"),
+        ("Azure Blob Storage", r"\bazure blob storage\b|\bblob storage\b"),
+    ),
+    CLOUD_GCP: (
+        ("Google Cloud Platform (GCP)", r"\bgcp\b|google cloud(?: platform)?"),
+        ("BigQuery", r"\bbigquery\b|google bigquery"),
+        ("Google Cloud Storage (GCS)", r"google cloud storage|\bgcs\b"),
+        ("Dataflow", r"\bdataflow\b"),
+        ("Pub/Sub", r"\bpub\s*/?\s*sub\b|\bpubsub\b"),
+        ("Dataproc", r"\bdataproc\b"),
+        ("Cloud Composer", r"\bcloud composer\b"),
+        ("Cloud Functions", r"\bgoogle cloud functions?\b|\bcloud functions?\b"),
+        ("Cloud Run", r"\bcloud run\b"),
+        ("Dataplex", r"\bdataplex\b"),
+        ("BigLake", r"\bbiglake\b"),
+        ("Cloud SQL", r"\bcloud sql\b"),
+        ("Cloud Spanner", r"\b(?:cloud )?spanner\b"),
+    ),
+}
+
+TECH_ALIASES = {
+    "Python": ("python",),
+    "SQL": ("sql",),
+    "Scala": ("scala",),
+    "PySpark": ("pyspark",),
+    "Apache Spark": ("apache spark", "spark"),
+    "Databricks": ("databricks",),
+    "Delta Lake": ("delta lake",),
+    "Apache Kafka": ("apache kafka", "kafka"),
+    "Snowflake": ("snowflake",),
+    "Apache Airflow": ("apache airflow", "airflow"),
+    "Airflow": ("apache airflow", "airflow"),
+    "dbt": ("dbt",),
+    "Terraform": ("terraform",),
+    "Docker": ("docker",),
+    "Jenkins": ("jenkins",),
+    "GitLab CI/CD": ("gitlab ci/cd", "gitlab"),
+    "Git": ("git",),
+    "Great Expectations": ("great expectations",),
+    "Power BI": ("power bi",),
+    "Tableau": ("tableau",),
+    "Looker": ("looker",),
+    "Oracle": ("oracle",),
+    "SQL Server": ("sql server",),
+    "PostgreSQL": ("postgresql", "postgres"),
+    "MySQL": ("mysql",),
+    "MongoDB": ("mongodb",),
+    "DynamoDB": ("dynamodb",),
+    "Amazon DynamoDB": ("amazon dynamodb", "dynamodb"),
+    "AWS Glue": ("aws glue", "glue"),
+    "Amazon EMR": ("amazon emr", "emr"),
+    "Amazon S3": ("amazon s3", "s3"),
+    "Amazon Redshift": ("amazon redshift", "redshift"),
+    "Lambda": ("aws lambda", "lambda"),
+    "AWS Lambda": ("aws lambda", "lambda"),
+    "Kinesis": ("amazon kinesis", "kinesis"),
+    "Amazon Kinesis": ("amazon kinesis", "kinesis"),
+    "Data Factory": ("azure data factory", "data factory", "adf"),
+    "Azure Data Factory": ("azure data factory", "data factory", "adf"),
+    "Synapse Analytics": ("azure synapse analytics", "azure synapse", "synapse analytics"),
+    "Azure Synapse Analytics": ("azure synapse analytics", "azure synapse", "synapse analytics"),
+    "Azure Data Lake Storage Gen2": ("azure data lake storage gen2", "adls gen2", "adls"),
+    "ADLS Gen2": ("azure data lake storage gen2", "adls gen2", "adls"),
+    "Event Hub": ("azure event hub", "azure event hubs", "event hub", "event hubs"),
+    "Azure Event Hubs": ("azure event hub", "azure event hubs", "event hub", "event hubs"),
+    "Azure Purview": ("azure purview", "microsoft purview", "purview"),
+    "Microsoft Purview": ("azure purview", "microsoft purview", "purview"),
+    "Star Schema": ("star schema",),
+    "Snowflake Schema": ("snowflake schema",),
+    "Dimensional Modeling": ("dimensional modeling",),
+    "Slowly Changing Dimensions": ("slowly changing dimensions", "scd type 2", "scd"),
+}
+
+for _cloud_rows in CLOUD_SERVICE_CATALOG.values():
+    for _label, _pattern in _cloud_rows:
+        TECH_ALIASES.setdefault(_label, tuple())
+
 SYSTEM_PROMPT = """You are an expert ATS resume writer for U.S. data engineering roles.
 
 SOURCE OF TRUTH:
-- For a JD-tailored resume, the user's uploaded Word resume is the VISUAL FORMAT TEMPLATE and fixed-history source, not a technical-content whitelist.
+- The user's uploaded master resume is the VISUAL FORMAT AUTHORITY and the historical technology baseline.
 - Preserve fixed candidate facts exactly: name/contact details, employer names, job titles, locations, employment dates, chronology, and education.
-- Use the CURRENT JOB DESCRIPTION and deterministic JD coverage plan to drive the tailored Professional Summary, Technical Skills, experience emphasis, and Environment lines.
+- Fidelity Investments is the current employer and is the primary JD-tailored section.
+- Cigna Healthcare and Target Corporation are historical employers. Their master-resume technology stacks are authoritative historical boundaries.
 - Use the authorized employer-domain context naturally: Fidelity=financial/trading, Cigna=healthcare, Target=retail.
 
-TAILORING:
-- Professional Summary: use the same two-paragraph structure as the master Word resume. There is NO character-density target and NO page-count target.
-- Technical Skills: organize JD-supported technologies/capabilities under clear market-standard technical categories. There is NO total-character budget. Do not omit an important JD-supported skill merely to keep the resume to two pages.
-- Professional Experience: preserve the fixed three employers and chronology. Write exactly 10 Fidelity bullets, 8 Cigna bullets, and 8 Target bullets so the master's experience structure is preserved.
-- Bullets must be meaningful, technically coherent, interview-defensible engineering statements tied to the current JD and the employer's business domain. Do not keyword-stuff.
-- Environment lines should contain JD-supported technologies credible for that employer. There is NO character-length budget.
-- Natural pagination is allowed. The finished resume may be 2, 3, or more pages depending on the content. Never shorten or delete material content solely to hit a page count.
+TAILORING PRIORITY:
+1. FIDELITY INVESTMENTS — fully JD-adaptive while remaining truthful and financial-domain coherent.
+   - Select ONE cloud family from the JD: AWS, Azure, or GCP, using the supplied deterministic cloud selection.
+   - New tools/services absent from the master may be added to Fidelity only when the current JD explicitly supports them.
+   - AI/GenAI/LLM/RAG/vector/MLOps technologies may appear in Fidelity only when relevant to the current JD.
+2. CIGNA HEALTHCARE — Azure historical baseline from the master resume.
+   - Preserve the majority of the master bullets. Reword only the bullets that genuinely benefit from JD alignment.
+   - Do not add a technology that is absent from Cigna's master-backed historical stack.
+   - Never add AWS or GCP services.
+   - Never add AI/GenAI/LLM/RAG/vector stores/vector search/embeddings/MLOps/feature-store/model-inference technologies.
+3. TARGET CORPORATION — AWS historical baseline from the master resume.
+   - Preserve the majority of the master bullets. Reword only the bullets that genuinely benefit from JD alignment.
+   - Do not add a technology that is absent from Target's master-backed historical stack.
+   - Never add Azure or GCP services.
+   - Never add AI/GenAI/LLM/RAG/vector stores/vector search/embeddings/MLOps/feature-store/model-inference technologies.
+
+TECHNICAL SKILLS:
+- Always retain the master resume's separate Cloud Platforms (AWS) and Cloud Platforms (Azure) groups and their master-backed skills.
+- If Fidelity's selected cloud is GCP, add a separate Cloud Platforms (GCP) group containing only GCP services actually supported by the JD.
+- If Fidelity's selected cloud is AWS or Azure and the JD names additional services in that selected family, those new JD-supported services may be added to the matching cloud group.
+- New non-cloud tools explicitly required by the JD may be added to an appropriate technical category when they are used in Fidelity.
+- Keep categories concise and ATS-readable. Do not create paragraph-like skill rows.
+
+PROFESSIONAL EXPERIENCE:
+- Preserve exactly 10 Fidelity bullets, 8 Cigna bullets, and 8 Target bullets.
+- One bullet = one concise engineering sentence. Keep the length close to the corresponding master bullet; do not turn bullets into paragraphs.
+- Bullets must be meaningful, technically coherent, interview-defensible, and tied to the employer's real business domain.
+- Do not keyword-stuff.
+- After each employer, return skills_used as a list of ONLY the concrete technologies/tools that are actually named in that employer's final bullets. No prose, responsibilities, capabilities, or generic phrases.
 
 NO FABRICATION:
 - Never invent numerical outcomes, percentages, dataset volumes, event counts, latency bounds, cost savings, performance improvements, certifications, project names, customer names, team sizes, security clearances, employers, dates, or education.
-- Technology names containing numbers such as SCD Type 2, ADLS Gen2, or Python 3 are allowed.
-- Use exact JD terminology when natural, but do not create false specific accomplishments merely to place a keyword.
+- Existing master-resume metrics may remain only when the corresponding master bullet is retained verbatim.
+- Technology names containing numbers such as SCD Type 2 or ADLS Gen2 are allowed.
 
-EMPLOYER CLOUD CREDIBILITY:
-- Fidelity must use at most one cloud family in its experience/environment. Select the dominant cloud signaled by the JD; AWS wins ties containing AWS. For a cloud-neutral JD, remain cloud-neutral unless an allowed service is directly supported by the JD.
-- Cigna may use Azure cloud services only when supported by the JD. Never place AWS or GCP cloud services in Cigna experience/environment.
-- Target may use AWS cloud services only when supported by the JD. Never place Azure or GCP cloud services in Target experience/environment.
-- Cross-cloud technologies such as Python, SQL, Spark, Kafka, Airflow, Snowflake, Kubernetes, Terraform, Docker, dbt, and Databricks do not by themselves select a cloud family.
-
-FORMAT RULE:
-- Preserve the master's visual structure downstream: section order, two summary paragraphs, Technical Skills rows, three employers, Roles & Responsibilities blocks, Environment lines, and education.
-- Do NOT optimize for a fixed number of PDF pages, summary density ratio, Technical Skills character count, bullet word count, or Environment character count. Those are not user requirements.
+FORMAT / LAYOUT:
+- Preserve the master's visual structure downstream: section order, two summary paragraphs, Technical Skills rows, three employers, Roles & Responsibilities blocks, concise Skills lines, and education.
+- Do not create Environment paragraphs. The renderer will display a compact Skills: line after each employer.
+- Keep the resume visually close to the master: concise summary, concise skills rows, compact bullets, no artificial page breaks, no bloated extra page.
 
 Return valid JSON only using this schema:
 {
-  "summary": "two paragraphs separated by \\n\\n",
-  "skills": {"ATS Category": ["JD-supported term", "JD-supported term"]},
+  "summary": "two concise paragraphs separated by \\n\\n",
+  "skills": {"ATS Category": ["technical skill", "technical skill"]},
   "experience": [
-    {"company": "Fidelity Investments", "bullets": [10 strings], "environment": "JD-supported technologies"},
-    {"company": "Cigna Healthcare", "bullets": [8 strings], "environment": "JD-supported technologies"},
-    {"company": "Target Corporation", "bullets": [8 strings], "environment": "JD-supported technologies"}
+    {"company": "Fidelity Investments", "bullets": [10 strings], "skills_used": ["technology", "technology"]},
+    {"company": "Cigna Healthcare", "bullets": [8 strings], "skills_used": ["technology", "technology"]},
+    {"company": "Target Corporation", "bullets": [8 strings], "skills_used": ["technology", "technology"]}
   ],
   "education": "renderer preserves fixed education"
 }
@@ -67,8 +207,22 @@ def _fixed_facts_for_prompt() -> dict:
     return fixed_personal_facts(load_master_resume())
 
 
+def _master_technical_baseline() -> dict:
+    master = load_master_resume()
+    return {
+        "skills": {key: list(values) for key, values in master["skills"].items()},
+        "experience": [
+            {
+                "company": row["company"],
+                "bullets": list(row["bullets"]),
+                "historical_skills": row.get("environment", ""),
+            }
+            for row in master["experience"]
+        ],
+    }
+
+
 def _sanitize_audit_feedback(audit_feedback):
-    """Keep retries focused on real structural/factual problems, not scoring heuristics."""
     if not isinstance(audit_feedback, dict):
         return {}
     blocked = {
@@ -76,8 +230,6 @@ def _sanitize_audit_feedback(audit_feedback):
         "technical_skill_rows",
         "minimum_technical_skill_rows",
         "content_density_violations",
-        "master_bullets_retained_by_employer",
-        "master_retention_violations",
         "experience_depth_coverage",
         "experience_depth_gaps",
         "internal_ats_score",
@@ -89,8 +241,8 @@ def _sanitize_audit_feedback(audit_feedback):
     }
     safe = {key: value for key, value in audit_feedback.items() if key not in blocked}
     safe["retry_instruction"] = audit_feedback.get("retry_instruction") or (
-        "Correct only factual or structural issues. Do not optimize for page count, density, "
-        "character budgets, ATS score thresholds, or experience-depth thresholds."
+        "Correct only factual, historical-credibility, cloud, or structural issues. Keep Fidelity JD-adaptive; "
+        "keep Cigna Azure/master-backed and Target AWS/master-backed; never put AI-era technologies in Cigna or Target."
     )
     return safe
 
@@ -102,8 +254,8 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
     policy = determine_tailoring_policy(job, coverage_plan)
     prompt = {
         "task": (
-            "Create a strong JD-specific data-engineering resume while preserving the user's "
-            "fixed employment history. The Word master controls formatting downstream, not a page budget."
+            "Create a strong JD-specific data-engineering resume. Tailor Fidelity primarily, preserve historically credible "
+            "Cigna/Target baselines, and keep the master Word layout compact."
         ),
         "job": {
             "company": job.company,
@@ -111,6 +263,7 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "description": job.description,
         },
         "candidate_fixed_personal_history": _fixed_facts_for_prompt(),
+        "master_resume_technical_baseline": _master_technical_baseline(),
         "authorized_employer_domain_context": EMPLOYER_DOMAIN_CONTEXT,
         "pre_generation_coverage_plan": coverage_plan,
         "jd_evidence_policy": {
@@ -119,68 +272,237 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "richness": policy.get("richness"),
         },
         "technical_source_policy": {
-            "allowed_technical_sources": [
-                "current_job_description",
-                "pre_generation_coverage_plan",
-            ],
-            "word_or_pdf_template_is_format_only": True,
-            "template_technical_content_must_not_be_used": True,
-            "profile_argument_is_not_a_technical_source": True,
-            "every_technology_requires_current_jd_evidence": True,
+            "fidelity_sources": ["master_resume_baseline", "current_job_description", "pre_generation_coverage_plan"],
+            "cigna_source": "master_resume_baseline_with_light_semantic_alignment_only",
+            "target_source": "master_resume_baseline_with_light_semantic_alignment_only",
+            "new_technology_allowed_only_in_fidelity_when_jd_supported": True,
             "fixed_personal_history_must_be_preserved": True,
-            "employer_domain_context_is_context_only_not_a_technology_source": True,
         },
         "employer_cloud_credibility_policy": {
             "hard_constraint": True,
             "jd_cloud_signal_counts": cloud_signal_counts(description),
             "selected_cloud_by_employer": cloud_modes,
-            "fidelity_rule": (
-                "At most one JD-supported cloud family in Fidelity. Dominant JD cloud wins; "
-                "AWS wins ties including AWS. Stay cloud-neutral if the JD does not support a service."
-            ),
-            "cigna_rule": (
-                "Never AWS/GCP in Cigna. Azure services may appear only when present in this JD."
-            ),
-            "target_rule": (
-                "Never Azure/GCP in Target. AWS services may appear only when present in this JD."
-            ),
+            "fidelity_rule": "Use only the selected JD cloud family in Fidelity experience; new JD-supported services are allowed there.",
+            "cigna_rule": "Azure baseline only; never AWS/GCP; do not add technologies outside the master-backed Cigna stack.",
+            "target_rule": "AWS baseline only; never Azure/GCP; do not add technologies outside the master-backed Target stack.",
             "no_cloud_mixing_within_employer_experience": True,
+        },
+        "historical_timeline_policy": {
+            "hard_constraint": True,
+            "cigna_dates": "Jan 2022 - Dec 2023",
+            "target_dates": "Jan 2020 - Dec 2021",
+            "forbid_ai_era_technology_in_cigna_and_target": True,
+            "forbidden_examples": [
+                "Generative AI", "LLM", "RAG", "vector stores", "vector search", "embeddings",
+                "MLOps", "feature stores", "model inference", "Claude", "Cursor"
+            ],
+        },
+        "skills_policy": {
+            "retain_master_aws_group": True,
+            "retain_master_azure_group": True,
+            "add_gcp_group_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
+            "new_fidelity_jd_tools_may_be_added": True,
+            "employer_footer_is_skills_only": True,
         },
         "structure_contract": {
             "summary_paragraphs": 2,
             "fidelity_bullets": 10,
             "cigna_bullets": 8,
             "target_bullets": 8,
-            "environment_per_employer": True,
-            "natural_pagination": True,
-            "fixed_page_count": None,
-            "summary_density_threshold": None,
-            "skills_character_budget": None,
-            "bullet_word_budget": None,
-            "environment_character_budget": None,
+            "employer_footer_label": "Skills",
+            "environment_paragraphs": False,
+            "compact_master_like_layout": True,
         },
         "quality_contract": {
-            "cover_required_and_material_jd_targets": True,
+            "cover_required_and_material_jd_targets_primarily_in_fidelity": True,
             "use_exact_jd_terminology_when_natural": True,
             "no_keyword_stuffing": True,
             "no_invented_metrics": True,
             "no_invented_certifications": True,
             "no_invented_project_names": True,
-            "no_technical_terms_absent_from_current_jd": True,
             "fidelity_must_never_mix_cloud_families": True,
             "domain_coherence_required": True,
-            "page_count_never_drives_content": True,
+            "historical_technology_credibility_required": True,
         },
     }
     if audit_feedback:
         prompt["revision_mode"] = True
         prompt["audit_feedback"] = _sanitize_audit_feedback(audit_feedback)
         prompt["task"] = (
-            "Regenerate the same JD-tailored resume and correct only the supplied structural/factual "
-            "problem. Preserve all valid JD content and fixed history. Do not optimize for a fixed "
-            "page count, summary density, Technical Skills length, or internal scoring threshold."
+            "Regenerate the same resume and correct the supplied factual/historical/cloud/structural issue. "
+            "Preserve valid Fidelity JD alignment and the master-backed Cigna/Target history."
         )
     return prompt
+
+
+def _merge_unique(*groups):
+    out = []
+    seen = set()
+    for group in groups:
+        for value in group or []:
+            text = str(value).strip()
+            key = text.casefold()
+            if text and key not in seen:
+                seen.add(key)
+                out.append(text)
+    return out
+
+
+def _jd_cloud_services(description: str, cloud: str) -> list[str]:
+    out = []
+    for label, pattern in CLOUD_SERVICE_CATALOG.get(cloud, ()):
+        if re.search(pattern, description or "", flags=re.I):
+            out.append(label)
+    return out
+
+
+def _normalize_skills(raw_skills, description: str) -> dict:
+    master = load_master_resume()
+    master_skills = master["skills"]
+    source = raw_skills if isinstance(raw_skills, dict) else {}
+    selected = employer_cloud_modes(description).get("Fidelity Investments", CLOUD_AWS)
+
+    out = {}
+    out["Programming Languages"] = _merge_unique(
+        master_skills.get("Programming Languages", []),
+        source.get("Programming Languages", []),
+    )[:8]
+
+    aws_values = list(master_skills.get("Cloud Platforms (AWS)", []))
+    azure_values = list(master_skills.get("Cloud Platforms (Azure)", []))
+    if selected == CLOUD_AWS:
+        aws_values = _merge_unique(aws_values, _jd_cloud_services(description, CLOUD_AWS))
+    if selected == CLOUD_AZURE:
+        azure_values = _merge_unique(azure_values, _jd_cloud_services(description, CLOUD_AZURE))
+
+    out["Cloud Platforms (AWS)"] = aws_values[:12]
+    out["Cloud Platforms (Azure)"] = azure_values[:12]
+    if selected == CLOUD_GCP:
+        gcp_values = _jd_cloud_services(description, CLOUD_GCP)
+        if not gcp_values:
+            gcp_values = ["Google Cloud Platform (GCP)"]
+        out["Cloud Platforms (GCP)"] = _merge_unique(gcp_values)[:12]
+
+    for category, values in source.items():
+        name = str(category).strip()
+        low = name.casefold()
+        if not name or name == "Programming Languages" or "cloud platform" in low:
+            continue
+        compact = _merge_unique(values)[:8]
+        if compact:
+            out[name] = compact
+    return out
+
+
+def _literal_technology_present(text: str, label: str) -> bool:
+    aliases = list(TECH_ALIASES.get(label, ()))
+    if not aliases:
+        aliases = [label]
+    low = (text or "").casefold()
+    for alias in aliases:
+        alias = str(alias).strip().casefold()
+        if alias and re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", low):
+            return True
+    for cloud_rows in CLOUD_SERVICE_CATALOG.values():
+        for cloud_label, pattern in cloud_rows:
+            if cloud_label.casefold() == label.casefold() and re.search(pattern, text or "", flags=re.I):
+                return True
+    return False
+
+
+def _technology_candidates(skills: dict) -> list[str]:
+    master = load_master_resume()
+    values = []
+    for group in master["skills"].values():
+        values.extend(group)
+    for group in (skills or {}).values():
+        values.extend(group or [])
+    for cloud_rows in CLOUD_SERVICE_CATALOG.values():
+        values.extend(label for label, _ in cloud_rows)
+    return _merge_unique(values)
+
+
+def _historical_allowed_technologies(company: str) -> set[str]:
+    master = load_master_resume()
+    row = next(item for item in master["experience"] if item["company"] == company)
+    text = "\n".join(row.get("bullets", [])) + "\n" + str(row.get("environment", ""))
+    allowed = {
+        label.casefold()
+        for label in _technology_candidates(master["skills"])
+        if _literal_technology_present(text, label)
+    }
+    return allowed
+
+
+def _older_bullet_is_invalid(company: str, bullet: str, normalized_skills: dict) -> bool:
+    if OLDER_EMPLOYER_AI_PATTERN.search(bullet or ""):
+        return True
+
+    selected = employer_cloud_modes("").get(company)
+    detected = detect_cloud_families(bullet or "")
+    if selected and (detected - {selected}):
+        return True
+
+    allowed = _historical_allowed_technologies(company)
+    for label in _technology_candidates(normalized_skills):
+        if _literal_technology_present(bullet, label) and label.casefold() not in allowed:
+            return True
+    return False
+
+
+def _skills_used_from_bullets(bullets: list[str], normalized_skills: dict) -> list[str]:
+    text = "\n".join(bullets)
+    found = [
+        label
+        for label in _technology_candidates(normalized_skills)
+        if _literal_technology_present(text, label)
+    ]
+    # Prefer concrete tools/services; keep the footer short enough to stay visually compact.
+    return _merge_unique(found)[:14]
+
+
+def _normalize_experience(raw_experience, normalized_skills: dict) -> list[dict]:
+    master = load_master_resume()
+    source = {
+        str(item.get("company") or ""): deepcopy(item)
+        for item in (raw_experience or [])
+        if isinstance(item, dict)
+    }
+    out = []
+    for master_row in master["experience"]:
+        company = master_row["company"]
+        item = source.get(company, {"company": company})
+        bullets = [str(value).strip() for value in (item.get("bullets") or []) if str(value).strip()]
+
+        if company in OLDER_EMPLOYERS:
+            if len(bullets) != len(master_row["bullets"]):
+                bullets = list(master_row["bullets"])
+            else:
+                bullets = [
+                    master_row["bullets"][index]
+                    if _older_bullet_is_invalid(company, bullet, normalized_skills)
+                    else bullet
+                    for index, bullet in enumerate(bullets)
+                ]
+
+        normalized = {
+            "company": company,
+            "bullets": bullets,
+            "skills_used": _skills_used_from_bullets(bullets, normalized_skills),
+        }
+        out.append(normalized)
+    return out
+
+
+def _normalize_generated_resume(result: dict, job) -> dict:
+    normalized = deepcopy(result)
+    description = job.description or ""
+    normalized["skills"] = _normalize_skills(normalized.get("skills"), description)
+    normalized["experience"] = _normalize_experience(
+        normalized.get("experience"),
+        normalized["skills"],
+    )
+    return normalized
 
 
 def _extract_output_text(payload):
@@ -234,7 +556,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
     cached = _read_cache(cache_key)
     if cached is not None:
         print(f"Resume LLM cache HIT | {cache_key[:12]} | API call skipped", flush=True)
-        return cached
+        return _normalize_generated_resume(cached, job)
 
     print(f"Resume LLM cache MISS | {cache_key[:12]} | calling API", flush=True)
     body = json.dumps(
@@ -271,5 +593,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         raise RuntimeError(f"OpenAI returned non-JSON resume output: {text[:1200]}") from exc
     if not isinstance(result, dict):
         raise RuntimeError("OpenAI returned a resume payload that is not a JSON object")
+
+    result = _normalize_generated_resume(result, job)
     _write_cache(cache_key, result)
     return result
