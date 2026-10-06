@@ -222,7 +222,8 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     The uploaded master resume is a two-page document. Production resumes must
     remain two pages and preserve the same high-level flow so a bloated third page,
     an almost-empty trailing page, or a displaced employer/education section can
-    never become READY_TO_APPLY.
+    never become READY_TO_APPLY. Employer Environment lines must stay compact,
+    technology-only lists rather than paragraph-style prose.
     """
     if not pdf_path or not Path(pdf_path).exists() or Path(pdf_path).stat().st_size == 0:
         return {
@@ -236,7 +237,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "page_flow_match": False,
             "page_text_balance": 0.0,
             "page_text_counts": [],
-            "environment_removed": False,
+            "environment_footers_match": False,
             "pagination_policy": "hard_master_like_two_page_contract",
         }
 
@@ -256,7 +257,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             "page_flow_match": False,
             "page_text_balance": 0.0,
             "page_text_counts": [],
-            "environment_removed": False,
+            "environment_footers_match": False,
             "pagination_policy": "hard_master_like_two_page_contract",
         }
 
@@ -287,9 +288,9 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         and balance >= MIN_PAGE_TEXT_BALANCE
     )
 
-    environment_removed = "environment:" not in pdf_text.casefold()
-    skills_footer_count = pdf_text.casefold().count("skills:")
-    skills_footers_match = skills_footer_count >= 3
+    environment_footer_count = pdf_text.casefold().count("environment:")
+    environment_footers_match = environment_footer_count >= 3
+    skills_footer_removed = "skills:" not in pdf_text.casefold()
 
     failures = []
     if coverage < 95:
@@ -306,10 +307,10 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         failures.append(
             f"page content is too unbalanced/sparse (balance={balance}, minimum={MIN_PAGE_TEXT_BALANCE})"
         )
-    if not environment_removed:
-        failures.append("legacy Environment footer is still present")
-    if not skills_footers_match:
-        failures.append("expected compact Skills footers were not found for all employers")
+    if not environment_footers_match:
+        failures.append("expected compact Environment footers were not found for all employers")
+    if not skills_footer_removed:
+        failures.append("legacy Skills employer footer is still present")
 
     passed = not failures
     return {
@@ -328,9 +329,9 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "page_text_counts": page_text_counts,
         "minimum_page_text_balance": MIN_PAGE_TEXT_BALANCE,
         "page_balance_match": page_balance_match,
-        "environment_removed": environment_removed,
-        "skills_footer_count": skills_footer_count,
-        "skills_footers_match": skills_footers_match,
+        "environment_footer_count": environment_footer_count,
+        "environment_footers_match": environment_footers_match,
+        "skills_footer_removed": skills_footer_removed,
         "pagination_policy": "hard_master_like_two_page_contract",
         "renderer": "libreoffice_headless",
         "source_artifact": "docx",
