@@ -14,7 +14,7 @@ def _paragraphs_with_direct_formatted_experience():
             # user-uploaded Word template uses direct paragraph formatting for
             # its visible bullets rather than the named List Bullet style.
             doc.add_paragraph(f"Built governed data pipeline responsibility {index + 1}")
-        doc.add_paragraph(f"Environment: {company} tools")
+        doc.add_paragraph(f"Skills: {company} tools")
     doc.add_paragraph("EDUCATION")
     return doc.paragraphs
 
@@ -25,9 +25,9 @@ def test_experience_audit_reads_master_word_structure_without_list_bullet_style(
     assert {company: len(rows) for company, rows in by_company.items()} == EXPECTED_COUNTS
 
 
-def test_experience_cloud_text_includes_structural_bullets_and_environment():
+def test_experience_cloud_text_includes_structural_bullets_and_skills_footer():
     paragraphs = _paragraphs_with_direct_formatted_experience()
     cloud_text = _experience_cloud_text(paragraphs)
     for company, expected_count in EXPECTED_COUNTS.items():
         assert cloud_text[company].count("responsibility") == expected_count
-        assert f"Environment: {company} tools" in cloud_text[company]
+        assert f"Skills: {company} tools" in cloud_text[company]
