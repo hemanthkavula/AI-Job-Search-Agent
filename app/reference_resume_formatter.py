@@ -18,7 +18,7 @@ WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
 WORD_TEMPLATE_PATH = ROOT / "data" / "Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
 W_URI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{W_URI}}}"
-XMLSPACE = "{http://www.w3.org/XML/1998/namespace}space"
+XMLSPACE = "{http://www.w3.org/XML/namespace}space"
 NS = {"w": W_URI}
 
 
@@ -200,6 +200,10 @@ def _replace(paragraph, text, phrases, normal, bold):
             _run(paragraph, part, bold if part.casefold() in lookup else normal)
 
 
+def _is_employer_footer(value):
+    return value.startswith("Environment:") or value.startswith("Skills:")
+
+
 def _exp(paragraphs):
     master = load_master_resume()
     out = {}
@@ -214,17 +218,17 @@ def _exp(paragraphs):
             if _text(paragraphs[i]) == "Roles & Responsibilities:"
         )
         bullets = []
-        environment = None
+        footer = None
         for paragraph in paragraphs[roles_index + 1 :]:
             value = _text(paragraph)
-            if value.startswith("Environment:"):
-                environment = paragraph
+            if _is_employer_footer(value):
+                footer = paragraph
                 break
             if value:
                 bullets.append(paragraph)
-        if len(bullets) != len(row["bullets"]) or environment is None:
+        if len(bullets) != len(row["bullets"]) or footer is None:
             raise RuntimeError(f"Word template experience structure mismatch for {company}")
-        out[company] = {"bullets": bullets, "environment": environment}
+        out[company] = {"bullets": bullets, "footer": footer}
     return out
 
 
@@ -278,7 +282,7 @@ def _paragraph_formats_match(rows, template_rows):
 
 
 def validate_master_format_contract(path, master=None, word_format=None):
-    """Validate formatting only; content length and pagination are intentionally free."""
+    """Validate the master layout contract while allowing Environment -> Skills relabeling."""
     master = master or load_master_resume()
     fmt = word_format or load_word_format()
     template = _template(fmt)
@@ -353,10 +357,10 @@ def validate_master_format_contract(path, master=None, word_format=None):
             for index, paragraph in enumerate(output_experience[company]["bullets"])
         ):
             reasons.append(company + "_bullet_format")
-        if _ppr(output_experience[company]["environment"]) != _ppr(
-            source_experience[company]["environment"]
+        if _ppr(output_experience[company]["footer"]) != _ppr(
+            source_experience[company]["footer"]
         ):
-            reasons.append(company + "_environment_format")
+            reasons.append(company + "_skills_footer_format")
 
     return {
         "passed": not reasons,
@@ -364,7 +368,7 @@ def validate_master_format_contract(path, master=None, word_format=None):
         "format_authority": "user_uploaded_word_format_template",
         "format_source": "live_user_uploaded_docx_template",
         "word_template_sha256": fmt["source"].get("sha256"),
-        "content_length_policy": "unbounded_natural_pagination",
+        "content_length_policy": "compact_master_like_layout",
     }
 
 
@@ -411,19 +415,52 @@ def _ensure_skill_rows(root, needed):
     ]
 
 
+def _footer_styles(source_layout):
+    source_footers = [x["footer"] for x in source_layout.values()]
+    bold = next((_rpr(p, True) for p in source_footers if _rpr(p, True) is not None), None)
+    normal = next((_rpr(p, False) for p in source_footers if _rpr(p, False) is not None), None)
+    return bold, normal
+
+
+def _write_skills_footer(paragraph, values, bold_style, normal_style):
+    values = [str(value).strip() for value in values or [] if str(value).strip()]
+    if not values:
+        raise RuntimeError("Employer Skills list is empty")
+    _clear(paragraph)
+    _run(paragraph, "Skills", bold_style)
+    _run(paragraph, ": " + ", ".join(values), normal_style)
+
+
+def _master_mode_with_skills_footer(template, out):
+    """Use the exact master content but relabel the old Environment rows as concise Skills rows."""
+    master = load_master_resume()
+    with zipfile.ZipFile(template) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    layout = _exp(_pt(root))
+    source_layout = _exp(_pt(root))
+    footer_bold, footer_normal = _footer_styles(source_layout)
+    for row in master["experience"]:
+        text = str(row.get("environment") or "").strip()
+        values = [text] if text else []
+        _write_skills_footer(layout[row["company"]]["footer"], values, footer_bold, footer_normal)
+    xml = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone="yes")
+    _write_docx(template, out, xml)
+    return str(out)
+
+
 def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     """Render tailored content into the live master Word formatting.
 
-    Formatting is fixed; content length is not. Long summaries, skills, bullets,
-    environments, and natural 3+ page resumes are allowed.
+    The master DOCX controls fonts, colors, margins, tabs, indentation, section
+    spacing, company headers and education. Tailored content is kept compact and
+    each employer ends with a Skills-only line rather than an Environment paragraph.
     """
     fmt = load_word_format()
     template = _template(fmt)
     out = _out(job, output_dir)
 
     if generated.get("_master_mode"):
-        shutil.copy2(template, out)
-        return str(out)
+        return _master_mode_with_skills_footer(template, out)
 
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
@@ -488,15 +525,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         (_rpr(p, True) for p in all_source_bullets if _rpr(p, True) is not None),
         None,
     )
-    source_environments = [x["environment"] for x in source_layout.values()]
-    environment_bold = next(
-        (_rpr(p, True) for p in source_environments if _rpr(p, True) is not None),
-        None,
-    )
-    environment_normal = next(
-        (_rpr(p, False) for p in source_environments if _rpr(p, False) is not None),
-        None,
-    )
+    footer_bold, footer_normal = _footer_styles(source_layout)
 
     generated_by_company = {
         item.get("company"): item for item in generated.get("experience") or []
@@ -521,13 +550,16 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
                 bullet_bold,
             )
 
-        environment = str(item.get("environment") or "").strip()
-        if not environment:
-            raise RuntimeError(f"{company} Environment is empty")
-        paragraph = layout[company]["environment"]
-        _clear(paragraph)
-        _run(paragraph, "Environment", environment_bold)
-        _run(paragraph, ": " + environment, environment_normal)
+        skills_used = item.get("skills_used")
+        if not skills_used:
+            legacy = str(item.get("environment") or "").strip()
+            skills_used = [legacy] if legacy else []
+        _write_skills_footer(
+            layout[company]["footer"],
+            skills_used,
+            footer_bold,
+            footer_normal,
+        )
 
     xml = etree.tostring(
         root,
