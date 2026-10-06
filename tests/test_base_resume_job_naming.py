@@ -15,6 +15,21 @@ def test_base_resume_fallback_uses_current_job_metadata(monkeypatch):
         return "generated/resumes/Lennar_Corp_Lead_Data_Engineer/Hemanth_Kavula_Lennar_Corp_Lead_Data_Engineer.docx"
 
     monkeypatch.setattr(batch_prepare,"render_llm_resume",fake_render)
+    monkeypatch.setattr(
+        batch_prepare,
+        "convert_docx_to_pdf_detailed",
+        lambda resume, attempts=2: {
+            "pdf_path": str(Path(resume).with_suffix(".pdf")),
+            "attempts": 1,
+            "reason": None,
+            "renderer": "test",
+        },
+    )
+    monkeypatch.setattr(
+        batch_prepare,
+        "validate_docx_pdf_parity",
+        lambda resume, pdf: {"passed": True, "reason": None},
+    )
     job=SimpleNamespace(
         company="Lennar Corp",
         title="Lead Data Engineer",
