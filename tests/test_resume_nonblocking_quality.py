@@ -57,6 +57,11 @@ def test_three_page_pdf_is_rejected_by_hard_master_layout_contract(monkeypatch,t
 
     monkeypatch.setattr(
         pdf_export,
+        "validate_experience_start_rule",
+        lambda _: {"passed":True,"reasons":[],"policy":"test pagination stub"},
+    )
+    monkeypatch.setattr(
+        pdf_export,
         "_docx_signature",
         lambda _: {
             "paragraphs":[
@@ -92,7 +97,7 @@ def test_three_page_pdf_is_rejected_by_hard_master_layout_contract(monkeypatch,t
     assert result["page_count"] == 3
     assert result["required_page_count"] == 2
     assert result["page_count_match"] is False
-    assert result["pagination_policy"] == "hard_master_like_two_page_contract"
+    assert result["pagination_policy"] == "two_page_first_bullet_experience_start_contract"
     assert "exactly 2 pages" in result["reason"]
 
 
