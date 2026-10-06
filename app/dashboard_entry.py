@@ -13,6 +13,7 @@ from app.job_identity import identity_keys
 STATE_DIR = dashboard.STATE_DIR
 app = dashboard.app
 _ORIGINAL_JOBS = dashboard._jobs
+_HISTORY_CACHE: dict = {"signature": None, "rows": []}
 
 
 def _path_size(path: Path) -> int:
@@ -43,6 +44,23 @@ def _remove_file(path: Path, removed: list[dict]) -> None:
         print(f"WARNING: dashboard storage cleanup could not remove {path}: {exc}")
 
 
+def _history_signature() -> tuple:
+    """Cheap change detector for the files that feed the dashboard application list."""
+    paths = [dashboard.LEDGER, dashboard.CONFIRMED, dashboard.HIDDEN]
+    cycles = dashboard.CYCLES
+    if cycles.exists():
+        for pattern in ("*_summary.json", "*_manifest.json", "*_application_queue.json"):
+            paths.extend(cycles.glob(pattern))
+    signature = []
+    for path in sorted(paths, key=lambda value: str(value)):
+        try:
+            stat = path.stat()
+            signature.append((str(path), stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            signature.append((str(path), 0, 0))
+    return tuple(signature)
+
+
 def _history_identity(row: dict) -> str:
     """Prefer immutable stored job IDs; fall back to normal cross-source identity."""
     explicit = str(
@@ -65,15 +83,8 @@ def _history_identity(row: dict) -> str:
     return f"name:{company}|{title}"
 
 
-def _jobs_with_history() -> list[dict]:
-    """Return current jobs plus preserved historical dashboard application rows.
-
-    The production ledger is a moving operational state and can legitimately have
-    zero active rows after a later run. The dashboard, however, is an application
-    manager: All Dates must continue to show applied jobs and jobs that previously
-    reached READY_TO_APPLY. Those immutable rows live in confirmed_applications.json
-    and per-cycle manifest/application-queue snapshots.
-    """
+def _build_jobs_with_history() -> list[dict]:
+    """Build current jobs plus preserved historical dashboard application rows."""
     current = list(_ORIGINAL_JOBS())
     hidden = dashboard._hidden_keys()
     ledger = dashboard._json(dashboard.LEDGER, {"jobs": {}})
@@ -202,6 +213,20 @@ def _jobs_with_history() -> list[dict]:
     return out
 
 
+def _jobs_with_history() -> list[dict]:
+    """Return cached dashboard rows; rebuild only when backing state changes."""
+    signature = _history_signature()
+    if _HISTORY_CACHE.get("signature") == signature:
+        return _HISTORY_CACHE.get("rows") or []
+
+    rows = _build_jobs_with_history()
+    # Re-read the signature after the build so a sync occurring during the build
+    # cannot leave a stale cache marked as current.
+    _HISTORY_CACHE["signature"] = _history_signature()
+    _HISTORY_CACHE["rows"] = rows
+    return rows
+
+
 # dashboard.py's routes resolve the module-level _jobs symbol at request time, so
 # replacing it here repairs All Dates without duplicating or replacing API routes.
 dashboard._jobs = _jobs_with_history
@@ -258,7 +283,7 @@ def cleanup_dashboard_persistent_state() -> None:
         stage_counts[stage] = stage_counts.get(stage, 0) + 1
     print(
         "Dashboard history recovery: "
-        f"rows={len(restored)}; stages={dict(sorted(stage_counts.items()))}"
+        f"rows={len(restored)}; stages={dict(sorted(stage_counts.items()))}; cache=warm"
     )
 
 
