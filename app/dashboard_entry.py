@@ -251,6 +251,16 @@ def cleanup_dashboard_persistent_state() -> None:
         f"top_level={storage_breakdown}"
     )
 
+    restored = _jobs_with_history()
+    stage_counts: dict[str, int] = {}
+    for row in restored:
+        stage = str(row.get("stage") or "Unknown")
+        stage_counts[stage] = stage_counts.get(stage, 0) + 1
+    print(
+        "Dashboard history recovery: "
+        f"rows={len(restored)}; stages={dict(sorted(stage_counts.items()))}"
+    )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
