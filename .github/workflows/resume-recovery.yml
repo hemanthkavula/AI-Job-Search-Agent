@@ -39,7 +39,7 @@ jobs:
           test -n "$DOCX"
           export DOCX
           python <<'PY'
-          import os, re, zipfile
+          import os, zipfile
           from copy import deepcopy
           from pathlib import Path
           from lxml import etree
@@ -51,14 +51,8 @@ jobs:
           RIGHT_TAB_TWIPS = str(round(7.45 * 1440))
 
           docx = Path(os.environ['DOCX'])
-          template = Path('data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx')
-
-          def root_from(path):
-              with zipfile.ZipFile(path) as z:
-                  return etree.fromstring(z.read('word/document.xml'))
-
-          out_root = root_from(docx)
-          template_root = root_from(template)
+          with zipfile.ZipFile(docx) as z:
+              out_root = etree.fromstring(z.read('word/document.xml'))
 
           def paragraphs(root):
               return root.xpath('.//w:body/w:p', namespaces=NS)
@@ -66,20 +60,21 @@ jobs:
           def text(p):
               return ''.join(p.xpath('.//w:t/text()', namespaces=NS)).strip()
 
-          def rpr_first(p):
+          def run_style(p, bold=None):
+              fallback = None
               for r in p.xpath('./w:r', namespaces=NS):
-                  if r.xpath('./w:t', namespaces=NS):
-                      rp = r.find(W+'rPr')
-                      return deepcopy(rp) if rp is not None else None
-              return None
-
-          def rpr_date(p):
-              for r in p.xpath('./w:r', namespaces=NS):
-                  value = ''.join(r.xpath('./w:t/text()', namespaces=NS))
-                  if re.search(r'\b20\d{2}\b', value):
-                      rp = r.find(W+'rPr')
-                      return deepcopy(rp) if rp is not None else None
-              return rpr_first(p)
+                  if not r.xpath('./w:t', namespaces=NS):
+                      continue
+                  rp = r.find(W+'rPr')
+                  style = deepcopy(rp) if rp is not None else None
+                  if fallback is None:
+                      fallback = style
+                  if bold is None:
+                      return style
+                  has_bold = bool(r.xpath('./w:rPr/w:b|./w:rPr/w:bCs', namespaces=NS))
+                  if has_bold == bold:
+                      return style
+              return fallback
 
           def ppr(p):
               node = p.find(W+'pPr')
@@ -125,14 +120,11 @@ jobs:
               spacing.set(W+'before', '0')
               spacing.set(W+'after', '0')
 
-          def find_between(company, wanted):
+          def indices_for(company):
               ps = paragraphs(out_root)
               h = next(i for i,p in enumerate(ps) if text(p).startswith(company))
               r = next(i for i in range(h+1, len(ps)) if text(ps[i]) == 'Roles & Responsibilities:')
-              return next(p for p in ps[h+1:r] if text(p) == wanted)
-
-          def template_header(company):
-              return next(p for p in paragraphs(template_root) if text(p).startswith(company))
+              return ps, h, r
 
           experience = [
               ('Fidelity Investments', 'Senior Data Engineer', 'Jan 2025 – Present'),
@@ -140,9 +132,11 @@ jobs:
               ('Target Corporation', 'Data Engineer', 'Jan 2020 – Dec 2021'),
           ]
           for company, title, dates in experience:
-              title_p = find_between(company, title)
-              title_style = rpr_first(title_p)
-              date_style = rpr_date(template_header(company))
+              ps, h, r = indices_for(company)
+              title_p = next(p for p in ps[h+1:r] if text(p) == title)
+              header = ps[h]
+              title_style = run_style(title_p)
+              date_style = run_style(header, bold=False) or run_style(header)
               set_right_tab(title_p)
               clear_runs(title_p)
               add_run(title_p, title, title_style)
@@ -151,14 +145,12 @@ jobs:
 
           school_p = next(p for p in paragraphs(out_root) if text(p).startswith('Rowan University'))
           school_text = text(school_p)
-          school_style = rpr_first(school_p)
-          template_school = next(p for p in paragraphs(template_root) if text(p).startswith('Rowan University'))
-          edu_date_style = rpr_date(template_school)
+          school_style = run_style(school_p)
           set_right_tab(school_p)
           clear_runs(school_p)
           add_run(school_p, school_text, school_style)
           add_tab(school_p)
-          add_run(school_p, 'Jan 2024 – Dec 2025', edu_date_style)
+          add_run(school_p, 'Jan 2024 – Dec 2025', school_style)
 
           changed = 0
           for p in paragraphs(out_root):
@@ -172,12 +164,9 @@ jobs:
           if changed != 3:
               raise RuntimeError(f'Expected 3 Skills footers, changed {changed}')
 
-          # Structural assertions: dates are on the same paragraphs as titles/school.
+          # Structural assertions: title/date and education date share one paragraph with a right tab.
           for company, title, dates in experience:
-              p = find_between(company, title + dates) if False else None
-              ps = paragraphs(out_root)
-              h = next(i for i,p in enumerate(ps) if text(p).startswith(company))
-              r = next(i for i in range(h+1, len(ps)) if text(ps[i]) == 'Roles & Responsibilities:')
+              ps, h, r = indices_for(company)
               tp = next(p for p in ps[h+1:r] if text(p) == title + dates)
               if not tp.xpath('.//w:tab', namespaces=NS):
                   raise RuntimeError(f'Missing right tab for {company}')
@@ -235,7 +224,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --show-error --silent \
-            'https://job-dashboard-production-7436.up.railway.app/resume/req%3Aalpaca%3An260224?title_date_repair=1' \
+            'https://job-dashboard-production-7436.up.railway.app/resume/req%3Aalpaca%3An260224?title_date_repair=2' \
             -o /tmp/dashboard-alpaca.pdf
           REMOTE_SHA=$(sha256sum /tmp/dashboard-alpaca.pdf | awk '{print $1}')
           echo "Local SHA:  $LOCAL_SHA"
