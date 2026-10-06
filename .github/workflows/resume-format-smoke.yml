@@ -1,0 +1,36 @@
+name: Resume Format Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/reference_resume_formatter.py'
+      - 'app/llm_resume_writer.py'
+      - 'app/ats_audit.py'
+      - 'app/pdf_export.py'
+      - 'data/master_resume.json'
+      - 'data/master_word_format.json'
+      - 'data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx'
+      - 'tests/test_fresh_master_resume_contract.py'
+      - '.github/workflows/resume-format-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  resume-format-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate master-format resume contract
+        run: pytest -q tests/test_fresh_master_resume_contract.py
