@@ -8,10 +8,13 @@ on:
       - 'app/llm_resume_writer.py'
       - 'app/ats_audit.py'
       - 'app/pdf_export.py'
+      - 'app/batch_prepare.py'
       - 'data/master_resume.json'
       - 'data/master_word_format.json'
       - 'data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx'
       - 'tests/test_fresh_master_resume_contract.py'
+      - 'tests/test_base_resume_job_naming.py'
+      - 'tests/test_resume_nonblocking_quality.py'
       - '.github/workflows/resume-format-smoke.yml'
   workflow_dispatch:
 
@@ -28,11 +31,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: pip
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Validate master-format resume contract
-        run: pytest -q tests/test_fresh_master_resume_contract.py
+      - name: Run full regression suite
+        run: python -m pytest -q
