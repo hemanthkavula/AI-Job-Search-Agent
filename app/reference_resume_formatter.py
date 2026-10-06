@@ -174,6 +174,78 @@ def _replace(paragraph, text, phrases, normal, bold):
             _run(paragraph, part, bold if part.casefold() in lookup else normal)
 
 
+def _paragraph_properties(paragraph):
+    ppr = paragraph.find(W + "pPr")
+    if ppr is None:
+        ppr = etree.Element(W + "pPr")
+        paragraph.insert(0, ppr)
+    return ppr
+
+
+def _compact_left_paragraph(paragraph, after_twips=40):
+    """Remove tab/distributed formatting that creates large visual gaps in Word/PDF."""
+    ppr = _paragraph_properties(paragraph)
+    tabs = ppr.find(W + "tabs")
+    if tabs is not None:
+        ppr.remove(tabs)
+    for tag in ("keepNext", "keepLines", "pageBreakBefore"):
+        node = ppr.find(W + tag)
+        if node is not None:
+            ppr.remove(node)
+    jc = ppr.find(W + "jc")
+    if jc is None:
+        jc = etree.SubElement(ppr, W + "jc")
+    jc.set(W + "val", "left")
+    spacing = ppr.find(W + "spacing")
+    if spacing is None:
+        spacing = etree.SubElement(ppr, W + "spacing")
+    spacing.set(W + "before", "0")
+    spacing.set(W + "after", str(int(after_twips)))
+
+
+def _clean_header_layout(paragraph):
+    ppr = paragraph.find(W + "pPr")
+    jc = None if ppr is None else ppr.find(W + "jc")
+    alignment = "" if jc is None else (jc.get(W + "val") or "").lower()
+    has_tabs = bool(paragraph.xpath("./w:pPr/w:tabs|.//w:tab", namespaces=NS))
+    return not has_tabs and alignment not in {"both", "distribute", "thaiDistribute"}
+
+
+def _normalize_static_headers(root, master):
+    """Rebuild employer and education location rows as compact single-line headers.
+
+    The uploaded Word template contains paragraph/tab formatting that LibreOffice can
+    expand into large horizontal gaps (most visibly on Fidelity and Rowan University).
+    Content, font runs, and the master visual hierarchy are preserved; only the bad
+    tab/distributed paragraph behavior is removed.
+    """
+    paragraphs = _pt(root)
+    for row in master["experience"]:
+        company = row["company"]
+        paragraph = next(p for p in paragraphs if _text(p).startswith(company))
+        company_style = _rpr(paragraph, True) or _rpr(paragraph, False)
+        detail_style = _rpr(paragraph, False) or company_style
+        _compact_left_paragraph(paragraph, after_twips=40)
+        _clear(paragraph)
+        _run(paragraph, company, company_style)
+        _run(paragraph, f" | {row['location']}", detail_style)
+
+    for row in master.get("education") or []:
+        school = str(row.get("school") or "").strip()
+        location = str(row.get("location") or "").strip()
+        if not school:
+            continue
+        paragraph = next((p for p in _pt(root) if _text(p).startswith(school)), None)
+        if paragraph is None:
+            continue
+        style = _rpr(paragraph, False) or _rpr(paragraph, True)
+        _compact_left_paragraph(paragraph, after_twips=40)
+        _clear(paragraph)
+        _run(paragraph, school, style)
+        if location:
+            _run(paragraph, f" | {location}", style)
+
+
 def _is_employer_footer(value):
     return value.startswith("Environment:") or value.startswith("Skills:")
 
@@ -276,6 +348,25 @@ def validate_master_format_contract(path, master=None, word_format=None):
         reasons.append("skills_structure")
     elif not _paragraph_formats_match(skill_rows, source_skill_rows):
         reasons.append("skills_paragraph_format")
+
+    for row in master["experience"]:
+        expected = f"{row['company']} | {row['location']}"
+        header = next((p for p in output_paragraphs if _text(p).startswith(row["company"])), None)
+        if header is None or _text(header) != expected:
+            reasons.append(row["company"] + "_header_text")
+        elif not _clean_header_layout(header):
+            reasons.append(row["company"] + "_header_spacing")
+
+    for row in master.get("education") or []:
+        school = str(row.get("school") or "").strip()
+        location = str(row.get("location") or "").strip()
+        expected = f"{school} | {location}" if location else school
+        paragraph = next((p for p in output_paragraphs if _text(p).startswith(school)), None)
+        if paragraph is None or _text(paragraph) != expected:
+            reasons.append("education_school_location_text")
+        elif not _clean_header_layout(paragraph):
+            reasons.append("education_school_location_spacing")
+
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)
     for row in master["experience"]:
@@ -353,8 +444,9 @@ def _master_mode_with_skills_footer(template, out):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
+    _normalize_static_headers(root, master)
     layout = _exp(_pt(root))
-    source_layout = _exp(_pt(root))
+    source_layout = _exp(_pt(_xml(template)))
     footer_bold, footer_normal = _footer_styles(source_layout)
     for row in master["experience"]:
         text = str(row.get("environment") or "").strip()
@@ -362,6 +454,11 @@ def _master_mode_with_skills_footer(template, out):
         _write_skills_footer(layout[row["company"]]["footer"], values, footer_bold, footer_normal)
     xml = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone="yes")
     _write_docx(template, out, xml)
+    check = validate_master_format_contract(out, master)
+    if not check["passed"]:
+        raise RuntimeError(
+            "Generated master-mode resume violated Word-template format contract: " + "; ".join(check["reasons"])
+        )
     return str(out)
 
 
@@ -374,6 +471,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
+    _normalize_static_headers(root, master)
     paragraphs = _pt(root)
     header = paragraphs[1]
     normal = _rpr(header, False)
