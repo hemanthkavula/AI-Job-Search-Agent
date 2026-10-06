@@ -1,2 +1,1 @@
-# One-time source rebuild trigger for the authorized Ready-to-Apply dashboard cleanup.
-# Refreshed after correcting Railway watch paths so this change forces a new build.
+# Inert deployment marker. This module is intentionally empty and is not imported by the application.
