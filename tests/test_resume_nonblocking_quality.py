@@ -51,7 +51,7 @@ def test_real_factual_or_structural_issue_can_still_block():
     assert result["blocking_quality_gates"] == ["metrics"]
 
 
-def test_three_page_pdf_is_still_integrity_valid_when_content_matches(monkeypatch,tmp_path):
+def test_three_page_pdf_is_rejected_by_hard_master_layout_contract(monkeypatch,tmp_path):
     pdf=tmp_path/"resume.pdf"
     pdf.write_bytes(b"fake-pdf")
 
@@ -64,6 +64,7 @@ def test_three_page_pdf_is_still_integrity_valid_when_content_matches(monkeypatc
                 "TECHNICAL SKILLS",
                 "PROFESSIONAL EXPERIENCE",
                 "Fidelity Investments",
+                "Cigna Healthcare",
                 "Target Corporation",
                 "EDUCATION",
             ],
@@ -79,18 +80,20 @@ def test_three_page_pdf_is_still_integrity_valid_when_content_matches(monkeypatc
         pdf_export,
         "_pdf_pages_text",
         lambda _: [
-            "Professional Summary Technical Skills",
-            "Professional Experience Fidelity Investments",
-            "Target Corporation Education",
+            "Professional Summary Technical Skills Professional Experience Fidelity Investments Skills:",
+            "Cigna Healthcare Skills:",
+            "Target Corporation Skills: Education",
         ],
     )
 
     result=pdf_export.validate_docx_pdf_parity("ignored.docx",str(pdf))
 
-    assert result["passed"] is True
+    assert result["passed"] is False
     assert result["page_count"] == 3
-    assert result["required_page_count"] is None
-    assert result["pagination_policy"] == "natural_non_blocking"
+    assert result["required_page_count"] == 2
+    assert result["page_count_match"] is False
+    assert result["pagination_policy"] == "hard_master_like_two_page_contract"
+    assert "exactly 2 pages" in result["reason"]
 
 
 def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer():
