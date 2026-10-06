@@ -75,6 +75,30 @@ def canonical_resume_title(title):
     return raw.strip(" -|:/") or "Senior Data Engineer"
 
 
+def resume_branding_headline(title):
+    """Return a truthful JD-aligned headline without inflating held seniority.
+
+    The fixed employment history remains Senior Data Engineer / Data Engineer.
+    The top headline may add one target specialty, but never adopts Staff,
+    Principal, Lead, Director, or other unheld seniority from the vacancy.
+    """
+    raw = re.sub(r"\s+", " ", str(title or "")).strip().casefold()
+    base = "Senior Data Engineer"
+
+    specialty_rules = (
+        (r"\banalytics?\s+engineer(?:ing)?\b", "Analytics Engineering"),
+        (r"\bdata\s+platform\s+engineer(?:ing)?\b|\bplatform\s+data\s+engineer(?:ing)?\b", "Data Platform Engineering"),
+        (r"\blakehouse\b", "Lakehouse Engineering"),
+        (r"\bstream(?:ing)?\s+data\b|\breal[- ]time\s+data\b", "Streaming Data Engineering"),
+        (r"\bdata\s+warehouse|\bwarehouse\s+engineer(?:ing)?\b", "Data Warehousing"),
+        (r"\betl\b|\belt\b", "ETL/ELT Engineering"),
+    )
+    for pattern, specialty in specialty_rules:
+        if re.search(pattern, raw, flags=re.I):
+            return f"{base} | {specialty}"
+    return base
+
+
 def _summary_parts(text):
     text = str(text or "").strip()
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
@@ -567,7 +591,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     header = paragraphs[1]
     normal = _rpr(header, False)
     _clear(header)
-    _run(header, canonical_resume_title(job.title), normal)
+    _run(header, resume_branding_headline(job.title), normal)
     summary_rows = [p for p in _between(paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     parts = _summary_parts(generated.get("summary", ""))
     if len(summary_rows) < 2:
