@@ -12,8 +12,9 @@ def _paragraph_by_prefix(doc, prefix):
 def test_employer_header_title_and_roles_share_one_left_edge(tmp_path):
     path = tmp_path / "resume.docx"
     doc = Document()
+    master = load_master_resume()
 
-    for index, row in enumerate(load_master_resume()["experience"]):
+    for index, row in enumerate(master["experience"]):
         header = doc.add_paragraph(f"{row['company']} | {row['location']}")
         header.paragraph_format.left_indent = Inches(0.10 + index * 0.05)
 
@@ -28,13 +29,22 @@ def test_employer_header_title_and_roles_share_one_left_edge(tmp_path):
         doc.add_paragraph(f"Second bullet for {row['company']}")
         doc.add_paragraph("Environment: Python, SQL")
 
+    education = master["education"][0]
+    degree = doc.add_paragraph(education["degree"])
+    degree.paragraph_format.left_indent = Inches(0.20)
+    school = doc.add_paragraph(
+        f"{education['school']} | {education['location']}\t"
+        f"{education['start']} - {education['end']}"
+    )
+    school.paragraph_format.left_indent = Inches(0.35)
+
     doc.save(path)
 
     result = enforce_experience_start_rule(path)
     assert result["passed"] is True, result["reasons"]
 
     fixed = Document(path)
-    for row in load_master_resume()["experience"]:
+    for row in master["experience"]:
         header = _paragraph_by_prefix(fixed, row["company"])
         title = _paragraph_by_prefix(fixed, row["title"])
         roles = _paragraph_by_prefix(fixed, "Roles & Responsibilities:")
@@ -45,3 +55,9 @@ def test_employer_header_title_and_roles_share_one_left_edge(tmp_path):
         assert header.paragraph_format.keep_with_next is True
         assert title.paragraph_format.keep_with_next is True
         assert roles.paragraph_format.keep_with_next is True
+
+    degree = _paragraph_by_prefix(fixed, education["degree"])
+    school = _paragraph_by_prefix(fixed, education["school"])
+    assert degree.paragraph_format.left_indent.inches == 0
+    assert school.paragraph_format.left_indent.inches == 0
+    assert degree.paragraph_format.keep_with_next is True
