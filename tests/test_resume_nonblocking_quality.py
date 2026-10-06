@@ -51,7 +51,7 @@ def test_real_factual_or_structural_issue_can_still_block():
     assert result["blocking_quality_gates"] == ["metrics"]
 
 
-def test_three_page_pdf_is_valid_when_content_matches(monkeypatch,tmp_path):
+def test_three_page_pdf_is_still_integrity_valid_when_content_matches(monkeypatch,tmp_path):
     pdf=tmp_path/"resume.pdf"
     pdf.write_bytes(b"fake-pdf")
 
@@ -93,7 +93,7 @@ def test_three_page_pdf_is_valid_when_content_matches(monkeypatch,tmp_path):
     assert result["pagination_policy"] == "natural_non_blocking"
 
 
-def test_tailoring_prompt_has_no_page_or_character_budget():
+def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer():
     job=SimpleNamespace(
         company="Example",
         title="Data Engineer",
@@ -112,9 +112,10 @@ def test_tailoring_prompt_has_no_page_or_character_budget():
     prompt=build_prompt(job,{},coverage_plan=plan)
     contract=prompt["structure_contract"]
 
-    assert contract["fixed_page_count"] is None
-    assert contract["summary_density_threshold"] is None
-    assert contract["skills_character_budget"] is None
-    assert contract["bullet_word_budget"] is None
-    assert contract["environment_character_budget"] is None
-    assert contract["natural_pagination"] is True
+    assert contract["summary_paragraphs"] == 2
+    assert contract["fidelity_bullets"] == 10
+    assert contract["cigna_bullets"] == 8
+    assert contract["target_bullets"] == 8
+    assert contract["employer_footer_label"] == "Skills"
+    assert contract["environment_paragraphs"] is False
+    assert contract["compact_master_like_layout"] is True
