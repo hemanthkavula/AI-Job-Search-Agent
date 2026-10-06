@@ -62,13 +62,13 @@ def _history_signature() -> tuple:
 
 
 def _history_identities(row: dict) -> list[str]:
-    """Return every useful alias so history/current copies collapse together.
+    """Return strong aliases used to collapse the same historical job.
 
     Stored keys can change between pipeline stages (for example an ATS external
-    ID versus the canonical requisition key).  Treating the first explicit key
-    as the entire identity allowed the same Greenhouse job to appear twice in
-    All Dates.  Keep all aliases -- stored key, requisition, normalized URL and
-    semantic identity -- and consider a row duplicate when any alias matches.
+    ID versus a canonical requisition key), so we compare every strong alias.
+    Requisition IDs and normalized job URLs are safe cross-stage identities.
+    Semantic company/title/location keys are used only when no stronger identity
+    exists; otherwise they can collapse separate requisitions with the same role.
     """
     identities: list[str] = []
     explicit = str(
@@ -80,14 +80,23 @@ def _history_identities(row: dict) -> list[str]:
     ).strip()
     if explicit:
         identities.append(f"key:{explicit}")
+
+    aliases: list[str] = []
     try:
-        identities.extend(identity_keys(row))
+        aliases = identity_keys(row)
     except Exception:
-        pass
-    company = str(row.get("company") or row.get("company_name") or "").strip().lower()
-    title = str(row.get("title") or row.get("job_title") or "").strip().lower()
-    if company or title:
-        identities.append(f"name:{company}|{title}")
+        aliases = []
+
+    strong = [alias for alias in aliases if alias.startswith(("req:", "url:"))]
+    identities.extend(strong)
+    if not strong and not explicit:
+        semantic = [alias for alias in aliases if alias.startswith("semantic:")]
+        identities.extend(semantic)
+        if not semantic:
+            company = str(row.get("company") or row.get("company_name") or "").strip().lower()
+            title = str(row.get("title") or row.get("job_title") or "").strip().lower()
+            if company or title:
+                identities.append(f"name:{company}|{title}")
     return list(dict.fromkeys(identity for identity in identities if identity))
 
 
