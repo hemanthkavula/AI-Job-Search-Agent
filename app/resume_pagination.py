@@ -41,6 +41,39 @@ def _has_flag(paragraph, tag: str) -> bool:
     return ppr is not None and ppr.find(W + tag) is not None
 
 
+def _set_zero_left_indent(paragraph) -> None:
+    """Make employer header/title/roles share one exact left edge."""
+    ppr = _ppr(paragraph)
+    ind = ppr.find(W + "ind")
+    if ind is None:
+        ind = etree.SubElement(ppr, W + "ind")
+    ind.set(W + "left", "0")
+    ind.set(W + "start", "0")
+    for attr in ("firstLine", "hanging"):
+        key = W + attr
+        if key in ind.attrib:
+            del ind.attrib[key]
+
+
+def _has_zero_left_indent(paragraph) -> bool:
+    ppr = paragraph.find(W + "pPr")
+    if ppr is None:
+        return True
+    ind = ppr.find(W + "ind")
+    if ind is None:
+        return True
+    left = ind.get(W + "left")
+    start = ind.get(W + "start")
+    first_line = ind.get(W + "firstLine")
+    hanging = ind.get(W + "hanging")
+    return (
+        left in (None, "0")
+        and start in (None, "0")
+        and first_line in (None, "0")
+        and hanging in (None, "0")
+    )
+
+
 def _remove_forced_breaks(paragraph) -> None:
     _set_flag(paragraph, "pageBreakBefore", False)
     for br in list(paragraph.xpath(".//w:br[@w:type='page']", namespaces=NS)):
@@ -58,9 +91,65 @@ def _set_row_cant_split(row) -> None:
         etree.SubElement(trpr, W + "cantSplit")
 
 
-def _body_children(root):
-    body = root.find(".//" + W + "body")
-    return body, list(body) if body is not None else (None, [])
+def _normalize_header_table(table) -> None:
+    """Remove table centering/cell padding that can visually offset company rows."""
+    if table is None:
+        return
+    tblpr = table.find(W + "tblPr")
+    if tblpr is None:
+        tblpr = etree.Element(W + "tblPr")
+        table.insert(0, tblpr)
+
+    jc = tblpr.find(W + "jc")
+    if jc is None:
+        jc = etree.SubElement(tblpr, W + "jc")
+    jc.set(W + "val", "left")
+
+    tblind = tblpr.find(W + "tblInd")
+    if tblind is None:
+        tblind = etree.SubElement(tblpr, W + "tblInd")
+    tblind.set(W + "type", "dxa")
+    tblind.set(W + "w", "0")
+
+    tbl_cell_mar = tblpr.find(W + "tblCellMar")
+    if tbl_cell_mar is None:
+        tbl_cell_mar = etree.SubElement(tblpr, W + "tblCellMar")
+    for side in ("left", "right"):
+        node = tbl_cell_mar.find(W + side)
+        if node is None:
+            node = etree.SubElement(tbl_cell_mar, W + side)
+        node.set(W + "type", "dxa")
+        node.set(W + "w", "0")
+
+    for cell in table.xpath(".//w:tr[1]/w:tc", namespaces=NS):
+        tcpr = cell.find(W + "tcPr")
+        if tcpr is None:
+            tcpr = etree.Element(W + "tcPr")
+            cell.insert(0, tcpr)
+        tcmar = tcpr.find(W + "tcMar")
+        if tcmar is None:
+            tcmar = etree.SubElement(tcpr, W + "tcMar")
+        for side in ("left", "right"):
+            node = tcmar.find(W + side)
+            if node is None:
+                node = etree.SubElement(tcmar, W + side)
+            node.set(W + "type", "dxa")
+            node.set(W + "w", "0")
+
+
+def _header_table_is_left_aligned(table) -> bool:
+    if table is None:
+        return True
+    tblpr = table.find(W + "tblPr")
+    if tblpr is None:
+        return True
+    jc = tblpr.find(W + "jc")
+    if jc is not None and (jc.get(W + "val") or "").lower() not in ("", "left", "start"):
+        return False
+    tblind = tblpr.find(W + "tblInd")
+    if tblind is not None and tblind.get(W + "w") not in (None, "0"):
+        return False
+    return True
 
 
 def _top_level_paragraphs(body):
@@ -105,6 +194,7 @@ def _locate_paragraph_block(root, company: str):
     return {
         "kind": "paragraph",
         "header_paragraphs": [paragraphs[header_index]],
+        "header_table": None,
         "title": title,
         "roles": paragraphs[roles_index],
         "first_bullet": first_bullet,
@@ -141,6 +231,7 @@ def _locate_table_block(root, company: str):
     return {
         "kind": "table",
         "header_paragraphs": header_paragraphs,
+        "header_table": table,
         "header_row": first_row,
         "title": title,
         "roles": roles,
@@ -153,9 +244,12 @@ def _locate_block(root, company: str):
 
 
 def _apply_block(block) -> None:
+    _normalize_header_table(block.get("header_table"))
+
     header_paragraphs = block["header_paragraphs"]
     for paragraph in header_paragraphs:
         _remove_forced_breaks(paragraph)
+        _set_zero_left_indent(paragraph)
         _set_flag(paragraph, "keepNext", True)
         _set_flag(paragraph, "keepLines", True)
     if block.get("header_row") is not None:
@@ -163,6 +257,7 @@ def _apply_block(block) -> None:
 
     for paragraph in (block["title"], block["roles"]):
         _remove_forced_breaks(paragraph)
+        _set_zero_left_indent(paragraph)
         _set_flag(paragraph, "keepNext", True)
         _set_flag(paragraph, "keepLines", True)
 
@@ -176,13 +271,21 @@ def _validate_block(block, company: str) -> list[str]:
     reasons = []
     if not block:
         return [f"{company}: employer start block not found"]
+    if not _header_table_is_left_aligned(block.get("header_table")):
+        reasons.append(f"{company}: company/date table is not left aligned")
     for paragraph in block["header_paragraphs"]:
         if not _has_flag(paragraph, "keepNext"):
             reasons.append(f"{company}: header is not kept with title")
+        if not _has_zero_left_indent(paragraph):
+            reasons.append(f"{company}: header left alignment does not match title/roles")
     if not _has_flag(block["title"], "keepNext"):
         reasons.append(f"{company}: title/date is not kept with responsibilities")
+    if not _has_zero_left_indent(block["title"]):
+        reasons.append(f"{company}: title/date left alignment is inconsistent")
     if not _has_flag(block["roles"], "keepNext"):
         reasons.append(f"{company}: responsibilities label is not kept with first bullet")
+    if not _has_zero_left_indent(block["roles"]):
+        reasons.append(f"{company}: responsibilities left alignment is inconsistent")
     if not _has_flag(block["first_bullet"], "keepLines"):
         reasons.append(f"{company}: first bullet is allowed to split across pages")
     if _has_flag(block["first_bullet"], "keepNext"):
@@ -226,17 +329,18 @@ def validate_experience_start_rule(docx_path: str | Path) -> dict:
     return {
         "passed": not reasons,
         "reasons": reasons,
-        "policy": "employer header/title/roles plus complete first bullet must start together",
+        "policy": "aligned employer header/title/roles plus complete first bullet must start together",
     }
 
 
 def enforce_experience_start_rule(docx_path: str | Path) -> dict:
-    """Prevent orphaned employer headers without forcing whole experiences onto one page.
+    """Normalize employer alignment and prevent orphaned employer starts.
 
-    Word/LibreOffice may begin an employer on the current page only when the company
-    header, title/date, Roles & Responsibilities label, and the complete first bullet
-    fit there. Otherwise that start block moves to the next page. Later bullets are
-    intentionally free to continue on following pages.
+    Company/location, title/date, and Roles & Responsibilities are normalized to
+    the same left edge. Word/LibreOffice may begin an employer on the current page
+    only when that start block and the complete first bullet fit there. Otherwise
+    the start block moves to the next page. Later bullets remain free to continue
+    on following pages.
     """
     path = Path(docx_path)
     if not path.exists() or path.stat().st_size == 0:
