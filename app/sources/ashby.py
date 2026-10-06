@@ -1,12 +1,13 @@
 from __future__ import annotations
 import json
 from urllib.request import urlopen, Request
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 BASE = "https://api.ashbyhq.com/posting-api/job-board"
 
 def fetch_jobs(board_name: str, timeout: int = 20) -> list[dict]:
-    url=f"{BASE}/{board_name}?{urlencode({'includeCompensation':'true'})}"
+    encoded_board_name=quote(str(board_name).strip(),safe="")
+    url=f"{BASE}/{encoded_board_name}?{urlencode({'includeCompensation':'true'})}"
     req=Request(url,headers={"Accept":"application/json","User-Agent":"AI-Job-Search-Agent/0.2"})
     with urlopen(req,timeout=timeout) as resp:
         payload=json.loads(resp.read().decode("utf-8"))
