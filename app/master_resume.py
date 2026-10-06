@@ -68,11 +68,13 @@ def master_resume_payload(master: dict | None = None) -> dict:
 
 
 def master_tailoring_base(master: dict | None = None) -> dict:
-    """Return the truthful master content reservoir for hybrid tailoring.
+    """Return the user-authoritative historical technical baseline.
 
-    This function is retained for zero-target/backward-compatible routes. For
-    nonzero JD-target tailoring, the LLM writer does not receive this technical
-    content; the current JD is the technical-content source.
+    The master resume is both the truthful historical technology reservoir and
+    the source for fixed chronology. JD-specific resumes use this baseline for
+    established AWS/Azure skills and historical Cigna/Target experience, while
+    the current JD may introduce relevant new technology primarily in Fidelity.
+    The separately materialized DOCX remains the visual-format authority.
     """
     master = master or load_master_resume()
     return {
