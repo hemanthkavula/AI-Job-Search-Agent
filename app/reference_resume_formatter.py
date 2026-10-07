@@ -429,9 +429,9 @@ def validate_master_format_contract(path, master=None, word_format=None):
             reasons.append("heading_format_" + heading)
     summary_rows = [p for p in _between(output_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     source_summary_rows = [p for p in _between(source_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
-    if len(summary_rows) != 2:
+    if len(summary_rows) != 1:
         reasons.append("summary_structure")
-    elif not _paragraph_formats_match(summary_rows, source_summary_rows):
+    elif not _paragraph_formats_match(summary_rows, source_summary_rows[:1]):
         reasons.append("summary_paragraph_format")
     skill_rows = [p for p in _between(output_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
     source_skill_rows = [p for p in _between(source_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
