@@ -11,6 +11,8 @@ from app.ats_resolver import resolve_original_ats
 from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
+from app.employer_job_resolver import resolve as resolve_employer_job
+from app.source_registry import detect_ats
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -233,12 +235,36 @@ def resolve_full_jd(job):
     # employer/ATS job page before it can become eligible for paid resume work.
     should_resolve_employer=(bool(out.get("discovery_only")) or source in JOB_BOARD_SOURCES or _is_aggregator_url(lead_url))
     if should_resolve_employer or not _looks_like_usable_jd(resolved or current,source):
-        employer_url,employer_desc=_resolve_employer_career_page(out)
-        if len(employer_desc)>len(resolved):resolved=employer_desc
-        if employer_url:
-            out["aggregator_url"]=out.get("original_url") or out.get("url")
+        # First use verified company/source registries and provider APIs to find
+        # the exact employer job. This is more reliable than web-search HTML and
+        # reuses sources already proven by production discovery/enrichment.
+        matched=resolve_employer_job(out) if should_resolve_employer else None
+        if matched:
+            employer_url=matched.get("original_url") or matched.get("url") or ""
+            employer_desc=(matched.get("description") or "").strip()
+            out["aggregator_url"]=out.get("aggregator_url") or out.get("original_url") or out.get("url")
+            out["job_board_posted_at"]=next((out.get(field) for field in ("posted_at","posted_on","date_posted","datePosted","published_at","publication_date","updated_at") if out.get(field) not in (None,"")),None)
+            # Copy authoritative employer fields without replacing the discovery
+            # source identity; freshness later still prefers the employer page.
+            for key in ("location","employment_type","requisition_id","job_id","posted_at","posted_on","date_posted","updated_at","ats_provider","ats_identifier"):
+                if matched.get(key) not in (None,"",[],{}):out[key]=matched.get(key)
             out["original_url"]=employer_url
-            out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
+            out["ats_provider"]=matched.get("ats_provider") or out.get("ats_provider")
+            out["ats_identifier"]=matched.get("ats_identifier") or out.get("ats_identifier")
+            out["ats_resolution"]="verified_employer_source_match"
+            out["employer_resolution_match_score"]=matched.get("resolver_match_score")
+        else:
+            employer_url,employer_desc=_resolve_employer_career_page(out)
+            if employer_url:
+                out["aggregator_url"]=out.get("aggregator_url") or out.get("original_url") or out.get("url")
+                out["job_board_posted_at"]=next((out.get(field) for field in ("posted_at","posted_on","date_posted","datePosted","published_at","publication_date","updated_at") if out.get(field) not in (None,"")),None)
+                out["original_url"]=employer_url
+                provider,identifier=detect_ats(employer_url)
+                if provider:
+                    out["ats_provider"]=provider
+                    out["ats_identifier"]=identifier
+                out["ats_resolution"]="employer_career_page_canonical" if should_resolve_employer else "employer_career_page_fallback"
+        if len(employer_desc)>len(resolved):resolved=employer_desc
     if len(resolved)>len(current):out["description"]=resolved
     final=(out.get("description") or "").strip()
     out["description_length"]=len(final)
@@ -284,7 +310,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         else:
             cutoff=check_now-timedelta(hours=hours)
         posting_fields=("posted_at","posted_on","postedDate","posted_date","date_posted","datePosted","published_at","publishedAt","publication_date","datePublished")
-        raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
+        raw["discovery_posted_at"]=raw.get("job_board_posted_at") or next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
         selected_posted=None;selected_label=None
         if aggregator_origin:
             # The employer/ATS date has first priority whenever it is available.
