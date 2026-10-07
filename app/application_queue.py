@@ -19,12 +19,20 @@ def _provider(row):
            "smartrecruiters":"smartrecruiters","icims":"icims","jobvite":"jobvite"}
     return next((p for token,p in hints.items() if token in host),"unknown")
 
-def _known_answers():
+def _yes_no(value):
+    if value is True:return "Yes"
+    if value is False:return "No"
+    return None
+
+def _known_answers(profile):
+    """Build work-authorization answers from the candidate profile, never constants."""
+    work_auth=(profile or {}).get("work_authorization") or {}
+    authorized=work_auth.get("application_answer_authorized") or _yes_no(work_auth.get("authorized_to_work_us"))
     return {
-      "authorized_to_work_us":"Yes",
-      "requires_sponsorship_now":"No",
-      "requires_future_sponsorship":"No",
-      "sponsorship_statement":"I am currently authorized to work in the United States and do not require employer sponsorship now or in the future."
+      "authorized_to_work_us":authorized,
+      "requires_sponsorship_now":_yes_no(work_auth.get("requires_sponsorship_now")),
+      "requires_future_sponsorship":_yes_no(work_auth.get("requires_sponsorship_future")),
+      "sponsorship_statement":work_auth.get("statement")
     }
 
 def _artifact_path(value,manifest_path):
@@ -74,7 +82,7 @@ def build(manifest_path="generated/application_manifest.json",output="generated/
           "external_id":r.get("external_id"),"source":r.get("source"),"company":r.get("company"),"title":r.get("title"),
           "url":r.get("original_url") or r.get("url"),"ats_provider":provider,"application_route":r.get("application_route") or ("DICE" if provider=="dice" else "EXTERNAL_ATS"),
           "ats_score":r.get("ats_audit",{}).get("internal_ats_score"),"resume_path":resolved_pdf,
-          "artifact_validation":validation,"known_answers":_known_answers(),
+          "artifact_validation":validation,"known_answers":_known_answers(profile),
           "location":r.get("location"),"employment_type":r.get("employment_type"),"description":r.get("description"),
           "application_gate":{"passed":True,"reasons":[]},
           "unknown_answer_policy":"MANUAL_ACTION_REQUIRED",
