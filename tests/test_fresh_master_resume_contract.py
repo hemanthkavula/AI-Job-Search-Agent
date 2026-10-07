@@ -18,7 +18,15 @@ def test_uploaded_word_is_authoritative_format_record():
     assert record["source"]["sha256"] == EXPECTED_WORD_SHA256
     assert record["source"]["pages"] == 2
     assert record["style"]["font"] == "Calibri"
+    assert record["style"]["name_pt"] == 18
+    assert record["style"]["headline_pt"] == 13
+    assert record["style"]["contact_pt"] == 11
+    assert record["style"]["section_heading_pt"] == 12
+    assert record["style"]["summary_pt"] == 11
     assert record["style"]["body_pt"] == 10.0
+    assert record["style"]["company_pt"] == 12
+    assert record["style"]["job_title_pt"] == 11
+    assert record["style"]["education_degree_pt"] == 11
     assert record["style"]["top_margin_in"] == 0.50
     assert record["style"]["bottom_margin_in"] == 0.50
     assert record["style"]["left_margin_in"] == 0.50
