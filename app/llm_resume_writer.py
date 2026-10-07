@@ -320,8 +320,9 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "category_names_are_jd_adaptive": True,
             "allow_category_rename_merge_split_reorder": True,
             "allow_new_categories_when_jd_supported": True,
-            "focus_technical_skills_on_selected_jd_cloud": True,
-            "historical_clouds_remain_in_employer_experience": True,
+            "technical_skills_must_reflect_entire_final_resume": True,
+            "preserve_historical_cloud_skills_from_all_employers": True,
+            "build_skills_after_final_experience_reconciliation": True,
             "add_gcp_category_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
             "new_fidelity_jd_tools_may_be_added": True,
             "avoid_redundant_categories": True,
@@ -479,56 +480,37 @@ def _normalize_skills(raw_skills, description: str) -> dict:
             if values
         }
 
-    # Always preserve the core programming baseline, but keep cloud skills focused
-    # on the cloud family selected from the current JD. Historical cloud stacks stay
-    # truthful in employer bullets/Environment instead of cluttering the top skills.
+    # Always preserve programming plus the historically supported cloud baselines
+    # from the complete resume. The JD controls Fidelity's current-employer cloud,
+    # but must never erase real Azure/AWS experience from Cigna/Target in the top
+    # Technical Skills section.
     programming = list(master_skills.get("Programming Languages", []))
     if programming:
         category = _find_category(out, "programming") or "Programming Languages"
         out.setdefault(category, [])
         out[category] = _merge_unique_technologies(out[category], programming)[:12]
 
-    if selected in {CLOUD_AWS, CLOUD_AZURE}:
-        fallback_name = "Cloud Platforms (AWS)" if selected == CLOUD_AWS else "Cloud Platforms (Azure)"
-        master_key = fallback_name
-        category = _find_category(out, selected) or fallback_name
+    for family, master_key, fallback_name in (
+        (CLOUD_AWS, "Cloud Platforms (AWS)", "Cloud Platforms (AWS)"),
+        (CLOUD_AZURE, "Cloud Platforms (Azure)", "Cloud Platforms (Azure)"),
+    ):
+        baseline = list(master_skills.get(master_key, []))
+        category = _find_category(out, family) or fallback_name
         out.setdefault(category, [])
-        additions = _merge_unique(
-            list(master_skills.get(master_key, [])),
-            _jd_cloud_services(description, selected),
-        )
+        additions = baseline
+        if selected == family:
+            additions = _merge_unique(additions, _jd_cloud_services(description, family))
         out[category] = _merge_unique_technologies(out[category], additions)[:12]
 
-    # A JD-driven GCP category is required only when Fidelity is being tailored to GCP.
-    if selected == CLOUD_GCP:
-        category = _find_category(out, CLOUD_GCP)
-        if category is None:
-            category = "Cloud Platforms (GCP)"
-            out[category] = []
-        gcp_values = _jd_cloud_services(description, CLOUD_GCP) or ["Google Cloud Platform (GCP)"]
+    # GCP is added when supported by the JD/final Fidelity experience. Unlike AWS
+    # and Azure, it is not a fixed historical baseline for Cigna/Target.
+    if selected == CLOUD_GCP or _find_category(out, CLOUD_GCP):
+        category = _find_category(out, CLOUD_GCP) or "Cloud Platforms (GCP)"
+        out.setdefault(category, [])
+        gcp_values = _jd_cloud_services(description, CLOUD_GCP)
+        if selected == CLOUD_GCP and not gcp_values:
+            gcp_values = ["Google Cloud Platform (GCP)"]
         out[category] = _merge_unique_technologies(out[category], gcp_values)[:12]
-
-    for family in (CLOUD_AWS, CLOUD_AZURE, CLOUD_GCP):
-        if family == selected:
-            continue
-        for category in list(out):
-            if _category_matches(category, family):
-                out.pop(category, None)
-
-    # Also remove non-selected cloud services from generic/mixed categories.
-    # This keeps the top skills section focused even when the LLM grouped cloud
-    # services under a neutral label such as "Cloud Platforms".
-    for category in list(out):
-        kept = []
-        for value in out[category]:
-            families = detect_cloud_families(str(value))
-            if families and selected not in families:
-                continue
-            kept.append(value)
-        if kept:
-            out[category] = kept
-        else:
-            out.pop(category, None)
 
     return out
 
@@ -633,6 +615,68 @@ def _normalize_experience(raw_experience, normalized_skills: dict) -> list[dict]
     return out
 
 
+def _reconcile_skills_with_final_experience(skills: dict, experience: list[dict], description: str) -> dict:
+    """Build Technical Skills from the final resume, not from the JD alone.
+
+    Preserve the LLM's JD-adaptive taxonomy, then guarantee that technologies
+    credibly evidenced across Fidelity, Cigna, and Target remain represented.
+    """
+    master = load_master_resume()
+    out = {str(k): list(v or []) for k, v in (skills or {}).items() if str(k).strip()}
+    final_text = "\n".join(
+        "\n".join(item.get("bullets") or [])
+        for item in (experience or [])
+        if isinstance(item, dict)
+    )
+
+    # Historical employer environments are source-of-truth evidence too. This
+    # specifically preserves Cigna's Azure and Target's AWS experience even when
+    # the current JD selects only one cloud for Fidelity.
+    history_text = final_text + "\n" + "\n".join(
+        str(row.get("environment") or "")
+        for row in master.get("experience") or []
+    )
+
+    candidates = _technology_candidates(out)
+    evidenced = [
+        label for label in candidates
+        if _literal_technology_present(history_text, label)
+    ]
+
+    # Map evidenced technologies back into an existing adaptive category when
+    # possible; otherwise use the corresponding master category.
+    master_category_for = {}
+    for category, values in (master.get("skills") or {}).items():
+        for value in values or []:
+            master_category_for[_canonical_technology_label(value).casefold()] = str(category)
+
+    for label in evidenced:
+        family = next(iter(detect_cloud_families(label)), None)
+        if family in {CLOUD_AWS, CLOUD_AZURE, CLOUD_GCP}:
+            category = _find_category(out, family)
+        else:
+            category = None
+
+        if category is None:
+            category = master_category_for.get(label.casefold())
+
+        if category is None:
+            # If the LLM already placed the technology in an adaptive category,
+            # keep that taxonomy instead of creating a duplicate row.
+            category = next(
+                (
+                    name for name, values in out.items()
+                    if any(_canonical_technology_label(v).casefold() == label.casefold() for v in values)
+                ),
+                "Data Engineering & Processing",
+            )
+
+        out.setdefault(category, [])
+        out[category] = _merge_unique_technologies(out[category], [label])[:14]
+
+    return {name: values for name, values in out.items() if values}
+
+
 def _summary_contract_violations(summary) -> list[str]:
     text = str(summary or "").strip()
     reasons = []
@@ -656,10 +700,22 @@ def _summary_contract_violations(summary) -> list[str]:
 def _normalize_generated_resume(result: dict, job) -> dict:
     normalized = deepcopy(result)
     description = job.description or ""
-    normalized["skills"] = _normalize_skills(normalized.get("skills"), description)
+
+    # First establish a provisional technology vocabulary so historical
+    # credibility checks can validate the generated employer bullets.
+    provisional_skills = _normalize_skills(normalized.get("skills"), description)
+
+    # Finalize all employer bullets before deciding the top Technical Skills.
     normalized["experience"] = _normalize_experience(
         normalized.get("experience"),
-        normalized["skills"],
+        provisional_skills,
+    )
+
+    # Now derive/reconcile Technical Skills from the complete final resume.
+    normalized["skills"] = _reconcile_skills_with_final_experience(
+        provisional_skills,
+        normalized["experience"],
+        description,
     )
     return normalized
 
