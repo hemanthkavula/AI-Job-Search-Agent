@@ -195,8 +195,11 @@ def _pipeline_runs():
             except Exception: continue
             unit_rows=(d.get("source_unit_status") or {}).values()
             unit_statuses=[(x.get("status") if isinstance(x,dict) else x) for x in unit_rows]
+            repair=d.get("source_repair_queue") or {}
+            reasons=d.get("filter_reason_counts") or {}
             runs.append({
                 "cycle_id":cid,"ts":ts,"created":ts.isoformat(),
+                "production_cutoff":d.get("production_cutoff"),
                 "discovered":d.get("discovered",0),
                 "fresh":d.get("fresh_verified_within_window",0),
                 "older_or_unverified":d.get("older_or_unverified",0),
@@ -207,8 +210,15 @@ def _pipeline_runs():
                 "eligible":d.get("eligible",0),
                 "prepared":d.get("prepared",0),
                 "ready":d.get("ready_to_apply",0),
+                "filter_reasons":reasons,
+                "source_total":len(unit_statuses),
+                "source_ok":sum(x=="OK" for x in unit_statuses),
                 "source_failed":sum(x=="ERROR" for x in unit_statuses),
+                "source_backoff":sum(x=="BACKOFF_TRANSIENT" for x in unit_statuses),
                 "source_hard_skipped":sum(x in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for x in unit_statuses),
+                "repair_pending":repair.get("pending",0),
+                "repair_failed":repair.get("failed",0),
+                "repair_repaired":repair.get("repaired",0),
             })
     runs.sort(key=lambda x:x["ts"])
     return runs
@@ -283,6 +293,12 @@ def _pipeline_jobs(cycle_id):
                 "resume":rp.name if rp else None,
                 "resume_url":"/resume/"+quote(key,safe="") if rp else None,
                 "resume_available":bool(rp),
+                "freshness_proof":row.get("freshness_proof"),
+                "official_posted_at":row.get("official_posted_at"),
+                "official_posted_label":row.get("official_posted_label"),
+                "freshness_basis":row.get("freshness_basis"),
+                "recovery_scan":bool(row.get("recovery_scan")),
+                "live_check":row.get("live_check"),
             }
         item["pipeline"]=cycle_id
         out.append(item)
@@ -321,6 +337,12 @@ def _jobs():
             "pipeline":row.get("cycle_id") or _pipeline_for(row.get("first_seen") or row.get("last_seen"),runs),
             "applied_at":(hist or {}).get("submitted_at") or row.get("submitted_at"),
             "reason":(hist or {}).get("reason") or row.get("application_reason") or "",
+            "freshness_proof":row.get("freshness_proof") or (row.get("queue_item") or {}).get("freshness_proof"),
+            "official_posted_at":row.get("official_posted_at") or (row.get("queue_item") or {}).get("official_posted_at"),
+            "official_posted_label":row.get("official_posted_label") or (row.get("queue_item") or {}).get("official_posted_label"),
+            "freshness_basis":row.get("freshness_basis") or (row.get("queue_item") or {}).get("freshness_basis"),
+            "recovery_scan":bool(row.get("recovery_scan") or (row.get("queue_item") or {}).get("recovery_scan")),
+            "live_check":row.get("live_check") or (row.get("queue_item") or {}).get("live_check"),
         })
     out.sort(key=lambda x:x.get("updated") or x.get("applied_at") or "",reverse=True)
     return out
