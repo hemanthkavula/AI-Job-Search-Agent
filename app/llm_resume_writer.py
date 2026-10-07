@@ -379,6 +379,52 @@ def _merge_unique(*groups):
     return out
 
 
+_TECH_CANONICAL_LABELS = {
+    "spark": "Apache Spark",
+    "kafka": "Apache Kafka",
+    "airflow": "Apache Airflow",
+    "dynamodb": "Amazon DynamoDB",
+    "lambda": "AWS Lambda",
+    "aws lambda": "AWS Lambda",
+    "kinesis": "Amazon Kinesis",
+    "amazon kinesis": "Amazon Kinesis",
+    "glue": "AWS Glue",
+    "emr": "Amazon EMR",
+    "s3": "Amazon S3",
+    "redshift": "Amazon Redshift",
+    "data factory": "Azure Data Factory",
+    "adf": "Azure Data Factory",
+    "synapse": "Azure Synapse Analytics",
+    "synapse analytics": "Azure Synapse Analytics",
+    "azure synapse": "Azure Synapse Analytics",
+    "azure data lake storage gen2": "ADLS Gen2",
+    "azure data lake storage": "ADLS Gen2",
+    "adls": "ADLS Gen2",
+    "event hub": "Azure Event Hubs",
+    "azure event hub": "Azure Event Hubs",
+    "purview": "Microsoft Purview",
+    "azure purview": "Microsoft Purview",
+}
+
+
+def _canonical_technology_label(value: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return _TECH_CANONICAL_LABELS.get(text.casefold(), text)
+
+
+def _merge_unique_technologies(*groups):
+    out = []
+    seen = set()
+    for group in groups:
+        for value in group or []:
+            text = _canonical_technology_label(value)
+            key = text.casefold()
+            if text and key not in seen:
+                seen.add(key)
+                out.append(text)
+    return out
+
+
 def _jd_cloud_services(description: str, cloud: str) -> list[str]:
     out = []
     for label, pattern in CLOUD_SERVICE_CATALOG.get(cloud, ()):
@@ -414,13 +460,13 @@ def _normalize_skills(raw_skills, description: str) -> dict:
     out = {}
     for category, values in source.items():
         name = re.sub(r"\s+", " ", str(category or "")).strip().strip(":")
-        compact = _merge_unique(values)[:12]
+        compact = _merge_unique_technologies(values)[:12]
         if not name or not compact:
             continue
         # Avoid duplicate category labels that differ only by case.
         existing = next((key for key in out if key.casefold() == name.casefold()), None)
         if existing:
-            out[existing] = _merge_unique(out[existing], compact)[:12]
+            out[existing] = _merge_unique_technologies(out[existing], compact)[:12]
         else:
             out[name] = compact
 
@@ -449,7 +495,7 @@ def _normalize_skills(raw_skills, description: str) -> dict:
         additions = list(baseline)
         if family == selected and family in {CLOUD_AWS, CLOUD_AZURE}:
             additions = _merge_unique(additions, _jd_cloud_services(description, family))
-        out[category] = _merge_unique(out[category], additions)[:12]
+        out[category] = _merge_unique_technologies(out[category], additions)[:12]
 
     # A JD-driven GCP category is required only when Fidelity is being tailored to GCP.
     if selected == CLOUD_GCP:
@@ -458,7 +504,7 @@ def _normalize_skills(raw_skills, description: str) -> dict:
             category = "Cloud Platforms (GCP)"
             out[category] = []
         gcp_values = _jd_cloud_services(description, CLOUD_GCP) or ["Google Cloud Platform (GCP)"]
-        out[category] = _merge_unique(out[category], gcp_values)[:12]
+        out[category] = _merge_unique_technologies(out[category], gcp_values)[:12]
 
     return out
 
@@ -488,7 +534,7 @@ def _technology_candidates(skills: dict) -> list[str]:
         values.extend(group or [])
     for cloud_rows in CLOUD_SERVICE_CATALOG.values():
         values.extend(label for label, _ in cloud_rows)
-    return _merge_unique(values)
+    return _merge_unique_technologies(values)
 
 
 def _historical_allowed_technologies(company: str) -> set[str]:
@@ -527,7 +573,7 @@ def _skills_used_from_bullets(bullets: list[str], normalized_skills: dict) -> li
         if _literal_technology_present(text, label)
     ]
     # Prefer concrete tools/services; keep the footer short enough to stay visually compact.
-    return _merge_unique(found)[:14]
+    return _merge_unique_technologies(found)[:14]
 
 
 def _normalize_experience(raw_experience, normalized_skills: dict) -> list[dict]:
