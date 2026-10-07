@@ -515,6 +515,21 @@ def _normalize_skills(raw_skills, description: str) -> dict:
             if _category_matches(category, family):
                 out.pop(category, None)
 
+    # Also remove non-selected cloud services from generic/mixed categories.
+    # This keeps the top skills section focused even when the LLM grouped cloud
+    # services under a neutral label such as "Cloud Platforms".
+    for category in list(out):
+        kept = []
+        for value in out[category]:
+            families = detect_cloud_families(str(value))
+            if families and selected not in families:
+                continue
+            kept.append(value)
+        if kept:
+            out[category] = kept
+        else:
+            out.pop(category, None)
+
     return out
 
 
