@@ -93,3 +93,65 @@ def test_resolve_full_jd_uses_same_workday_authoritative_metadata_for_every_path
     assert raw["description"] == jd.strip()
     assert raw["description_complete"] is True
     assert raw["description_usable"] is True
+
+
+
+def test_noisy_client_rendered_job_recovers_title_and_canonical_record(monkeypatch):
+    noisy = (
+        "navigation script shell " * 4000
+        + " Eaton's Corporate Sector division is currently seeking a Lead AI and Data Engineer. "
+        + "Responsibilities build scalable AI and data engineering solutions. "
+        + "Requirements Python SQL Azure OpenAI Databricks machine learning. "
+        + "Qualifications bachelor's degree and engineering experience. "
+    )
+    clean = (
+        "Responsibilities: build scalable AI and data engineering solutions using Python, SQL, Azure OpenAI and Databricks. "
+        "Requirements: software engineering, data engineering, machine learning, cloud architecture and production operations. "
+        "Qualifications: bachelor's degree and relevant experience. "
+    ) * 8
+    base = {
+        "external_id":"manual:1",
+        "source":"workday",
+        "company_key":"Eaton",
+        "company":"Eaton",
+        "title":"Job opening",
+        "url":"https://example.test/eaton/job/1",
+        "original_url":"https://example.test/eaton/job/1",
+        "ats_provider":"workday",
+        "ats_identifier":"eaton|Eaton_Careers",
+        "description":noisy,
+        "description_complete":True,
+        "manual_link":True,
+    }
+    matched = {
+        "title":"Lead AI and Data Engineer",
+        "location":"Beachwood, OH | Mountainside, NJ",
+        "employment_type":"Full time",
+        "requisition_id":"JR12345",
+        "original_url":"https://eaton.wd5.myworkdayjobs.com/Eaton_Careers/job/1",
+        "url":"https://eaton.wd5.myworkdayjobs.com/Eaton_Careers/job/1",
+        "ats_provider":"workday",
+        "ats_identifier":"eaton|Eaton_Careers",
+        "description":clean,
+        "resolver_match_score":1.17,
+        "ats_resolution":"verified_employer_source_match",
+    }
+    monkeypatch.setattr(jd_finalizer,"resolve_original_ats",lambda job:dict(job))
+    monkeypatch.setattr(jd_finalizer,"enrich_authoritative_job_metadata",lambda job:dict(job))
+    monkeypatch.setattr(jd_finalizer,"resolve_employer_job",lambda job: matched if job.get("title")=="Lead AI and Data Engineer" else None)
+    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda url:"")
+
+    out=jd_finalizer.resolve_full_jd(base)
+
+    assert out["title"]=="Lead AI and Data Engineer"
+    assert out["description"]==clean.strip()
+    assert out["location"]=="Beachwood, OH | Mountainside, NJ"
+    assert out["requisition_id"]=="JR12345"
+    assert out["metadata_resolution_source"]=="verified_employer_source_match"
+    assert out["metadata_verified"] is True
+    assert len(out["description"]) < len(noisy)
+
+
+def test_recover_title_from_full_jd_not_limited_to_first_12k():
+    text=("page shell " * 5000) + " Eaton's Corporate Sector division is currently seeking a Lead AI and Data Engineer. Responsibilities follow."
+    assert jd_finalizer._recover_title_from_jd_text(text)=="Lead AI and Data Engineer"

@@ -712,11 +712,14 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             }
         print(
             "MANUAL JD QUALITY | company={} | company_source={} | title={} | title_verified={} | "
-            "chars={} | complete={} | usable={}".format(
+            "provider={} | metadata_source={} | jd_source={} | chars={} | complete={} | usable={}".format(
                 raw.get("company") or "-",
                 raw.get("company_source") or "-",
                 raw.get("title") or "-",
                 bool(raw.get("title_verified", _has_verified_job_title(raw.get("title")))),
+                raw.get("ats_provider") or "-",
+                raw.get("metadata_resolution_source") or "-",
+                raw.get("jd_resolution_source") or raw.get("description_source") or "-",
                 len(str(raw.get("description") or "")),
                 bool(raw.get("description_complete")),
                 bool(raw.get("description_usable")),
