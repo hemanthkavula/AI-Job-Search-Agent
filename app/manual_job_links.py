@@ -271,6 +271,18 @@ def _bypass_eligibility() -> dict:
     return {"eligible": True, "experience": dict(item), "sponsorship": dict(item), "manual_bypass": True}
 
 
+def _manual_should_use_master_resume(raw: dict, coverage_plan: dict) -> bool:
+    """Manual links tailor whenever there is enough real JD evidence."""
+    targets = int(coverage_plan.get("target_count") or 0)
+    if targets <= 2:
+        return True
+    if raw.get("description_usable") is False:
+        return True
+    if not str(raw.get("description") or "").strip():
+        return True
+    return False
+
+
 def run_shared_resume_pipeline(raw: dict) -> dict:
     """Call the exact same batch_prepare.prepare used by production path 1."""
     key = raw["external_id"]
@@ -287,13 +299,16 @@ def run_shared_resume_pipeline(raw: dict) -> dict:
         "results": [{"action": "FINAL_JD_VERIFIED", "job": raw, "eligibility": _bypass_eligibility()}],
     }, indent=2), encoding="utf-8")
     old_draft, old_final = batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR
+    old_selector = batch_prepare._should_use_master_resume
     with _PREPARE_LOCK:
         try:
             batch_prepare.DRAFT_RESUME_DIR = str(work / "drafts")
             batch_prepare.FINAL_RESUME_DIR = str(ARTIFACT_DIR / safe / attempt)
+            batch_prepare._should_use_master_resume = _manual_should_use_master_resume
             rows = batch_prepare.prepare(str(report), str(manifest), external_id=key, limit=1)
         finally:
             batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR = old_draft, old_final
+            batch_prepare._should_use_master_resume = old_selector
     if not rows:
         raise RuntimeError("Shared resume pipeline returned no result.")
     return rows[0]
