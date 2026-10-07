@@ -1,0 +1,63 @@
+from app import provider_adapter_router as router
+
+
+def test_detected_eightfold_routes_to_dedicated_collector(monkeypatch):
+    seen={}
+    def fake(company,url):
+        seen.update(company=company,url=url)
+        return [{"title":"Lead AI and Data Engineer","url":url,"description":"full jd"}]
+    monkeypatch.setattr(router,"eightfold_jobs",fake)
+    url="https://eaton.eightfold.ai/careers/job/123"
+    rows,provider,identifier=router.fetch_provider_jobs(
+        None,"Eaton",{"original_url":url}
+    )
+    assert provider=="eightfold"
+    assert identifier=="eaton"
+    assert seen=={"company":"Eaton","url":url}
+    assert rows[0]["title"]=="Lead AI and Data Engineer"
+
+
+def test_detected_greenhouse_routes_to_greenhouse_api(monkeypatch):
+    seen={}
+    def fake(token):
+        seen["token"]=token
+        return [{"title":"Senior Data Engineer","url":"https://boards.greenhouse.io/acme/jobs/1"}]
+    monkeypatch.setattr(router,"greenhouse_jobs",fake)
+    rows,provider,identifier=router.fetch_provider_jobs(
+        None,"Acme",{"original_url":"https://boards.greenhouse.io/acme/jobs/1"}
+    )
+    assert provider=="greenhouse"
+    assert identifier=="acme"
+    assert seen["token"]=="acme"
+    assert rows
+
+
+def test_unknown_supported_long_tail_uses_generic_public_ats(monkeypatch):
+    seen={}
+    def fake(company,url,provider,pattern):
+        seen.update(company=company,url=url,provider=provider,pattern=pattern)
+        return [{"title":"Data Engineer","url":url}]
+    monkeypatch.setattr(router,"public_ats_jobs",fake)
+    url="https://acme.breezy.hr/p/abc-data-engineer"
+    rows,provider,identifier=router.fetch_provider_jobs(
+        None,"Acme",{"original_url":url}
+    )
+    assert provider=="breezyhr"
+    assert seen["provider"]=="breezyhr"
+    assert rows
+
+
+def test_workday_detected_source_uses_tenant_site(monkeypatch):
+    seen={}
+    def fake(company,host,tenant,site,locale="en-US",hours=48):
+        seen.update(company=company,host=host,tenant=tenant,site=site,locale=locale,hours=hours)
+        return [{"title":"Data Engineer","url":"https://example.test/job/1"}]
+    monkeypatch.setattr(router,"workday_jobs",fake)
+    url="https://eaton.wd5.myworkdayjobs.com/en-US/Eaton_Careers/job/Test/Data-Engineer_123"
+    rows,provider,identifier=router.fetch_provider_jobs(None,"Eaton",{"original_url":url},hours=24)
+    assert provider=="workday"
+    assert identifier=="eaton|Eaton_Careers"
+    assert seen["tenant"]=="eaton"
+    assert seen["site"]=="Eaton_Careers"
+    assert seen["hours"]==24
+    assert rows
