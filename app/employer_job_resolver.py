@@ -16,7 +16,7 @@ from app.sources.workable import fetch_jobs as workable_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.public_ats_board import fetch_jobs as public_board_jobs
 
-AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com")
+AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com","adzuna.com","glassdoor.com","simplyhired.com","careerbuilder.com")
 CORE_TITLE_STOP={"senior","sr","lead","principal","staff","ii","iii","iv","remote","hybrid","onsite","on","site"}
 
 
