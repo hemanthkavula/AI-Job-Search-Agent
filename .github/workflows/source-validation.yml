@@ -1,4 +1,5 @@
 name: Source Validation
+# Master DOCX byte chunks are checksum-verified by the test suite.
 
 on:
   push:
