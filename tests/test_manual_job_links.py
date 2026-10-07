@@ -237,6 +237,17 @@ def test_manual_path_has_no_private_resume_selector_override():
     assert not hasattr(manual, "_manual_should_use_master_resume")
 
 
+def test_production_selector_honors_manual_force_tailoring_without_changing_default():
+    weak = {
+        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
+        "description_complete": False,
+    }
+    assert manual.batch_prepare._should_use_master_resume(weak, {"target_count": 1}) is True
+
+    forced = dict(weak, force_jd_tailoring=True)
+    assert manual.batch_prepare._should_use_master_resume(forced, {"target_count": 0}) is False
+
+
 def test_shared_pipeline_calls_production_prepare(monkeypatch, isolated):
     captured = {}
 
@@ -339,6 +350,7 @@ def test_process_job_cleans_stale_portal_company_before_resume(monkeypatch, isol
     assert got["company"] == "Walmart"
     assert seen["company"] == "Walmart"
     assert seen["company_key"] == "Walmart"
+    assert seen["force_jd_tailoring"] is True
 
 
 def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
