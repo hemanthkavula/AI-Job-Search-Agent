@@ -283,7 +283,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
         errors_for_provider=sum(v.get("status")=="ERROR" for v in relevant)
-        skipped_for_provider=sum(v.get("status")=="SKIPPED_UNHEALTHY" for v in relevant)
+        skipped_for_provider=sum(v.get("status") in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for v in relevant)
         ok_for_provider=sum(v.get("status")=="OK" for v in relevant)
         if not configured_units.get(provider):
             status="DISABLED"
@@ -291,6 +291,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             status="PARTIAL"
         elif errors_for_provider:
             status="ERROR"
+        elif skipped_for_provider:
+            status="PARTIAL"
         else:
             status="OK"
         print(
@@ -299,7 +301,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             flush=True,
         )
     board_sources={"dice","ziprecruiter","monster"} | {src.get("provider") for src in config.get("discovery_portal",[]) if src.get("enabled",True)}
-    attempted=[v for v in health.values() if v.get("status") in {"OK","ERROR","SKIPPED_UNHEALTHY"}]
+    attempted=[v for v in health.values() if v.get("status") in {"OK","ERROR","SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"}]
     employer_units=[v for v in attempted if v.get("source") not in board_sources and v.get("company")]
     ats_units=[v for v in employer_units if v.get("source") in ALL_ATS_PROVIDERS]
     career_units=[v for v in employer_units if v.get("source")=="career_site"]
@@ -316,7 +318,8 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "job_board_or_discovery_providers_attempted":sorted({x.get("source") for x in board_units}),
         "successful_units":sum(x.get("status")=="OK" for x in attempted),
         "failed_units":sum(x.get("status")=="ERROR" for x in attempted),
-        "skipped_unhealthy_units":sum(x.get("status")=="SKIPPED_UNHEALTHY" for x in attempted),
+        "skipped_unhealthy_units":sum(x.get("status") in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for x in attempted),
+        "hard_skipped_units":sum(x.get("status")=="SKIPPED_HARD_FAILURE" for x in attempted),
         "configured_units_by_provider":configured_units,
     }
     print("COVERAGE "+json.dumps(coverage,sort_keys=True),flush=True)
