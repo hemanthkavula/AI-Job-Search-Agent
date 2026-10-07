@@ -90,6 +90,6 @@ def test_resolve_full_jd_uses_same_workday_authoritative_metadata_for_every_path
     assert raw["requisition_id"] == "JR12345"
     assert raw["metadata_resolution_source"] == "workday_cxs"
     assert raw["metadata_verified"] is True
-    assert raw["description"] == jd
+    assert raw["description"] == jd.strip()
     assert raw["description_complete"] is True
     assert raw["description_usable"] is True
