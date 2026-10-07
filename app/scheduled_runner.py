@@ -55,6 +55,12 @@ def _parse_state_time(value):
     try:return datetime.fromisoformat(value).astimezone(ET)
     except Exception:return None
 
+def _unit_status_name(value):
+    """Normalize legacy string and structured per-source status records."""
+    if isinstance(value,dict):
+        value=value.get("status")
+    return str(value or "").strip().upper()
+
 def _scheduled_cutoff(now,state):
     """Return the exact lower bound for this scan.
 
@@ -191,7 +197,7 @@ def run_scheduled(sources="data/job_sources.json",ledger="generated/job_ledger.j
     for key,status in unit_status.items():
         if key not in next_unit_watermarks:
             next_unit_watermarks[key]=watermarks.get("workday") or source_cutoffs["workday"]
-        if status=="OK":
+        if _unit_status_name(status)=="OK":
             next_unit_watermarks[key]=now.isoformat()
     # Keep the provider-level Workday watermark as the oldest tenant watermark.
     # This remains a conservative fallback for legacy code/state while actual
