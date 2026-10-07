@@ -12,6 +12,7 @@ from app.sources.workday import job_detail_is_live
 from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
 from app.employer_job_resolver import resolve as resolve_employer_job
+from app.provider_adapter_router import fetch_exact_job
 from app.source_registry import detect_ats
 from app.company_registry import company_key as registry_company_key, load as load_company_registry, save as save_company_registry
 from urllib.error import HTTPError, URLError
@@ -244,16 +245,45 @@ def enrich_authoritative_job_metadata(job):
     if provider:out["ats_provider"]=provider
     if identifier:out["ats_identifier"]=identifier
 
+    # Exact provider detail is the strongest source for a supplied/direct ATS URL.
+    # It must outrank a longer client-rendered HTML shell: authoritative quality
+    # is determined by source provenance, not by character count.
+    exact_meta={}
+    if provider and url and not _is_aggregator_url(url):
+        company=str(out.get("company_key") or out.get("company") or "").strip()
+        try:
+            exact,exact_provider,exact_identifier=fetch_exact_job(
+                provider,
+                company,
+                {
+                    "original_url":url,
+                    "url":url,
+                    "ats_provider":provider,
+                    "ats_identifier":identifier,
+                },
+            )
+        except Exception:
+            exact=exact_provider=exact_identifier=None
+        if isinstance(exact,dict):
+            exact_meta=dict(exact)
+            if exact_provider:
+                out["ats_provider"]=exact_provider
+                provider=exact_provider
+            if exact_identifier:
+                out["ats_identifier"]=exact_identifier
+                identifier=exact_identifier
+            exact_meta["metadata_resolution_source"]=exact_meta.get("exact_job_metadata_source") or "exact_ats_detail"
+
     page=_fetch_public_page(url) if url else ""
     jsonld=_jobposting_metadata(page) if page else {}
     provider_meta=_workday_authoritative_metadata(url,provider,identifier)
-    authoritative=provider_meta or jsonld
+    authoritative=exact_meta or provider_meta or jsonld
 
-    # Provider detail APIs outrank page metadata; page JobPosting metadata outranks
-    # source/aggregator labels. Fill only supported fields and keep provenance.
+    # Exact provider detail APIs outrank provider/page metadata. Never replace an
+    # exact API JD merely because the HTML page shell is longer.
     if authoritative:
         if authoritative.get("title"):out["title"]=authoritative["title"]
-        company=str(authoritative.get("company") or "").strip()
+        company=str(authoritative.get("company_key") or authoritative.get("company") or "").strip()
         if company:
             out["company_key"]=company
             out["company"]=company
@@ -263,6 +293,7 @@ def enrich_authoritative_job_metadata(job):
         if desc and _looks_like_usable_jd(desc,provider or out.get("source") or ""):
             out["description"]=desc
             out["description_length"]=len(desc)
+            out["description_source"]=authoritative.get("metadata_resolution_source") or "authoritative_provider_detail"
         out["metadata_resolution_source"]=authoritative.get("metadata_resolution_source")
         out["metadata_verified"]=True
     return out
