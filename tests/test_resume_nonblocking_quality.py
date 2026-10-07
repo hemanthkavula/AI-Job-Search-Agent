@@ -121,7 +121,7 @@ def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer()
     prompt=build_prompt(job,{},coverage_plan=plan)
     contract=prompt["structure_contract"]
 
-    assert contract["summary_paragraphs"] == 2
+    assert contract["summary_paragraphs"] == 1
     counts = experience_bullet_counts()
     assert contract["fidelity_bullets"] == counts["Fidelity Investments"]
     assert contract["cigna_bullets"] == counts["Cigna Healthcare"]
