@@ -114,7 +114,8 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Strong authoritative identifiers first; then recent H-1B history.
         # Existing executable sources are excluded above so scarce network budget
         # expands coverage instead of re-enriching already-addressable employers.
-        key=lambda r:(not bool(r.get("current_hiring_signal")),
+        key=lambda r:(not bool(r.get("ats_resolution_pending")),
+                      not bool(r.get("current_hiring_signal")),
                       not bool(r.get("organization_url_evidence") or r.get("domain_candidate_url") or r.get("official_url")),
                       not bool(r.get("recent_h1b_lca")),
                       not bool(r.get("sec_cik")),
@@ -170,7 +171,8 @@ def build(source_path="data/job_sources.json", registry_path=None, domain_budget
         # Priority signals decide the tier; within a tier, never-attempted employers
         # go first, then the oldest attempted employer. This gives a bounded batch
         # fair forward rotation instead of repeatedly favoring recently retried rows.
-        key=lambda r:(not bool(r.get("current_hiring_signal")),
+        key=lambda r:(not bool(r.get("ats_resolution_pending")),
+                      not bool(r.get("current_hiring_signal")),
                       not bool(r.get("recent_h1b_lca")),
                       bool(r.get("ats_tenant_last_attempt_at")),
                       r.get("ats_tenant_last_attempt_at") or "",
