@@ -8,7 +8,7 @@ from app.ats_tenant_resolver import resolve as resolve_ats_tenant
 from app.career_page_resolver import resolve as resolve_career_page
 from app.company_registry import company_key, load as load_company_registry, save as save_company_registry
 from app.source_registry import detect_ats, learn_resolved_source, load_registry, save_registry
-from app.provider_adapter_router import fetch_provider_jobs
+from app.provider_adapter_router import fetch_exact_job, fetch_provider_jobs
 
 AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com","adzuna.com","glassdoor.com","simplyhired.com","careerbuilder.com")
 CORE_TITLE_STOP={"senior","sr","lead","principal","staff","ii","iii","iv","remote","hybrid","onsite","on","site"}
@@ -204,8 +204,37 @@ def _persist_resolution(company,hit,matched):
 
 
 def resolve(job):
-    """Resolve a board lead to the exact job on a verified employer ATS source."""
+    """Resolve a job to the exact authoritative employer/ATS record."""
     company=(job.get("company_key") or job.get("company") or "").strip()
+    direct_url=job.get("original_url") or job.get("url") or ""
+    if company and direct_url and not _is_aggregator(direct_url):
+        try:
+            exact,provider,identifier=fetch_exact_job(
+                job.get("ats_provider"),
+                company,
+                {
+                    "original_url":direct_url,
+                    "url":direct_url,
+                    "ats_provider":job.get("ats_provider"),
+                    "ats_identifier":job.get("ats_identifier"),
+                },
+            )
+        except Exception:
+            exact=provider=identifier=None
+        if exact:
+            matched=dict(exact)
+            matched["company_key"]=company
+            matched["ats_provider"]=provider or matched.get("ats_provider")
+            matched["ats_identifier"]=identifier or matched.get("ats_identifier")
+            matched["ats_resolution"]="verified_exact_job_detail"
+            matched["resolver_match_score"]=3.0
+            _persist_resolution(
+                company,
+                {"careers_url":direct_url,"ats_provider":provider,"ats_identifier":identifier},
+                matched,
+            )
+            return matched
+
     for hit in _candidate_sources(job):
         rows,provider,identifier=_fetch_rows(company,hit)
         matched=_match_rows(job,rows,provider,identifier)

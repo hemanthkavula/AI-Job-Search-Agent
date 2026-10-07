@@ -289,6 +289,24 @@ def _reusable_search_url(provider,url):
   return f"{p.scheme}://{host}{clean or '/'}"
  return url
 
+def reusable_search_url(provider,url):
+ """Public normalization for turning a detail URL into a reusable ATS board URL."""
+ normalized=_reusable_search_url(provider,url)
+ if not normalized or normalized!=url:return normalized
+ try:
+  p=urlparse(url);parts=[x for x in p.path.split("/") if x]
+ except Exception:return url
+ # Generic fallback for ATS detail paths. Provider-specific rules above always win.
+ # Strip only when a detail marker has a trailing job identity.
+ for marker in ("job","jobs","position","positions","opening","openings","requisition","requisitions"):
+  for i,part in enumerate(parts):
+   if part.lower()!=marker or len(parts)<=i+1:continue
+   prefix=parts[:i]
+   path=("/"+"/".join(prefix)) if prefix else ""
+   return f"{p.scheme}://{p.netloc}{path or '/'}"
+ return url
+
+
 def as_discovery_config(registry):
  out={k:[] for k in PATTERNS}
  for x in registry.get("greenhouse",[]):out["greenhouse"].append({"company":x.get("company"),"board_token":x.get("identifier") or x.get("board_token")})
