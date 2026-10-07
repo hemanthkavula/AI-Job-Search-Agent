@@ -233,42 +233,8 @@ def test_bypass_eligibility_is_explicit():
     assert got["sponsorship"]["status"] == "BYPASSED_MANUAL_LINK"
 
 
-def test_manual_policy_tailors_partial_usable_jd_with_three_plus_targets():
-    raw = {
-        "description": "Build Python SQL Spark pipelines and orchestration for analytics.",
-        "description_usable": True,
-        "description_complete": False,
-        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
-    }
-    assert manual._manual_should_use_master_resume(raw, {"target_count": 5}) is False
-
-
-def test_manual_policy_tailors_any_usable_nonzero_targets():
-    raw = {
-        "description": "Build Python SQL pipelines.",
-        "description_usable": True,
-        "description_complete": True,
-        "tailoring_mode": "FULL_JD",
-    }
-    assert manual._manual_should_use_master_resume(raw, {"target_count": 1}) is False
-    assert manual._manual_should_use_master_resume(raw, {"target_count": 2}) is False
-
-
-def test_manual_policy_uses_master_for_unusable_or_empty_jd():
-    unusable = {
-        "description": "generic page",
-        "description_usable": False,
-        "description_complete": False,
-        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
-    }
-    empty = {
-        "description": "",
-        "description_usable": False,
-        "description_complete": False,
-        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
-    }
-    assert manual._manual_should_use_master_resume(unusable, {"target_count": 20}) is True
-    assert manual._manual_should_use_master_resume(empty, {"target_count": 20}) is True
+def test_manual_path_has_no_private_resume_selector_override():
+    assert not hasattr(manual, "_manual_should_use_master_resume")
 
 
 def test_shared_pipeline_calls_production_prepare(monkeypatch, isolated):
@@ -280,6 +246,7 @@ def test_shared_pipeline_calls_production_prepare(monkeypatch, isolated):
         captured["external_id"] = external_id
         captured["draft"] = manual.batch_prepare.DRAFT_RESUME_DIR
         captured["final"] = manual.batch_prepare.FINAL_RESUME_DIR
+        captured["selector"] = manual.batch_prepare._should_use_master_resume
         return [{"next_action": "READY_TO_APPLY", "pdf_path": None, "resume_path": None}]
 
     monkeypatch.setattr(manual.batch_prepare, "prepare", fake_prepare)
@@ -293,6 +260,7 @@ def test_shared_pipeline_calls_production_prepare(monkeypatch, isolated):
     assert captured["external_id"] == raw["external_id"]
     assert "manual_job_links" in captured["draft"]
     assert "manual_job_links" in captured["final"]
+    assert captured["selector"] is manual.batch_prepare._should_use_master_resume
 
 
 def test_add_links_persists_separate_manual_state(isolated):
@@ -392,7 +360,7 @@ def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
     assert seen["company_key"] == "Edited Co"
 
 
-def test_blocked_page_falls_back_to_master_resume_path(monkeypatch, isolated):
+def test_blocked_page_with_no_usable_jd_is_ignored(monkeypatch, isolated):
     row = manual.add_links(["https://example.com/1"])[0]
     monkeypatch.setattr(manual, "_fetch_public_page", lambda url: None)
     monkeypatch.setattr(manual, "resolve_original_ats", lambda job: job)
@@ -400,18 +368,19 @@ def test_blocked_page_falls_back_to_master_resume_path(monkeypatch, isolated):
     monkeypatch.setattr(manual, "_looks_like_complete_jd", lambda text, source="": False)
     monkeypatch.setattr(manual, "_looks_like_usable_jd", lambda text, source="": False)
     monkeypatch.setattr(manual, "detect_ats", lambda url: (None, None))
-    seen = {}
+    monkeypatch.setattr(
+        manual,
+        "run_shared_resume_pipeline",
+        lambda raw: pytest.fail("no-JD link must not enter the resume pipeline"),
+    )
 
-    def fake_pipeline(raw):
-        seen.update(raw)
-        return {"next_action": "READY_TO_APPLY", "resume_path": None, "pdf_path": None}
-
-    monkeypatch.setattr(manual, "run_shared_resume_pipeline", fake_pipeline)
     got = manual.process_job(row["key"])
-    assert got["status"] == "READY_TO_APPLY"
-    assert seen["description_usable"] is False
-    assert seen["tailoring_mode"] == "BASE_RESUME_CONSERVATIVE"
-    assert seen["jd_fallback_reason"]
+    assert got["status"] == "IGNORED_NO_JD"
+    stored = manual._load_state()["jobs"][row["key"]]
+    assert stored["next_action"] == "IGNORED_NO_JD"
+    assert stored["description_usable"] is False
+    assert not stored.get("resume_path")
+    assert not stored.get("pdf_path")
 
 
 def test_resume_failure_preserves_jd_for_retry(monkeypatch, isolated):
@@ -457,6 +426,19 @@ def test_api_functions_add_and_list_without_http_client(isolated):
     assert listing["counts"]["total"] == 2
     assert listing["counts"]["processing"] == 2
     assert listing["current"] is not None
+
+
+def test_ignored_no_jd_is_hidden_from_ready_queue(isolated):
+    row = manual.add_links(["https://example.com/no-jd"])[0]
+    state = manual._load_state()
+    state["jobs"][row["key"]]["status"] = "IGNORED_NO_JD"
+    state["jobs"][row["key"]]["next_action"] = "IGNORED_NO_JD"
+    manual._save_state(state)
+
+    listing = manual.api_list()
+    assert listing["jobs"] == []
+    assert listing["counts"]["processing"] == 0
+    assert listing["counts"]["hidden_terminal"] == 1
 
 
 def test_api_list_shows_only_ready_or_applied_rows(isolated):
