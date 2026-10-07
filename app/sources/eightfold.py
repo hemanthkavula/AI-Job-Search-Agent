@@ -59,13 +59,13 @@ def _plain(value) -> str:
 def _normalize_position(company: str, host: str, identifier: str, node: dict) -> dict | None:
     if not isinstance(node,dict):
         return None
-    title=str(node.get("posting_name") or node.get("name") or node.get("title") or node.get("jobTitle") or "").strip()
+    title=str(node.get("posting_name") or node.get("postingName") or node.get("name") or node.get("title") or node.get("jobTitle") or "").strip()
     desc=_plain(node.get("job_description") or node.get("jobDescription") or node.get("descriptionHtml") or node.get("description") or "")
     if not title:
         return None
     pos_id=str(node.get("id") or node.get("position_id") or node.get("positionId") or identifier or "").strip()
     ats_id=str(node.get("ats_job_id") or node.get("atsJobId") or node.get("display_job_id") or node.get("displayJobId") or pos_id).strip()
-    canonical=str(node.get("canonicalPositionUrl") or node.get("canonical_position_url") or node.get("positionUrl") or node.get("position_url") or "").strip()
+    canonical=str(node.get("publicUrl") or node.get("canonicalPositionUrl") or node.get("canonical_position_url") or node.get("positionUrl") or node.get("position_url") or "").strip()
     if canonical.startswith("/"):
         canonical=host+canonical
     if not canonical:
@@ -101,36 +101,43 @@ def fetch_job(company: str, job_url: str, timeout: int = 25) -> dict | None:
     parts=[x for x in parsed.path.split("/") if x]
     try:
         marker=next(i for i,x in enumerate(parts) if x.lower()=="job")
-        position_id=parts[marker+1]
+        position_segment=parts[marker+1]
     except Exception:
-        position_id=parts[-1] if parts else ""
-    position_id=str(position_id).split("-",1)[0] if str(position_id).isdigit() else str(position_id)
+        position_segment=parts[-1] if parts else ""
+    match=re.match(r"(\d+)",str(position_segment or ""))
+    position_id=match.group(1) if match else str(position_segment or "")
     if not host or not position_id:
         return None
     page=_get(job_url,timeout)
     domain=_domain_from_page(page,job_url)
 
     detail_urls=[
-        f"{host}/api/pcsx/position_details?"+urlencode({"position_id":position_id,"domain":domain,"hl":"en"}),
-        f"{host}/api/apply/v2/jobs/{position_id}/jobs?"+urlencode({"domain":domain}),
-        f"{host}/api/apply/v2/jobs/{position_id}?"+urlencode({"domain":domain}),
+        ("pcsx",f"{host}/api/pcsx/position_details?"+urlencode({"position_id":position_id,"domain":domain,"hl":"en"})),
+        ("classic",f"{host}/api/apply/v2/jobs/{position_id}?"+urlencode({"domain":domain})),
     ]
-    for url in detail_urls:
+    for generation,url in detail_urls:
         try:
             payload=_get_json(url,timeout,referer=job_url)
         except Exception:
             payload=None
-        if payload is None:
+        if not isinstance(payload,dict):
             continue
-        best=None
-        for node in _walk(payload):
-            row=_normalize_position(company,host,position_id,node)
-            if not row:
-                continue
-            if not best or len(row.get("description") or "")>len(best.get("description") or ""):
-                best=row
-        if best and (best.get("description") or "").strip():
-            return best
+
+        node=None
+        if generation=="pcsx":
+            data=payload.get("data")
+            if isinstance(data,dict):
+                position=data.get("position")
+                if isinstance(position,dict):
+                    node=position
+                elif data.get("name") or data.get("id"):
+                    node=data
+        elif payload.get("name") or payload.get("id") or payload.get("posting_name"):
+            node=payload
+
+        row=_normalize_position(company,host,position_id,node) if node else None
+        if row and (row.get("description") or "").strip():
+            return row
 
     # Fallback: the public search endpoints expose canonical title/location even
     # when the detail route is gated. Scan enough pages to find the supplied id,
