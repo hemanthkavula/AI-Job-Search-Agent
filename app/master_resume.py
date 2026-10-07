@@ -25,6 +25,12 @@ def load_master_resume(path: str | Path = MASTER_RESUME_PATH) -> dict:
     return data
 
 
+def experience_bullet_counts(master: dict | None = None) -> dict[str, int]:
+    """Return the live employer bullet-count contract from the current master resume."""
+    master = master or load_master_resume()
+    return {row["company"]: len(row.get("bullets") or []) for row in master["experience"]}
+
+
 def fixed_personal_facts(master: dict | None = None) -> dict:
     """Return immutable identity/chronology facts used by every resume."""
     master = master or load_master_resume()
