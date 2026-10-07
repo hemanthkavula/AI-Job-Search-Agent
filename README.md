@@ -141,3 +141,15 @@ The laptop does not need to remain on for scheduled discovery, resume generation
 The system must not fabricate fixed candidate facts, employers, chronology, education, certifications, numerical achievements, or screening-question answers. Eligibility decisions preserve explicit evidence from the posting, and failed source scans retain their previous watermark so transient provider failures do not silently create discovery gaps.
 
 See **[PROJECT_STATUS.md](PROJECT_STATUS.md)** for implementation-level status and historical validation details.
+
+## Two independent job input paths
+
+The project now supports two independent ways to reach the same resume-generation pipeline:
+
+1. **Job Discovery** — the existing automated production path. It discovers jobs, applies the configured job-family/location/experience and other production gates, resolves the authoritative JD, and then prepares validated resume artifacts.
+2. **Manual Job Links** — paste one or many job URLs into the hosted dashboard at `/manual-links`. This path does **not** run job discovery or the production eligibility filters. It resolves the supplied job/JD only, then hands that JD to the exact same `app.batch_prepare.prepare` resume pipeline used by Job Discovery.
+
+Manual-link jobs have their own persistent queue under `JOB_AGENT_STATE_DIR/manual_job_links/`, including their resume artifacts. Dashboard sync from automated discovery does not replace this directory. Failed JD reads can be edited and retried, and successful rows can be opened, viewed as PDF, marked applied, or individually deleted.
+
+The shared resume rules remain centralized: partial/conservative JDs and low safe-target counts use the master resume policy; usable JDs with sufficient safe targets use the existing JD-tailored LLM path; all generated artifacts still go through the same ATS audit, layout checks, DOCX→PDF conversion, and parity validation.
+
