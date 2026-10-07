@@ -77,17 +77,15 @@ def experience_check(job: dict, profile: dict) -> dict:
     rng=experience_range(full);req=required_years(full)
     candidate=profile.get("candidate_experience_years",5)
     min_req=profile.get("preferences",{}).get("min_required_years",4)
-    max_req=profile.get("preferences",{}).get("max_required_years",7)
+    max_req=profile.get("preferences",{}).get("max_required_years",6)
     if req is None:
         return {"category":"EXPERIENCE_NOT_STATED","eligible":True,"required_years":None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
-    # A role must be in the configured target band AND not require more
-    # experience than the candidate profile states. This prevents a 6+ or 7+
-    # minimum from passing merely because max_required_years is configured as 7
-    # when candidate_experience_years is 5.
-    upper=min(max_req,candidate)
-    eligible=min_req <= req <= upper
+    # User policy: accept roles whose stated minimum experience is
+    # 4, 5, or 6 years. Reject requirements below 4 or above 6. The candidate's
+    # displayed experience value is diagnostic only and does not narrow this band.
+    eligible=min_req <= req <= max_req
     category="EXPERIENCE_ELIGIBLE" if eligible else ("EXPERIENCE_TOO_JUNIOR" if req < min_req else "EXPERIENCE_TOO_SENIOR")
-    return {"category":category,"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req],"effective_max_required_years":upper}
+    return {"category":category,"eligible":eligible,"required_years":req,"minimum_years":rng[0] if rng else req,"maximum_years":rng[1] if rng else None,"candidate_years":candidate,"configured_window":[min_req,max_req]}
 
 def sponsorship_check(job: dict, profile: dict) -> dict:
     """Record sponsorship wording for diagnostics only; never gate eligibility."""
