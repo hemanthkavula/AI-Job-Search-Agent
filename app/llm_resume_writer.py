@@ -550,7 +550,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
     if not key:
         return None
     endpoint = os.getenv("RESUME_LLM_ENDPOINT", "https://api.openai.com/v1/responses")
-    model = os.getenv("RESUME_LLM_MODEL", "gpt-5.6")
+    model = os.getenv("RESUME_LLM_MODEL", "gpt-5.6-sol")
     prompt = build_prompt(job, profile, audit_feedback, coverage_plan)
     cache_key = _cache_key(model, prompt)
     cached = _read_cache(cache_key)
