@@ -32,6 +32,7 @@ from app.jd_finalizer import (
     resolve_full_jd,
 )
 from app.source_registry import detect_ats
+from app.sources.workday import job_detail_is_live
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = Path(os.getenv("JOB_AGENT_STATE_DIR", ROOT / "generated"))
@@ -188,6 +189,67 @@ def _clean_job_title(value: str | None) -> str:
 def _has_verified_job_title(value: str | None) -> bool:
     clean = _clean_job_title(value)
     return bool(clean and clean.casefold() not in {"job opening", "job from supplied link"})
+
+
+def _title_from_description(text: str, company: str | None = None) -> str:
+    """Recover a job title from explicit employer wording when page metadata is client-rendered."""
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not value:
+        return ""
+    patterns = (
+        r"(?i)\bcurrently\s+seeking\s+(?:an?\s+)?([^.;\n]{3,140})",
+        r"(?i)\bis\s+seeking\s+(?:an?\s+)?([^.;\n]{3,140})",
+        r"(?i)\bseeking\s+(?:an?\s+)?([^.;\n]{3,140})",
+        r"(?i)\bas\s+(?:an?\s+)?([^,.;\n]{3,120}),\s+you\b",
+    )
+    role_hint = re.compile(r"(?i)\b(ai|ml|data|analytics|engineer|engineering|developer|architect|scientist|platform|software)\b")
+    for pattern in patterns:
+        match = re.search(pattern, value[:12000])
+        if not match:
+            continue
+        candidate = _clean_job_title(match.group(1))
+        if candidate and role_hint.search(candidate):
+            return candidate
+    return ""
+
+
+def _workday_detail_metadata(url: str, provider: str | None, identifier: str | None) -> dict:
+    """Use Workday's public CXS detail endpoint as the authoritative metadata/JD source."""
+    if provider != "workday" or not identifier or "|" not in identifier:
+        return {}
+    tenant, site = identifier.split("|", 1)
+    parsed = urlsplit(url or "")
+    host = parsed.hostname or ""
+    path = parsed.path or ""
+    external_path = ""
+    marker = f"/{site}/"
+    idx = path.lower().find(marker.lower())
+    if idx >= 0:
+        external_path = "/" + path[idx + len(marker):].lstrip("/")
+    else:
+        job_idx = path.lower().find("/job/")
+        if job_idx >= 0:
+            external_path = path[job_idx:]
+    if not host or not tenant or not site or not external_path:
+        return {}
+    live, detail = job_detail_is_live(host, tenant, site, external_path)
+    if not live or not isinstance(detail, dict):
+        return {}
+    description = _clean_html(str(detail.get("jobDescription") or ""))
+    locations = [str(detail.get("location") or "").strip()]
+    for item in detail.get("additionalLocations") or []:
+        if item:
+            locations.append(str(item).strip())
+    locations = [x for x in locations if x]
+    return {
+        "title": str(detail.get("title") or "").strip(),
+        "description": description,
+        "location": " | ".join(dict.fromkeys(locations)),
+        "employment_type": detail.get("timeType") or detail.get("workerType"),
+        "posted_at": detail.get("postedOn") or detail.get("postedDate"),
+        "requisition_id": str(detail.get("jobReqId") or detail.get("jobPostingId") or "").strip() or None,
+        "source": "workday_cxs",
+    }
 
 
 def _heading_job_title(page: str) -> str:
@@ -454,6 +516,7 @@ def fetch_manual_job(url: str) -> dict:
         except Exception:
             resolved_page = page
     resolved_meta = _jsonld_metadata(resolved_page) if resolved_page else {}
+    workday_meta = _workday_detail_metadata(effective, provider, identifier)
     resolved_title_fallback, resolved_company_fallback = (
         _fallback_title_company(resolved_page) if resolved_page else ("", "")
     )
@@ -472,27 +535,43 @@ def fetch_manual_job(url: str) -> dict:
         initial_fallback=company_fallback,
     )
 
-    title_candidates = [
-        resolved_meta.get("title"),
-        initial_meta.get("title"),
-        raw.get("title"),
-        _heading_job_title(resolved_page),
-        resolved_title_fallback,
-        _heading_job_title(page),
-        title_fallback,
-    ]
-    title = next((clean for value in title_candidates if (clean := _clean_job_title(value))), "")
-    title_verified = bool(title)
-    if not title:
-        title = "Job opening"
-
+    authoritative_description = (
+        str(workday_meta.get("description") or "").strip()
+        or str(resolved_meta.get("description") or "").strip()
+        or str(initial_meta.get("description") or "").strip()
+    )
     descriptions = [
         str(raw.get("description") or "").strip(),
         str(resolved_meta.get("description") or "").strip(),
         str(initial_meta.get("description") or "").strip(),
         str(description or "").strip(),
     ]
-    best_description = max(descriptions, key=len, default="")
+    if authoritative_description and _looks_like_usable_jd(authoritative_description, provider or "manual_link"):
+        best_description = authoritative_description
+        description_source = workday_meta.get("source") or ("jsonld_resolved" if resolved_meta.get("description") else "jsonld_submitted")
+    else:
+        best_description = max(descriptions, key=len, default="")
+        description_source = "best_available"
+
+    title_candidates = [
+        ("workday_cxs", workday_meta.get("title")),
+        ("resolved_jsonld", resolved_meta.get("title")),
+        ("submitted_jsonld", initial_meta.get("title")),
+        ("resolved_heading", _heading_job_title(resolved_page)),
+        ("resolved_page_title", resolved_title_fallback),
+        ("submitted_heading", _heading_job_title(page)),
+        ("submitted_page_title", title_fallback),
+        ("jd_text", _title_from_description(best_description, company)),
+        ("resolver", raw.get("title")),
+    ]
+    title_source, title = next(
+        ((source, clean) for source, value in title_candidates if (clean := _clean_job_title(value))),
+        ("", ""),
+    )
+    title_verified = bool(title)
+    if not title:
+        title = "Job opening"
+        title_source = "unverified"
     ats_label, ats_tenant = _ats_display(provider, identifier)
 
     raw["external_id"] = _key_for_url(submitted)
@@ -513,12 +592,20 @@ def fetch_manual_job(url: str) -> dict:
     raw["company_source"] = company_source
     raw["title"] = title
     raw["title_verified"] = title_verified
+    raw["title_source"] = title_source
     raw["description"] = best_description
-    if resolved_meta.get("location"):
+    raw["description_source"] = description_source
+    if workday_meta.get("location"):
+        raw["location"] = workday_meta["location"]
+    elif resolved_meta.get("location"):
         raw["location"] = resolved_meta["location"]
-    if resolved_meta.get("employment_type"):
+    if workday_meta.get("employment_type"):
+        raw["employment_type"] = workday_meta["employment_type"]
+    elif resolved_meta.get("employment_type"):
         raw["employment_type"] = resolved_meta["employment_type"]
-    if resolved_meta.get("requisition_id"):
+    if workday_meta.get("requisition_id"):
+        raw["requisition_id"] = workday_meta["requisition_id"]
+    elif resolved_meta.get("requisition_id"):
         raw["requisition_id"] = resolved_meta["requisition_id"]
 
     complete = _looks_like_complete_jd(raw["description"], raw["source"])
