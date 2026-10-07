@@ -329,11 +329,84 @@ def _resolve_employer_career_page(job):
     _,_,_,u,desc=max(ranked)
     return u,desc
 
+_GENERIC_RESOLVED_TITLES={"","job","job opening","job details","job detail","jobs","careers","career opportunities","job from supplied link"}
+
+
+def _is_generic_resolved_title(value):
+    return re.sub(r"\s+"," ",str(value or "")).strip().lower() in _GENERIC_RESOLVED_TITLES
+
+
+def _recover_title_from_jd_text(text):
+    """Recover an explicit role title from JD prose when client-rendered metadata is missing."""
+    value=re.sub(r"\s+"," ",str(text or "")).strip()
+    if not value:return ""
+    patterns=(
+        r"(?i)\bcurrently\s+seeking\s+(?:an?\s+)?([^.;]{3,160})",
+        r"(?i)\bis\s+seeking\s+(?:an?\s+)?([^.;]{3,160})",
+        r"(?i)\bseeking\s+(?:an?\s+)?([^.;]{3,160})",
+        r"(?i)\bposition\s+title\s*[:\-]\s*([^.;]{3,160})",
+        r"(?i)\bjob\s+title\s*[:\-]\s*([^.;]{3,160})",
+        r"(?i)\bas\s+(?:an?\s+)?([^,.;]{3,140}),\s+you\b",
+    )
+    role_hint=re.compile(r"(?i)\b(ai|ml|data|analytics|engineer|engineering|developer|architect|scientist|platform|software|manager|lead|principal|staff)\b")
+    for pattern in patterns:
+        match=re.search(pattern,value)
+        if not match:continue
+        candidate=re.sub(r"(?i)\s+(?:to join|who will|that will|responsible for)\b.*$","",match.group(1)).strip(" |–—-,:")
+        candidate=re.sub(r"\s+"," ",candidate)
+        if 3<=len(candidate)<=180 and role_hint.search(candidate):
+            return candidate
+    return ""
+
+
+def _merge_authoritative_match(base,matched):
+    out=dict(base)
+    if not isinstance(matched,dict):return out
+    for key in (
+        "title","location","employment_type","requisition_id","job_id",
+        "posted_at","posted_on","date_posted","updated_at",
+        "ats_provider","ats_identifier","original_url","url",
+    ):
+        if matched.get(key) not in (None,"",[],{}):out[key]=matched.get(key)
+    desc=str(matched.get("description") or "").strip()
+    if desc:
+        out["description"]=desc
+        out["description_length"]=len(desc)
+    out["ats_resolution"]=matched.get("ats_resolution") or "verified_employer_source_match"
+    out["employer_resolution_match_score"]=matched.get("resolver_match_score")
+    out["metadata_resolution_source"]="verified_employer_source_match"
+    out["metadata_verified"]=True
+    return out
+
+
 def resolve_full_jd(job):
     """Resolve full JD only after lightweight eligibility. Never calls an LLM."""
     job=resolve_original_ats(job)
     job=enrich_authoritative_job_metadata(job)
     current=(job.get("description") or "").strip()
+
+    # Client-rendered ATS pages can expose the complete JD while omitting title
+    # metadata from the server HTML. Recover only explicit title wording from the
+    # JD, then use the same verified employer/source registry used by production
+    # discovery to canonicalize the full job record.
+    recovered_title=""
+    if _is_generic_resolved_title(job.get("title")):
+        recovered_title=_recover_title_from_jd_text(current)
+        if recovered_title:
+            job["title"]=recovered_title
+            job["title_resolution_source"]="jd_explicit_phrase"
+
+    noisy_payload=len(current)>50000
+    needs_canonical=(
+        not job.get("metadata_verified")
+        and bool((job.get("company_key") or job.get("company")) and job.get("title"))
+        and (bool(recovered_title) or noisy_payload)
+    )
+    if needs_canonical:
+        matched=resolve_employer_job(job)
+        if matched:
+            job=_merge_authoritative_match(job,matched)
+            current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
     lead_before_resolution=job.get("original_url") or job.get("url") or ""
     aggregator_origin=bool(job.get("discovery_only")) or source in JOB_BOARD_SOURCES or _is_aggregator_url(lead_before_resolution)
