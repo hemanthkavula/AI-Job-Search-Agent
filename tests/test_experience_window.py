@@ -14,12 +14,21 @@ def _job(years: int) -> dict:
     }
 
 
-def test_experience_window_accepts_four_through_seven_inclusive():
-    for years in (4, 5, 6, 7):
+def test_experience_window_accepts_requirements_candidate_meets():
+    for years in (4, 5):
         result = experience_check(_job(years), PROFILE)
         assert result["eligible"] is True, years
         assert result["category"] == "EXPERIENCE_ELIGIBLE", years
         assert result["configured_window"] == [4, 7]
+        assert result["effective_max_required_years"] == 5
+
+
+def test_experience_window_rejects_requirement_above_candidate_years():
+    for years in (6, 7):
+        result = experience_check(_job(years), PROFILE)
+        assert result["eligible"] is False, years
+        assert result["category"] == "EXPERIENCE_TOO_SENIOR", years
+        assert result["candidate_years"] == 5
 
 
 def test_experience_window_rejects_below_four():
