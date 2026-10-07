@@ -605,13 +605,19 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     _clear(header)
     _run(header, resume_branding_headline(job.title), normal)
     summary_rows = [p for p in _between(paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
-    parts = _summary_parts(generated.get("summary", ""))
-    if len(summary_rows) < 2:
-        raise RuntimeError("Word template must contain two Professional Summary paragraphs")
-    summary_normal = _rpr(summary_rows[0], False) or _rpr(summary_rows[1], False)
-    summary_bold = _rpr(summary_rows[0], True) or _rpr(summary_rows[1], True)
-    for paragraph, text in zip(summary_rows[:2], parts):
-        _replace(paragraph, text, _emphasis(text, generated, 5), summary_normal, summary_bold)
+    if not summary_rows:
+        raise RuntimeError("Word template must contain a Professional Summary paragraph")
+    summary_text = str(generated.get("summary", "") or "").strip()
+    summary_normal = _rpr(summary_rows[0], False) or (
+        _rpr(summary_rows[1], False) if len(summary_rows) > 1 else None
+    )
+    summary_bold = _rpr(summary_rows[0], True) or (
+        _rpr(summary_rows[1], True) if len(summary_rows) > 1 else None
+    )
+    _replace(summary_rows[0], summary_text, _emphasis(summary_text, generated, 5), summary_normal, summary_bold)
+    body = root.find(".//" + W + "body")
+    for extra_summary in summary_rows[1:]:
+        body.remove(extra_summary)
     items = list((generated.get("skills") or {}).items())
     if not items:
         raise RuntimeError("Generated Technical Skills section is empty")
@@ -623,7 +629,6 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         _run(paragraph, str(category), skill_bold)
         _run(paragraph, ": ", skill_normal)
         _run(paragraph, ", ".join(str(value) for value in values or []), skill_normal)
-    body = root.find(".//" + W + "body")
     for paragraph in skill_rows[len(items):]:
         body.remove(paragraph)
     paragraphs = _pt(root)
