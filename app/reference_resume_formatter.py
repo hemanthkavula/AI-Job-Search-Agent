@@ -12,6 +12,7 @@ from lxml import etree
 
 from app.master_resume import load_master_resume
 from app.resume_generator import ROOT, clean_company_name, safe_name
+from app.word_template_source import ensure_master_word_template
 
 WORD_FORMAT_PATH = ROOT / "data" / "master_word_format.json"
 WORD_TEMPLATE_PATH = ROOT / "data" / "Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
@@ -38,16 +39,11 @@ def _sha(path):
 
 
 def _template(fmt=None):
+    # Validate the format record, then let the shared materializer choose the
+    # exact uploaded DOCX when available or the deterministic master-based
+    # fallback when the transport chunks are stale.
     fmt = fmt or load_word_format()
-    expected = fmt["source"].get("sha256")
-    if not WORD_TEMPLATE_PATH.exists():
-        raise RuntimeError(f"Authoritative Word template missing: {WORD_TEMPLATE_PATH}")
-    actual = _sha(WORD_TEMPLATE_PATH)
-    if expected and actual != expected:
-        raise RuntimeError(
-            f"Word template checksum mismatch: expected {expected}, got {actual}"
-        )
-    return WORD_TEMPLATE_PATH
+    return ensure_master_word_template()
 
 
 def canonical_resume_title(title):
