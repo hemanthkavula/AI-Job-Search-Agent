@@ -16,13 +16,15 @@ def test_fetch_job_uses_pcsx_position_details(monkeypatch):
         seen.append((value,referer))
         if "/api/pcsx/position_details?" in value:
             return {
-                "position":{
-                    "id":687239519334,
-                    "name":"Lead AI and Data Engineer",
-                    "location":"Beachwood, OH, United States",
-                    "ats_job_id":"JR-1001",
-                    "employmentType":"Full time",
-                    "job_description":"<p>Responsibilities: design, develop, and deploy scalable AI and data engineering solutions.</p><p>Requirements: Python, SQL, Azure OpenAI, Databricks, MLOps, CI/CD, testing, and production support.</p>",
+                "data":{
+                    "position":{
+                        "id":687239519334,
+                        "name":"Lead AI and Data Engineer",
+                        "location":"Beachwood, OH, United States",
+                        "atsJobId":"JR-1001",
+                        "employmentType":"Full time",
+                        "jobDescription":"<p>Responsibilities: design, develop, and deploy scalable AI and data engineering solutions.</p><p>Requirements: Python, SQL, Azure OpenAI, Databricks, MLOps, CI/CD, testing, and production support.</p>",
+                    }
                 }
             }
         raise AssertionError("fallback endpoint should not be needed")
@@ -50,7 +52,7 @@ def test_fetch_job_falls_back_to_classic_detail(monkeypatch):
         calls.append(value)
         if "/api/pcsx/position_details?" in value:
             return None
-        if "/api/apply/v2/jobs/12345/jobs?" in value:
+        if "/api/apply/v2/jobs/12345?" in value:
             return {
                 "id":12345,
                 "posting_name":"Data Engineer",
@@ -62,4 +64,24 @@ def test_fetch_job_falls_back_to_classic_detail(monkeypatch):
     row=eightfold.fetch_job("Tenant",url)
     assert row["title"]=="Data Engineer"
     assert row["requisition_id"]=="REQ-9"
-    assert any("/api/apply/v2/jobs/12345/jobs?" in call for call in calls)
+    assert any("/api/apply/v2/jobs/12345?" in call for call in calls)
+
+
+
+def test_fetch_job_handles_slugged_numeric_position_segment(monkeypatch):
+    url="https://tenant.eightfold.ai/careers/job/12345-data-engineer"
+    monkeypatch.setattr(eightfold,"_get",lambda value,timeout=25:'<div data-x="{&#34;domain&#34;: &#34;tenant.com&#34;}"></div>')
+    seen=[]
+    def fake_json(value,timeout=25,referer=""):
+        seen.append(value)
+        if "/api/pcsx/position_details?" in value:
+            return {"data":{"position":{
+                "id":12345,
+                "name":"Data Engineer",
+                "jobDescription":"Responsibilities build data pipelines. Requirements Python SQL Spark cloud ETL and production support.",
+            }}}
+        return None
+    monkeypatch.setattr(eightfold,"_get_json",fake_json)
+    row=eightfold.fetch_job("Tenant",url)
+    assert row["job_id"]=="12345"
+    assert "position_id=12345" in seen[0]
