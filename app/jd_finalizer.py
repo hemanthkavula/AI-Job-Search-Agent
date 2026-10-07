@@ -248,7 +248,7 @@ def resolve_full_jd(job):
     out["jd_resolution_source"]="employer_career_page_canonical" if employer_url and should_resolve_employer else ("employer_career_page_fallback" if employer_url else ("jsonld_or_original_ats_public_job_detail_page" if len(resolved)>len(current) else "source_payload"))
     return out
 
-def finalize_report(report_path,output_path="generated/finalized_jobs.json",hours=24,now=None):
+def finalize_report(report_path,output_path="generated/finalized_jobs.json",hours=24,now=None,since=None):
     report=json.loads(Path(report_path).read_text(encoding="utf-8"));profile=load_profile()
     finalized=[];held=[]
     for item in report.get("results",[]):
@@ -276,7 +276,13 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         discovery_source=(raw.get("source") or "").lower()
         aggregator_origin=bool(raw.get("aggregator_url")) or discovery_source in JOB_BOARD_SOURCES
         check_now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        cutoff=check_now-timedelta(hours=hours)
+        if since:
+            try:
+                cutoff=datetime.fromisoformat(str(since).replace("Z","+00:00")).astimezone(timezone.utc)
+            except (ValueError,TypeError):
+                cutoff=check_now-timedelta(hours=hours)
+        else:
+            cutoff=check_now-timedelta(hours=hours)
         posting_fields=("posted_at","posted_on","postedDate","posted_date","date_posted","datePosted","published_at","publishedAt","publication_date","datePublished")
         raw["discovery_posted_at"]=next((raw.get(field) for field in posting_fields if raw.get(field) not in (None,"")),None)
         selected_posted=None;selected_label=None
@@ -318,7 +324,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
                 held.append({"job":raw,"action":"HOLD_POST_DATE_UNVERIFIED","reason":"Employer/ATS posting date could not be verified and the originating job board did not provide a usable posting date.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution"),"discovery_posted_at":raw.get("discovery_posted_at")}})
                 continue
         if selected_posted is not None and (selected_posted<cutoff or selected_posted>check_now+timedelta(minutes=10)):
-            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Selected posting date is outside the requested freshness window. Employer/ATS date was preferred when available; otherwise the originating job-board date was used.","diagnostics":{"url":application_url,"official_posted_at":selected_posted.isoformat(),"official_posted_label":selected_label,"freshness_basis":raw.get("freshness_basis"),"freshness_hours":hours,"discovery_source":raw.get("source")}})
+            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Selected posting date is outside the requested freshness window. Employer/ATS date was preferred when available; otherwise the originating job-board date was used.","diagnostics":{"url":application_url,"official_posted_at":selected_posted.isoformat(),"official_posted_label":selected_label,"freshness_basis":raw.get("freshness_basis"),"freshness_hours":hours,"production_cutoff":cutoff.isoformat(),"discovery_source":raw.get("source")}})
             continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
