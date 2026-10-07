@@ -31,8 +31,27 @@ def _stringify_location(value):
         return ", ".join(str(value.get(k)) for k in ("city","state","country") if value.get(k))
     return value
 
+def _first_value(row,*keys):
+    for key in keys:
+        value=row.get(key)
+        if value not in (None,"",[],{}):return value
+    return None
+
+def _first_external_apply_url(row):
+    for key in (
+        "externalApplyUrl","external_apply_url","applicationUrl","application_url",
+        "applyUrl","apply_url","jobApplyUrl","job_apply_url","redirectUrl","redirect_url",
+        "employerJobUrl","employer_job_url","sourceUrl","source_url",
+    ):
+        value=row.get(key)
+        if not isinstance(value,str) or not value.startswith(("http://","https://")):continue
+        if "dice.com/" not in value.lower():
+            return value
+    return None
+
 def _normalize(row: dict) -> dict:
     url=row.get("detailsPageUrl") or row.get("url") or row.get("jobUrl") or ""
+    external_apply_url=_first_external_apply_url(row)
     raw_id=row.get("id") or row.get("jobId") or url or f"{row.get('companyName')}:{row.get('title')}:{row.get('postedDate')}"
     stable=hashlib.sha1(str(raw_id).encode("utf-8")).hexdigest()[:20]
     location=_stringify_location(row.get("jobLocation") or row.get("location"))
@@ -44,11 +63,18 @@ def _normalize(row: dict) -> dict:
         "external_id":f"dice:{stable}","source":"dice","company_key":row.get("companyName") or row.get("company") or "Unknown",
         "title":row.get("title") or row.get("jobTitle") or "","location":location,
         "employment_type":row.get("employmentType") or row.get("employment_type") or "FULLTIME","workplace_type":workplace,
-        "url":url,"company_url":row.get("companyPageUrl") or "","description":description,
+        "url":url,"original_url":external_apply_url or url,
+        "aggregator_url":url if external_apply_url else None,
+        "company_url":row.get("companyPageUrl") or row.get("companyProfileUrl") or "",
+        "employer_website":_first_value(row,"companyWebsite","company_website","employerWebsite","employer_website"),
+        "description":description,
         "description_complete":bool(description and len(description.strip()) >= 1200),
         "description_length":len(description.strip()),
         "updated_at":_iso(row.get("postedDate") or row.get("posted_at") or row.get("datePosted")),
         "posted_on":row.get("postedDate") or row.get("datePosted"),
+        "requisition_id":_first_value(row,"requisitionId","requisition_id","referenceCode","reference_code","positionId","position_id"),
+        "job_id":_first_value(row,"jobId","job_id","id"),
+        "dice_position_id":_first_value(row,"positionId","position_id"),
         "sponsorship_signal":row.get("willingToSponsor") if "willingToSponsor" in row else row.get("willing_to_sponsor"),
         "provider_us_scoped":True,"provider_fulltime_scoped":True,
     }
