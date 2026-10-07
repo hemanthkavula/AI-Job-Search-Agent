@@ -170,6 +170,7 @@ jobs:
               shopt -s nullglob
               for file in \
                 generated/cycles/*_summary.json \
+                generated/cycles/*_summary_acceptance.json \
                 generated/cycles/*_manifest.json \
                 generated/cycles/*_application_queue.json; do
                 cp "$file" dashboard-sync/generated/cycles/
