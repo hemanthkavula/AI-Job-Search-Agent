@@ -45,7 +45,12 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
  ledger=load_ledger(ledger_path)
  for row in rows:
   job={"external_id":row.get("external_id"),"source":row.get("source"),"company_key":row.get("company"),"title":row.get("title"),"url":row.get("url")}
-  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id}
+  extra={"resume_path":row.get("resume_path"),"pdf_path":row.get("pdf_path"),"ats_audit":row.get("ats_audit"),"artifact_validation":row.get("artifact_validation"),"cycle_id":cycle_id,
+         "freshness_proof":row.get("freshness_proof"),"official_posted_at":row.get("official_posted_at"),
+         "official_posted_label":row.get("official_posted_label"),"freshness_basis":row.get("freshness_basis"),
+         "recovery_scan":bool(row.get("recovery_scan")),"discovery_window_hours":row.get("discovery_window_hours"),
+         "live_check":row.get("live_check"),"employment_type":row.get("employment_type"),"location":row.get("location"),
+         "description":row.get("description"),"requisition_id":row.get("requisition_id")}
   status=row.get("next_action") or "PREPARED"
   if row.get("next_action")=="READY_TO_APPLY":
    pdf_path=row.get("pdf_path")
@@ -56,6 +61,10 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
      "external_id":row.get("external_id"),"source":row.get("source"),"company":row.get("company"),"title":row.get("title"),
      "url":row.get("original_url") or row.get("url"),"ats_provider":row.get("ats_provider"),"application_route":row.get("application_route"),
      "resume_path":pdf_path,"artifact_validation":row.get("artifact_validation"),
+     "freshness_proof":row.get("freshness_proof"),"official_posted_at":row.get("official_posted_at"),
+     "official_posted_label":row.get("official_posted_label"),"freshness_basis":row.get("freshness_basis"),
+     "recovery_scan":bool(row.get("recovery_scan")),"discovery_window_hours":row.get("discovery_window_hours"),
+     "live_check":row.get("live_check"),
      "status":"READY_FOR_ATS_ADAPTER",
     }
     if queue_payload.get("external_id"):extra["queue_item"]=queue_payload
