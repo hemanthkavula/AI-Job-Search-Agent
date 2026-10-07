@@ -13,6 +13,7 @@ from app.discovery import ALL_ATS_PROVIDERS
 from app.company_domain_resolver import resolve_company
 from app.employer_job_resolver import resolve as resolve_employer_job
 from app.source_registry import detect_ats
+from app.company_registry import company_key as registry_company_key, load as load_company_registry, save as save_company_registry
 from urllib.error import HTTPError, URLError
 
 MIN_COMPLETE_JD_CHARS=1200
@@ -149,6 +150,23 @@ def _jobposting_identity_matches(job,node,url):
         # Aggregator external IDs are often unrelated UUIDs; only enforce recognizable requisition-like IDs.
         if any(ch.isdigit() for ch in expected_id) and len(expected_id)<80:return False
     return True
+
+def _mark_employer_resolution_pending(job):
+    company=(job.get("company_key") or job.get("company") or "").strip()
+    if not company:return
+    try:
+        reg=load_company_registry()
+        row=reg.setdefault(registry_company_key(company),{"company":company})
+        row["company"]=company
+        row["current_hiring_signal"]=True
+        row["ats_resolution_pending"]=True
+        row["ats_resolution_pending_at"]=datetime.now(timezone.utc).isoformat()
+        row["ats_resolution_pending_title"]=job.get("title")
+        row["ats_resolution_pending_source"]=job.get("source")
+        row["ats_resolution_pending_url"]=job.get("aggregator_url") or job.get("url")
+        save_company_registry(reg)
+    except Exception:
+        pass
 
 def _best_resolved_description(page,source=""):
     jsonld=_extract_jsonld_job_description(page)
@@ -297,6 +315,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
         # application is live.
         application_url=raw.get("original_url") or raw.get("url") or ""
         if _is_aggregator_url(application_url):
+            _mark_employer_resolution_pending(raw)
             held.append({"job":raw,"action":"HOLD_ATS_UNRESOLVED","reason":"Aggregator listing could not be resolved to an authoritative employer/ATS application page before resume generation.","diagnostics":{"url":application_url,"source":raw.get("source"),"ats_resolution":raw.get("ats_resolution")}})
             continue
         discovery_source=(raw.get("source") or "").lower()
@@ -394,6 +413,7 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
             raw["application_route"]="DICE"
             raw["ats_provider"]="dice"
         else:
+            _mark_employer_resolution_pending(raw)
             held.append({"job":raw,"eligibility":eligibility,"action":"HOLD_ATS_UNRESOLVED","reason":"Application route could not be determined safely before paid resume generation.","diagnostics":{"description_length":raw.get("description_length",len(raw.get("description") or "")),"jd_signal_score":raw.get("jd_signal_score"),"jd_resolution_source":raw.get("jd_resolution_source"),"ats_resolution":raw.get("ats_resolution"),"url":raw.get("original_url") or raw.get("url")}})
             continue
         finalized.append({"job":raw,"eligibility":eligibility,"action":"FINAL_JD_VERIFIED"})
