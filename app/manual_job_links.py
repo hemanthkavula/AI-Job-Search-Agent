@@ -110,6 +110,71 @@ def _clean_company_label(value: str | None) -> str:
     return label[:180]
 
 
+def _company_compare_key(value: str | None) -> str:
+    clean = _clean_company_label(value)
+    if not clean:
+        return ""
+    low = clean.lower()
+    low = re.sub(r"\b(?:incorporated|inc|corp(?:oration)?|llc|ltd|limited|plc|company|co)\b\.?$", "", low).strip()
+    return re.sub(r"[^a-z0-9]+", "", low)
+
+
+def _verified_company(
+    *,
+    resolved_meta: dict,
+    initial_meta: dict,
+    provider: str | None,
+    identifier: str | None,
+    effective_url: str,
+    submitted_url: str,
+    raw_company: str | None,
+    resolved_site_name: str | None,
+    resolved_fallback: str | None,
+    initial_site_name: str | None,
+    initial_fallback: str | None,
+) -> tuple[str, str]:
+    """Return a company only when its source is strong or independently corroborated."""
+    for value, source in (
+        (resolved_meta.get("company"), "resolved_jobposting"),
+        (initial_meta.get("company"), "submitted_jobposting"),
+    ):
+        clean = _clean_company_label(value)
+        if clean:
+            return clean, source
+
+    ats_hint = _ats_company_hint(provider, identifier, effective_url)
+    if ats_hint:
+        return ats_hint, "ats_tenant"
+
+    # A direct employer domain is a trustworthy last-resort identity signal.
+    direct_hint = _ats_company_hint(None, None, effective_url)
+    effective_host = (urlsplit(effective_url or "").hostname or "").lower()
+    if direct_hint and not any(v in effective_host for v in _ATS_VENDOR_NAMES) and not any(
+        effective_host == agg or effective_host.endswith("." + agg) for agg in _AGGREGATOR_HOSTS
+    ):
+        return direct_hint, "employer_domain"
+
+    # Portal/page-title values are accepted only when two independent signals agree.
+    low_confidence = [
+        raw_company,
+        resolved_site_name,
+        resolved_fallback,
+        initial_site_name,
+        initial_fallback,
+    ]
+    grouped: dict[str, list[str]] = {}
+    for value in low_confidence:
+        clean = _clean_company_label(value)
+        key = _company_compare_key(clean)
+        if key:
+            grouped.setdefault(key, []).append(clean)
+    matches = [values for values in grouped.values() if len(values) >= 2]
+    if matches:
+        return matches[0][0], "corroborated_page_metadata"
+
+    return "Company", "unverified"
+
+
 def _clean_job_title(value: str | None) -> str:
     label = _collapse_label(value)
     if not label:
@@ -390,20 +455,19 @@ def fetch_manual_job(url: str) -> dict:
         _fallback_title_company(resolved_page) if resolved_page else ("", "")
     )
 
-    company_candidates = [
-        resolved_meta.get("company"),
-        initial_meta.get("company"),
-        raw.get("company_key"),
-        raw.get("company"),
-        _meta(resolved_page, "og:site_name") if resolved_page else "",
-        resolved_company_fallback,
-        _meta(page, "og:site_name") if page else "",
-        company_fallback,
-        _ats_company_hint(provider, identifier, effective),
-    ]
-    company = next((clean for value in company_candidates if (clean := _clean_company_label(value))), "")
-    if not company:
-        company = "Company"
+    company, company_source = _verified_company(
+        resolved_meta=resolved_meta,
+        initial_meta=initial_meta,
+        provider=provider,
+        identifier=identifier,
+        effective_url=effective,
+        submitted_url=submitted,
+        raw_company=raw.get("company_key") or raw.get("company"),
+        resolved_site_name=_meta(resolved_page, "og:site_name") if resolved_page else "",
+        resolved_fallback=resolved_company_fallback,
+        initial_site_name=_meta(page, "og:site_name") if page else "",
+        initial_fallback=company_fallback,
+    )
 
     title_candidates = [
         resolved_meta.get("title"),
@@ -441,6 +505,8 @@ def fetch_manual_job(url: str) -> dict:
     raw["original_url"] = effective
     raw["company_key"] = company
     raw["company"] = company
+    raw["company_verified"] = company_source != "unverified"
+    raw["company_source"] = company_source
     raw["title"] = title
     raw["description"] = best_description
     if resolved_meta.get("location"):
@@ -614,11 +680,7 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
         # audit, formatting, and artifact validation remain the production code.
         raw["force_jd_tailoring"] = True
 
-        clean_company = (
-            _clean_company_label(raw.get("company_key") or raw.get("company"))
-            or _ats_company_hint(raw.get("ats_provider"), raw.get("ats_identifier"), raw.get("original_url") or raw.get("url") or "")
-            or "Company"
-        )
+        clean_company = _clean_company_label(raw.get("company_key") or raw.get("company")) or "Company"
         clean_title = _clean_job_title(raw.get("title")) or "Job opening"
         raw["company_key"] = clean_company
         raw["company"] = clean_company
@@ -637,6 +699,8 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             "ats_label": raw.get("ats_label") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[0],
             "ats_tenant": raw.get("ats_tenant") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[1],
             "requisition_id": raw.get("requisition_id"),
+            "company_verified": bool(raw.get("company_verified")),
+            "company_source": raw.get("company_source") or "unverified",
             "description_complete": bool(raw.get("description_complete")),
             "description_usable": bool(raw.get("description_usable")),
             "tailoring_mode": raw.get("tailoring_mode"),
@@ -757,6 +821,14 @@ def _recover_interrupted_jobs() -> list[str]:
     return keys
 
 
+def reset_manual_state() -> int:
+    """Delete only manual-link state/work/resumes and recreate an empty manual queue."""
+    previous = len(_load_state().get("jobs") or {})
+    shutil.rmtree(MANUAL_DIR, ignore_errors=True)
+    _save_state({"version": 1, "jobs": {}})
+    return previous
+
+
 def _pause_active_manual_jobs() -> int:
     state = _load_state()
     paused = 0
@@ -773,6 +845,10 @@ def _pause_active_manual_jobs() -> int:
 
 @router.on_event("startup")
 def _startup_recover_manual_jobs() -> None:
+    if os.getenv("MANUAL_RESET_ON_START", "").strip().lower() in {"1", "true", "yes", "on"}:
+        deleted = reset_manual_state()
+        print(f"MANUAL RESET COMPLETE | deleted={deleted}", flush=True)
+        return
     if os.getenv("MANUAL_RECOVERY_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
         paused = _pause_active_manual_jobs()
         print(f"MANUAL STARTUP RECOVERY DISABLED | paused={paused}", flush=True)
