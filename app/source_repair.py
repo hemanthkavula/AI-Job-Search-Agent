@@ -15,7 +15,7 @@ from app.source_registry import (
     replace_resolved_source,
     save_registry as save_source_registry,
 )
-from app.source_reliability import STATE_PATH as RETRY_STATE_PATH, _load as load_retry_state
+from app.source_reliability import STATE_PATH as RETRY_STATE_PATH, _load as load_retry_state, _save as save_retry_state
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = Path(os.getenv("JOB_AGENT_SOURCE_REPAIR_QUEUE", ROOT / "state" / "source_repair_queue.json"))
@@ -172,6 +172,19 @@ def repair(limit=25, queue_path=QUEUE_PATH, retry_state_path=RETRY_STATE_PATH, n
                 "next_attempt_at": None,
                 "last_repair_error": None,
             })
+            retry_state=load_retry_state(retry_state_path)
+            retry_entry=(retry_state.get("units") or {}).get(item.get("key"))
+            if retry_entry is not None:
+                retry_entry.update({
+                    "consecutive_failures":0,
+                    "failure_class":None,
+                    "repair_required":False,
+                    "next_retry_at":now.isoformat(),
+                    "last_status":"REPAIRED",
+                    "last_error":None,
+                    "repaired_at":now.isoformat(),
+                })
+                save_retry_state(retry_state,retry_state_path)
             repaired += 1
         except Exception as exc:
             item["status"] = "FAILED"
