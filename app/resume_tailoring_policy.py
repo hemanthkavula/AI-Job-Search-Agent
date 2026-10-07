@@ -9,7 +9,7 @@ MODE_MODERATE = "JD_DRIVEN_MODERATE"
 MODE_STRONG = "JD_DRIVEN_STRONG"
 MODE_FULL = "JD_DRIVEN_FULL"
 
-EMPLOYER_COUNTS = {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8}
+EMPLOYER_COUNTS = {"Fidelity Investments": 8, "Cigna Healthcare": 7, "Target Corporation": 7}
 
 ACTION_PATTERNS = (
     r"\bdesign(?:ed|ing)?\b",
@@ -35,7 +35,7 @@ ACTION_PATTERNS = (
 #   historical bullets must remain verbatim so the LLM cannot rewrite the entire
 #   employment history simply to chase JD keywords.
 RETENTION_FLOORS = {
-    MODE_MASTER: {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8},
+    MODE_MASTER: {"Fidelity Investments": 8, "Cigna Healthcare": 7, "Target Corporation": 7},
     MODE_LIGHT: {"Fidelity Investments": 0, "Cigna Healthcare": 6, "Target Corporation": 6},
     MODE_MODERATE: {"Fidelity Investments": 0, "Cigna Healthcare": 5, "Target Corporation": 5},
     MODE_STRONG: {"Fidelity Investments": 0, "Cigna Healthcare": 5, "Target Corporation": 5},
