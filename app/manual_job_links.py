@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -38,6 +38,7 @@ ARTIFACT_DIR = MANUAL_DIR / "resumes"
 router = APIRouter()
 _STATE_LOCK = threading.RLock()
 _PREPARE_LOCK = threading.Lock()
+_BATCH_LOCK = threading.Lock()
 
 
 class LinksInput(BaseModel):
@@ -190,19 +191,25 @@ def _fallback_title_company(page: str) -> tuple[str, str]:
 
 
 def fetch_manual_job(url: str) -> dict:
-    """Resolve only the supplied job link. No discovery run or eligibility filtering."""
+    """Resolve only the supplied link; insufficient/blocked JDs fall back to the master resume."""
     submitted = _normalize_url(url)
-    page = _fetch_public_page(submitted)
-    if not page:
-        raise RuntimeError("Could not read the supplied job page. Edit the row, paste the JD, and retry.")
-    meta = _jsonld_metadata(page)
-    title_fallback, company_fallback = _fallback_title_company(page)
-    description = meta.get("description") or _best_resolved_description(page, "manual_link")
+    try:
+        page = _fetch_public_page(submitted) or ""
+    except Exception:
+        page = ""
+
+    meta = _jsonld_metadata(page) if page else {}
+    title_fallback, company_fallback = _fallback_title_company(page) if page else ("", "")
+    description = (
+        meta.get("description")
+        or (_best_resolved_description(page, "manual_link") if page else "")
+        or ""
+    )
     raw = {
         "external_id": _key_for_url(submitted),
         "source": "manual_link",
-        "company_key": meta.get("company") or _meta(page, "og:site_name") or company_fallback or "Unknown company",
-        "company": meta.get("company") or _meta(page, "og:site_name") or company_fallback or "Unknown company",
+        "company_key": meta.get("company") or (_meta(page, "og:site_name") if page else "") or company_fallback or "Unknown company",
+        "company": meta.get("company") or (_meta(page, "og:site_name") if page else "") or company_fallback or "Unknown company",
         "title": meta.get("title") or title_fallback or "Job from supplied link",
         "description": description,
         "location": meta.get("location") or "",
@@ -216,13 +223,21 @@ def fetch_manual_job(url: str) -> dict:
         "manual_filters_bypassed": True,
         "application_route": "MANUAL_LINK",
     }
-    # Reuse the existing exact-link/ATS JD resolver only. This does not execute
-    # daily discovery, target-company filtering, sponsorship, experience, or freshness gates.
+
+    # Always try the existing exact-link/ATS JD resolver, even when the landing
+    # page itself is blocked. If it still cannot recover a usable JD, the shared
+    # resume pipeline receives BASE_RESUME_CONSERVATIVE and renders the master
+    # resume instead of dropping this submitted link.
     try:
-        raw = resolve_original_ats(raw)
-        raw = resolve_full_jd(raw)
+        resolved = resolve_original_ats(raw)
+        if isinstance(resolved, dict):
+            raw = resolved
+        resolved = resolve_full_jd(raw)
+        if isinstance(resolved, dict):
+            raw = resolved
     except Exception:
         pass
+
     raw["external_id"] = _key_for_url(submitted)
     raw["submitted_url"] = submitted
     raw["manual_link"] = True
@@ -241,10 +256,11 @@ def fetch_manual_job(url: str) -> dict:
     raw["description_complete"] = bool(complete)
     raw["description_usable"] = bool(usable)
     raw["tailoring_mode"] = "FULL_JD" if complete else "BASE_RESUME_CONSERVATIVE"
-    if not usable:
-        raise RuntimeError("The supplied page did not expose a usable JD. Edit the row, paste the JD, and retry.")
+    raw["jd_fallback_reason"] = None if usable else (
+        "No usable JD could be extracted from the supplied link or its resolved ATS page; "
+        "use the unchanged master resume."
+    )
     return raw
-
 
 def _bypass_eligibility() -> dict:
     item = {
@@ -253,6 +269,18 @@ def _bypass_eligibility() -> dict:
         "reason": "Manual-link path intentionally bypasses discovery and eligibility filters.",
     }
     return {"eligible": True, "experience": dict(item), "sponsorship": dict(item), "manual_bypass": True}
+
+
+def _manual_should_use_master_resume(raw: dict, coverage_plan: dict) -> bool:
+    """Manual links tailor whenever there is enough real JD evidence."""
+    targets = int(coverage_plan.get("target_count") or 0)
+    if targets <= 2:
+        return True
+    if raw.get("description_usable") is False:
+        return True
+    if not str(raw.get("description") or "").strip():
+        return True
+    return False
 
 
 def run_shared_resume_pipeline(raw: dict) -> dict:
@@ -271,13 +299,16 @@ def run_shared_resume_pipeline(raw: dict) -> dict:
         "results": [{"action": "FINAL_JD_VERIFIED", "job": raw, "eligibility": _bypass_eligibility()}],
     }, indent=2), encoding="utf-8")
     old_draft, old_final = batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR
+    old_selector = batch_prepare._should_use_master_resume
     with _PREPARE_LOCK:
         try:
             batch_prepare.DRAFT_RESUME_DIR = str(work / "drafts")
             batch_prepare.FINAL_RESUME_DIR = str(ARTIFACT_DIR / safe / attempt)
+            batch_prepare._should_use_master_resume = _manual_should_use_master_resume
             rows = batch_prepare.prepare(str(report), str(manifest), external_id=key, limit=1)
         finally:
             batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR = old_draft, old_final
+            batch_prepare._should_use_master_resume = old_selector
     if not rows:
         raise RuntimeError("Shared resume pipeline returned no result.")
     return rows[0]
@@ -416,6 +447,20 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
     return _public(row)
 
 
+def process_jobs(keys: list[str]) -> None:
+    """Process a submitted batch off the request path; only completed resumes are shown in the UI."""
+    with _BATCH_LOCK:
+        for key in keys:
+            try:
+                _, row = _get(key)
+                if row.get("application_status") == "SUBMITTED_CONFIRMED" or row.get("status") == "READY_TO_APPLY":
+                    continue
+                process_job(key)
+            except Exception as exc:
+                print(f"MANUAL BACKGROUND ERROR {key}: {exc}", flush=True)
+
+
+
 def edit_job(key: str, body: ManualEdit) -> dict:
     state, row = _get(key)
     data = body.model_dump(exclude_unset=True)
@@ -469,20 +514,38 @@ def confirm_submitted(key: str) -> dict:
 
 @router.get("/api/manual-links")
 def api_list():
-    rows = list_jobs()
-    attention_states = {"JD_FETCH_FAILED", "HOLD_RESUME_ERROR", "HOLD_ATS_REVIEW", "HOLD_ARTIFACT_VALIDATION", "RETRY_RESUME_GENERATION"}
-    return {"jobs": rows, "counts": {
-        "total": len(rows),
-        "ready": sum(x.get("status") == "READY_TO_APPLY" for x in rows),
-        "applied": sum(x.get("application_status") == "SUBMITTED_CONFIRMED" for x in rows),
-        "needs_attention": sum(x.get("status") in attention_states for x in rows),
+    all_rows = list_jobs()
+    visible = [
+        x for x in all_rows
+        if x.get("status") == "READY_TO_APPLY"
+        or x.get("application_status") == "SUBMITTED_CONFIRMED"
+    ]
+    return {"jobs": visible, "counts": {
+        "total": len(visible),
+        "ready": sum(x.get("status") == "READY_TO_APPLY" and x.get("application_status") != "SUBMITTED_CONFIRMED" for x in visible),
+        "applied": sum(x.get("application_status") == "SUBMITTED_CONFIRMED" for x in visible),
+        "needs_attention": 0,
+        "submitted_total": len(all_rows),
+        "processing": sum(
+            x.get("status") != "READY_TO_APPLY"
+            and x.get("application_status") != "SUBMITTED_CONFIRMED"
+            for x in all_rows
+        ),
     }}
 
 
 @router.post("/api/manual-links")
-def api_add(body: LinksInput):
+def api_add(body: LinksInput, background_tasks: BackgroundTasks):
     try:
-        return {"ok": True, "jobs": add_links(body.links)}
+        jobs = add_links(body.links)
+        keys = [
+            x["key"] for x in jobs
+            if x.get("application_status") != "SUBMITTED_CONFIRMED"
+            and x.get("status") != "READY_TO_APPLY"
+        ]
+        if keys:
+            background_tasks.add_task(process_jobs, keys)
+        return {"ok": True, "jobs": jobs, "queued": len(keys)}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
@@ -525,7 +588,7 @@ def manual_resume(key: str):
 MANUAL_PAGE = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manual Job Links</title><style>
 :root{--bg:#07111f;--panel:#0c1828;--line:#21344a;--text:#edf3fb;--muted:#91a4bc}*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}.app{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:100vh}.side{background:#0a1625;border-right:1px solid #1a2a3d;padding:22px 14px}.brand{font-size:20px;font-weight:850;padding:0 8px 24px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:4px}.nav{display:grid;gap:6px}.nav a{display:block;padding:11px 12px;border-radius:8px;color:#c7d2e2;text-decoration:none;font-size:13px}.nav .active,.nav a:hover{background:#173967;color:#fff}.main{padding:22px clamp(16px,2vw,30px) 36px;min-width:0}.top h1{font-size:23px;margin:0 0 5px}.muted{color:var(--muted);font-size:12px}.entry,.section{background:#0b1726;border:1px solid var(--line);border-radius:11px;margin:18px 0;overflow:hidden}.entry{padding:16px}.entry textarea{width:100%;min-height:112px;background:#0d1a2b;border:1px solid #263950;color:#eef4fc;border-radius:8px;padding:12px;resize:vertical}.toolbar{display:flex;gap:8px;align-items:center;margin-top:10px}.btn{border:1px solid #30465f;background:#13253a;color:#dce7f5;padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none}.btn.primary{background:#2f73df;border-color:#4388f4;color:#fff}.btn.danger{color:#ff8f91}.btn:disabled{opacity:.55}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{background:#0d1a2b;border:1px solid #263950;border-radius:10px;padding:15px}.stat span{color:#a9b8ca;font-size:11px}.stat b{display:block;font-size:24px;margin-top:5px}.sectionHead{padding:14px 16px;border-bottom:1px solid #1d3044;font-weight:800}.row{display:grid;grid-template-columns:minmax(260px,1.2fr) 145px 150px minmax(420px,1fr);gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #17283a;font-size:12px}.head{background:#101f31;color:#9fb0c7;font-size:10px;text-transform:uppercase}.title{font-weight:800;font-size:13px;margin-bottom:5px}.meta{color:#8fa0b8;font-size:11px;overflow-wrap:anywhere}.error{color:#ff9fa1;font-size:11px;margin-top:5px}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;background:#17304d}.ready{background:#0d4637;color:#62e5b0}.applied{background:#173b69;color:#74b4ff}.attention{background:#522d31;color:#ff9fa1}.working{background:#392d61;color:#c6a8ff}.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.empty{padding:26px;text-align:center;color:#8192a8}.note{margin-top:8px;color:#91a4bc;font-size:11px}.progress{display:none;color:#a9b8ca}.progress.on{display:inline}@media(max-width:1050px){.app{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid #1a2a3d}.nav{display:flex}.row{grid-template-columns:1fr 120px}.row>div:last-child{grid-column:1/-1}.actions{justify-content:flex-start}}@media(max-width:650px){.main{padding:12px}.stats{grid-template-columns:repeat(2,1fr)}.row{display:block}.head{display:none}.row>div{margin-bottom:8px}}
 </style></head><body><div class="app"><aside class="side"><div class="brand">💼 Auto Apply<small>Job Application Manager</small></div><div class="nav"><a href="/">⌂ &nbsp; Job Discovery</a><a class="active" href="/manual-links">🔗 &nbsp; Manual Job Links</a></div></aside><main class="main"><div class="top"><h1>Manual Job Links</h1><div class="muted">Paste direct job links. This path skips discovery and eligibility filters and uses the same production resume-generation and validation rules.</div></div><section class="entry"><textarea id="links" placeholder="Paste one or many job links — one per line"></textarea><div class="toolbar"><button class="btn primary" id="addBtn">Add & Process</button><button class="btn" id="refreshBtn">Refresh</button><span class="progress" id="progress">Processing…</span></div><div class="note">If a site blocks JD extraction, Edit the row and paste the JD, then Process / Retry. The existing discovery path is untouched.</div></section><div class="stats"><div class="stat"><span>Total Links</span><b id="total">0</b></div><div class="stat"><span>Ready to Apply</span><b id="ready">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Needs Attention</span><b id="attention">0</b></div></div><section class="section"><div class="sectionHead">Manual Resume Queue</div><div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div><div id="jobs"></div></section></main></div><script>
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));let rows=[],busy=new Set();function st(r){if(r.application_status==="SUBMITTED_CONFIRMED")return["Applied","applied"];if(r.status==="READY_TO_APPLY")return["Ready to apply","ready"];if(["PENDING","JD_READY","FETCHING_JD","GENERATING_RESUME"].includes(r.status))return[(r.status||"").replaceAll("_"," "),"working"];return[(r.status||"Needs attention").replaceAll("_"," "),"attention"]}function nice(v){let d=new Date(v);return!v||isNaN(d)?"—":d.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}async function load(){let d=await fetch("/api/manual-links",{cache:"no-store"}).then(r=>r.json());rows=d.jobs||[];total.textContent=d.counts.total;ready.textContent=d.counts.ready;applied.textContent=d.counts.applied;attention.textContent=d.counts.needs_attention;render()}function render(){jobs.innerHTML=rows.map(r=>{let s=st(r);return '<div class="row"><div><div class="title">'+esc(r.title||"Job link pending")+'</div><div class="meta">'+esc(r.company||"Company pending")+' · '+esc(r.source||"manual_link")+'</div><div class="meta">'+esc(r.submitted_url||r.url||"")+'</div>'+(r.error?'<div class="error">'+esc(r.error)+'</div>':'')+'</div><div><span class="badge '+s[1]+'">'+esc(s[0])+'</span></div><div>'+nice(r.updated_at)+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open Job</a>':'')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank">View Resume</a>':'')+(r.application_status!=="SUBMITTED_CONFIRMED"?'<button class="btn" data-process="'+esc(r.key)+'" '+(busy.has(r.key)?'disabled':'')+'>'+(r.status==="READY_TO_APPLY"?"Regenerate":"Process / Retry")+'</button>':'')+'<button class="btn" data-edit="'+esc(r.key)+'">Edit</button>'+(r.status==="READY_TO_APPLY"&&r.application_status!=="SUBMITTED_CONFIRMED"?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>'}).join("")||'<div class="empty">No manual job links yet.</div>'}async function processOne(key){busy.add(key);render();try{let r=await fetch("/api/manual-links/"+encodeURIComponent(key)+"/process",{method:"POST"});let d=await r.json();if(!r.ok)throw new Error(d.detail||"Processing failed")}catch(e){alert(e.message)}finally{busy.delete(key);await load()}}addBtn.onclick=async()=>{let text=links.value.trim();if(!text)return;addBtn.disabled=true;progress.classList.add("on");try{let r=await fetch("/api/manual-links",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({links:text})});let d=await r.json();if(!r.ok)throw new Error(d.detail||"Could not add links");links.value="";for(let j of d.jobs||[]){if(j.application_status!=="SUBMITTED_CONFIRMED")await processOne(j.key)}}catch(e){alert(e.message)}finally{addBtn.disabled=false;progress.classList.remove("on");await load()}};refreshBtn.onclick=load;jobs.onclick=async e=>{let p=e.target.closest("[data-process]");if(p){await processOne(p.dataset.process);return}let a=e.target.closest("[data-applied]");if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}let d=e.target.closest("[data-delete]");if(d){if(confirm("Delete only this manual job and its resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}return}let b=e.target.closest("[data-edit]");if(b){let r=rows.find(x=>x.key===b.dataset.edit);if(!r)return;let url=prompt("Job URL",r.submitted_url||r.url||"");if(url===null)return;let company=prompt("Company",r.company||"");if(company===null)return;let title=prompt("Job title",r.title||"");if(title===null)return;let location=prompt("Location",r.location||"");if(location===null)return;let jd=prompt("Paste a replacement JD to override the fetched JD. Leave blank to keep the current JD.","");let body={url,company,title,location};if(jd&&jd.trim())body.description=jd.trim();let x=await fetch("/api/manual-links/"+encodeURIComponent(r.key),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!x.ok){let y=await x.json();alert(y.detail||"Edit failed")}await load()}};load();setInterval(load,15000);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));let rows=[],busy=new Set();function st(r){if(r.application_status==="SUBMITTED_CONFIRMED")return["Applied","applied"];if(r.status==="READY_TO_APPLY")return["Ready to apply","ready"];if(["PENDING","JD_READY","FETCHING_JD","GENERATING_RESUME"].includes(r.status))return[(r.status||"").replaceAll("_"," "),"working"];return[(r.status||"Needs attention").replaceAll("_"," "),"attention"]}function nice(v){let d=new Date(v);return!v||isNaN(d)?"—":d.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}async function load(){let d=await fetch("/api/manual-links",{cache:"no-store"}).then(r=>r.json());rows=d.jobs||[];total.textContent=d.counts.total;ready.textContent=d.counts.ready;applied.textContent=d.counts.applied;attention.textContent=d.counts.needs_attention;render()}function render(){jobs.innerHTML=rows.map(r=>{let s=st(r);return '<div class="row"><div><div class="title">'+esc(r.title||"Job link pending")+'</div><div class="meta">'+esc(r.company||"Company pending")+' · '+esc(r.source||"manual_link")+'</div><div class="meta">'+esc(r.submitted_url||r.url||"")+'</div>'+(r.error?'<div class="error">'+esc(r.error)+'</div>':'')+'</div><div><span class="badge '+s[1]+'">'+esc(s[0])+'</span></div><div>'+nice(r.updated_at)+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open Job</a>':'')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank">View Resume</a>':'')+(r.application_status!=="SUBMITTED_CONFIRMED"?'<button class="btn" data-process="'+esc(r.key)+'" '+(busy.has(r.key)?'disabled':'')+'>'+(r.status==="READY_TO_APPLY"?"Regenerate":"Process / Retry")+'</button>':'')+'<button class="btn" data-edit="'+esc(r.key)+'">Edit</button>'+(r.status==="READY_TO_APPLY"&&r.application_status!=="SUBMITTED_CONFIRMED"?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>'}).join("")||'<div class="empty">No manual job links yet.</div>'}async function processOne(key){busy.add(key);render();try{let r=await fetch("/api/manual-links/"+encodeURIComponent(key)+"/process",{method:"POST"});let d=await r.json();if(!r.ok)throw new Error(d.detail||"Processing failed")}catch(e){alert(e.message)}finally{busy.delete(key);await load()}}addBtn.onclick=async()=>{let text=links.value.trim();if(!text)return;addBtn.disabled=true;progress.classList.add("on");try{let r=await fetch("/api/manual-links",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({links:text})});let d=await r.json();if(!r.ok)throw new Error(d.detail||"Could not add links");links.value="";await load()}catch(e){alert(e.message)}finally{addBtn.disabled=false;progress.classList.remove("on");await load()}};refreshBtn.onclick=load;jobs.onclick=async e=>{let p=e.target.closest("[data-process]");if(p){await processOne(p.dataset.process);return}let a=e.target.closest("[data-applied]");if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}let d=e.target.closest("[data-delete]");if(d){if(confirm("Delete only this manual job and its resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}return}let b=e.target.closest("[data-edit]");if(b){let r=rows.find(x=>x.key===b.dataset.edit);if(!r)return;let url=prompt("Job URL",r.submitted_url||r.url||"");if(url===null)return;let company=prompt("Company",r.company||"");if(company===null)return;let title=prompt("Job title",r.title||"");if(title===null)return;let location=prompt("Location",r.location||"");if(location===null)return;let jd=prompt("Paste a replacement JD to override the fetched JD. Leave blank to keep the current JD.","");let body={url,company,title,location};if(jd&&jd.trim())body.description=jd.trim();let x=await fetch("/api/manual-links/"+encodeURIComponent(r.key),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!x.ok){let y=await x.json();alert(y.detail||"Edit failed")}await load()}};load();setInterval(load,15000);
 </script></body></html>'''
 
 
