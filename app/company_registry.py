@@ -30,6 +30,10 @@ def sanitize_aggregator_evidence(registry):
             for h in AGGREGATOR_HOSTS
         ):
             row.pop("official_domain",None)
+        if str(row.get("ats_provider") or "").lower() in {"dice","indeed","linkedin","ziprecruiter","monster","wellfound","builtin","yc_jobs"}:
+            row["aggregator_provider"]=row.get("ats_provider")
+            row.pop("ats_provider",None)
+            row.pop("ats_identifier",None)
         evidence=row.get("organization_url_evidence")
         if evidence and _is_aggregator_url(evidence):
             row["aggregator_company_url"]=evidence
