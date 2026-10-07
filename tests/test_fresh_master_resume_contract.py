@@ -97,8 +97,8 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["skills_policy"]["category_names_are_jd_adaptive"] is True
     assert prompt["skills_policy"]["allow_category_rename_merge_split_reorder"] is True
     assert prompt["skills_policy"]["allow_new_categories_when_jd_supported"] is True
-    assert prompt["skills_policy"]["preserve_master_aws_technology_baseline"] is True
-    assert prompt["skills_policy"]["preserve_master_azure_technology_baseline"] is True
+    assert prompt["skills_policy"]["focus_technical_skills_on_selected_jd_cloud"] is True
+    assert prompt["skills_policy"]["historical_clouds_remain_in_employer_experience"] is True
     assert prompt["skills_policy"]["add_gcp_category_when_fidelity_selects_gcp"] is True
     assert prompt["structure_contract"]["summary_paragraphs"] == 1
     assert prompt["structure_contract"]["summary_min_words"] == 95
@@ -108,7 +108,7 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["structure_contract"]["environment_paragraphs"] is False
 
 
-def test_skill_category_names_can_be_jd_adaptive_without_losing_cloud_baselines():
+def test_skill_category_names_can_be_jd_adaptive_and_focus_on_selected_cloud():
     source = {
         "Programming & Query Languages": ["Python", "SQL", "Java"],
         "Data Processing & Lakehouse": ["Apache Spark", "Databricks", "Delta Lake"],
@@ -124,13 +124,15 @@ def test_skill_category_names_can_be_jd_adaptive_without_losing_cloud_baselines(
     assert "Data Processing & Lakehouse" in normalized
     assert "Orchestration & Transformation" in normalized
     assert "AWS Data Platform" in normalized
-    assert "Azure Data Platform" in normalized
+    assert "Azure Data Platform" not in normalized
     assert "Programming Languages" not in normalized
     assert "Cloud Platforms (AWS)" not in normalized
     assert "Cloud Platforms (Azure)" not in normalized
     assert "Java" in normalized["Programming & Query Languages"]
     assert "AWS Glue" in normalized["AWS Data Platform"]
-    assert "Azure Data Factory" in normalized["Azure Data Platform"]
+    all_skills = [value for values in normalized.values() for value in values]
+    assert "Azure Data Factory" not in all_skills
+    assert "ADLS Gen2" not in all_skills
 
 
 def test_new_jd_supported_skill_category_is_preserved():
