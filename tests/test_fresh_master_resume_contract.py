@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from docx import Document
 
 import app.reference_resume_formatter as formatter
-from app.llm_resume_writer import build_prompt
+from app.llm_resume_writer import build_prompt, _normalize_skills
 from app.master_resume import fixed_personal_facts, master_resume_payload
 
 
@@ -94,15 +94,56 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["employer_cloud_credibility_policy"]["selected_cloud_by_employer"]["Cigna Healthcare"] == "AZURE"
     assert prompt["employer_cloud_credibility_policy"]["selected_cloud_by_employer"]["Target Corporation"] == "AWS"
     assert prompt["historical_timeline_policy"]["forbid_ai_era_technology_in_cigna_and_target"] is True
-    assert prompt["skills_policy"]["retain_master_aws_group"] is True
-    assert prompt["skills_policy"]["retain_master_azure_group"] is True
-    assert prompt["skills_policy"]["add_gcp_group_when_fidelity_selects_gcp"] is True
+    assert prompt["skills_policy"]["category_names_are_jd_adaptive"] is True
+    assert prompt["skills_policy"]["allow_category_rename_merge_split_reorder"] is True
+    assert prompt["skills_policy"]["allow_new_categories_when_jd_supported"] is True
+    assert prompt["skills_policy"]["preserve_master_aws_technology_baseline"] is True
+    assert prompt["skills_policy"]["preserve_master_azure_technology_baseline"] is True
+    assert prompt["skills_policy"]["add_gcp_category_when_fidelity_selects_gcp"] is True
     assert prompt["structure_contract"]["summary_paragraphs"] == 1
     assert prompt["structure_contract"]["summary_min_words"] == 95
     assert prompt["structure_contract"]["summary_target_words"] == "100-140"
     assert prompt["structure_contract"]["summary_min_sentences"] == 4
     assert prompt["structure_contract"]["employer_footer_label"] == "Environment"
     assert prompt["structure_contract"]["environment_paragraphs"] is False
+
+
+def test_skill_category_names_can_be_jd_adaptive_without_losing_cloud_baselines():
+    source = {
+        "Programming & Query Languages": ["Python", "SQL", "Java"],
+        "Data Processing & Lakehouse": ["Apache Spark", "Databricks", "Delta Lake"],
+        "Orchestration & Transformation": ["Airflow", "dbt"],
+        "AWS Data Platform": ["AWS Glue", "Amazon S3"],
+        "Azure Data Platform": ["Azure Data Factory", "ADLS Gen2"],
+    }
+    normalized = _normalize_skills(
+        source,
+        "Build Python, SQL, Java, Spark, Databricks, Airflow and dbt pipelines on AWS using Glue and S3.",
+    )
+    assert "Programming & Query Languages" in normalized
+    assert "Data Processing & Lakehouse" in normalized
+    assert "Orchestration & Transformation" in normalized
+    assert "AWS Data Platform" in normalized
+    assert "Azure Data Platform" in normalized
+    assert "Programming Languages" not in normalized
+    assert "Cloud Platforms (AWS)" not in normalized
+    assert "Cloud Platforms (Azure)" not in normalized
+    assert "Java" in normalized["Programming & Query Languages"]
+    assert "AWS Glue" in normalized["AWS Data Platform"]
+    assert "Azure Data Factory" in normalized["Azure Data Platform"]
+
+
+def test_new_jd_supported_skill_category_is_preserved():
+    normalized = _normalize_skills(
+        {
+            "Programming Languages": ["Python", "SQL"],
+            "Cloud Platforms (AWS)": ["AWS Glue"],
+            "Cloud Platforms (Azure)": ["Azure Data Factory"],
+            "Data Observability & Reliability": ["Great Expectations"],
+        },
+        "Build reliable Python SQL data pipelines with Great Expectations.",
+    )
+    assert normalized["Data Observability & Reliability"] == ["Great Expectations"]
 
 
 def test_master_payload_remains_conservative_fallback():
