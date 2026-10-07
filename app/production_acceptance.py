@@ -1,7 +1,10 @@
 from __future__ import annotations
 import argparse, json
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from pathlib import Path
+from app.config import load_profile
+from app.filters import passes_hard_filters
 
 def audit(summary_path:str)->dict:
     p=Path(summary_path)
@@ -20,6 +23,7 @@ def audit(summary_path:str)->dict:
     if int(summary.get("manual_application_action") or 0):
         failures.append("manual application state is not allowed in the ready-only production flow")
     queue_path=summary.get("application_queue")
+    job_checks=[]
     if ready:
         if not queue_path or not Path(queue_path).exists():
             failures.append("ready jobs exist but application queue is missing")
@@ -28,22 +32,70 @@ def audit(summary_path:str)->dict:
             if len(queue)!=ready:
                 failures.append(f"queue length mismatch: {len(queue)}!={ready}")
             ids=set()
+            strict_evidence=bool(summary.get("production_cutoff"))
+            profile=load_profile() if strict_evidence else {}
+            summary_cutoff=None
+            if strict_evidence:
+                try:summary_cutoff=datetime.fromisoformat(str(summary.get("production_cutoff")).replace("Z","+00:00")).astimezone(timezone.utc)
+                except Exception:failures.append("production cutoff is not parseable")
             for row in queue:
                 eid=row.get("external_id")
-                if not eid or eid in ids: failures.append(f"duplicate/missing queue external_id: {eid}")
+                checks={"external_id":eid,"passed":True,"failures":[]}
+                def fail(message):
+                    failures.append(message);checks["failures"].append(message);checks["passed"]=False
+                if not eid or eid in ids: fail(f"duplicate/missing queue external_id: {eid}")
                 ids.add(eid)
-                if row.get("status")!="READY_FOR_ATS_ADAPTER": failures.append(f"invalid queue status for {eid}")
+                if row.get("status")!="READY_FOR_ATS_ADAPTER": fail(f"invalid queue status for {eid}")
                 url=row.get("url") or ""
                 host=(urlparse(url).netloc or "").lower()
                 aggregator_hosts=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com")
                 if not url or any(host==h or host.endswith("."+h) for h in aggregator_hosts):
-                    failures.append(f"non-authoritative application destination for {eid}: {host or 'missing'}")
-                if not (row.get("application_gate") or {}).get("passed"): failures.append(f"application gate not passed for {eid}")
+                    fail(f"non-authoritative application destination for {eid}: {host or 'missing'}")
+                if not (row.get("application_gate") or {}).get("passed"): fail(f"application gate not passed for {eid}")
                 resume=row.get("resume_path")
-                if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): failures.append(f"validated PDF missing for {eid}")
+                if not resume or Path(resume).suffix.lower()!=".pdf" or not Path(resume).is_file(): fail(f"validated PDF missing for {eid}")
                 validation=row.get("artifact_validation")
-                if validation and not validation.get("passed"): failures.append(f"artifact validation failed for {eid}")
-    result={"passed":not failures,"cycle_id":summary.get("cycle_id"),"ready_to_apply":ready,"failures":failures}
+                if validation and not validation.get("passed"): fail(f"artifact validation failed for {eid}")
+
+                if strict_evidence:
+                    hard_ok,hard_reasons=passes_hard_filters({
+                        "external_id":eid,"source":row.get("source"),"company_key":row.get("company"),
+                        "title":row.get("title"),"location":row.get("location"),
+                        "employment_type":row.get("employment_type"),"description":row.get("description") or "",
+                    },profile)
+                    if not hard_ok:
+                        fail(f"final hard-filter audit failed for {eid}: {'; '.join(hard_reasons)}")
+
+                    proof=row.get("freshness_proof") or {}
+                    posted=proof.get("posted_at") or row.get("official_posted_at")
+                    proof_cutoff=proof.get("production_cutoff")
+                    if not posted or not proof_cutoff:
+                        fail(f"freshness proof missing for {eid}")
+                    else:
+                        try:
+                            posted_dt=datetime.fromisoformat(str(posted).replace("Z","+00:00")).astimezone(timezone.utc)
+                            cutoff_dt=datetime.fromisoformat(str(proof_cutoff).replace("Z","+00:00")).astimezone(timezone.utc)
+                            checked_raw=proof.get("checked_at")
+                            checked_dt=datetime.fromisoformat(str(checked_raw).replace("Z","+00:00")).astimezone(timezone.utc) if checked_raw else datetime.now(timezone.utc)
+                            if summary_cutoff and abs((cutoff_dt-summary_cutoff).total_seconds())>1:
+                                fail(f"freshness cutoff mismatch for {eid}")
+                            if posted_dt<cutoff_dt or posted_dt>checked_dt+timedelta(minutes=10):
+                                fail(f"freshness proof outside production window for {eid}: {posted}")
+                        except Exception:
+                            fail(f"freshness proof is not parseable for {eid}")
+
+                    live=row.get("live_check") or {}
+                    if not live.get("passed"):
+                        fail(f"live application proof missing for {eid}")
+
+                    expected_future=((profile.get("work_authorization") or {}).get("requires_sponsorship_future"))
+                    answers=row.get("known_answers") or {}
+                    if expected_future is True and answers.get("requires_future_sponsorship")!="Yes":
+                        fail(f"future sponsorship answer mismatch for {eid}")
+                    if expected_future is False and answers.get("requires_future_sponsorship")!="No":
+                        fail(f"future sponsorship answer mismatch for {eid}")
+                job_checks.append(checks)
+    result={"passed":not failures,"cycle_id":summary.get("cycle_id"),"ready_to_apply":ready,"failures":failures,"job_checks":job_checks}
     out=p.with_name(p.stem+"_acceptance.json")
     out.write_text(json.dumps(result,indent=2),encoding="utf-8")
     if failures: raise SystemExit("Production acceptance failed: "+" | ".join(failures))
