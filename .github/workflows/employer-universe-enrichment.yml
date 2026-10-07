@@ -3,6 +3,9 @@ name: Employer Universe Enrichment
 # so slow employer/ATS probing never delays fresh-job discovery or resume generation.
 
 on:
+  schedule:
+    # 09:15 UTC runs before the 07:30 ET production window in both EDT/EST.
+    - cron: "15 9 * * 1-5"
   workflow_dispatch:
     inputs:
       domain_budget:
@@ -57,14 +60,27 @@ jobs:
         env:
           COLLEGE_SCORECARD_API_KEY: ${{ secrets.COLLEGE_SCORECARD_API_KEY }}
           SAM_API_KEY: ${{ secrets.SAM_API_KEY }}
+        shell: bash
         run: |
+          DOMAIN_BUDGET="${{ inputs.domain_budget }}"
+          CAREER_BUDGET="${{ inputs.career_budget }}"
+          ATS_TENANT_BUDGET="${{ inputs.ats_tenant_budget }}"
+          [ -n "$DOMAIN_BUDGET" ] || DOMAIN_BUDGET=750
+          [ -n "$CAREER_BUDGET" ] || CAREER_BUDGET=750
+          [ -n "$ATS_TENANT_BUDGET" ] || ATS_TENANT_BUDGET=250
+
+          DEEP_ARG="--deep-domain-search"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.deep_domain_search }}" = "false" ]; then
+            DEEP_ARG=""
+          fi
+
           python -m app.company_enrichment_runner \
             --source-config data/job_sources.json \
-            --domain-budget "${{ inputs.domain_budget }}" \
-            --career-budget "${{ inputs.career_budget }}" \
-            --ats-tenant-budget "${{ inputs.ats_tenant_budget }}" \
+            --domain-budget "$DOMAIN_BUDGET" \
+            --career-budget "$CAREER_BUDGET" \
+            --ats-tenant-budget "$ATS_TENANT_BUDGET" \
             --retry-days 1 \
-            ${{ inputs.deep_domain_search && '--deep-domain-search' || '' }} | tee employer-universe-enrichment.log
+            $DEEP_ARG | tee employer-universe-enrichment.log
       - name: Publish employer-universe metrics
         shell: bash
         run: |
