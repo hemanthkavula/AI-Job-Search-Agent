@@ -170,6 +170,14 @@ TECHNICAL SKILLS:
 - New non-cloud tools explicitly required by the JD may be added to an appropriate technical category when they are used in Fidelity.
 - Keep categories concise and ATS-readable. Do not create paragraph-like skill rows.
 
+PROFESSIONAL SUMMARY:
+- Write ONE substantial prose paragraph, never bullets, fragments, labels, or short point-like statements.
+- Target roughly 100-140 words with 4-6 complete sentences.
+- Cover seniority and years of experience, domain breadth, core data-engineering strengths, the most relevant JD-aligned technologies, architecture/platform depth, data modeling/quality/governance/performance strengths, and current Fidelity scope.
+- Include AI/ML exposure only when it is relevant and supported, and only in the current Fidelity context.
+- Use the master summary as the baseline level of substance. A tailored summary must not be materially thinner than the master summary.
+- Keep it information-dense and natural; do not keyword-stuff or invent metrics.
+
 PROFESSIONAL EXPERIENCE:
 - Preserve exactly the employer bullet counts supplied in structure_contract from the current master resume.
 - One bullet = one concise engineering sentence. Keep the length close to the corresponding master bullet; do not turn bullets into paragraphs.
@@ -183,9 +191,9 @@ NO FABRICATION:
 - Technology names containing numbers such as SCD Type 2 or ADLS Gen2 are allowed.
 
 FORMAT / LAYOUT:
-- Preserve the master's visual structure downstream: section order, two summary paragraphs, Technical Skills rows, three employers, Roles & Responsibilities blocks, compact Environment technology-only lines, and education.
+- Preserve the master's visual structure downstream except for the approved summary update: render one substantial Professional Summary paragraph, then Technical Skills rows, three employers, compact Environment technology-only lines, and education.
 - Do not create prose Environment paragraphs. The renderer will display a compact Environment: technology-only line after each employer.
-- Keep the resume visually close to the master: concise summary, concise skills rows, compact bullets, no artificial page breaks, no bloated extra page.
+- Keep the resume visually close to the master: one substantial summary paragraph, concise skills rows, compact bullets, no artificial page breaks, no bloated extra page.
 
 Return valid JSON only using this schema:
 {
@@ -305,7 +313,12 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "employer_footer_is_environment_technology_only": True,
         },
         "structure_contract": {
-            "summary_paragraphs": 2,
+            "summary_paragraphs": 1,
+            "summary_min_words": 95,
+            "summary_target_words": "100-140",
+            "summary_min_sentences": 4,
+            "summary_max_sentences": 6,
+            "summary_style": "substantial_prose_paragraph_not_bullets_or_fragments",
             "fidelity_bullets": experience_bullet_counts().get("Fidelity Investments", 0),
             "cigna_bullets": experience_bullet_counts().get("Cigna Healthcare", 0),
             "target_bullets": experience_bullet_counts().get("Target Corporation", 0),
@@ -494,6 +507,26 @@ def _normalize_experience(raw_experience, normalized_skills: dict) -> list[dict]
     return out
 
 
+def _summary_contract_violations(summary) -> list[str]:
+    text = str(summary or "").strip()
+    reasons = []
+    if not text:
+        return ["professional summary is empty"]
+    if "\n\n" in text:
+        reasons.append("professional summary must be one paragraph")
+    words = re.findall(r"\b[\w+/#.-]+\b", text)
+    sentences = [x for x in re.split(r"(?<=[.!?])\s+", text) if x.strip()]
+    if len(words) < 95:
+        reasons.append(f"professional summary is too short ({len(words)} words; minimum 95)")
+    if len(words) > 160:
+        reasons.append(f"professional summary is too long ({len(words)} words; maximum 160)")
+    if len(sentences) < 4:
+        reasons.append(f"professional summary needs at least 4 complete sentences; got {len(sentences)}")
+    if text.lstrip().startswith(("-", "•", "*")):
+        reasons.append("professional summary must be prose, not a bullet")
+    return reasons
+
+
 def _normalize_generated_resume(result: dict, job) -> dict:
     normalized = deepcopy(result)
     description = job.description or ""
@@ -593,6 +626,49 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         raise RuntimeError(f"OpenAI returned non-JSON resume output: {text[:1200]}") from exc
     if not isinstance(result, dict):
         raise RuntimeError("OpenAI returned a resume payload that is not a JSON object")
+
+    summary_issues = _summary_contract_violations(result.get("summary"))
+    if summary_issues:
+        retry_prompt = deepcopy(prompt)
+        retry_prompt["revision_mode"] = True
+        retry_prompt["summary_quality_feedback"] = summary_issues
+        retry_prompt["task"] = (
+            "Regenerate the resume with the same factual and historical constraints. "
+            "Fix the Professional Summary specifically: return one substantial 100-140 word prose paragraph "
+            "with 4-6 complete sentences and enough senior Data Engineer substance. Do not return summary bullets or fragments."
+        )
+        retry_body = json.dumps(
+            {
+                "model": model,
+                "instructions": SYSTEM_PROMPT,
+                "input": json.dumps(retry_prompt),
+                "max_output_tokens": 14000,
+            }
+        ).encode("utf-8")
+        retry_req = request.Request(
+            endpoint,
+            data=retry_body,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(retry_req, timeout=180) as response:
+                retry_payload = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"OpenAI API summary retry HTTP {exc.code}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"OpenAI API summary retry connection error: {exc.reason}") from exc
+        retry_text = _extract_output_text(retry_payload)
+        try:
+            result = json.loads(retry_text)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"OpenAI returned non-JSON resume output on summary retry: {retry_text[:1200]}") from exc
+        if not isinstance(result, dict):
+            raise RuntimeError("OpenAI returned a summary-retry payload that is not a JSON object")
+        remaining = _summary_contract_violations(result.get("summary"))
+        if remaining:
+            raise RuntimeError("Generated Professional Summary failed quality contract after retry: " + "; ".join(remaining))
 
     result = _normalize_generated_resume(result, job)
     _write_cache(cache_key, result)
