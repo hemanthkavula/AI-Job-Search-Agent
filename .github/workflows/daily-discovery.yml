@@ -184,13 +184,27 @@ jobs:
               echo "No dashboard state exists to sync."
             else
               tar -czf dashboard-sync.tgz -C dashboard-sync generated
-              if ! curl --fail --show-error --silent --retry 3 --retry-delay 5 \
-                -X POST \
-                -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
-                -H "Content-Type: application/gzip" \
-                --data-binary @dashboard-sync.tgz \
-                "$DASHBOARD_SYNC_URL"; then
-                echo "::warning::Hosted dashboard sync failed after retries. Production discovery and resume processing completed successfully; dashboard publishing can recover on the next run."
+              synced=false
+              for attempt in $(seq 1 12); do
+                status=$(curl --show-error --silent \
+                  -o dashboard-sync-response.txt \
+                  -w "%{http_code}" \
+                  -X POST \
+                  -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
+                  -H "Content-Type: application/gzip" \
+                  --data-binary @dashboard-sync.tgz \
+                  "$DASHBOARD_SYNC_URL" || true)
+                if [[ "$status" =~ ^2 ]]; then
+                  echo "Hosted dashboard sync succeeded on attempt $attempt."
+                  cat dashboard-sync-response.txt || true
+                  synced=true
+                  break
+                fi
+                echo "Dashboard sync attempt $attempt/12 returned HTTP $status; Railway may be transitioning deployments."
+                if [ "$attempt" -lt 12 ]; then sleep 10; fi
+              done
+              if [ "$synced" != "true" ]; then
+                echo "::warning::Hosted dashboard sync failed after 12 attempts. Production discovery and resume processing completed successfully; dashboard publishing can recover on the next run."
               fi
             fi
           fi
