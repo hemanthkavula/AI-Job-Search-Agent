@@ -347,7 +347,10 @@ def test_api_list_shows_only_ready_or_applied_rows(isolated):
 
 def test_add_rejects_bad_url_without_http_client(isolated):
     with pytest.raises(Exception) as exc:
-        manual.api_add(manual.LinksInput(links="http://127.0.0.1/job"))
+        manual.api_add(
+            manual.LinksInput(links="http://127.0.0.1/job"),
+            manual.BackgroundTasks(),
+        )
     assert getattr(exc.value, "status_code", None) == 400
 
 
