@@ -18,6 +18,7 @@ on:
       - "app/pdf_export.py"
       - "app/ats_audit.py"
       - "app/dashboard.py"
+      - "app/manual_job_links.py"
       - "app/job_ledger.py"
       - "app/production_cycle.py"
       - "app/jd_finalizer.py"
