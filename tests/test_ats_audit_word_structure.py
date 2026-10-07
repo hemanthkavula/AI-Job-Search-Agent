@@ -1,6 +1,7 @@
 from docx import Document
 
 from app.ats_audit import EXPECTED_COUNTS, _experience_bullets, _experience_cloud_text
+from app.master_resume import load_master_resume
 
 
 def _paragraphs_with_direct_formatted_experience():
@@ -17,6 +18,25 @@ def _paragraphs_with_direct_formatted_experience():
         doc.add_paragraph(f"Skills: {company} tools")
     doc.add_paragraph("EDUCATION")
     return doc.paragraphs
+
+
+def _paragraphs_with_current_no_label_experience():
+    doc = Document()
+    master = load_master_resume()
+    for row in master["experience"]:
+        doc.add_paragraph(f'{row["company"]} | {row["location"]}')
+        doc.add_paragraph(f'{row["title"]}\t{row["dates"]}')
+        for index in range(len(row["bullets"])):
+            doc.add_paragraph(f"Built governed data pipeline responsibility {index + 1}")
+        doc.add_paragraph(f'Environment: {row["company"]} tools')
+    doc.add_paragraph("EDUCATION")
+    return doc.paragraphs
+
+
+def test_experience_audit_reads_current_no_roles_label_layout():
+    paragraphs = _paragraphs_with_current_no_label_experience()
+    by_company = _experience_bullets(paragraphs)
+    assert {company: len(rows) for company, rows in by_company.items()} == EXPECTED_COUNTS
 
 
 def test_experience_audit_reads_master_word_structure_without_list_bullet_style():
