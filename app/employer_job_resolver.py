@@ -69,8 +69,13 @@ def _match_rows(job,rows,provider,identifier=None):
     ranked.sort(key=lambda x:x[0],reverse=True)
     best_score,best=ranked[0]
     # Avoid silently resolving ambiguous boards with several similar roles.
-    if len(ranked)>1 and best_score<0.98 and best_score-ranked[1][0]<0.08:
-        return None
+    if len(ranked)>1 and best_score-ranked[1][0]<0.08:
+        # A requisition-id match is strong enough to disambiguate otherwise
+        # identical titles. Without that evidence, do not guess between multiple
+        # live openings carrying the same title/location.
+        best_req=str(best.get("requisition_id") or best.get("job_id") or "").strip().lower()
+        req_disambiguates=bool(expected_req and best_req and (expected_req==best_req or expected_req in best_req or best_req in expected_req))
+        if not req_disambiguates:return None
     out=dict(best)
     out["ats_provider"]=provider
     out["ats_identifier"]=identifier or out.get("ats_identifier")
