@@ -659,6 +659,20 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
                 "company_source": row.get("company_source") or "manual_state",
                 "title_verified": row.get("title_verified", _has_verified_job_title(row.get("title"))),
             }
+        print(
+            "MANUAL JD QUALITY | company={} | company_source={} | title={} | title_verified={} | "
+            "chars={} | complete={} | usable={}".format(
+                raw.get("company") or "-",
+                raw.get("company_source") or "-",
+                raw.get("title") or "-",
+                bool(raw.get("title_verified", _has_verified_job_title(raw.get("title")))),
+                len(str(raw.get("description") or "")),
+                bool(raw.get("description_complete")),
+                bool(raw.get("description_usable")),
+            ),
+            flush=True,
+        )
+
         if not raw.get("description_usable") or not str(raw.get("description") or "").strip():
             ignore_status = "IGNORED_NO_JD"
             ignore_reason = "No usable JD could be extracted."
