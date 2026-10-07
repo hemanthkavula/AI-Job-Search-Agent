@@ -81,5 +81,8 @@ def fresh_jobs(jobs,hours=24,since=None,now=None):
             item=dict(job);item["freshness_rejection_reason"]="outside requested posting window"
             stale.append(item);continue
         job["freshness_basis"]=basis or "source_timestamp"
+        job["freshness_verified_posted_at"]=ts.isoformat()
+        job["freshness_window_cutoff"]=cutoff.isoformat()
+        job["freshness_checked_at"]=now.isoformat()
         fresh.append(job)
     save_seen(seen);return fresh,stale,already
