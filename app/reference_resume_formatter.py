@@ -20,6 +20,7 @@ W_URI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{W_URI}}}"
 XMLSPACE = "{http://www.w3.org/XML/1998/namespace}space"
 NS = {"w": W_URI}
+REQUIRED_RESUME_FONT = "Calibri"
 
 
 def load_word_format(path=WORD_FORMAT_PATH):
@@ -185,6 +186,20 @@ def _run(paragraph, text, rpr=None):
     run = etree.SubElement(paragraph, W + "r")
     if rpr is not None:
         run.append(deepcopy(rpr))
+    run_properties = run.find(W + "rPr")
+    if run_properties is None:
+        run_properties = etree.Element(W + "rPr")
+        run.insert(0, run_properties)
+    fonts = run_properties.find(W + "rFonts")
+    if fonts is None:
+        fonts = etree.Element(W + "rFonts")
+        run_properties.insert(0, fonts)
+    # Generated content must use the same font family as the authoritative
+    # master resume. Set all Word font slots so LibreOffice/Word do not inherit
+    # a different theme font for tailored text.
+    for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
+        fonts.set(W + attr, REQUIRED_RESUME_FONT)
+
     node = etree.SubElement(run, W + "t")
     node.text = text
     if text[:1].isspace() or text[-1:].isspace():
