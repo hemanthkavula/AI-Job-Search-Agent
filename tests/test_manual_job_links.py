@@ -115,6 +115,78 @@ def test_fallback_title_skips_aggregator_brand():
     assert company == "Example Health"
 
 
+def test_verified_company_prefers_structured_jobposting():
+    company, source = manual._verified_company(
+        resolved_meta={"company": "Acme Health"},
+        initial_meta={"company": "Portal Vendor"},
+        provider="greenhouse",
+        identifier="acmehealth",
+        effective_url="https://boards.greenhouse.io/acmehealth/jobs/1",
+        submitted_url="https://example.com/job",
+        raw_company="Staffing Portal",
+        resolved_site_name="Greenhouse",
+        resolved_fallback="Job Details",
+        initial_site_name="Example Jobs",
+        initial_fallback="Example Jobs",
+    )
+    assert company == "Acme Health"
+    assert source == "resolved_jobposting"
+
+
+def test_verified_company_uses_ats_tenant_before_portal_brand():
+    company, source = manual._verified_company(
+        resolved_meta={},
+        initial_meta={},
+        provider="workday",
+        identifier="eaton|Eaton_Careers",
+        effective_url="https://eaton.wd5.myworkdayjobs.com/Eaton_Careers/job/1",
+        submitted_url="https://example.com/job",
+        raw_company="Workday",
+        resolved_site_name="Workday",
+        resolved_fallback="Job Details",
+        initial_site_name="Example Staffing",
+        initial_fallback="Example Staffing",
+    )
+    assert company == "Eaton"
+    assert source == "ats_tenant"
+
+
+def test_verified_company_does_not_guess_from_single_portal_label():
+    company, source = manual._verified_company(
+        resolved_meta={},
+        initial_meta={},
+        provider=None,
+        identifier=None,
+        effective_url="https://jobs.vendor-portal.example/opening/1",
+        submitted_url="https://jobs.vendor-portal.example/opening/1",
+        raw_company="Vendor Portal",
+        resolved_site_name="Staffing Company",
+        resolved_fallback="Client Confidential",
+        initial_site_name="Different Brand",
+        initial_fallback="Another Name",
+    )
+    assert company == "Vendor Portal"
+    assert source == "employer_domain"
+
+
+def test_verified_company_requires_corroboration_when_host_is_ats_or_aggregator():
+    company, source = manual._verified_company(
+        resolved_meta={},
+        initial_meta={},
+        provider=None,
+        identifier=None,
+        effective_url="https://www.indeed.com/viewjob?jk=123",
+        submitted_url="https://www.indeed.com/viewjob?jk=123",
+        raw_company="Random Staffing",
+        resolved_site_name="Indeed",
+        resolved_fallback="Client Confidential",
+        initial_site_name="Indeed",
+        initial_fallback="Another Name",
+    )
+    assert company == "Company"
+    assert source == "unverified"
+
+
 def test_generic_job_titles_are_not_displayed():
     assert manual._clean_job_title("Job Details") == ""
     assert manual._clean_job_title("Job") == ""
@@ -280,6 +352,26 @@ def test_add_links_persists_separate_manual_state(isolated):
     assert manual.STATE_FILE.exists()
     assert manual.STATE_FILE.parent.name == "manual_job_links"
     assert len(manual._load_state()["jobs"]) == 2
+
+
+def test_reset_manual_state_deletes_only_manual_tree(isolated):
+    rows = manual.add_links(["https://example.com/1", "https://example.com/2"])
+    assert len(rows) == 2
+    manual.WORK_DIR.mkdir(parents=True, exist_ok=True)
+    manual.ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    (manual.WORK_DIR / "scratch.txt").write_text("x")
+    (manual.ARTIFACT_DIR / "resume.pdf").write_bytes(b"x")
+    sibling = manual.STATE_DIR / "normal_pipeline.json"
+    sibling.parent.mkdir(parents=True, exist_ok=True)
+    sibling.write_text("keep")
+
+    deleted = manual.reset_manual_state()
+
+    assert deleted == 2
+    assert manual._load_state()["jobs"] == {}
+    assert not (manual.WORK_DIR / "scratch.txt").exists()
+    assert not (manual.ARTIFACT_DIR / "resume.pdf").exists()
+    assert sibling.read_text() == "keep"
 
 
 def test_duplicate_link_does_not_duplicate_or_reset(isolated):
