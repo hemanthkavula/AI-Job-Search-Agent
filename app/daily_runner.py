@@ -78,6 +78,18 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     company_registry=load_company_registry()
     learn_companies_from_jobs(jobs,company_registry);save_company_registry(company_registry)
     source_since=source_since or {}
+    source_hours=source_hours or {}
+    source_unit_hours=source_unit_hours or {}
+    # Record whether a posting was fetched through a source-recovery lookback.
+    # This is diagnostic only: eligibility still uses the single production cutoff.
+    for job in jobs:
+        source=job.get("source")
+        company=job.get("company_key") or job.get("company") or job.get("tenant")
+        effective_hours=source_unit_hours.get(f"{source}:{company}",source_hours.get(source,hours))
+        try: effective_hours=float(effective_hours)
+        except Exception: effective_hours=float(hours)
+        job["discovery_window_hours"]=effective_hours
+        job["recovery_scan"]=effective_hours > float(hours) + 0.01
     # Provider/tenant recovery windows are discovery-only. A source may scan
     # farther back to repair missed coverage, but an old recovered posting must
     # never become a current-cycle candidate. Eligibility always uses the single
