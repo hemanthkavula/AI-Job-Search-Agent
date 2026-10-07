@@ -99,6 +99,7 @@ def update_from_cycle(source_unit_status, now=None, path=STATE_PATH):
             entry["next_retry_at"] = None
             entry["failure_class"] = None
             entry["last_error"] = None
+            entry["repair_required"] = False
             continue
         if status in {"SKIPPED_HARD_FAILURE", "ERROR", "BACKOFF_TRANSIENT"}:
             failure_class = classify_failure(row) or "transient"
