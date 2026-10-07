@@ -89,6 +89,34 @@ def test_fallback_title_company():
     assert company == "Example Corp"
 
 
+def test_clean_company_removes_portal_suffixes():
+    assert manual._clean_company_label("Ford Global Career Site") == "Ford"
+    assert manual._clean_company_label("Schwab Jobs") == "Schwab"
+    assert manual._clean_company_label("Dayforce Jobs") == ""
+
+
+def test_generic_job_titles_are_not_displayed():
+    assert manual._clean_job_title("Job Details") == ""
+    assert manual._clean_job_title("Job") == ""
+    assert manual._clean_job_title("Senior Data Engineer") == "Senior Data Engineer"
+
+
+def test_ats_display_exposes_provider_and_clean_tenant():
+    label, tenant = manual._ats_display("workday", "unitedhealthgroup|UHG_Careers")
+    assert label == "Workday"
+    assert tenant == "Unitedhealthgroup"
+
+
+def test_terminal_failures_do_not_keep_batch_processing(isolated):
+    row = manual.add_links(["https://example.com/a"])[0]
+    state = manual._load_state()
+    state["jobs"][row["key"]]["status"] = "HOLD_RESUME_ERROR"
+    manual._save_state(state)
+    listing = manual.api_list()
+    assert listing["counts"]["processing"] == 0
+    assert listing["counts"]["hidden_terminal"] == 1
+
+
 def test_fetch_manual_job_does_not_run_discovery_filters(monkeypatch):
     page = """<html><head><title>Data Engineer | Acme</title></head><body>
     <h2>Responsibilities</h2><p>Build scalable data pipelines using Python, SQL, Spark and AWS.</p>
@@ -134,14 +162,15 @@ def test_manual_policy_tailors_partial_usable_jd_with_three_plus_targets():
     assert manual._manual_should_use_master_resume(raw, {"target_count": 5}) is False
 
 
-def test_manual_policy_uses_master_for_two_or_fewer_targets():
+def test_manual_policy_tailors_any_usable_nonzero_targets():
     raw = {
         "description": "Build Python SQL pipelines.",
         "description_usable": True,
         "description_complete": True,
         "tailoring_mode": "FULL_JD",
     }
-    assert manual._manual_should_use_master_resume(raw, {"target_count": 2}) is True
+    assert manual._manual_should_use_master_resume(raw, {"target_count": 1}) is False
+    assert manual._manual_should_use_master_resume(raw, {"target_count": 2}) is False
 
 
 def test_manual_policy_uses_master_for_unusable_or_empty_jd():
@@ -324,9 +353,9 @@ def test_api_functions_add_and_list_without_http_client(isolated):
     assert len(background.tasks) == 1
     listing = manual.api_list()
     assert listing["jobs"] == []
-    assert listing["counts"]["total"] == 0
-    assert listing["counts"]["submitted_total"] == 2
+    assert listing["counts"]["total"] == 2
     assert listing["counts"]["processing"] == 2
+    assert listing["current"] is not None
 
 
 def test_api_list_shows_only_ready_or_applied_rows(isolated):
@@ -342,7 +371,9 @@ def test_api_list_shows_only_ready_or_applied_rows(isolated):
     assert {x["key"] for x in listing["jobs"]} == {rows[0]["key"], rows[2]["key"]}
     assert listing["counts"]["ready"] == 1
     assert listing["counts"]["applied"] == 1
-    assert listing["counts"]["submitted_total"] == 3
+    assert listing["counts"]["total"] == 3
+    assert listing["counts"]["processing"] == 0
+    assert listing["counts"]["hidden_terminal"] == 1
 
 
 def test_add_rejects_bad_url_without_http_client(isolated):
@@ -358,11 +389,13 @@ def test_manual_page_has_required_controls():
     assert "Manual Job Links" in manual.MANUAL_PAGE
     assert "Job Discovery" in manual.MANUAL_PAGE
     assert "Add & Process" in manual.MANUAL_PAGE
-    assert "Process / Retry" in manual.MANUAL_PAGE
+    assert "Still processing" in manual.MANUAL_PAGE
+    assert "Processing" in manual.MANUAL_PAGE
     assert "Mark Applied" in manual.MANUAL_PAGE
     assert "View Resume" in manual.MANUAL_PAGE
     assert "Delete" in manual.MANUAL_PAGE
-    assert "Edit" in manual.MANUAL_PAGE
+    assert "Regenerate" not in manual.MANUAL_PAGE
+    assert "Process / Retry" not in manual.MANUAL_PAGE
 
 
 def test_manual_module_does_not_import_discovery_or_filters():
