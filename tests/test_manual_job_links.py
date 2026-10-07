@@ -225,12 +225,26 @@ def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
     assert seen["company_key"] == "Edited Co"
 
 
-def test_fetch_failure_becomes_editable_attention_state(monkeypatch, isolated):
+def test_blocked_page_falls_back_to_master_resume_path(monkeypatch, isolated):
     row = manual.add_links(["https://example.com/1"])[0]
-    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: (_ for _ in ()).throw(RuntimeError("blocked")))
+    monkeypatch.setattr(manual, "_fetch_public_page", lambda url: None)
+    monkeypatch.setattr(manual, "resolve_original_ats", lambda job: job)
+    monkeypatch.setattr(manual, "resolve_full_jd", lambda job: job)
+    monkeypatch.setattr(manual, "_looks_like_complete_jd", lambda text, source="": False)
+    monkeypatch.setattr(manual, "_looks_like_usable_jd", lambda text, source="": False)
+    monkeypatch.setattr(manual, "detect_ats", lambda url: (None, None))
+    seen = {}
+
+    def fake_pipeline(raw):
+        seen.update(raw)
+        return {"next_action": "READY_TO_APPLY", "resume_path": None, "pdf_path": None}
+
+    monkeypatch.setattr(manual, "run_shared_resume_pipeline", fake_pipeline)
     got = manual.process_job(row["key"])
-    assert got["status"] == "JD_FETCH_FAILED"
-    assert "blocked" in got["error"]
+    assert got["status"] == "READY_TO_APPLY"
+    assert seen["description_usable"] is False
+    assert seen["tailoring_mode"] == "BASE_RESUME_CONSERVATIVE"
+    assert seen["jd_fallback_reason"]
 
 
 def test_resume_failure_preserves_jd_for_retry(monkeypatch, isolated):
@@ -263,10 +277,35 @@ def test_delete_removes_only_manual_artifacts(isolated):
 
 
 def test_api_functions_add_and_list_without_http_client(isolated):
-    added = manual.api_add(manual.LinksInput(links="https://example.com/a\nhttps://example.com/b"))
+    background = manual.BackgroundTasks()
+    added = manual.api_add(
+        manual.LinksInput(links="https://example.com/a\nhttps://example.com/b"),
+        background,
+    )
     assert added["ok"] is True
+    assert added["queued"] == 2
+    assert len(background.tasks) == 1
     listing = manual.api_list()
-    assert listing["counts"]["total"] == 2
+    assert listing["jobs"] == []
+    assert listing["counts"]["total"] == 0
+    assert listing["counts"]["submitted_total"] == 2
+    assert listing["counts"]["processing"] == 2
+
+
+def test_api_list_shows_only_ready_or_applied_rows(isolated):
+    rows = manual.add_links(["https://example.com/a", "https://example.com/b", "https://example.com/c"])
+    state = manual._load_state()
+    state["jobs"][rows[0]["key"]]["status"] = "READY_TO_APPLY"
+    state["jobs"][rows[1]["key"]]["status"] = "HOLD_RESUME_ERROR"
+    state["jobs"][rows[2]["key"]]["status"] = "READY_TO_APPLY"
+    state["jobs"][rows[2]["key"]]["application_status"] = "SUBMITTED_CONFIRMED"
+    manual._save_state(state)
+
+    listing = manual.api_list()
+    assert {x["key"] for x in listing["jobs"]} == {rows[0]["key"], rows[2]["key"]}
+    assert listing["counts"]["ready"] == 1
+    assert listing["counts"]["applied"] == 1
+    assert listing["counts"]["submitted_total"] == 3
 
 
 def test_add_rejects_bad_url_without_http_client(isolated):
