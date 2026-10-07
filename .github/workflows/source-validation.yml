@@ -23,6 +23,8 @@ on:
       - "app/jd_finalizer.py"
       - "app/source_registry.py"
       - "app/source_health.py"
+      - "app/source_reliability.py"
+      - "app/source_repair.py"
       - "app/company_feeders.py"
       - "app/company_universe.py"
       - "app/company_domain_resolver.py"
