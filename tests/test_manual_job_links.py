@@ -132,6 +132,7 @@ def test_startup_recovery_requeues_interrupted_structural_and_bad_company(monkey
         "https://example.com/a",
         "https://example.com/b",
         "https://example.com/c",
+        "https://example.com/d",
     ])
     state = manual._load_state()
     state["jobs"][rows[0]["key"]].update({
@@ -154,6 +155,16 @@ def test_startup_recovery_requeues_interrupted_structural_and_bad_company(monkey
         "description_usable": False,
         "resume_path": "old.docx",
         "pdf_path": "old.pdf",
+    })
+    state["jobs"][rows[3]["key"]].update({
+        "status": "HOLD_ATS_REVIEW",
+        "company": "Walmart Careers",
+        "description": "usable",
+        "description_usable": True,
+        "ats_audit": {
+            "quality_gates": {"structure": False},
+            "blocking_quality_gates": ["structure"],
+        },
     })
     manual._save_state(state)
 
@@ -340,6 +351,26 @@ def test_process_fetched_job_uses_shared_pipeline(monkeypatch, isolated):
     assert got["status"] == "READY_TO_APPLY"
     assert got["company"] == "Example Co"
     assert manual._load_state()["jobs"][row["key"]]["description"]
+
+
+def test_process_job_cleans_stale_portal_company_before_resume(monkeypatch, isolated):
+    row = manual.add_links(["https://example.com/1"])[0]
+    raw = _usable_raw("https://example.com/1")
+    raw["company"] = "Walmart Careers"
+    raw["company_key"] = "Walmart Careers"
+    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: raw)
+    seen = {}
+    monkeypatch.setattr(manual, "run_shared_resume_pipeline", lambda value: (
+        seen.update(value) or {
+            "next_action": "READY_TO_APPLY",
+            "resume_path": None,
+            "pdf_path": None,
+        }
+    ))
+    got = manual.process_job(row["key"])
+    assert got["company"] == "Walmart"
+    assert seen["company"] == "Walmart"
+    assert seen["company_key"] == "Walmart"
 
 
 def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
