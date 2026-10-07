@@ -96,3 +96,62 @@ def test_ambiguous_same_title_board_is_not_silently_resolved(monkeypatch):
     ])
     job={"source":"dice","company_key":"Example Health","title":"Senior Data Engineer","location":"New York, NY","url":"https://www.dice.com/job-detail/abc"}
     assert employer_job_resolver.resolve(job) is None
+
+
+
+def test_direct_eightfold_uses_dedicated_collector(monkeypatch):
+    job = {
+        "company_key": "Eaton",
+        "company": "Eaton",
+        "title": "Lead AI and Data Engineer",
+        "url": "https://eaton.eightfold.ai/careers/job/123",
+        "original_url": "https://eaton.eightfold.ai/careers/job/123",
+        "ats_provider": "eightfold",
+        "ats_identifier": "eaton",
+    }
+    expected = [{
+        "company_key": "Eaton",
+        "title": "Lead AI and Data Engineer",
+        "url": "https://eaton.eightfold.ai/careers/job/123",
+        "original_url": "https://eaton.eightfold.ai/careers/job/123",
+        "job_id": "123",
+        "description": "Responsibilities build AI and data engineering platforms with Python SQL Azure OpenAI Databricks.",
+        "location": "Beachwood, OH",
+    }]
+    seen = {}
+    def fake_eightfold(company, url):
+        seen.update(company=company, url=url)
+        return expected
+
+    monkeypatch.setattr(resolver, "eightfold_jobs", fake_eightfold)
+    monkeypatch.setattr(resolver, "load_company_registry", lambda: {})
+    monkeypatch.setattr(resolver, "load_registry", lambda: {})
+
+    out = resolver.resolve(job)
+
+    assert seen == {
+        "company": "Eaton",
+        "url": "https://eaton.eightfold.ai/careers/job/123",
+    }
+    assert out["title"] == "Lead AI and Data Engineer"
+    assert out["ats_provider"] == "eightfold"
+    assert out["ats_identifier"] == "eaton"
+    assert out["ats_resolution"] == "verified_employer_source_match"
+
+
+def test_direct_ats_url_is_candidate_without_registry(monkeypatch):
+    monkeypatch.setattr(resolver, "load_company_registry", lambda: {})
+    monkeypatch.setattr(resolver, "load_registry", lambda: {})
+    job = {
+        "company_key": "Eaton",
+        "company": "Eaton",
+        "url": "https://eaton.eightfold.ai/careers/job/123",
+        "original_url": "https://eaton.eightfold.ai/careers/job/123",
+        "ats_provider": "eightfold",
+        "ats_identifier": "eaton",
+    }
+    hits = resolver._candidate_sources(job)
+    assert hits
+    assert hits[0]["ats_provider"] == "eightfold"
+    assert hits[0]["careers_url"] == job["original_url"]
+    assert hits[0]["evidence"] == "supplied_direct_ats"
