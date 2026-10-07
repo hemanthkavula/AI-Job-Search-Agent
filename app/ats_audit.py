@@ -145,7 +145,14 @@ def document_text(path):
 
 
 def _experience_sections(paragraphs):
-    """Read company bullets and the compact employer Skills footer from the Word layout."""
+    """Read employer bullets from both legacy labeled and current no-label master layouts.
+
+    The live master puts company/location on one line, title/dates on the next,
+    then bullets directly before the Environment footer. Older generated files
+    can still contain a literal "Roles & Responsibilities:" line, so support both.
+    """
+    master = load_master_resume()
+    titles = {row["company"]: str(row.get("title") or "").strip() for row in master["experience"]}
     by_company = {company: [] for company in EXPECTED_COUNTS}
     footers = {company: "" for company in EXPECTED_COUNTS}
     current = None
@@ -159,14 +166,20 @@ def _experience_sections(paragraphs):
             continue
         if not current:
             continue
+        if text.startswith("Environment:") or text.startswith("Skills:"):
+            footers[current] = text
+            current = None
+            in_roles = False
+            continue
         if text == "Roles & Responsibilities:":
             in_roles = True
             continue
-        if text.startswith("Environment:") or text.startswith("Skills:"):
-            footers[current] = text
-            in_roles = False
+        if not in_roles:
+            title = titles.get(current, "")
+            if title and (text == title or text.startswith(title + "\t")):
+                in_roles = True
             continue
-        if in_roles and text:
+        if text:
             by_company[current].append(text)
     return by_company, footers
 
