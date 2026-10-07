@@ -153,13 +153,13 @@ TAILORING PRIORITY:
    - New tools/services absent from the master may be added to Fidelity only when the current JD explicitly supports them.
    - AI/GenAI/LLM/RAG/vector/MLOps technologies may appear in Fidelity only when relevant to the current JD.
 2. CIGNA HEALTHCARE — Azure historical baseline from the master resume.
-   - Preserve the majority of the master bullets. Reword only the bullets that genuinely benefit from JD alignment.
-   - Do not add a technology that is absent from Cigna's master-backed historical stack.
+   - Bullets MAY be rewritten for semantic JD alignment when useful; they do not have to remain verbatim.
+   - Any technology mentioned in a rewritten Cigna bullet must already be supported by Cigna's master-backed historical stack and must be plausible for the Jan 2022-Dec 2023 employment period.
    - Never add AWS or GCP services.
    - Never add AI/GenAI/LLM/RAG/vector stores/vector search/embeddings/MLOps/feature-store/model-inference technologies.
 3. TARGET CORPORATION — AWS historical baseline from the master resume.
-   - Preserve the majority of the master bullets. Reword only the bullets that genuinely benefit from JD alignment.
-   - Do not add a technology that is absent from Target's master-backed historical stack.
+   - Bullets MAY be rewritten for semantic JD alignment when useful; they do not have to remain verbatim.
+   - Any technology mentioned in a rewritten Target bullet must already be supported by Target's master-backed historical stack and must be plausible for the Jan 2020-Dec 2021 employment period.
    - Never add Azure or GCP services.
    - Never add AI/GenAI/LLM/RAG/vector stores/vector search/embeddings/MLOps/feature-store/model-inference technologies.
 
@@ -168,9 +168,9 @@ TECHNICAL SKILLS:
 - Category names MAY be renamed, merged, split, reordered, or newly created when doing so improves alignment with the current JD and remains ATS-readable.
 - Add relevant JD-supported skills to the most appropriate category. Create a new category when the JD contains a meaningful skill family that does not fit the existing taxonomy.
 - Do not create redundant or near-duplicate categories. Prefer concise category labels that a recruiter would immediately understand.
-- Keep the top Technical Skills section focused on the JD-selected cloud family. Do not force non-target historical cloud families into Technical Skills solely because they appear in older experience.
-- Historical AWS/Azure credibility remains visible in the employer bullets and Environment lines for the employers where it is truthful.
-- If Fidelity's selected cloud is GCP, include a GCP-focused category containing only GCP services actually supported by the JD.
+- Build Technical Skills from the COMPLETE FINAL RESUME after all employer bullets are finalized, not from the JD-selected cloud alone.
+- Preserve technologies credibly evidenced across all employers. If Fidelity is GCP-aligned, Cigna still contributes its Azure skills and Target still contributes its AWS skills to Technical Skills.
+- If Fidelity's selected cloud is GCP, include a GCP-focused category containing only GCP services actually supported by the JD, while retaining historically supported AWS and Azure categories from Target and Cigna.
 - New JD-supported technologies may appear only where allowed by the employer-history and cloud credibility rules.
 - Keep each row concise and ATS-readable. Do not create paragraph-like skill rows.
 
@@ -292,8 +292,8 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
         },
         "technical_source_policy": {
             "fidelity_sources": ["master_resume_baseline", "current_job_description", "pre_generation_coverage_plan"],
-            "cigna_source": "master_resume_baseline_with_light_semantic_alignment_only",
-            "target_source": "master_resume_baseline_with_light_semantic_alignment_only",
+            "cigna_source": "master_resume_historical_whitelist_with_semantic_jd_alignment",
+            "target_source": "master_resume_historical_whitelist_with_semantic_jd_alignment",
             "new_technology_allowed_only_in_fidelity_when_jd_supported": True,
             "fixed_personal_history_must_be_preserved": True,
         },
@@ -311,6 +311,10 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "cigna_dates": "Jan 2022 - Dec 2023",
             "target_dates": "Jan 2020 - Dec 2021",
             "forbid_ai_era_technology_in_cigna_and_target": True,
+            "older_employer_new_technology_requires_master_backing": True,
+            "cigna_employment_window": "Jan 2022-Dec 2023",
+            "target_employment_window": "Jan 2020-Dec 2021",
+            "reject_technology_that_is_not_plausible_for_employer_period": True,
             "forbidden_examples": [
                 "Generative AI", "LLM", "RAG", "vector stores", "vector search", "embeddings",
                 "MLOps", "feature stores", "model inference", "Claude", "Cursor"
