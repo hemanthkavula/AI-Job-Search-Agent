@@ -165,8 +165,29 @@ def test_verified_company_does_not_guess_from_single_portal_label():
         initial_site_name="Different Brand",
         initial_fallback="Another Name",
     )
-    assert company == "Vendor Portal"
-    assert source == "employer_domain"
+    assert company == "Company"
+    assert source == "unverified"
+
+
+
+
+
+def test_verified_company_accepts_direct_domain_when_page_agrees():
+    company, source = manual._verified_company(
+        resolved_meta={},
+        initial_meta={},
+        provider=None,
+        identifier=None,
+        effective_url="https://careers.acme.com/jobs/123",
+        submitted_url="https://careers.acme.com/jobs/123",
+        raw_company="Acme Inc.",
+        resolved_site_name="Acme",
+        resolved_fallback="Senior Data Engineer | Acme",
+        initial_site_name="Acme",
+        initial_fallback="Acme",
+    )
+    assert company in {"Acme", "Acme Inc."}
+    assert source == "corroborated_page_metadata"
 
 
 def test_verified_company_requires_corroboration_when_host_is_ats_or_aggregator():
