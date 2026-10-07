@@ -29,9 +29,9 @@ def test_zero_targets_use_unchanged_master_fallback():
     policy = determine_tailoring_policy(job, {"target_count": 0, "requirements": []})
     assert policy["mode"] == MODE_MASTER
     assert policy["minimum_master_bullets_retained"] == {
-        "Fidelity Investments": 10,
-        "Cigna Healthcare": 8,
-        "Target Corporation": 8,
+        "Fidelity Investments": 8,
+        "Cigna Healthcare": 7,
+        "Target Corporation": 7,
     }
     assert policy["master_is_base"] is True
     assert policy["technical_content_source"] == "unchanged_master_fallback"
@@ -179,13 +179,13 @@ def test_master_retention_counter_enforces_historical_baseline():
     by_company = {row["company"]: list(row["bullets"]) for row in master["experience"]}
     counts = _retained_master_counts(by_company, master)
     assert counts == {
-        "Fidelity Investments": 10,
-        "Cigna Healthcare": 8,
-        "Target Corporation": 8,
+        "Fidelity Investments": 8,
+        "Cigna Healthcare": 7,
+        "Target Corporation": 7,
     }
 
     by_company["Target Corporation"][0] = (
         "Rewritten Target bullet without copying the master sentence."
     )
     counts = _retained_master_counts(by_company, master)
-    assert counts["Target Corporation"] == 7
+    assert counts["Target Corporation"] == 6
