@@ -102,6 +102,8 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["employer_cloud_credibility_policy"]["selected_cloud_by_employer"]["Cigna Healthcare"] == "AZURE"
     assert prompt["employer_cloud_credibility_policy"]["selected_cloud_by_employer"]["Target Corporation"] == "AWS"
     assert prompt["historical_timeline_policy"]["forbid_ai_era_technology_in_cigna_and_target"] is True
+    assert prompt["historical_timeline_policy"]["older_employer_new_technology_requires_master_backing"] is True
+    assert prompt["historical_timeline_policy"]["reject_technology_that_is_not_plausible_for_employer_period"] is True
     assert prompt["skills_policy"]["category_names_are_jd_adaptive"] is True
     assert prompt["skills_policy"]["allow_category_rename_merge_split_reorder"] is True
     assert prompt["skills_policy"]["allow_new_categories_when_jd_supported"] is True
