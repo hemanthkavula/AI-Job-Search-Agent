@@ -131,8 +131,8 @@ def _assert_uploaded_master_headers(doc):
 
 
 def _assert_selective_bold_and_skill_headings_only(doc):
-    summary_start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "PROFESSIONAL SUMMARY")
-    skills_start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "TECHNICAL SKILLS")
+    summary_start = next(i for i, p in enumerate(doc.paragraphs) if p.text.strip().upper() == "PROFESSIONAL SUMMARY")
+    skills_start = next(i for i, p in enumerate(doc.paragraphs) if p.text.strip().upper() == "TECHNICAL SKILLS")
     summary = [p for p in doc.paragraphs[summary_start + 1:skills_start] if p.text.strip()]
     assert len(summary) == 1
     visible = [r for r in summary[0].runs if r.text]
