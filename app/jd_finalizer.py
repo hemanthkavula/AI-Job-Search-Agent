@@ -168,6 +168,106 @@ def _mark_employer_resolution_pending(job):
     except Exception:
         pass
 
+def _jobposting_metadata(page):
+    nodes=_jsonld_jobpostings(page)
+    if not nodes:return {}
+    node=max(nodes,key=lambda n:len(str(n.get("description") or "")))
+    org=node.get("hiringOrganization")
+    company=(org.get("name") if isinstance(org,dict) else "") or ""
+    identifier=node.get("identifier")
+    if isinstance(identifier,dict):
+        identifier=identifier.get("value") or identifier.get("name")
+    locations=[]
+    locs=node.get("jobLocation")
+    locs=locs if isinstance(locs,list) else [locs] if isinstance(locs,dict) else []
+    if str(node.get("jobLocationType") or "").upper()=="TELECOMMUTE":locations.append("Remote")
+    for loc in locs:
+        address=loc.get("address") if isinstance(loc,dict) else None
+        if not isinstance(address,dict):continue
+        text=", ".join(str(address.get(k)).strip() for k in ("addressLocality","addressRegion","addressCountry") if address.get(k))
+        if text and text not in locations:locations.append(text)
+    return {
+        "title":str(node.get("title") or node.get("name") or "").strip(),
+        "company":str(company).strip(),
+        "description":_clean_html(str(node.get("description") or "")),
+        "location":" / ".join(locations),
+        "employment_type":node.get("employmentType"),
+        "posted_at":node.get("datePosted"),
+        "requisition_id":str(identifier or "").strip() or None,
+        "jsonld_url":str(node.get("url") or "").strip() or None,
+        "metadata_resolution_source":"jobposting_jsonld",
+    }
+
+
+def _workday_authoritative_metadata(url,provider=None,identifier=None):
+    provider=provider or detect_ats(url)[0]
+    identifier=identifier or detect_ats(url)[1]
+    if provider!="workday" or not identifier or "|" not in str(identifier):return {}
+    tenant,site=str(identifier).split("|",1)
+    parsed=parse.urlsplit(url or "")
+    host=parsed.hostname or ""
+    path=parsed.path or ""
+    marker=f"/{site}/"
+    idx=path.lower().find(marker.lower())
+    if idx>=0:
+        external_path="/"+path[idx+len(marker):].lstrip("/")
+    else:
+        job_idx=path.lower().find("/job/")
+        external_path=path[job_idx:] if job_idx>=0 else ""
+    if not host or not tenant or not site or not external_path:return {}
+    live,detail=job_detail_is_live(host,tenant,site,external_path)
+    if not live or not isinstance(detail,dict):return {}
+    description=_clean_html(str(detail.get("jobDescription") or ""))
+    locations=[str(detail.get("location") or "").strip()]
+    for item in detail.get("additionalLocations") or []:
+        if item:locations.append(str(item).strip())
+    locations=[x for x in locations if x]
+    return {
+        "title":str(detail.get("title") or "").strip(),
+        "description":description,
+        "location":" | ".join(dict.fromkeys(locations)),
+        "employment_type":detail.get("timeType") or detail.get("workerType"),
+        "posted_at":detail.get("postedOn") or detail.get("postedDate"),
+        "requisition_id":str(detail.get("jobReqId") or detail.get("jobPostingId") or "").strip() or None,
+        "job_id":str(detail.get("jobPostingId") or detail.get("jobReqId") or "").strip() or None,
+        "metadata_resolution_source":"workday_cxs",
+    }
+
+
+def enrich_authoritative_job_metadata(job):
+    """Populate canonical title/company/JD metadata using the same provider/page rules for every path."""
+    out=dict(job or {})
+    url=out.get("original_url") or out.get("url") or ""
+    provider,identifier=detect_ats(url)
+    provider=provider or out.get("ats_provider")
+    identifier=identifier or out.get("ats_identifier")
+    if provider:out["ats_provider"]=provider
+    if identifier:out["ats_identifier"]=identifier
+
+    page=_fetch_public_page(url) if url else ""
+    jsonld=_jobposting_metadata(page) if page else {}
+    provider_meta=_workday_authoritative_metadata(url,provider,identifier)
+    authoritative=provider_meta or jsonld
+
+    # Provider detail APIs outrank page metadata; page JobPosting metadata outranks
+    # source/aggregator labels. Fill only supported fields and keep provenance.
+    if authoritative:
+        if authoritative.get("title"):out["title"]=authoritative["title"]
+        company=str(authoritative.get("company") or "").strip()
+        if company:
+            out["company_key"]=company
+            out["company"]=company
+        for key in ("location","employment_type","requisition_id","job_id","posted_at"):
+            if authoritative.get(key) not in (None,"",[],{}):out[key]=authoritative.get(key)
+        desc=str(authoritative.get("description") or "").strip()
+        if desc and _looks_like_usable_jd(desc,provider or out.get("source") or ""):
+            out["description"]=desc
+            out["description_length"]=len(desc)
+        out["metadata_resolution_source"]=authoritative.get("metadata_resolution_source")
+        out["metadata_verified"]=True
+    return out
+
+
 def _best_resolved_description(page,source=""):
     jsonld=_extract_jsonld_job_description(page)
     extracted=_extract_dice(page) if (source or "").lower()=="dice" else _clean_html(page)
@@ -232,6 +332,7 @@ def _resolve_employer_career_page(job):
 def resolve_full_jd(job):
     """Resolve full JD only after lightweight eligibility. Never calls an LLM."""
     job=resolve_original_ats(job)
+    job=enrich_authoritative_job_metadata(job)
     current=(job.get("description") or "").strip()
     source=(job.get("source") or "").lower()
     lead_before_resolution=job.get("original_url") or job.get("url") or ""
