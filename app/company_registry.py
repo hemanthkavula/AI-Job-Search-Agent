@@ -5,13 +5,47 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 DEFAULT_PATH=str(Path(os.getenv("JOB_AGENT_STATE_DIR","generated"))/"company_registry.json")
+AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com")
+
+def _is_aggregator_url(value):
+    try:
+        host=(urlparse(str(value or "")).netloc or "").lower()
+    except Exception:
+        return False
+    return any(host==x or host.endswith("."+x) for x in AGGREGATOR_HOSTS)
+
+def sanitize_aggregator_evidence(registry):
+    """Prevent job-board URLs from masquerading as employer career/domain evidence."""
+    for row in (registry or {}).values():
+        if not isinstance(row,dict):continue
+        for field in ("careers_url","official_url"):
+            if row.get(field) and _is_aggregator_url(row.get(field)):
+                row["aggregator_"+field]=row.get(field)
+                row.pop(field,None)
+        if row.get("official_domain") and any(
+            str(row.get("official_domain")).lower()==h or str(row.get("official_domain")).lower().endswith("."+h)
+            for h in AGGREGATOR_HOSTS
+        ):
+            row.pop("official_domain",None)
+        evidence=row.get("organization_url_evidence")
+        if evidence and _is_aggregator_url(evidence):
+            row["aggregator_company_url"]=evidence
+            row.pop("organization_url_evidence",None)
+            row.pop("organization_url_evidence_source",None)
+        candidate=row.get("domain_candidate_url")
+        if candidate and _is_aggregator_url(candidate):
+            row.pop("domain_candidate_url",None)
+            row.pop("domain_candidate_host",None)
+            row.pop("domain_candidate_evidence",None)
+    return registry
 
 def load(path=DEFAULT_PATH):
     p=Path(path)
     if not p.exists(): return {}
-    try:return json.loads(p.read_text(encoding="utf-8"))
+    try:return sanitize_aggregator_evidence(json.loads(p.read_text(encoding="utf-8")))
     except Exception:return {}
 
 def save(registry,path=DEFAULT_PATH):
@@ -44,7 +78,11 @@ def learn_from_jobs(jobs,registry):
         # record. Unknown/non-ATS job-detail URLs remain evidence only and are not
         # promoted to careers_url.
         source_url=j.get("original_url") or j.get("url")
-        verified_ats=bool(j.get("ats_provider") and j.get("ats_identifier"))
+        verified_ats=bool(
+            j.get("ats_provider") and j.get("ats_identifier")
+            and (j.get("ats_provider") or "").lower() not in {"dice","indeed","linkedin","ziprecruiter","monster"}
+            and not _is_aggregator_url(source_url)
+        )
         upsert(registry,company,
                careers_url=source_url if verified_ats else None,
                ats_provider=j.get("ats_provider"),ats_identifier=j.get("ats_identifier"),
@@ -59,6 +97,9 @@ def learn_from_jobs(jobs,registry):
         # verifies the employer name on the first-party destination.
         candidate=j.get("organization_url_evidence")
         key=company_key(company or "")
+        if candidate and _is_aggregator_url(candidate):
+            if key in registry:registry[key]["aggregator_company_url"]=candidate
+            candidate=None
         if candidate and key in registry:
             registry[key]["organization_url_evidence"]=candidate
             registry[key]["organization_url_evidence_source"]="jobposting_hiring_organization"
