@@ -49,7 +49,7 @@ def test_verified_source_registry_resolves_exact_employer_job(monkeypatch):
         }]
     })
     monkeypatch.setattr(employer_job_resolver,"resolve_ats_tenant",lambda company:None)
-    monkeypatch.setattr(employer_job_resolver,"greenhouse_jobs",lambda token:[
+    monkeypatch.setattr(employer_job_resolver,"fetch_provider_jobs",lambda provider,company,source,hours=48: ([
         {
             "title":"Senior Data Engineer",
             "location":"New York, NY",
@@ -64,7 +64,7 @@ def test_verified_source_registry_resolves_exact_employer_job(monkeypatch):
             "url":"https://boards.greenhouse.io/examplehealth/jobs/111",
             "description":"analytics",
         },
-    ])
+    ],"greenhouse","examplehealth"))
     monkeypatch.setattr(employer_job_resolver,"save_registry",lambda reg:None)
     monkeypatch.setattr(employer_job_resolver,"save_company_registry",lambda reg:None)
 
@@ -90,9 +90,61 @@ def test_ambiguous_same_title_board_is_not_silently_resolved(monkeypatch):
         }]
     })
     monkeypatch.setattr(employer_job_resolver,"resolve_ats_tenant",lambda company:None)
-    monkeypatch.setattr(employer_job_resolver,"greenhouse_jobs",lambda token:[
+    monkeypatch.setattr(employer_job_resolver,"fetch_provider_jobs",lambda provider,company,source,hours=48: ([
         {"title":"Senior Data Engineer","location":"New York, NY","url":"https://boards.greenhouse.io/examplehealth/jobs/1","description":"Python SQL pipelines"},
         {"title":"Senior Data Engineer","location":"New York, NY","url":"https://boards.greenhouse.io/examplehealth/jobs/2","description":"Python SQL pipelines"},
-    ])
+    ],"greenhouse","examplehealth"))
     job={"source":"dice","company_key":"Example Health","title":"Senior Data Engineer","location":"New York, NY","url":"https://www.dice.com/job-detail/abc"}
     assert employer_job_resolver.resolve(job) is None
+
+
+
+
+def test_direct_exact_ats_url_resolves_without_prior_title(monkeypatch):
+    monkeypatch.setattr(employer_job_resolver,"load_company_registry",lambda:{})
+    monkeypatch.setattr(employer_job_resolver,"load_registry",lambda:{})
+    monkeypatch.setattr(employer_job_resolver,"save_registry",lambda reg:None)
+    monkeypatch.setattr(employer_job_resolver,"save_company_registry",lambda reg:None)
+
+    url="https://eaton.eightfold.ai/careers/job/123"
+    expected=[{
+        "company_key":"Eaton",
+        "title":"Lead AI and Data Engineer",
+        "url":url,
+        "original_url":url,
+        "job_id":"123",
+        "description":"Responsibilities build AI and data engineering platforms with Python SQL Azure OpenAI Databricks.",
+        "location":"Beachwood, OH",
+    }]
+    seen={}
+    def fake_dispatch(provider,company,source,hours=48):
+        seen.update(provider=provider,company=company,url=source.get("careers_url"))
+        return expected,"eightfold","eaton"
+
+    monkeypatch.setattr(employer_job_resolver,"fetch_provider_jobs",fake_dispatch)
+    job={
+        "company_key":"Eaton","company":"Eaton","title":"Job opening",
+        "url":url,"original_url":url,"ats_provider":"eightfold","ats_identifier":"eaton",
+    }
+    out=employer_job_resolver.resolve(job)
+    assert seen=={"provider":"eightfold","company":"Eaton","url":url}
+    assert out["title"]=="Lead AI and Data Engineer"
+    assert out["ats_provider"]=="eightfold"
+    assert out["ats_identifier"]=="eaton"
+    assert out["ats_resolution"]=="verified_employer_source_match"
+
+
+def test_direct_ats_url_is_candidate_without_registry(monkeypatch):
+    monkeypatch.setattr(employer_job_resolver,"load_company_registry",lambda:{})
+    monkeypatch.setattr(employer_job_resolver,"load_registry",lambda:{})
+    job={
+        "company_key":"Eaton","company":"Eaton",
+        "url":"https://eaton.eightfold.ai/careers/job/123",
+        "original_url":"https://eaton.eightfold.ai/careers/job/123",
+        "ats_provider":"eightfold","ats_identifier":"eaton",
+    }
+    hits=employer_job_resolver._candidate_sources(job)
+    assert hits
+    assert hits[0]["ats_provider"]=="eightfold"
+    assert hits[0]["careers_url"]==job["original_url"]
+    assert hits[0]["evidence"]=="supplied_direct_ats"
