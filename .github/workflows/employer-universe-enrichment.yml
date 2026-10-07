@@ -56,6 +56,10 @@ jobs:
             job-agent-state-
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Repair queued failed sources first
+        continue-on-error: true
+        run: python -m app.source_repair --limit 50
+
       - name: Run employer-universe enrichment only
         env:
           COLLEGE_SCORECARD_API_KEY: ${{ secrets.COLLEGE_SCORECARD_API_KEY }}
