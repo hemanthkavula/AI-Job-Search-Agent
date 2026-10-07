@@ -405,7 +405,7 @@ def _paragraph_formats_match(rows, template_rows):
     return True
 
 
-def validate_master_format_contract(path, master=None, word_format=None, expected_summary_paragraphs=1):
+def validate_master_format_contract(path, master=None, word_format=None, expected_summary_paragraphs=None):
     master = master or load_master_resume()
     fmt = word_format or load_word_format()
     template = _template(fmt)
@@ -429,7 +429,9 @@ def validate_master_format_contract(path, master=None, word_format=None, expecte
             reasons.append("heading_format_" + heading)
     summary_rows = [p for p in _between(output_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     source_summary_rows = [p for p in _between(source_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
-    expected_summary_paragraphs = int(expected_summary_paragraphs or 1)
+    if expected_summary_paragraphs is None:
+        expected_summary_paragraphs = len(summary_rows)
+    expected_summary_paragraphs = int(expected_summary_paragraphs)
     if len(summary_rows) != expected_summary_paragraphs:
         reasons.append("summary_structure")
     elif not _paragraph_formats_match(summary_rows, source_summary_rows[:expected_summary_paragraphs]):
