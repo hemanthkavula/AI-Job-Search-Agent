@@ -62,6 +62,10 @@ def audit(summary_path:str)->dict:
                         "external_id":eid,"source":row.get("source"),"company_key":row.get("company"),
                         "title":row.get("title"),"location":row.get("location"),
                         "employment_type":row.get("employment_type"),"description":row.get("description") or "",
+                        "application_questions":row.get("application_questions"),
+                        "screening_questions":row.get("screening_questions"),
+                        "questions":row.get("questions"),
+                        "application_form":row.get("application_form"),
                     },profile)
                     if not hard_ok:
                         fail(f"final hard-filter audit failed for {eid}: {'; '.join(hard_reasons)}")
