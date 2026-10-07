@@ -65,3 +65,16 @@ def test_unparseable_explicit_posting_does_not_fall_back_to_updated_at(tmp_path,
     fresh,stale,_=freshness.fresh_jobs([job],hours=24,now=now)
     assert fresh==[]
     assert stale[0]["freshness_rejection_reason"]=="missing trustworthy posting timestamp"
+
+
+def test_fresh_job_records_verifiable_timestamp_and_cutoff(tmp_path, monkeypatch):
+    monkeypatch.setattr(freshness,"STATE",tmp_path/"seen.json")
+    monkeypatch.setattr(freshness,"STATUS",tmp_path/"status.json")
+    now=datetime(2026,10,7,14,0,tzinfo=timezone.utc)
+    cutoff="2026-10-07T12:00:00+00:00"
+    job={"external_id":"proof","posted_at":"2026-10-07T13:00:00+00:00"}
+    fresh,stale,_=freshness.fresh_jobs([job],hours=2,since=cutoff,now=now)
+    assert stale==[]
+    assert fresh[0]["freshness_verified_posted_at"]=="2026-10-07T13:00:00+00:00"
+    assert fresh[0]["freshness_window_cutoff"]==cutoff
+    assert fresh[0]["freshness_checked_at"]==now.isoformat()
