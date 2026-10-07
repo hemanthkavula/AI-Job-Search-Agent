@@ -181,6 +181,13 @@ PROFESSIONAL SUMMARY:
 - Use the master summary as the baseline level of substance. A tailored summary must not be materially thinner than the master summary.
 - Keep it information-dense and natural; do not keyword-stuff or invent metrics.
 
+WHOLE-RESUME JD ALIGNMENT:
+- Treat the Professional Summary, Technical Skills, Fidelity experience, and permitted historical-experience wording as one coordinated JD-tailoring problem.
+- Material JD requirements should be reflected in the most credible section(s), not dumped into Technical Skills only.
+- If a required technology is added to Technical Skills, use it in Fidelity experience when the JD supports it and the experience remains truthful and interview-defensible.
+- Avoid contradictions where the skills section claims a technology that is unsupported by the tailored experience or the allowed historical baseline.
+- Prioritize the JD's required skills, responsibilities, architecture patterns, data-platform concepts, and domain language while preserving all factual/history constraints.
+
 PROFESSIONAL EXPERIENCE:
 - Preserve exactly the employer bullet counts supplied in structure_contract from the current master resume.
 - One bullet = one concise engineering sentence. Keep the length close to the corresponding master bullet; do not turn bullets into paragraphs.
@@ -345,6 +352,8 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "historical_technology_credibility_required": True,
             "technical_skills_taxonomy_should_match_jd": True,
             "technical_skills_should_cover_material_jd_terms": True,
+            "summary_skills_and_experience_must_be_coherent": True,
+            "material_jd_requirements_should_map_to_credible_resume_evidence": True,
         },
     }
     if audit_feedback:
