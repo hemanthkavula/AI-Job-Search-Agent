@@ -609,6 +609,11 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             print(f"MANUAL IGNORE NO JD | {row.get('submitted_url') or row.get('url')}", flush=True)
             return _public(row)
 
+        # A usable manual JD always enters the shared LLM tailoring path. This
+        # flag only controls master-vs-tailored selection; prompts, retries, ATS
+        # audit, formatting, and artifact validation remain the production code.
+        raw["force_jd_tailoring"] = True
+
         clean_company = (
             _clean_company_label(raw.get("company_key") or raw.get("company"))
             or _ats_company_hint(raw.get("ats_provider"), raw.get("ats_identifier"), raw.get("original_url") or raw.get("url") or "")
