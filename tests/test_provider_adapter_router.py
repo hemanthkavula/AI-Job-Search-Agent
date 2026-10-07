@@ -100,3 +100,30 @@ def test_board_fallback_normalizes_generic_detail_url(monkeypatch):
     url="https://tenant.eightfold.ai/careers/job/abc123"
     router.fetch_provider_jobs(None,"Eaton",{"original_url":url})
     assert seen["url"]=="https://tenant.eightfold.ai/careers"
+
+
+
+def test_fetch_exact_job_prefers_provider_native_exact_fetcher(monkeypatch):
+    url="https://tenant.eightfold.ai/careers/job/12345"
+    seen={}
+    def fake(company,job_url,timeout=25):
+        seen.update(company=company,url=job_url,timeout=timeout)
+        return {
+            "title":"Lead AI and Data Engineer",
+            "company_key":"Eaton",
+            "url":url,
+            "original_url":url,
+            "job_id":"12345",
+            "requisition_id":"12345",
+            "description":"Responsibilities build scalable AI and data engineering solutions. Requirements Python SQL Databricks Azure OpenAI machine learning deployment monitoring CI/CD production support.",
+            "location":"Beachwood, OH",
+            "exact_job_metadata_source":"eightfold_public_api",
+        }
+    monkeypatch.setattr(router,"eightfold_job",fake)
+    row,provider,identifier=router.fetch_exact_job(None,"Eaton",{"original_url":url})
+    assert provider=="eightfold"
+    assert identifier=="tenant"
+    assert seen["company"]=="Eaton"
+    assert seen["url"]==url
+    assert row["title"]=="Lead AI and Data Engineer"
+    assert row["exact_job_metadata_source"]=="eightfold_public_api"

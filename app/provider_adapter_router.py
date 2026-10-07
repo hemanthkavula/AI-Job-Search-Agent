@@ -156,11 +156,28 @@ def _candidate_score(row: dict, target_url: str) -> float:
 
 
 def fetch_exact_job(provider: str | None, company: str, source: dict, *, timeout: int = 25) -> tuple[dict | None, str | None, str | None]:
-    """Extract one exact job directly from a supplied ATS detail URL, independent of discovery title filters."""
+    """Extract one exact job from a supplied ATS detail URL before any board enumeration."""
     url=source_url(source)
     identifier=source.get("ats_identifier") or source.get("identifier")
     provider,identifier=detected_source(url,provider or source.get("ats_provider"),identifier)
     if not provider or not url:return None,provider,identifier
+
+    # Prefer provider-native exact-job APIs when available. These understand the
+    # ATS's own detail endpoint better than generic HTML/JSON parsing.
+    exact_fetchers={
+        "eightfold": eightfold_job,
+    }
+    exact_fetcher=exact_fetchers.get(provider)
+    if exact_fetcher:
+        try:
+            row=exact_fetcher(company or provider,url,timeout=timeout)
+        except Exception:
+            row=None
+        if row:
+            row["ats_provider"]=provider
+            row["ats_identifier"]=row.get("ats_identifier") or identifier
+            row["exact_job_metadata_source"]=row.get("exact_job_metadata_source") or f"{provider}_exact_api"
+            return row,provider,row.get("ats_identifier") or identifier
 
     # Provider-native exact-detail APIs outrank HTML scraping. They return the
     # same canonical fields used by discovery but do not require the title to be
