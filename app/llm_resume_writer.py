@@ -164,11 +164,14 @@ TAILORING PRIORITY:
    - Never add AI/GenAI/LLM/RAG/vector stores/vector search/embeddings/MLOps/feature-store/model-inference technologies.
 
 TECHNICAL SKILLS:
-- Always retain the master resume's separate Cloud Platforms (AWS) and Cloud Platforms (Azure) groups and their master-backed skills.
-- If Fidelity's selected cloud is GCP, add a separate Cloud Platforms (GCP) group containing only GCP services actually supported by the JD.
-- If Fidelity's selected cloud is AWS or Azure and the JD names additional services in that selected family, those new JD-supported services may be added to the matching cloud group.
-- New non-cloud tools explicitly required by the JD may be added to an appropriate technical category when they are used in Fidelity.
-- Keep categories concise and ATS-readable. Do not create paragraph-like skill rows.
+- The TECHNICAL SKILLS section and row styling are fixed, but the LLM owns the category taxonomy for tailored resumes.
+- Category names MAY be renamed, merged, split, reordered, or newly created when doing so improves alignment with the current JD and remains ATS-readable.
+- Add relevant JD-supported skills to the most appropriate category. Create a new category when the JD contains a meaningful skill family that does not fit the existing taxonomy.
+- Do not create redundant or near-duplicate categories. Prefer concise category labels that a recruiter would immediately understand.
+- Preserve the master-backed AWS and Azure technology baselines somewhere in the final skills section even if their category labels are renamed.
+- If Fidelity's selected cloud is GCP, include a GCP-focused category containing only GCP services actually supported by the JD.
+- New JD-supported technologies may appear only where allowed by the employer-history and cloud credibility rules.
+- Keep each row concise and ATS-readable. Do not create paragraph-like skill rows.
 
 PROFESSIONAL SUMMARY:
 - Write ONE substantial prose paragraph, never bullets, fragments, labels, or short point-like statements.
@@ -306,10 +309,14 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             ],
         },
         "skills_policy": {
-            "retain_master_aws_group": True,
-            "retain_master_azure_group": True,
-            "add_gcp_group_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
+            "category_names_are_jd_adaptive": True,
+            "allow_category_rename_merge_split_reorder": True,
+            "allow_new_categories_when_jd_supported": True,
+            "preserve_master_aws_technology_baseline": True,
+            "preserve_master_azure_technology_baseline": True,
+            "add_gcp_category_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
             "new_fidelity_jd_tools_may_be_added": True,
+            "avoid_redundant_categories": True,
             "employer_footer_is_environment_technology_only": True,
         },
         "structure_contract": {
@@ -336,6 +343,8 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "fidelity_must_never_mix_cloud_families": True,
             "domain_coherence_required": True,
             "historical_technology_credibility_required": True,
+            "technical_skills_taxonomy_should_match_jd": True,
+            "technical_skills_should_cover_material_jd_terms": True,
         },
     }
     if audit_feedback:
@@ -369,41 +378,79 @@ def _jd_cloud_services(description: str, cloud: str) -> list[str]:
     return out
 
 
+def _category_matches(category: str, family: str) -> bool:
+    low = str(category or "").casefold()
+    if family == "programming":
+        return any(token in low for token in ("programming", "language", "coding", "query"))
+    if family == CLOUD_AWS:
+        return "aws" in low or "amazon" in low
+    if family == CLOUD_AZURE:
+        return "azure" in low or "microsoft cloud" in low
+    if family == CLOUD_GCP:
+        return "gcp" in low or "google cloud" in low
+    return False
+
+
+def _find_category(out: dict, family: str):
+    return next((name for name in out if _category_matches(name, family)), None)
+
+
 def _normalize_skills(raw_skills, description: str) -> dict:
     master = load_master_resume()
     master_skills = master["skills"]
     source = raw_skills if isinstance(raw_skills, dict) else {}
     selected = employer_cloud_modes(description).get("Fidelity Investments", CLOUD_AWS)
 
+    # Preserve the LLM's JD-adaptive category taxonomy and ordering.
     out = {}
-    out["Programming Languages"] = _merge_unique(
-        master_skills.get("Programming Languages", []),
-        source.get("Programming Languages", []),
-    )[:8]
-
-    aws_values = list(master_skills.get("Cloud Platforms (AWS)", []))
-    azure_values = list(master_skills.get("Cloud Platforms (Azure)", []))
-    if selected == CLOUD_AWS:
-        aws_values = _merge_unique(aws_values, _jd_cloud_services(description, CLOUD_AWS))
-    if selected == CLOUD_AZURE:
-        azure_values = _merge_unique(azure_values, _jd_cloud_services(description, CLOUD_AZURE))
-
-    out["Cloud Platforms (AWS)"] = aws_values[:12]
-    out["Cloud Platforms (Azure)"] = azure_values[:12]
-    if selected == CLOUD_GCP:
-        gcp_values = _jd_cloud_services(description, CLOUD_GCP)
-        if not gcp_values:
-            gcp_values = ["Google Cloud Platform (GCP)"]
-        out["Cloud Platforms (GCP)"] = _merge_unique(gcp_values)[:12]
-
     for category, values in source.items():
-        name = str(category).strip()
-        low = name.casefold()
-        if not name or name == "Programming Languages" or "cloud platform" in low:
+        name = re.sub(r"\s+", " ", str(category or "")).strip().strip(":")
+        compact = _merge_unique(values)[:12]
+        if not name or not compact:
             continue
-        compact = _merge_unique(values)[:8]
-        if compact:
+        # Avoid duplicate category labels that differ only by case.
+        existing = next((key for key in out if key.casefold() == name.casefold()), None)
+        if existing:
+            out[existing] = _merge_unique(out[existing], compact)[:12]
+        else:
             out[name] = compact
+
+    # If the LLM returned nothing useful, fall back to the master taxonomy.
+    if not out:
+        out = {
+            str(category): list(values)
+            for category, values in master_skills.items()
+            if values
+        }
+
+    # Preserve the candidate's master-backed programming/AWS/Azure baselines,
+    # but place them into the LLM's chosen category names whenever possible.
+    required_families = (
+        ("programming", "Programming Languages", list(master_skills.get("Programming Languages", []))),
+        (CLOUD_AWS, "Cloud Platforms (AWS)", list(master_skills.get("Cloud Platforms (AWS)", []))),
+        (CLOUD_AZURE, "Cloud Platforms (Azure)", list(master_skills.get("Cloud Platforms (Azure)", []))),
+    )
+    for family, fallback_name, baseline in required_families:
+        if not baseline:
+            continue
+        category = _find_category(out, family)
+        if category is None:
+            category = fallback_name
+            out[category] = []
+        additions = list(baseline)
+        if family == selected and family in {CLOUD_AWS, CLOUD_AZURE}:
+            additions = _merge_unique(additions, _jd_cloud_services(description, family))
+        out[category] = _merge_unique(out[category], additions)[:12]
+
+    # A JD-driven GCP category is required only when Fidelity is being tailored to GCP.
+    if selected == CLOUD_GCP:
+        category = _find_category(out, CLOUD_GCP)
+        if category is None:
+            category = "Cloud Platforms (GCP)"
+            out[category] = []
+        gcp_values = _jd_cloud_services(description, CLOUD_GCP) or ["Google Cloud Platform (GCP)"]
+        out[category] = _merge_unique(out[category], gcp_values)[:12]
+
     return out
 
 
