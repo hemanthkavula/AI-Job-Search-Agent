@@ -133,12 +133,15 @@ def _retryable_resume_error(exc):
 
 
 def _should_use_master_resume(raw, coverage_plan):
-    """Restore the pre-formatting resume policy.
+    """Choose master vs JD-tailored content.
 
-    A weak/partial JD or a JD with only 0-2 meaningful targets uses the uploaded
-    master resume unchanged. Three or more usable targets justify JD tailoring.
-    Formatting changes must not change this content-selection behavior.
+    Normal discovery keeps the pre-formatting policy. A manually supplied link
+    may opt into JD tailoring only after the manual resolver has confirmed that
+    a usable job description exists; all downstream generation/audit rules stay
+    identical to production.
     """
+    if raw.get("force_jd_tailoring") is True:
+        return False
     targets = int(coverage_plan.get("target_count") or 0)
     if targets <= 2:
         return True
