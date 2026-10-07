@@ -91,38 +91,11 @@ def test_title_from_description_recovers_explicit_seeking_role():
     assert manual._title_from_description(jd, "Eaton") == "Lead AI and Data Engineer"
 
 
-def test_workday_detail_metadata_uses_public_cxs_detail(monkeypatch):
-    detail = {
-        "title": "Lead AI and Data Engineer",
-        "jobDescription": "<p>Eaton's Corporate Sector division is currently seeking a Lead AI and Data Engineer.</p>"
-                          "<h2>What you'll do</h2><p>Build Azure OpenAI and data engineering solutions.</p>",
-        "location": "Beachwood, OH",
-        "additionalLocations": ["Mountainside, NJ"],
-        "timeType": "Full time",
-        "jobReqId": "JR12345",
-    }
-    seen = {}
-    def fake_live(host, tenant, site, external_path):
-        seen.update(host=host, tenant=tenant, site=site, external_path=external_path)
-        return True, detail
-
-    monkeypatch.setattr(manual, "job_detail_is_live", fake_live)
-    got = manual._workday_detail_metadata(
-        "https://eaton.wd5.myworkdayjobs.com/en-US/Eaton_Careers/job/Beachwood-OH/Lead-AI-and-Data-Engineer_JR12345",
-        "workday",
-        "eaton|Eaton_Careers",
-    )
-    assert seen == {
-        "host": "eaton.wd5.myworkdayjobs.com",
-        "tenant": "eaton",
-        "site": "Eaton_Careers",
-        "external_path": "/job/Beachwood-OH/Lead-AI-and-Data-Engineer_JR12345",
-    }
-    assert got["title"] == "Lead AI and Data Engineer"
-    assert got["requisition_id"] == "JR12345"
-    assert got["location"] == "Beachwood, OH | Mountainside, NJ"
-    assert "Azure OpenAI" in got["description"]
-    assert got["source"] == "workday_cxs"
+def test_manual_module_routes_authoritative_metadata_through_shared_finalizer():
+    source = Path(manual.__file__).read_text(encoding="utf-8")
+    assert "enrich_authoritative_job_metadata" in source
+    assert "def _workday_detail_metadata" not in source
+    assert "job_detail_is_live" not in source
 
 
 def test_fallback_title_company():

@@ -29,10 +29,10 @@ from app.jd_finalizer import (
     _jsonld_jobpostings,
     _looks_like_complete_jd,
     _looks_like_usable_jd,
+    enrich_authoritative_job_metadata,
     resolve_full_jd,
 )
 from app.source_registry import detect_ats
-from app.sources.workday import job_detail_is_live
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = Path(os.getenv("JOB_AGENT_STATE_DIR", ROOT / "generated"))
@@ -211,45 +211,6 @@ def _title_from_description(text: str, company: str | None = None) -> str:
         if candidate and role_hint.search(candidate):
             return candidate
     return ""
-
-
-def _workday_detail_metadata(url: str, provider: str | None, identifier: str | None) -> dict:
-    """Use Workday's public CXS detail endpoint as the authoritative metadata/JD source."""
-    if provider != "workday" or not identifier or "|" not in identifier:
-        return {}
-    tenant, site = identifier.split("|", 1)
-    parsed = urlsplit(url or "")
-    host = parsed.hostname or ""
-    path = parsed.path or ""
-    external_path = ""
-    marker = f"/{site}/"
-    idx = path.lower().find(marker.lower())
-    if idx >= 0:
-        external_path = "/" + path[idx + len(marker):].lstrip("/")
-    else:
-        job_idx = path.lower().find("/job/")
-        if job_idx >= 0:
-            external_path = path[job_idx:]
-    if not host or not tenant or not site or not external_path:
-        return {}
-    live, detail = job_detail_is_live(host, tenant, site, external_path)
-    if not live or not isinstance(detail, dict):
-        return {}
-    description = _clean_html(str(detail.get("jobDescription") or ""))
-    locations = [str(detail.get("location") or "").strip()]
-    for item in detail.get("additionalLocations") or []:
-        if item:
-            locations.append(str(item).strip())
-    locations = [x for x in locations if x]
-    return {
-        "title": str(detail.get("title") or "").strip(),
-        "description": description,
-        "location": " | ".join(dict.fromkeys(locations)),
-        "employment_type": detail.get("timeType") or detail.get("workerType"),
-        "posted_at": detail.get("postedOn") or detail.get("postedDate"),
-        "requisition_id": str(detail.get("jobReqId") or detail.get("jobPostingId") or "").strip() or None,
-        "source": "workday_cxs",
-    }
 
 
 def _heading_job_title(page: str) -> str:
@@ -516,7 +477,7 @@ def fetch_manual_job(url: str) -> dict:
         except Exception:
             resolved_page = page
     resolved_meta = _jsonld_metadata(resolved_page) if resolved_page else {}
-    workday_meta = _workday_detail_metadata(effective, provider, identifier)
+    authoritative_raw = raw
     resolved_title_fallback, resolved_company_fallback = (
         _fallback_title_company(resolved_page) if resolved_page else ("", "")
     )
@@ -536,7 +497,7 @@ def fetch_manual_job(url: str) -> dict:
     )
 
     authoritative_description = (
-        str(workday_meta.get("description") or "").strip()
+        str(authoritative_raw.get("description") or "").strip()
         or str(resolved_meta.get("description") or "").strip()
         or str(initial_meta.get("description") or "").strip()
     )
@@ -548,13 +509,13 @@ def fetch_manual_job(url: str) -> dict:
     ]
     if authoritative_description and _looks_like_usable_jd(authoritative_description, provider or "manual_link"):
         best_description = authoritative_description
-        description_source = workday_meta.get("source") or ("jsonld_resolved" if resolved_meta.get("description") else "jsonld_submitted")
+        description_source = authoritative_raw.get("metadata_resolution_source") or ("jsonld_resolved" if resolved_meta.get("description") else "jsonld_submitted")
     else:
         best_description = max(descriptions, key=len, default="")
         description_source = "best_available"
 
     title_candidates = [
-        ("workday_cxs", workday_meta.get("title")),
+        (authoritative_raw.get("metadata_resolution_source") or "shared_finalizer", authoritative_raw.get("title")),
         ("resolved_jsonld", resolved_meta.get("title")),
         ("submitted_jsonld", initial_meta.get("title")),
         ("resolved_heading", _heading_job_title(resolved_page)),
@@ -595,18 +556,21 @@ def fetch_manual_job(url: str) -> dict:
     raw["title_source"] = title_source
     raw["description"] = best_description
     raw["description_source"] = description_source
-    if workday_meta.get("location"):
-        raw["location"] = workday_meta["location"]
+    if authoritative_raw.get("location"):
+        raw["location"] = authoritative_raw["location"]
     elif resolved_meta.get("location"):
         raw["location"] = resolved_meta["location"]
-    if workday_meta.get("employment_type"):
-        raw["employment_type"] = workday_meta["employment_type"]
+    if authoritative_raw.get("employment_type"):
+        raw["employment_type"] = authoritative_raw["employment_type"]
     elif resolved_meta.get("employment_type"):
         raw["employment_type"] = resolved_meta["employment_type"]
-    if workday_meta.get("requisition_id"):
-        raw["requisition_id"] = workday_meta["requisition_id"]
+    if authoritative_raw.get("requisition_id"):
+        raw["requisition_id"] = authoritative_raw["requisition_id"]
     elif resolved_meta.get("requisition_id"):
         raw["requisition_id"] = resolved_meta["requisition_id"]
+    if authoritative_raw.get("posted_at"):
+        raw["posted_at"] = authoritative_raw["posted_at"]
+    raw["metadata_resolution_source"] = authoritative_raw.get("metadata_resolution_source") or raw.get("metadata_resolution_source")
 
     complete = _looks_like_complete_jd(raw["description"], raw["source"])
     usable = complete or _looks_like_usable_jd(raw["description"], raw["source"])

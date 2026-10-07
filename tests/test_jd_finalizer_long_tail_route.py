@@ -48,3 +48,48 @@ def test_dice_date_fallback_only_after_official_ats_resolution(monkeypatch,tmp_p
     result=jd_finalizer.finalize_report(str(report),str(output),hours=24,now=datetime(2026,9,28,17,0,tzinfo=timezone.utc))
     assert result["finalized"]==1
     assert result["results"][0]["job"]["freshness_basis"]=="dice_date_fallback_official_date_unavailable"
+
+
+def test_resolve_full_jd_uses_same_workday_authoritative_metadata_for_every_path(monkeypatch):
+    url = "https://eaton.wd5.myworkdayjobs.com/en-US/Eaton_Careers/job/Beachwood-OH/Lead-AI-and-Data-Engineer_JR12345"
+    jd = (
+        "Responsibilities: design and deploy scalable AI and data engineering solutions using Azure OpenAI, Python, SQL, and Databricks. "
+        "Requirements: strong software engineering, data engineering, machine learning, cloud architecture, CI/CD, and production support experience. "
+        "Qualifications: bachelor's or master's degree and relevant engineering experience. "
+    ) * 8
+    detail = {
+        "title": "Lead AI and Data Engineer",
+        "jobDescription": jd,
+        "location": "Beachwood, OH",
+        "additionalLocations": ["Mountainside, NJ"],
+        "timeType": "Full time",
+        "jobReqId": "JR12345",
+    }
+    monkeypatch.setattr(jd_finalizer, "resolve_original_ats", lambda job: dict(job))
+    monkeypatch.setattr(jd_finalizer, "_fetch_public_page", lambda url: "")
+    monkeypatch.setattr(jd_finalizer, "job_detail_is_live", lambda host, tenant, site, external_path: (True, detail))
+
+    raw = jd_finalizer.resolve_full_jd({
+        "external_id": "same-job",
+        "source": "workday",
+        "company_key": "Eaton",
+        "company": "Eaton",
+        "title": "Job opening",
+        "url": url,
+        "original_url": url,
+        "ats_provider": "workday",
+        "ats_identifier": "eaton|Eaton_Careers",
+        "description": "",
+        "description_complete": False,
+    })
+
+    assert raw["title"] == "Lead AI and Data Engineer"
+    assert raw["company_key"] == "Eaton"
+    assert raw["location"] == "Beachwood, OH | Mountainside, NJ"
+    assert raw["employment_type"] == "Full time"
+    assert raw["requisition_id"] == "JR12345"
+    assert raw["metadata_resolution_source"] == "workday_cxs"
+    assert raw["metadata_verified"] is True
+    assert raw["description"] == jd
+    assert raw["description_complete"] is True
+    assert raw["description_usable"] is True
