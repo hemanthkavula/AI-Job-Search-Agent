@@ -193,7 +193,23 @@ def _pipeline_runs():
             cid=str(d.get("cycle_id") or p.name.replace("_summary.json",""))
             try: ts=datetime.strptime(cid,"%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
             except Exception: continue
-            runs.append({"cycle_id":cid,"ts":ts,"created":ts.isoformat(),"discovered":d.get("discovered",0),"eligible":d.get("eligible",0),"prepared":d.get("prepared",0),"ready":d.get("ready_to_apply",0)})
+            unit_rows=(d.get("source_unit_status") or {}).values()
+            unit_statuses=[(x.get("status") if isinstance(x,dict) else x) for x in unit_rows]
+            runs.append({
+                "cycle_id":cid,"ts":ts,"created":ts.isoformat(),
+                "discovered":d.get("discovered",0),
+                "fresh":d.get("fresh_verified_within_window",0),
+                "older_or_unverified":d.get("older_or_unverified",0),
+                "filtered":d.get("filtered_out",0),
+                "preliminary":d.get("preliminary_eligible",0),
+                "final_verified":d.get("final_jd_verified",0),
+                "held_or_rejected":d.get("held_or_rejected",0),
+                "eligible":d.get("eligible",0),
+                "prepared":d.get("prepared",0),
+                "ready":d.get("ready_to_apply",0),
+                "source_failed":sum(x=="ERROR" for x in unit_statuses),
+                "source_hard_skipped":sum(x in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for x in unit_statuses),
+            })
     runs.sort(key=lambda x:x["ts"])
     return runs
 
