@@ -6,6 +6,27 @@ import json
 from app.source_registry import detect_ats
 
 ATS_HOST_HINTS=("greenhouse.io","lever.co","ashbyhq.com","smartrecruiters.com","myworkdayjobs.com","myworkdaysite.com","icims.com","jobvite.com","dayforcehcm.com","dayforce.com","ultipro.com","recruiting.com","workforcenow.adp.com","jobs.adp.com","successfactors.com","successfactors.eu","oraclecloud.com","eightfold.ai","phenompeople.com","workable.com","teamtailor.com","recruitee.com","bamboohr.com","breezy.hr","rippling.com","pinpointhq.com","careerplug.com","freshteam.com","jobscore.com","personio.com","personio.de","comeet.com","neogov.com","governmentjobs.com","applicantpro.com","fountain.com","hirebridge.com","zohorecruit.com","zohorecruit.eu","zohorecruit.in","manatal.com","careers-page.com","join.com","applitrack.com","frontlineeducation.com","hireology.com","paycor.com","recruitingbypaycor.com","peopleadmin.com","isolvedhire.com","isolved.com","hibob.com","gohire.io","hiringthing.com","homerun.co","pageuppeople.com","dover.com","gem.com","polymer.co","hirehive.com","deel.com","applicantstack.com","ceipal.com","trakstar.com","taleo.net","brassring.com","paycomonline.net","bullhornstaffing.com","jobdiva.com","clearcompany.com","csod.com","applytojob.com","kula.ai","rival-hr.com","werecruit.io","werecruit.com","firststage.co","recruiterbox.com","talentbrew.com","radancy.com","paradox.ai","schooljobs.com","higheredjobs.com","talentreef.com","jobappnetwork.com","myworkchoice.com")
+AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com")
+
+def _is_aggregator_url(url):
+ try:
+  host=(urlsplit(url or "").netloc or "").lower()
+ except Exception:
+  return False
+ return any(host==x or host.endswith("."+x) for x in AGGREGATOR_HOSTS)
+
+def _job_direct_apply_candidates(job):
+ keys=("external_apply_url","externalApplyUrl","application_url","applicationUrl","apply_url","applyUrl","job_apply_url","jobApplyUrl","employer_job_url","employerJobUrl")
+ out=[]
+ for key in keys:
+  value=job.get(key)
+  if isinstance(value,str) and value.startswith(("http://","https://")) and not _is_aggregator_url(value):
+   out.append(value)
+ original=job.get("original_url")
+ if isinstance(original,str) and original.startswith(("http://","https://")) and not _is_aggregator_url(original):
+  out.insert(0,original)
+ return list(dict.fromkeys(out))
+
 APPLY_KEY_RE=re.compile(r'(?i)(?:external)?apply(?:url|link)|application(?:url|link)|redirect(?:url|link)|applyUrl')
 
 def _fetch(url):
@@ -74,14 +95,23 @@ def _organization_urls(page,base):
 
 def resolve_original_ats(job):
  """Best-effort resolution from aggregator/detail URL to an employer ATS URL; no LLM and no application action."""
- out=dict(job);start=job.get("original_url") or job.get("url") or ""
+ out=dict(job)
+ # Prefer an explicit non-aggregator apply destination supplied by the source
+ # payload. This is stronger evidence than rediscovering the URL from HTML.
+ for direct in _job_direct_apply_candidates(job):
+  provider,identifier=detect_ats(direct)
+  if provider:
+   out.update({"original_url":direct,"ats_provider":provider,"ats_identifier":identifier,"ats_resolution":"direct_apply_metadata"})
+   if _is_aggregator_url(job.get("url") or ""):out["aggregator_url"]=job.get("url")
+   return out
+ start=job.get("original_url") or job.get("url") or ""
  out["original_url"]=start
  provider,identifier=detect_ats(start)
  if provider:
   out.update({"original_url":start,"ats_provider":provider,"ats_identifier":identifier,"ats_resolution":"direct"})
   return out
  page=_fetch(start)
- org_urls=_organization_urls(page,start)
+ org_urls=[u for u in _organization_urls(page,start) if not _is_aggregator_url(u)]
  if org_urls:out["organization_url_evidence"]=org_urls[0]
  links=_candidate_links(page,start)
  candidates=[]
