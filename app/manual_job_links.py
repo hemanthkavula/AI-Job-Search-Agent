@@ -946,8 +946,26 @@ def _pause_active_manual_jobs() -> int:
     return paused
 
 
+def _log_latest_manual_resolution_target() -> None:
+    try:
+        jobs=list((_load_state().get("jobs") or {}).values())
+        jobs.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
+        for row in jobs[:3]:
+            print(
+                "MANUAL TARGET DEBUG | status={} | provider={} | url={}".format(
+                    row.get("status") or "-",
+                    row.get("ats_provider") or "-",
+                    row.get("submitted_url") or row.get("original_url") or row.get("url") or "-",
+                ),
+                flush=True,
+            )
+    except Exception as exc:
+        print(f"MANUAL TARGET DEBUG ERROR | {exc}", flush=True)
+
+
 @router.on_event("startup")
 def _startup_recover_manual_jobs() -> None:
+    _log_latest_manual_resolution_target()
     if os.getenv("MANUAL_RESET_ON_START", "").strip().lower() in {"1", "true", "yes", "on"}:
         deleted = reset_manual_state()
         print(f"MANUAL RESET COMPLETE | deleted={deleted}", flush=True)
