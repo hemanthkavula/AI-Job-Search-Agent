@@ -82,6 +82,7 @@ def resume_branding_headline(title):
     base = "Senior Data Engineer"
 
     specialty_rules = (
+        (r"\b(?:ai\s*/\s*ml|machine learning|generative ai|genai|llm|rag)\b", "AI/ML & Generative AI Data Platforms"),
         (r"\banalytics?\s+engineer(?:ing)?\b", "Analytics Engineering"),
         (r"\bdata\s+platform\s+engineer(?:ing)?\b|\bplatform\s+data\s+engineer(?:ing)?\b", "Data Platform Engineering"),
         (r"\blakehouse\b", "Lakehouse Engineering"),
