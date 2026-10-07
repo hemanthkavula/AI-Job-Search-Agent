@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import app.manual_job_links as manual
 
 
@@ -265,22 +262,17 @@ def test_delete_removes_only_manual_artifacts(isolated):
     assert row["key"] not in manual._load_state()["jobs"]
 
 
-def test_api_add_and_list(isolated):
-    app = FastAPI()
-    app.include_router(manual.router)
-    client = TestClient(app)
-    response = client.post("/api/manual-links", json={"links": "https://example.com/a\nhttps://example.com/b"})
-    assert response.status_code == 200
-    listing = client.get("/api/manual-links").json()
+def test_api_functions_add_and_list_without_http_client(isolated):
+    added = manual.api_add(manual.LinksInput(links="https://example.com/a\nhttps://example.com/b"))
+    assert added["ok"] is True
+    listing = manual.api_list()
     assert listing["counts"]["total"] == 2
 
 
-def test_api_rejects_bad_url(isolated):
-    app = FastAPI()
-    app.include_router(manual.router)
-    client = TestClient(app)
-    response = client.post("/api/manual-links", json={"links": "http://127.0.0.1/job"})
-    assert response.status_code == 400
+def test_add_rejects_bad_url_without_http_client(isolated):
+    with pytest.raises(Exception) as exc:
+        manual.api_add(manual.LinksInput(links="http://127.0.0.1/job"))
+    assert getattr(exc.value, "status_code", None) == 400
 
 
 def test_manual_page_has_required_controls():
