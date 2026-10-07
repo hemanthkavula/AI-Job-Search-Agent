@@ -12,7 +12,7 @@ from app.ats_audit import ats_audit
 from app.config import load_profile
 from app.jd_coverage_plan import build_coverage_plan
 from app.llm_resume_writer import generate_with_llm
-from app.master_resume import master_resume_payload
+from app.master_resume import experience_bullet_counts, master_resume_payload
 from app.pdf_export import convert_docx_to_pdf_detailed, validate_docx_pdf_parity
 from app.reference_resume_formatter import render_llm_resume
 from app.resume_tailoring_policy import determine_tailoring_policy
@@ -33,6 +33,15 @@ BLOCKING_AUDIT_GATES = (
     "domain_coherence",
     "cloud_credibility",
 )
+
+
+def _bullet_contract_text() -> str:
+    counts = experience_bullet_counts()
+    return (
+        f'{counts.get("Fidelity Investments", 0)} Fidelity, '
+        f'{counts.get("Cigna Healthcare", 0)} Cigna, and '
+        f'{counts.get("Target Corporation", 0)} Target bullets'
+    )
 
 
 def _base_resume_payload(profile=None):
@@ -181,8 +190,8 @@ def _critical_audit_feedback(audit):
         "cloud_policy_violations": audit.get("cloud_policy_violations", []),
         "retry_instruction": (
             "Correct only the blocking factual/structural issues. Preserve the JD-tailored "
-            "content that is already valid. Keep exactly 10 Fidelity, 8 Cigna, and 8 Target "
-            "bullets; preserve employer domains and cloud rules; do not invent numerical "
+            f"content that is already valid. Keep exactly {_bullet_contract_text()}; "
+            "preserve employer domains and cloud rules; do not invent numerical "
             "claims. Keep wording concise enough to preserve the master-like two-page layout."
         ),
     }
@@ -193,8 +202,8 @@ def _render_error_feedback(exc):
         "render_error": str(exc),
         "retry_instruction": (
             "Correct the structural or layout error. Return two concise summary paragraphs, "
-            "compact Technical Skills categories, exactly 10 Fidelity bullets, 8 Cigna bullets, "
-            "and 8 Target bullets, plus a concise skills_used technology list for each employer. "
+            f"compact Technical Skills categories, exactly {_bullet_contract_text()}, "
+            "plus a concise skills_used technology list for each employer. "
             "Do not return Environment paragraphs. Keep each bullet to one concise engineering "
             "sentence and preserve the two-page master-like layout without sparse trailing pages."
         ),

@@ -54,6 +54,16 @@ _ATS_VENDOR_NAMES = {
     "icims", "jobvite", "dayforce", "dayforcehcm", "oracle", "oraclecloud",
     "successfactors", "ultipro", "ukg", "radancy",
 }
+_AGGREGATOR_NAMES = {
+    "adzuna", "dice", "indeed", "linkedin", "ziprecruiter", "monster",
+    "wellfound", "built in", "builtin", "yc jobs", "y combinator",
+    "glassdoor", "simplyhired", "careerbuilder",
+}
+_AGGREGATOR_HOSTS = (
+    "adzuna.com", "dice.com", "indeed.com", "linkedin.com", "ziprecruiter.com",
+    "monster.com", "wellfound.com", "builtin.com", "ycombinator.com",
+    "glassdoor.com", "simplyhired.com", "careerbuilder.com",
+)
 _GENERIC_JOB_TITLES = {
     "job", "job details", "job detail", "job search", "jobs", "careers",
     "career", "recruitment", "career opportunities", "job opening",
@@ -89,7 +99,9 @@ def _clean_company_label(value: str | None) -> str:
     low = label.lower().strip()
     if not label or low in {"unknown company", "company", "job search", "job details"}:
         return ""
-    if low in _ATS_VENDOR_NAMES:
+    if low in _ATS_VENDOR_NAMES or low in _AGGREGATOR_NAMES:
+        return ""
+    if any(low == name or low.startswith(name + " ") for name in _AGGREGATOR_NAMES):
         return ""
     return label[:180]
 
@@ -123,7 +135,9 @@ def _ats_company_hint(provider: str | None, identifier: str | None, url: str) ->
         if _clean_company_label(label):
             return _clean_company_label(label)
     host = (urlsplit(url or "").hostname or "").lower()
-    if host and not any(vendor in host for vendor in _ATS_VENDOR_NAMES):
+    if host and not any(vendor in host for vendor in _ATS_VENDOR_NAMES) and not any(
+        host == agg or host.endswith("." + agg) for agg in _AGGREGATOR_HOSTS
+    ):
         parts = [
             p for p in host.split(".")
             if p not in {"www", "jobs", "job", "careers", "career", "apply", "recruiting", "recruitment"}
@@ -291,7 +305,19 @@ def _fallback_title_company(page: str) -> tuple[str, str]:
     bits = [x.strip() for x in re.split(r"\s+[|–—-]\s+", text) if x.strip()]
     if not bits:
         return "", ""
-    return bits[0][:180], (bits[-1][:180] if len(bits) > 1 else "")
+    title = _clean_job_title(bits[0])
+    company = next(
+        (clean for value in reversed(bits[1:]) if (clean := _clean_company_label(value))),
+        "",
+    )
+    # Aggregators often use titles such as "Data Engineer at Acme - Adzuna".
+    if not company:
+        match = re.search(r"(?i)\b(?:at|with)\s+(.+?)(?=\s+[|–—-]\s+|$)", text)
+        if match:
+            company = _clean_company_label(match.group(1))
+            if company and title:
+                title = re.sub(r"(?i)\s+\b(?:at|with)\s+.+$", "", title).strip()
+    return (title or bits[0][:180]), company
 
 
 def fetch_manual_job(url: str) -> dict:
@@ -631,6 +657,62 @@ def process_jobs(keys: list[str]) -> None:
                 process_job(key)
             except Exception as exc:
                 print(f"MANUAL BACKGROUND ERROR {key}: {exc}", flush=True)
+
+
+def _company_is_aggregator(value: str | None) -> bool:
+    low = _collapse_label(value).lower()
+    return bool(low) and (
+        low in _AGGREGATOR_NAMES
+        or any(low == name or low.startswith(name + " ") for name in _AGGREGATOR_NAMES)
+    )
+
+
+def _recover_interrupted_jobs() -> list[str]:
+    """Resume a manual batch after deploy/restart and retry the known stale-count failure."""
+    state = _load_state()
+    keys: list[str] = []
+    changed = False
+    for key, row in state["jobs"].items():
+        if row.get("application_status") == "SUBMITTED_CONFIRMED":
+            continue
+        status = row.get("status")
+        structural_retry = (
+            status == "HOLD_RESUME_ERROR"
+            and "must contain exactly" in str(row.get("error") or "").lower()
+        )
+        bad_ready_company = status == "READY_TO_APPLY" and _company_is_aggregator(row.get("company"))
+        if bad_ready_company:
+            row.update({
+                "company": "",
+                "description": "",
+                "description_usable": False,
+                "description_complete": False,
+                "status": "PENDING",
+                "next_action": None,
+                "resume_path": None,
+                "pdf_path": None,
+                "error": None,
+                "updated_at": _now(),
+            })
+            changed = True
+        if status in _PROCESSING_STATUSES or structural_retry or bad_ready_company:
+            keys.append(key)
+    if changed:
+        _save_state(state)
+    if keys:
+        print(f"MANUAL STARTUP RECOVERY | jobs={len(keys)}", flush=True)
+        threading.Thread(
+            target=process_jobs,
+            args=(keys,),
+            daemon=True,
+            name="manual-job-recovery",
+        ).start()
+    return keys
+
+
+@router.on_event("startup")
+def _startup_recover_manual_jobs() -> None:
+    _recover_interrupted_jobs()
 
 
 

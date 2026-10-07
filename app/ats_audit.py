@@ -10,10 +10,12 @@ from app.jd_coverage_plan import build_coverage_plan
 from app.master_resume import load_master_resume
 from app.resume_tailoring_policy import determine_tailoring_policy, minimum_skill_rows
 
+from app.master_resume import experience_bullet_counts
+
 ATS_TARGET = 95
 HUMAN_QUALITY_TARGET = 90
 MIN_EXPERIENCE_DEPTH = 85
-EXPECTED_COUNTS = {"Fidelity Investments": 10, "Cigna Healthcare": 8, "Target Corporation": 8}
+EXPECTED_COUNTS = experience_bullet_counts()
 
 METRIC_TOKEN_PATTERNS = [
     r"\b\d+(?:\.\d+)?\s*%",

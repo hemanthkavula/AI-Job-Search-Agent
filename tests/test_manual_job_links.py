@@ -95,6 +95,26 @@ def test_clean_company_removes_portal_suffixes():
     assert manual._clean_company_label("Dayforce Jobs") == ""
 
 
+def test_aggregator_names_are_not_displayed_as_employers():
+    for value in ("Adzuna", "Adzuna US", "Indeed", "ZipRecruiter", "Glassdoor"):
+        assert manual._clean_company_label(value) == ""
+        assert manual._company_is_aggregator(value) is True
+
+
+def test_fallback_title_skips_aggregator_brand():
+    title, company = manual._fallback_title_company(
+        "<title>Senior Data Engineer | Acme Corp | Adzuna</title>"
+    )
+    assert title == "Senior Data Engineer"
+    assert company == "Acme Corp"
+
+    title, company = manual._fallback_title_company(
+        "<title>Data Engineer at Example Health - Adzuna</title>"
+    )
+    assert title == "Data Engineer"
+    assert company == "Example Health"
+
+
 def test_generic_job_titles_are_not_displayed():
     assert manual._clean_job_title("Job Details") == ""
     assert manual._clean_job_title("Job") == ""
@@ -105,6 +125,56 @@ def test_ats_display_exposes_provider_and_clean_tenant():
     label, tenant = manual._ats_display("workday", "unitedhealthgroup|UHG_Careers")
     assert label == "Workday"
     assert tenant == "Unitedhealthgroup"
+
+
+def test_startup_recovery_requeues_interrupted_structural_and_bad_company(monkeypatch, isolated):
+    rows = manual.add_links([
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+    ])
+    state = manual._load_state()
+    state["jobs"][rows[0]["key"]].update({
+        "status": "GENERATING_RESUME",
+        "company": "Acme",
+        "description": "usable",
+        "description_usable": True,
+    })
+    state["jobs"][rows[1]["key"]].update({
+        "status": "HOLD_RESUME_ERROR",
+        "error": "Fidelity Investments must contain exactly 8 bullets",
+        "company": "Beta",
+        "description": "usable",
+        "description_usable": True,
+    })
+    state["jobs"][rows[2]["key"]].update({
+        "status": "READY_TO_APPLY",
+        "company": "Adzuna",
+        "description": "",
+        "description_usable": False,
+        "resume_path": "old.docx",
+        "pdf_path": "old.pdf",
+    })
+    manual._save_state(state)
+
+    started = {}
+    class DummyThread:
+        def __init__(self, *, target, args, daemon, name):
+            started.update({"target": target, "args": args, "daemon": daemon, "name": name})
+        def start(self):
+            started["started"] = True
+
+    monkeypatch.setattr(manual.threading, "Thread", DummyThread)
+    keys = manual._recover_interrupted_jobs()
+
+    assert set(keys) == {row["key"] for row in rows}
+    assert started["target"] is manual.process_jobs
+    assert started["started"] is True
+    fixed = manual._load_state()["jobs"][rows[2]["key"]]
+    assert fixed["company"] == ""
+    assert fixed["status"] == "PENDING"
+    assert fixed["resume_path"] is None
+    assert fixed["pdf_path"] is None
 
 
 def test_terminal_failures_do_not_keep_batch_processing(isolated):

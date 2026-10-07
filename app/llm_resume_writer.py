@@ -16,7 +16,7 @@ from app.cloud_policy import (
     detect_cloud_families,
     employer_cloud_modes,
 )
-from app.master_resume import fixed_personal_facts, load_master_resume
+from app.master_resume import experience_bullet_counts, fixed_personal_facts, load_master_resume
 from app.resume_tailoring_policy import determine_tailoring_policy
 
 EMPLOYER_DOMAIN_CONTEXT = {
@@ -171,7 +171,7 @@ TECHNICAL SKILLS:
 - Keep categories concise and ATS-readable. Do not create paragraph-like skill rows.
 
 PROFESSIONAL EXPERIENCE:
-- Preserve exactly 10 Fidelity bullets, 8 Cigna bullets, and 8 Target bullets.
+- Preserve exactly the employer bullet counts supplied in structure_contract from the current master resume.
 - One bullet = one concise engineering sentence. Keep the length close to the corresponding master bullet; do not turn bullets into paragraphs.
 - Bullets must be meaningful, technically coherent, interview-defensible, and tied to the employer's real business domain.
 - Do not keyword-stuff.
@@ -192,9 +192,9 @@ Return valid JSON only using this schema:
   "summary": "two concise paragraphs separated by \\n\\n",
   "skills": {"ATS Category": ["technical skill", "technical skill"]},
   "experience": [
-    {"company": "Fidelity Investments", "bullets": [10 strings], "skills_used": ["technology", "technology"]},
-    {"company": "Cigna Healthcare", "bullets": [8 strings], "skills_used": ["technology", "technology"]},
-    {"company": "Target Corporation", "bullets": [8 strings], "skills_used": ["technology", "technology"]}
+    {"company": "Fidelity Investments", "bullets": ["exactly structure_contract.fidelity_bullets strings"], "skills_used": ["technology", "technology"]},
+    {"company": "Cigna Healthcare", "bullets": ["exactly structure_contract.cigna_bullets strings"], "skills_used": ["technology", "technology"]},
+    {"company": "Target Corporation", "bullets": ["exactly structure_contract.target_bullets strings"], "skills_used": ["technology", "technology"]}
   ],
   "education": "renderer preserves fixed education"
 }
@@ -306,9 +306,9 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
         },
         "structure_contract": {
             "summary_paragraphs": 2,
-            "fidelity_bullets": 10,
-            "cigna_bullets": 8,
-            "target_bullets": 8,
+            "fidelity_bullets": experience_bullet_counts().get("Fidelity Investments", 0),
+            "cigna_bullets": experience_bullet_counts().get("Cigna Healthcare", 0),
+            "target_bullets": experience_bullet_counts().get("Target Corporation", 0),
             "employer_footer_label": "Environment",
             "environment_paragraphs": False,
             "compact_master_like_layout": True,

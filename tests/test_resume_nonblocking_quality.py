@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import app.batch_prepare as batch_prepare
 import app.pdf_export as pdf_export
 from app.llm_resume_writer import build_prompt
+from app.master_resume import experience_bullet_counts
 
 
 def test_density_depth_and_human_scores_are_advisory_not_blocking():
@@ -121,9 +122,10 @@ def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer()
     contract=prompt["structure_contract"]
 
     assert contract["summary_paragraphs"] == 2
-    assert contract["fidelity_bullets"] == 10
-    assert contract["cigna_bullets"] == 8
-    assert contract["target_bullets"] == 8
+    counts = experience_bullet_counts()
+    assert contract["fidelity_bullets"] == counts["Fidelity Investments"]
+    assert contract["cigna_bullets"] == counts["Cigna Healthcare"]
+    assert contract["target_bullets"] == counts["Target Corporation"]
     assert contract["employer_footer_label"] == "Environment"
     assert contract["environment_paragraphs"] is False
     assert contract["compact_master_like_layout"] is True
