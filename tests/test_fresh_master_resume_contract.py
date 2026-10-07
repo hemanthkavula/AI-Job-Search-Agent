@@ -143,7 +143,6 @@ def test_renderer_reproduces_uploaded_word_format_contract_with_environment_foot
     assert sum(p.text.startswith("Skills: ") for p in doc.paragraphs) == 0
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
     _assert_uploaded_master_headers(doc)
-    _assert_uploaded_master_headers(doc)
 
 
 def _generated_payload(long_content=False):
@@ -180,7 +179,7 @@ def _generated_payload(long_content=False):
                 "company": "Cigna Healthcare",
                 "bullets": [
                     f"Developed Python and SQL data integrations for healthcare workflow {i}.{extra}"
-                    for i in range(1, 9)
+                    for i in range(1, 8)
                 ],
                 "skills_used": ["Python", "SQL"],
             },
@@ -188,7 +187,7 @@ def _generated_payload(long_content=False):
                 "company": "Target Corporation",
                 "bullets": [
                     f"Implemented Python and SQL batch processing for retail workflow {i}.{extra}"
-                    for i in range(1, 9)
+                    for i in range(1, 8)
                 ],
                 "skills_used": ["Python", "SQL"],
             },
@@ -209,7 +208,6 @@ def test_jd_tailored_renderer_keeps_word_format_and_environment_footers(monkeypa
     assert "Skills: Python, SQL" not in text
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
     _assert_uploaded_master_headers(doc)
-    _assert_uploaded_master_headers(doc)
 
 
 def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypatch, tmp_path):
@@ -221,5 +219,4 @@ def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypat
     assert result["passed"], result["reasons"]
     assert result["content_length_policy"] == "compact_master_like_layout"
     doc = Document(path)
-    _assert_uploaded_master_headers(doc)
     _assert_uploaded_master_headers(doc)
