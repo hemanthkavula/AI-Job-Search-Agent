@@ -119,12 +119,44 @@ def _assert_uploaded_master_headers(doc):
     }
     for company, (location, dates, title) in expected.items():
         index = next(i for i, p in enumerate(doc.paragraphs) if p.text.startswith(company))
-        assert f"{company} | {location}" in doc.paragraphs[index].text
-        assert dates in doc.paragraphs[index].text
+        header = doc.paragraphs[index]
+        assert header.text == f"{company} | {location}\t{dates}"
         assert doc.paragraphs[index + 1].text == title
     education = next(p for p in doc.paragraphs if p.text.startswith("Rowan University"))
-    assert "Rowan University | Glassboro, NJ" in education.text
-    assert "Jan 2024 – Dec 2025" in education.text
+    assert education.text == "Rowan University | Glassboro, NJ\tJan 2024 – Dec 2025"
+
+
+def _assert_selective_bold_and_skill_headings_only(doc):
+    summary = [
+        p for p in doc.paragraphs
+        if p.text.startswith("Senior Data Engineer focused")
+        or p.text.startswith("Builds governed batch")
+    ]
+    assert summary
+    for paragraph in summary:
+        visible = [r for r in paragraph.runs if r.text]
+        assert any(bool(r.bold) for r in visible)
+        assert any(not bool(r.bold) for r in visible)
+
+    start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "TECHNICAL SKILLS")
+    end = next(i for i, p in enumerate(doc.paragraphs) if p.text == "PROFESSIONAL EXPERIENCE")
+    for paragraph in doc.paragraphs[start + 1:end]:
+        if not paragraph.text.strip():
+            continue
+        before, _, after = paragraph.text.partition(":")
+        assert before and after
+        seen_colon = False
+        for run in paragraph.runs:
+            text = run.text or ""
+            if ":" in text:
+                left, right = text.split(":", 1)
+                if left:
+                    assert bool(run.bold)
+                seen_colon = True
+                if right.strip():
+                    assert not bool(run.bold)
+            elif seen_colon and text.strip():
+                assert not bool(run.bold)
 
 def test_renderer_reproduces_uploaded_word_format_contract_with_environment_footer(monkeypatch, tmp_path):
     monkeypatch.setattr(formatter, "ROOT", tmp_path)
@@ -208,6 +240,7 @@ def test_jd_tailored_renderer_keeps_word_format_and_environment_footers(monkeypa
     assert "Skills: Python, SQL" not in text
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
     _assert_uploaded_master_headers(doc)
+    _assert_selective_bold_and_skill_headings_only(doc)
 
 
 def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypatch, tmp_path):
