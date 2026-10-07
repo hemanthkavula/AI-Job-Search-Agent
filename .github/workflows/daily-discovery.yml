@@ -140,6 +140,11 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: python -m app.production_acceptance
 
+      - name: Repair failed source mappings for the next cycle
+        if: steps.guard.outputs.should_run == 'true'
+        continue-on-error: true
+        run: python -m app.source_repair --limit 20
+
       - name: Sync application queue to hosted dashboard
         if: steps.guard.outputs.should_run == 'true'
         env:
