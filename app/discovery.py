@@ -94,19 +94,24 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         health_fresh=health_file.exists() and (time.time()-health_file.stat().st_mtime)<=86400
         if health_fresh:
             health_report=json.loads(health_file.read_text(encoding="utf-8"))
+            grouped_health={}
             for row in health_report.get("sources",[]):
                 provider=row.get("provider")
                 company=row.get("company")
                 status=row.get("effective_status") or row.get("status")
                 if not provider or not company:
                     continue
-                advisory_health[(provider,company)]=status
-                # 404/410 and invalid source definitions are hard failures.
-                # Generic career pages with no crawlable links are also skipped
-                # because the same generic collector cannot recover them.
-                if status in {"broken","invalid_pattern"}:
+                grouped_health.setdefault((provider,company),[]).append(status)
+            for (provider,company),statuses in grouped_health.items():
+                advisory_health[(provider,company)]=",".join(str(x) for x in statuses if x)
+                hard_statuses={"broken","invalid_pattern"}
+                # Quarantine only when every known endpoint for this employer/provider
+                # is hard-broken. A repaired endpoint that probes OK must keep the
+                # source executable even if an obsolete sibling URL still returns 404.
+                if statuses and all(status in hard_statuses for status in statuses):
                     hard_unhealthy_units.add((provider,company))
-                if provider=="career_site" and status in {"broken","invalid_pattern","no_crawlable_links"}:
+                career_hard={"broken","invalid_pattern","no_crawlable_links"}
+                if provider=="career_site" and statuses and all(status in career_hard for status in statuses):
                     hard_unhealthy_career_sites.add(company)
                 # blocked_or_http_error and unreachable are deliberately NOT
                 # quarantined: the provider-specific collector gets a retry lane.
