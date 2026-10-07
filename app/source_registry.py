@@ -189,6 +189,25 @@ def learn_resolved_source(provider, company, careers_url, registry, identifier=N
  rows.append(row)
  return True
 
+def replace_resolved_source(failed_provider, provider, company, careers_url, registry, identifier=None, learned_from="source_repair"):
+ """Replace a failed learned source for one employer with a newly verified source.
+
+ Static seeds in data/job_sources.json are intentionally untouched; source health
+ will quarantine a confirmed broken static endpoint while this verified learned
+ replacement provides the executable route on subsequent cycles.
+ """
+ if not provider or not company or not careers_url:return False
+ company_norm=str(company).strip().lower()
+ old_rows=registry.get(failed_provider,[])
+ if isinstance(old_rows,list):
+  registry[failed_provider]=[
+   row for row in old_rows
+   if str((row or {}).get("company") or "").strip().lower()!=company_norm
+  ]
+ return learn_resolved_source(
+  provider,company,careers_url,registry,identifier=identifier,learned_from=learned_from
+ )
+
 def learn_from_jobs(jobs,registry):
  """Learn reusable public ATS board identifiers from broad-discovery results."""
  added=[]
