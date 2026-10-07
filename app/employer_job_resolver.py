@@ -14,6 +14,7 @@ from app.sources.ashby import fetch_jobs as ashby_jobs
 from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workable import fetch_jobs as workable_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
+from app.sources.eightfold import fetch_jobs as eightfold_jobs
 from app.sources.public_ats_board import fetch_jobs as public_board_jobs
 
 AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com","adzuna.com","glassdoor.com","simplyhired.com","careerbuilder.com")
@@ -125,6 +126,8 @@ def _fetch_rows(company,hit):
             if host and tenant and site:
                 return workday_jobs(company,host,tenant,site,hours=48),provider,f"{tenant}|{site}"
             return [],provider,identifier
+        if provider=="eightfold":
+            return eightfold_jobs(company,url),provider,identifier or detect_ats(url)[1]
         # Long-tail public ATS boards already share the generic evidence-aware
         # collector used by production discovery.
         return public_board_jobs(company,url,provider),provider,identifier or detect_ats(url)[1]
@@ -168,6 +171,20 @@ def _candidate_sources(job):
         if sig in seen:return
         seen.add(sig)
         out.append({"careers_url":url,"ats_provider":provider,"ats_identifier":ident,"evidence":hit.get("evidence") or hit.get("ats_evidence")})
+
+    # 0) The supplied direct ATS URL is authoritative evidence too. This lets
+    # manual/exact-link flows use the same dedicated provider collector as
+    # discovery without depending on a previously learned registry entry.
+    current_url=job.get("original_url") or job.get("url")
+    current_provider=job.get("ats_provider")
+    current_identifier=job.get("ats_identifier")
+    if current_url and not _is_aggregator(current_url):
+        add({
+            "careers_url":current_url,
+            "ats_provider":current_provider,
+            "ats_identifier":current_identifier,
+            "evidence":"supplied_direct_ats",
+        })
 
     # 1) Previously verified executable sources are cheapest and strongest.
     for hit in _source_registry_hits(company,source_registry):add(hit)
