@@ -15,6 +15,8 @@ from app.resume_pagination import enforce_experience_start_rule, validate_experi
 
 REQUIRED_PRODUCTION_PAGES = 2
 MIN_PAGE_TEXT_BALANCE = 0.50
+REQUIRED_PDF_FONT_FAMILY = "Calibri"
+DISALLOWED_SUBSTITUTE_FONTS = ("dejavu", "liberation", "carlito")
 # Employer placement is intentionally NOT hardcoded. An employer may begin on the
 # current page when its company/header, title/date, responsibilities label, and
 # complete first bullet fit there. Otherwise Word/LibreOffice moves that start block
@@ -198,6 +200,47 @@ def _pdf_pages_text(pdf_path: str) -> list[str]:
         return []
 
 
+def _pdf_font_names(pdf_path: str) -> list[str]:
+    """Return normalized BaseFont names used by the rendered PDF."""
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(pdf_path))
+        names = set()
+        for page in reader.pages:
+            resources = page.get("/Resources") or {}
+            fonts = resources.get("/Font") or {}
+            try:
+                fonts = fonts.get_object()
+            except Exception:
+                pass
+            for ref in getattr(fonts, "values", lambda: [])():
+                try:
+                    font = ref.get_object()
+                except Exception:
+                    font = ref
+                name = str(font.get("/BaseFont") or "").lstrip("/")
+                if "+" in name and len(name.split("+", 1)[0]) == 6:
+                    name = name.split("+", 1)[1]
+                if name:
+                    names.add(name)
+        return sorted(names)
+    except Exception:
+        return []
+
+
+def _pdf_font_contract(pdf_path: str) -> tuple[bool, list[str], list[str]]:
+    names = _pdf_font_names(pdf_path)
+    lowered = [name.casefold() for name in names]
+    has_calibri = any(REQUIRED_PDF_FONT_FAMILY.casefold() in name for name in lowered)
+    substitutions = [
+        original
+        for original, low in zip(names, lowered)
+        if any(bad in low for bad in DISALLOWED_SUBSTITUTE_FONTS)
+    ]
+    return has_calibri and not substitutions, names, substitutions
+
+
 def _tokens(text: str) -> list[str]:
     normalized = re.sub(r"(?<=[a-z0-9])-\s+(?=[a-z0-9])", "-", text.lower())
     return re.findall(r"[a-z0-9+#./%-]+", normalized)
@@ -306,6 +349,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     environment_footer_count = pdf_text.casefold().count("environment:")
     environment_footers_match = environment_footer_count >= 3
     skills_footer_removed = "skills:" not in pdf_text.casefold()
+    pdf_font_match, pdf_fonts, substituted_fonts = _pdf_font_contract(pdf_path)
 
     failures = []
     if not pagination.get("passed"):
@@ -331,6 +375,17 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         failures.append("expected compact Environment footers were not found for all employers")
     if not skills_footer_removed:
         failures.append("legacy Skills employer footer is still present")
+    if not pdf_font_match:
+        if substituted_fonts:
+            failures.append(
+                "PDF font substitution detected; required Calibri but found substitute font(s): "
+                + ", ".join(substituted_fonts)
+            )
+        else:
+            failures.append(
+                "PDF does not contain required Calibri font; installed renderer fonts="
+                + (", ".join(pdf_fonts) if pdf_fonts else "unknown")
+            )
 
     passed = not failures
     return {
@@ -352,6 +407,10 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "environment_footer_count": environment_footer_count,
         "environment_footers_match": environment_footers_match,
         "skills_footer_removed": skills_footer_removed,
+        "required_pdf_font_family": REQUIRED_PDF_FONT_FAMILY,
+        "pdf_fonts": pdf_fonts,
+        "pdf_font_match": pdf_font_match,
+        "substituted_fonts": substituted_fonts,
         "experience_start_pagination": pagination,
         "pagination_policy": "two_page_first_bullet_experience_start_contract",
         "renderer": "libreoffice_headless",
