@@ -1,0 +1,91 @@
+name: Dashboard Recovery Sync
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/dashboard-recovery-sync.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  recover-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore latest production state
+        uses: actions/cache@v4
+        with:
+          path: |
+            generated/
+            state/
+          key: dashboard-recovery-${{ github.run_id }}
+          restore-keys: |
+            job-agent-state-
+
+      - name: Republish cached state to hosted dashboard
+        env:
+          DASHBOARD_SYNC_TOKEN: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+          DASHBOARD_SYNC_URL: https://job-dashboard-production-7436.up.railway.app/api/sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DASHBOARD_SYNC_TOKEN:-}" ]; then
+            echo "::error::DASHBOARD_SYNC_TOKEN is not configured."
+            exit 1
+          fi
+
+          rm -rf dashboard-sync dashboard-sync.tgz
+          mkdir -p dashboard-sync/generated/cycles
+
+          if [ -f generated/job_ledger.json ]; then
+            cp generated/job_ledger.json dashboard-sync/generated/job_ledger.json
+          fi
+          if [ -d generated/resumes ]; then
+            cp -a generated/resumes dashboard-sync/generated/resumes
+          fi
+          if [ -d generated/cycles ]; then
+            shopt -s nullglob
+            for file in \
+              generated/cycles/*_summary.json \
+              generated/cycles/*_summary_acceptance.json \
+              generated/cycles/*_manifest.json \
+              generated/cycles/*_application_queue.json; do
+              cp "$file" dashboard-sync/generated/cycles/
+            done
+            shopt -u nullglob
+          fi
+
+          if [ ! -f dashboard-sync/generated/job_ledger.json ] && \
+             [ ! -d dashboard-sync/generated/resumes ] && \
+             [ -z "$(find dashboard-sync/generated/cycles -type f -print -quit)" ]; then
+            echo "::error::No cached dashboard state was restored."
+            exit 1
+          fi
+
+          tar -czf dashboard-sync.tgz -C dashboard-sync generated
+
+          for attempt in $(seq 1 12); do
+            status=$(curl --show-error --silent \
+              -o dashboard-sync-response.txt \
+              -w "%{http_code}" \
+              -X POST \
+              -H "X-Dashboard-Token: $DASHBOARD_SYNC_TOKEN" \
+              -H "Content-Type: application/gzip" \
+              --data-binary @dashboard-sync.tgz \
+              "$DASHBOARD_SYNC_URL" || true)
+            if [[ "$status" =~ ^2 ]]; then
+              echo "Dashboard recovery sync succeeded on attempt $attempt."
+              cat dashboard-sync-response.txt || true
+              exit 0
+            fi
+            echo "Recovery sync attempt $attempt/12 returned HTTP $status."
+            if [ "$attempt" -lt 12 ]; then sleep 10; fi
+          done
+
+          echo "::error::Dashboard recovery sync exhausted retries."
+          exit 1
