@@ -343,19 +343,26 @@ def _is_employer_footer(value):
 
 
 def _exp(paragraphs):
+    """Locate each employer block using the live uploaded master structure.
+
+    The current master has company/location/date on one line, job title on the
+    next line, then bullets followed directly by the Environment footer. It has
+    no synthetic "Roles & Responsibilities:" paragraph.
+    """
     master = load_master_resume()
     out = {}
     for row in master["experience"]:
         company = row["company"]
         header_index = next(i for i, paragraph in enumerate(paragraphs) if _text(paragraph).startswith(company))
-        roles_index = next(
+        title = str(row.get("title") or "").strip()
+        title_index = next(
             i for i in range(header_index + 1, len(paragraphs))
-            if _text(paragraphs[i]) == "Roles & Responsibilities:"
+            if _text(paragraphs[i]).strip() == title
         )
         bullets = []
         footer = None
-        for paragraph in paragraphs[roles_index + 1:]:
-            value = _text(paragraph)
+        for paragraph in paragraphs[title_index + 1:]:
+            value = _text(paragraph).strip()
             if _is_employer_footer(value):
                 footer = paragraph
                 break
@@ -363,7 +370,7 @@ def _exp(paragraphs):
                 bullets.append(paragraph)
         if len(bullets) != len(row["bullets"]) or footer is None:
             raise RuntimeError(f"Word template experience structure mismatch for {company}")
-        out[company] = {"bullets": bullets, "footer": footer}
+        out[company] = {"header": paragraphs[header_index], "title": paragraphs[title_index], "bullets": bullets, "footer": footer}
     return out
 
 
@@ -442,43 +449,43 @@ def validate_master_format_contract(path, master=None, word_format=None):
         reasons.append("skills_paragraph_format")
 
     for row in master["experience"]:
-        expected = f"{row['company']} | {row['location']}"
-        header_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(row["company"])), None)
-        header = None if header_index is None else output_paragraphs[header_index]
-        if header is None or _text(header) != expected:
-            reasons.append(row["company"] + "_header_text")
-        elif not _clean_header_layout(header):
-            reasons.append(row["company"] + "_header_spacing")
-        roles_index = next(
-            (i for i in range((header_index or 0) + 1, len(output_paragraphs)) if _text(output_paragraphs[i]) == "Roles & Responsibilities:"),
-            None,
-        )
-        title_date = None if header_index is None or roles_index is None else next(
-            (
-                p for p in output_paragraphs[header_index + 1:roles_index]
-                if _text(p) == f"{row.get('title', '')}{row.get('dates', '')}"
-            ),
-            None,
-        )
-        if title_date is None:
-            reasons.append(row["company"] + "_title_date_text")
-        elif not _has_right_tab(title_date):
-            reasons.append(row["company"] + "_title_date_alignment")
+        company = row["company"]
+        source_header = next((p for p in source_paragraphs if _text(p).startswith(company)), None)
+        output_header = next((p for p in output_paragraphs if _text(p).startswith(company)), None)
+        if source_header is None or output_header is None:
+            reasons.append(company + "_header_text")
+        else:
+            output_text = _text(output_header)
+            if (
+                f"{company} | {row['location']}" not in output_text
+                or str(row.get("dates") or "").strip() not in output_text
+            ):
+                reasons.append(company + "_header_text")
+            if _ppr(output_header) != _ppr(source_header):
+                reasons.append(company + "_header_format")
+        title = str(row.get("title") or "").strip()
+        source_title = next((p for p in source_paragraphs if _text(p).strip() == title), None)
+        output_title = next((p for p in output_paragraphs if _text(p).strip() == title), None)
+        if source_title is None or output_title is None:
+            reasons.append(company + "_title_text")
+        elif _ppr(output_title) != _ppr(source_title):
+            reasons.append(company + "_title_format")
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
-        location = str(row.get("location") or "").strip()
-        start = str(row.get("start") or "").strip()
-        end = str(row.get("end") or "").strip()
-        dates = f"{start} – {end}" if start and end else (start or end)
-        school_location = f"{school} | {location}" if location else school
-        expected = f"{school_location}{dates}"
-        school_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(school)), None)
-        paragraph = None if school_index is None else output_paragraphs[school_index]
-        if paragraph is None or _text(paragraph) != expected:
+        source_paragraph = next((p for p in source_paragraphs if _text(p).startswith(school)), None)
+        output_paragraph = next((p for p in output_paragraphs if _text(p).startswith(school)), None)
+        if source_paragraph is None or output_paragraph is None:
             reasons.append("education_school_location_date_text")
-        elif not _has_right_tab(paragraph):
-            reasons.append("education_date_alignment")
+        else:
+            output_text = _text(output_paragraph)
+            location = str(row.get("location") or "").strip()
+            start = str(row.get("start") or "").strip()
+            end = str(row.get("end") or "").strip()
+            if school not in output_text or location not in output_text or start not in output_text or end not in output_text:
+                reasons.append("education_school_location_date_text")
+            if _ppr(output_paragraph) != _ppr(source_paragraph):
+                reasons.append("education_format")
 
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)
@@ -559,7 +566,6 @@ def _master_mode_with_skills_footer(template, out):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
-    _normalize_static_headers(root, master)
     layout = _exp(_pt(root))
     source_layout = _exp(_pt(_xml(template)))
     footer_bold, footer_normal = _footer_styles(source_layout)
@@ -586,7 +592,6 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
-    _normalize_static_headers(root, master)
     paragraphs = _pt(root)
     header = paragraphs[1]
     normal = _rpr(header, False)
