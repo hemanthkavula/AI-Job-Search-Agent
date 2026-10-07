@@ -950,15 +950,41 @@ def _log_latest_manual_resolution_target() -> None:
     try:
         jobs=list((_load_state().get("jobs") or {}).values())
         jobs.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
-        for row in jobs[:3]:
+        for index,row in enumerate(jobs[:3]):
+            url=row.get("submitted_url") or row.get("original_url") or row.get("url") or ""
             print(
                 "MANUAL TARGET DEBUG | status={} | provider={} | url={}".format(
                     row.get("status") or "-",
                     row.get("ats_provider") or "-",
-                    row.get("submitted_url") or row.get("original_url") or row.get("url") or "-",
+                    url or "-",
                 ),
                 flush=True,
             )
+            if index==0 and url:
+                try:
+                    page=_fetch_public_page(url) or ""
+                    plain=_clean_html(page)
+                    print(
+                        "MANUAL PAYLOAD DEBUG | html_chars={} | plain_chars={} | scripts={} | next_data={} | positions={} | posting_name={} | job_description={}".format(
+                            len(page),len(plain),len(re.findall(r"(?is)<script\\b",page)),
+                            "__NEXT_DATA__" in page,
+                            bool(re.search(r"(?i)[\"']positions[\"']\\s*:",page)),
+                            "posting_name" in page,
+                            "job_description" in page,
+                        ),
+                        flush=True,
+                    )
+                    for needle in ("Lead AI","posting_name","job_description","687239519334"):
+                        pos=page.lower().find(needle.lower())
+                        if pos>=0:
+                            snippet=re.sub(r"\\s+"," ",page[max(0,pos-350):pos+900])
+                            print(f"MANUAL PAYLOAD SNIPPET | needle={needle} | {snippet}",flush=True)
+                    print(
+                        "MANUAL PLAIN HEAD | "+re.sub(r"\\s+"," ",plain[:5000]),
+                        flush=True,
+                    )
+                except Exception as inner:
+                    print(f"MANUAL PAYLOAD DEBUG ERROR | {inner}",flush=True)
     except Exception as exc:
         print(f"MANUAL TARGET DEBUG ERROR | {exc}", flush=True)
 
