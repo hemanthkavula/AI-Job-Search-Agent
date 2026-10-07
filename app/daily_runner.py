@@ -78,15 +78,11 @@ def run(source_config,hours=24,only_source=None,dice_search_terms=None,ledger_pa
     company_registry=load_company_registry()
     learn_companies_from_jobs(jobs,company_registry);save_company_registry(company_registry)
     source_since=source_since or {}
-    if source_since:
-        jobs24=[];stale=[];already=[]
-        by_source={}
-        for job in jobs:by_source.setdefault(job.get("source"),[]).append(job)
-        for source,rows in by_source.items():
-            fresh,old,seen=fresh_jobs(rows,hours,since=source_since.get(source,since),now=scan_now)
-            jobs24.extend(fresh);stale.extend(old);already.extend(seen)
-    else:
-        jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
+    # Provider/tenant recovery windows are discovery-only. A source may scan
+    # farther back to repair missed coverage, but an old recovered posting must
+    # never become a current-cycle candidate. Eligibility always uses the single
+    # production cutoff supplied by the scheduler.
+    jobs24,stale,already=fresh_jobs(jobs,hours,since=since,now=scan_now)
     eligible=[];skipped=[];reason_counts=Counter()
     for raw in jobs24:
         # Target companies are a preferred/example employer universe, not an
