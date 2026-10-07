@@ -146,16 +146,15 @@ def _verified_company(
     if ats_hint:
         return ats_hint, "ats_tenant"
 
-    # A direct employer domain is a trustworthy last-resort identity signal.
+    # A direct domain is only a hint; never accept it by itself. Require
+    # corroboration from independent page metadata to avoid treating a vendor,
+    # staffing portal, or white-label career site as the employer.
     direct_hint = _ats_company_hint(None, None, effective_url)
-    effective_host = (urlsplit(effective_url or "").hostname or "").lower()
-    if direct_hint and not any(v in effective_host for v in _ATS_VENDOR_NAMES) and not any(
-        effective_host == agg or effective_host.endswith("." + agg) for agg in _AGGREGATOR_HOSTS
-    ):
-        return direct_hint, "employer_domain"
 
-    # Portal/page-title values are accepted only when two independent signals agree.
+    # Portal/page-title/domain values are accepted only when two independent
+    # signals agree after legal-suffix/punctuation normalization.
     low_confidence = [
+        direct_hint,
         raw_company,
         resolved_site_name,
         resolved_fallback,
