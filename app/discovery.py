@@ -32,6 +32,7 @@ from app.source_registry import load_registry, save_registry, learn_from_jobs, a
 from app.company_registry import load as load_company_registry, save as save_company_registry, learn_from_jobs as learn_companies_from_jobs
 from app.ats_resolver import resolve_original_ats
 from app.target_companies import annotate_jobs
+from app.source_reliability import retry_decision
 import json
 
 DIRECT_PROVIDERS=("greenhouse","lever","ashby","smartrecruiters","workday","successfactors","icims","oracle","eightfold","ukg","ultipro","ultipro_ukg","adp_workforce_now","avature","phenom","paylocity","workable","jazzhr","jazzhr_alt","dayforce","cornerstone","jobvite","recruitee","teamtailor","bamboohr","breezyhr","rippling","pinpoint","careerplug","freshteam","jobscore","personio","comeet","neogov","clearcompany","applicantpro","fountain","hirebridge","zoho_recruit","manatal","join","applitrack","hireology","paycor","peopleadmin","isolved","hibob","gohire","hiringthing","homerun","pageup","dover","gem","polymer","hirehive","deel","applicantstack","ceipal","trakstar_hire","recruiting_com","taleo","brassring","paycom","bullhorn","jobdiva","greenhouse_eu","trinet","kula","rival","werecruit","firststage","recruiterbox","talentbrew","radancy","paradox","schooljobs","higheredjobs","talentreef","icims_alt","jobappnetwork","myworkchoice")
@@ -118,14 +119,27 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         kept=[]
         for src in units:
             company=src.get("company") or src.get("tenant") or src.get("site") or src.get("board_token") or src.get("board_name")
+            unit_key=f"{provider}:{company or provider}"
             if (provider,company) in hard_unhealthy_units:
-                health[f"{provider}:{company or provider}"]={
+                health[unit_key]={
                     "source":provider,"company":company,"status":"SKIPPED_HARD_FAILURE",
                     "jobs_returned":0,"health_status":advisory_health.get((provider,company)),
                     "checked_at":datetime.now(timezone.utc).isoformat()
                 }
-            else:
-                kept.append(src)
+                continue
+            retry=retry_decision(unit_key)
+            if not retry.get("attempt"):
+                reason=retry.get("reason") or "TRANSIENT_BACKOFF"
+                health[unit_key]={
+                    "source":provider,"company":company,
+                    "status":"BACKOFF_TRANSIENT" if reason=="TRANSIENT_BACKOFF" else "SKIPPED_HARD_FAILURE",
+                    "jobs_returned":0,"error":reason,
+                    "next_retry_at":retry.get("next_retry_at"),
+                    "checked_at":datetime.now(timezone.utc).isoformat()
+                }
+                errors.append({"source":provider,"company":company,"error":reason,"next_retry_at":retry.get("next_retry_at")})
+                continue
+            kept.append(src)
         config[provider]=kept
     # Network-bound ATS/company calls are independent. Run them concurrently so a
     # slow Workday tenant cannot serially block every other source in the hourly cycle.
@@ -155,9 +169,15 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             if url:tasks.append((pool.submit(oracle_jobs,src.get("company") or "oracle",url),"oracle",src.get("company") or "oracle"))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
             company=src.get("company")
+            key=f"career_site:{company}"
             if company in hard_unhealthy_career_sites:
-                key=f"career_site:{company}"
                 health[key]={"source":"career_site","company":company,"status":"SKIPPED_HARD_FAILURE","jobs_returned":0,"health_status":advisory_health.get(("career_site",company)),"checked_at":datetime.now(timezone.utc).isoformat()}
+                continue
+            retry=retry_decision(key)
+            if not retry.get("attempt"):
+                reason=retry.get("reason") or "TRANSIENT_BACKOFF"
+                health[key]={"source":"career_site","company":company,"status":"BACKOFF_TRANSIENT" if reason=="TRANSIENT_BACKOFF" else "SKIPPED_HARD_FAILURE","jobs_returned":0,"error":reason,"next_retry_at":retry.get("next_retry_at"),"checked_at":datetime.now(timezone.utc).isoformat()}
+                errors.append({"source":"career_site","company":company,"error":reason,"next_retry_at":retry.get("next_retry_at")})
                 continue
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
@@ -239,7 +259,13 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         if only_source in (None,"dice") and config.get("dice",{}).get("enabled",False):
             tasks.append((pool.submit(dice_jobs,config.get("dice",{}).get("jobs_per_page",100),search_terms=dice_search_terms,hours=_hours("dice")),"dice","Dice"))
         if only_source in (None,"ziprecruiter") and config.get("ziprecruiter",{}).get("enabled",False):
-            tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
+            retry=retry_decision("ziprecruiter:ZipRecruiter")
+            if retry.get("attempt"):
+                tasks.append((pool.submit(ziprecruiter_jobs),"ziprecruiter","ZipRecruiter"))
+            else:
+                reason=retry.get("reason") or "TRANSIENT_BACKOFF"
+                health["ziprecruiter:ZipRecruiter"]={"source":"ziprecruiter","company":"ZipRecruiter","status":"BACKOFF_TRANSIENT" if reason=="TRANSIENT_BACKOFF" else "SKIPPED_HARD_FAILURE","jobs_returned":0,"error":reason,"next_retry_at":retry.get("next_retry_at"),"checked_at":datetime.now(timezone.utc).isoformat()}
+                errors.append({"source":"ziprecruiter","company":"ZipRecruiter","error":reason,"next_retry_at":retry.get("next_retry_at")})
         if only_source in (None,"monster") and config.get("monster",{}).get("enabled",False):
             tasks.append((pool.submit(monster_jobs,hours=_hours("monster")),"monster","Monster"))
         for future,source,company in tasks:
@@ -283,7 +309,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             continue
         relevant=[v for v in health.values() if v.get("source")==provider]
         errors_for_provider=sum(v.get("status")=="ERROR" for v in relevant)
-        skipped_for_provider=sum(v.get("status") in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for v in relevant)
+        skipped_for_provider=sum(v.get("status") in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE","BACKOFF_TRANSIENT"} for v in relevant)
         ok_for_provider=sum(v.get("status")=="OK" for v in relevant)
         if not configured_units.get(provider):
             status="DISABLED"
@@ -301,7 +327,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             flush=True,
         )
     board_sources={"dice","ziprecruiter","monster"} | {src.get("provider") for src in config.get("discovery_portal",[]) if src.get("enabled",True)}
-    attempted=[v for v in health.values() if v.get("status") in {"OK","ERROR","SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"}]
+    attempted=[v for v in health.values() if v.get("status") in {"OK","ERROR","SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE","BACKOFF_TRANSIENT"}]
     employer_units=[v for v in attempted if v.get("source") not in board_sources and v.get("company")]
     ats_units=[v for v in employer_units if v.get("source") in ALL_ATS_PROVIDERS]
     career_units=[v for v in employer_units if v.get("source")=="career_site"]
@@ -320,6 +346,7 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
         "failed_units":sum(x.get("status")=="ERROR" for x in attempted),
         "skipped_unhealthy_units":sum(x.get("status") in {"SKIPPED_UNHEALTHY","SKIPPED_HARD_FAILURE"} for x in attempted),
         "hard_skipped_units":sum(x.get("status")=="SKIPPED_HARD_FAILURE" for x in attempted),
+        "backoff_units":sum(x.get("status")=="BACKOFF_TRANSIENT" for x in attempted),
         "configured_units_by_provider":configured_units,
     }
     print("COVERAGE "+json.dumps(coverage,sort_keys=True),flush=True)
