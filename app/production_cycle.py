@@ -89,9 +89,9 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours)
  _write(eligible_rel,discovery)
  if source_hours:
-  finalized=finalize_report_by_source(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,source_hours=source_hours)
+  finalized=finalize_report_by_source(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,source_hours=source_hours,since=since)
  else:
-  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now)
+  finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,since=since)
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
  retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
  finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
@@ -115,7 +115,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  # resume generation, and artifact validation have all succeeded.
  manifest_ready_count=sum(x.get("next_action")=="READY_TO_APPLY" for x in manifest)
  queued_ready_count=sum(x.get("status")=="READY_FOR_ATS_ADAPTER" for x in queue)
- summary={"cycle_id":stamp,"scan_window_hours":hours,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
+ summary={"cycle_id":stamp,"scan_window_hours":hours,"production_cutoff":since,"discovered":discovery.get("discovered",0),"eligible":queued_ready_count,
           "preliminary_eligible":discovery.get("eligible",0),
           "final_jd_verified":finalized.get("finalized",0),"held_or_rejected":finalized.get("held_or_rejected",0),
           "resume_generation_enabled":generate_resumes,"prepared":len(manifest),
