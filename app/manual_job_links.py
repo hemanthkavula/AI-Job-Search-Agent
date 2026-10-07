@@ -741,10 +741,25 @@ def _recover_interrupted_jobs() -> list[str]:
     return keys
 
 
+def _pause_active_manual_jobs() -> int:
+    state = _load_state()
+    paused = 0
+    for row in state["jobs"].values():
+        if row.get("status") in _PROCESSING_STATUSES:
+            row["status"] = "PAUSED"
+            row["error"] = None
+            row["updated_at"] = _now()
+            paused += 1
+    if paused:
+        _save_state(state)
+    return paused
+
+
 @router.on_event("startup")
 def _startup_recover_manual_jobs() -> None:
     if os.getenv("MANUAL_RECOVERY_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
-        print("MANUAL STARTUP RECOVERY DISABLED", flush=True)
+        paused = _pause_active_manual_jobs()
+        print(f"MANUAL STARTUP RECOVERY DISABLED | paused={paused}", flush=True)
         return
     _recover_interrupted_jobs()
 
