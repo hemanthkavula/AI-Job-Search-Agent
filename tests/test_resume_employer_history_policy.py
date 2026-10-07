@@ -61,7 +61,7 @@ def _payload():
     }
 
 
-def test_gcp_jd_focuses_top_skills_on_gcp_without_forcing_historical_clouds():
+def test_gcp_jd_keeps_fidelity_gcp_plus_historical_azure_and_aws_skills():
     job = SimpleNamespace(
         description="GCP BigQuery Dataflow Pub/Sub pipelines using Python SQL and PySpark"
     )
@@ -72,8 +72,10 @@ def test_gcp_jd_focuses_top_skills_on_gcp_without_forcing_historical_clouds():
     assert "Dataflow" in result["skills"]["Cloud Platforms (GCP)"]
     assert "Pub/Sub" in result["skills"]["Cloud Platforms (GCP)"]
     all_skills = [value for values in result["skills"].values() for value in values]
-    assert "AWS Glue" not in all_skills
-    assert "Azure Data Factory" not in all_skills
+    assert "AWS Glue" in all_skills
+    assert "Amazon S3" in all_skills
+    assert "Azure Data Factory" in all_skills
+    assert "ADLS Gen2" in all_skills
 
 
 def test_old_employers_reject_ai_and_wrong_cloud_while_fidelity_stays_jd_adaptive():
@@ -129,8 +131,8 @@ def test_technology_aliases_are_canonicalized_in_skills_and_environment():
     assert "Azure Data Lake Storage Gen2" not in all_skills
     assert "Event Hub" not in all_skills
     assert "Azure Purview" not in all_skills
-    assert "AWS Lambda" not in all_skills
-    assert "Amazon Kinesis" not in all_skills
+    assert all_skills.count("AWS Lambda") <= 1
+    assert all_skills.count("Amazon Kinesis") <= 1
 
     cigna = next(item for item in result["experience"] if item["company"] == "Cigna Healthcare")
     footer = cigna["skills_used"]
