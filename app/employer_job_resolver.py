@@ -177,9 +177,13 @@ def _candidate_sources(job):
         try:add(resolve_career_page(official_domain))
         except Exception:pass
 
-    # 3) Domainless employers can still be found on hosted ATS boards.
-    try:add(resolve_ats_tenant(company))
-    except Exception:pass
+    # 3) Domainless employers can still be found on hosted ATS boards. In
+    # production the discovery stage has already registered the employer as a
+    # current hiring signal. Gate this network-heavy fallback on that evidence so
+    # isolated unit/diagnostic calls do not unexpectedly perform public searches.
+    if company_row and (company_row.get("current_hiring_signal") or company_row.get("ats_resolution_pending")):
+        try:add(resolve_ats_tenant(company))
+        except Exception:pass
     return out
 
 
