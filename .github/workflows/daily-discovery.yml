@@ -121,7 +121,7 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          RESUME_LLM_MODEL: gpt-5.6
+          RESUME_LLM_MODEL: gpt-5.6-sol
         run: |
           FORCE_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
