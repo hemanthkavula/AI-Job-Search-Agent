@@ -419,13 +419,14 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
 def edit_job(key: str, body: ManualEdit) -> dict:
     state, row = _get(key)
     data = body.model_dump(exclude_unset=True)
+    description_supplied = "description" in data
     if data.get("url"):
         normalized = _normalize_url(data["url"])
         data.update({
             "url": normalized, "submitted_url": normalized, "original_url": normalized,
             "description": "", "description_usable": False, "description_complete": False, "status": "PENDING",
         })
-    if "description" in data:
+    if description_supplied:
         desc = (data.get("description") or "").strip()
         complete = _looks_like_complete_jd(desc, row.get("source") or "manual_link")
         usable = complete or _looks_like_usable_jd(desc, row.get("source") or "manual_link")
