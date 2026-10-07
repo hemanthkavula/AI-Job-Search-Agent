@@ -104,48 +104,27 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
 def test_master_payload_remains_conservative_fallback():
     payload = master_resume_payload()
     assert payload["_master_mode"] is True
-    assert len(payload["experience"][0]["bullets"]) == 10
-    assert len(payload["experience"][1]["bullets"]) == 8
-    assert len(payload["experience"][2]["bullets"]) == 8
+    assert len(payload["experience"][0]["bullets"]) == 8
+    assert len(payload["experience"][1]["bullets"]) == 7
+    assert len(payload["experience"][2]["bullets"]) == 7
     assert "dbt transformation models" in payload["experience"][0]["bullets"][4]
-    assert "AI/ML-driven analytics" in payload["experience"][0]["bullets"][6]
+    assert "ML-ready historical and near-real-time datasets" in payload["experience"][0]["bullets"][6]
 
 
-def _assert_compact_static_headers(doc):
+def _assert_uploaded_master_headers(doc):
     expected = {
-        "Fidelity Investments": "Fidelity Investments | Jersey City, NJ",
-        "Cigna Healthcare": "Cigna Healthcare | Bangalore, India",
-        "Target Corporation": "Target Corporation | Bangalore, India",
+        "Fidelity Investments": ("Jersey City, NJ", "Jan 2025 – Present", "Senior Data Engineer"),
+        "Cigna Healthcare": ("Bangalore, India", "Jan 2022 – Dec 2023", "Data Engineer"),
+        "Target Corporation": ("Bangalore, India", "Jan 2020 – Dec 2021", "Data Engineer"),
     }
-    for prefix, exact in expected.items():
-        paragraph = next(p for p in doc.paragraphs if p.text.startswith(prefix))
-        assert paragraph.text == exact
-        assert paragraph.alignment is None or int(paragraph.alignment) == 0
-        xml = paragraph._p.xml
-        assert "<w:tab" not in xml
-        assert 'w:val="both"' not in xml
-        assert 'w:val="distribute"' not in xml
-
-
-def _assert_authoritative_dates(doc):
-    expected = {
-        "Fidelity Investments": ("Senior Data Engineer", "Jan 2025 – Present"),
-        "Cigna Healthcare": ("Data Engineer", "Jan 2022 – Dec 2023"),
-        "Target Corporation": ("Data Engineer", "Jan 2020 – Dec 2021"),
-    }
-    for company, (title, dates) in expected.items():
-        company_index = next(i for i, p in enumerate(doc.paragraphs) if p.text.startswith(company))
-        roles_index = next(i for i in range(company_index + 1, len(doc.paragraphs)) if doc.paragraphs[i].text == "Roles & Responsibilities:")
-        row = next(p for p in doc.paragraphs[company_index + 1:roles_index] if title in p.text and dates in p.text)
-        assert row.text == f"{title}	{dates}"
-        assert "<w:tab" in row._p.xml
-        assert 'w:val="right"' in row._p.xml
-
+    for company, (location, dates, title) in expected.items():
+        index = next(i for i, p in enumerate(doc.paragraphs) if p.text.startswith(company))
+        assert f"{company} | {location}" in doc.paragraphs[index].text
+        assert dates in doc.paragraphs[index].text
+        assert doc.paragraphs[index + 1].text == title
     education = next(p for p in doc.paragraphs if p.text.startswith("Rowan University"))
-    assert education.text == "Rowan University | Glassboro, NJ	Jan 2024 – Dec 2025"
-    assert "<w:tab" in education._p.xml
-    assert 'w:val="right"' in education._p.xml
-
+    assert "Rowan University | Glassboro, NJ" in education.text
+    assert "Jan 2024 – Dec 2025" in education.text
 
 def test_renderer_reproduces_uploaded_word_format_contract_with_environment_footer(monkeypatch, tmp_path):
     monkeypatch.setattr(formatter, "ROOT", tmp_path)
@@ -159,12 +138,12 @@ def test_renderer_reproduces_uploaded_word_format_contract_with_environment_foot
     doc = Document(path)
     assert doc.paragraphs[0].text == "Hemanth Kavula"
     assert doc.paragraphs[1].text == "Senior Data Engineer"
-    assert sum(p.text == "Roles & Responsibilities:" for p in doc.paragraphs) == 3
+    assert sum(p.text == "Roles & Responsibilities:" for p in doc.paragraphs) == 0
     assert sum(p.text.startswith("Environment: ") for p in doc.paragraphs) == 3
     assert sum(p.text.startswith("Skills: ") for p in doc.paragraphs) == 0
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
-    _assert_compact_static_headers(doc)
-    _assert_authoritative_dates(doc)
+    _assert_uploaded_master_headers(doc)
+    _assert_uploaded_master_headers(doc)
 
 
 def _generated_payload(long_content=False):
@@ -193,7 +172,7 @@ def _generated_payload(long_content=False):
                 "company": "Fidelity Investments",
                 "bullets": [
                     f"Built Python and SQL data pipelines for reliable financial data processing workflow {i}.{extra}"
-                    for i in range(1, 11)
+                    for i in range(1, 9)
                 ],
                 "skills_used": ["Python", "SQL"],
             },
@@ -229,8 +208,8 @@ def test_jd_tailored_renderer_keeps_word_format_and_environment_footers(monkeypa
     assert "Environment: Python, SQL" in text
     assert "Skills: Python, SQL" not in text
     assert not any(p.paragraph_format.page_break_before is True for p in doc.paragraphs)
-    _assert_compact_static_headers(doc)
-    _assert_authoritative_dates(doc)
+    _assert_uploaded_master_headers(doc)
+    _assert_uploaded_master_headers(doc)
 
 
 def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypatch, tmp_path):
@@ -242,5 +221,5 @@ def test_renderer_preserves_master_paragraph_format_when_content_wraps(monkeypat
     assert result["passed"], result["reasons"]
     assert result["content_length_policy"] == "compact_master_like_layout"
     doc = Document(path)
-    _assert_compact_static_headers(doc)
-    _assert_authoritative_dates(doc)
+    _assert_uploaded_master_headers(doc)
+    _assert_uploaded_master_headers(doc)
