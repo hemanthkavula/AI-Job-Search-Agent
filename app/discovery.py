@@ -77,45 +77,53 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
     errors=[]
     tasks=[]
     health={}
-    # Reuse the latest source-health report to avoid repeatedly crawling generic
-    # career pages that are already known to be blocked, unreachable, or JS-only.
-    unhealthy_career_sites=set()
-    unhealthy_units=set()
+    # Source health is advisory for transient failures. A one-off timeout,
+    # 403/429, anti-bot response, or transport error must not hide an employer
+    # from production discovery. Only hard failures that are very unlikely to
+    # succeed in the immediately following collector call are quarantined.
+    hard_unhealthy_units=set()
+    hard_unhealthy_career_sites=set()
+    advisory_health={}
     try:
         from pathlib import Path
         import time
         health_file=Path(health_path)
-        # Backward-compatible migration: use the old generated report once if
-        # state/source_health.json has not been created yet.
         if not health_file.exists() and Path("generated/source_health.json").exists():
             health_file=Path("generated/source_health.json")
-        # Health is advisory and expires after 24h. A blocked/JS-only site is
-        # skipped during normal hourly scans, then automatically retried after
-        # the TTL so temporary outages never become permanent exclusions.
         health_fresh=health_file.exists() and (time.time()-health_file.stat().st_mtime)<=86400
         if health_fresh:
             health_report=json.loads(health_file.read_text(encoding="utf-8"))
             for row in health_report.get("sources",[]):
+                provider=row.get("provider")
+                company=row.get("company")
                 status=row.get("effective_status") or row.get("status")
-                if row.get("provider")=="career_site" and status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"}:
-                    if row.get("company"):
-                        unhealthy_career_sites.add(row["company"])
-                if status in {"no_crawlable_links","blocked_or_http_error","unreachable","broken","invalid_pattern"} and row.get("provider") and row.get("company"):
-                    unhealthy_units.add((row["provider"],row["company"]))
+                if not provider or not company:
+                    continue
+                advisory_health[(provider,company)]=status
+                # 404/410 and invalid source definitions are hard failures.
+                # Generic career pages with no crawlable links are also skipped
+                # because the same generic collector cannot recover them.
+                if status in {"broken","invalid_pattern"}:
+                    hard_unhealthy_units.add((provider,company))
+                if provider=="career_site" and status in {"broken","invalid_pattern","no_crawlable_links"}:
+                    hard_unhealthy_career_sites.add(company)
+                # blocked_or_http_error and unreachable are deliberately NOT
+                # quarantined: the provider-specific collector gets a retry lane.
     except Exception:
         pass
-    # Quarantine stale/broken learned ATS tenants for the health TTL instead of
-    # repeatedly spending the production window on known 404/403/unreachable boards.
-    # Source health is refreshed before every production discovery, so recovered
-    # tenants automatically re-enter without deleting them from persistent learning.
+
     for provider in ALL_ATS_PROVIDERS:
         units=config.get(provider,[])
         if not isinstance(units,list) or not units: continue
         kept=[]
         for src in units:
             company=src.get("company") or src.get("tenant") or src.get("site") or src.get("board_token") or src.get("board_name")
-            if (provider,company) in unhealthy_units:
-                health[f"{provider}:{company or provider}"]={"source":provider,"company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+            if (provider,company) in hard_unhealthy_units:
+                health[f"{provider}:{company or provider}"]={
+                    "source":provider,"company":company,"status":"SKIPPED_HARD_FAILURE",
+                    "jobs_returned":0,"health_status":advisory_health.get((provider,company)),
+                    "checked_at":datetime.now(timezone.utc).isoformat()
+                }
             else:
                 kept.append(src)
         config[provider]=kept
@@ -147,9 +155,9 @@ def discover(config: dict, only_source=None, dice_search_terms=None, registry_pa
             if url:tasks.append((pool.submit(oracle_jobs,src.get("company") or "oracle",url),"oracle",src.get("company") or "oracle"))
         for src in config.get("career_site",[]) if only_source in (None,"career_site") else []:
             company=src.get("company")
-            if company in unhealthy_career_sites:
+            if company in hard_unhealthy_career_sites:
                 key=f"career_site:{company}"
-                health[key]={"source":"career_site","company":company,"status":"SKIPPED_UNHEALTHY","jobs_returned":0,"checked_at":datetime.now(timezone.utc).isoformat()}
+                health[key]={"source":"career_site","company":company,"status":"SKIPPED_HARD_FAILURE","jobs_returned":0,"health_status":advisory_health.get(("career_site",company)),"checked_at":datetime.now(timezone.utc).isoformat()}
                 continue
             tasks.append((pool.submit(career_site_jobs,src["company"],src["search_url"],src["job_url_pattern"]),"career_site",company))
         for src in config.get("eightfold",[]) if only_source in (None,"eightfold") else []:
