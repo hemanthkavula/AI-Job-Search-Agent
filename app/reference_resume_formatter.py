@@ -274,43 +274,40 @@ def _has_right_tab(paragraph):
 
 
 def _normalize_static_headers(root, master):
-    """Apply the approved Alpaca/master layout to all fixed-history rows.
+    """Preserve the approved pre-master-change alignment rules.
 
-    Employer line: Company | Location
-    Next line:      Job Title                         Dates (right aligned)
-    Education:      School | Location                Dates (right aligned)
+    Current master structure:
+      Company | Location                         Dates (right aligned)
+      Job Title
+      bullets...
+      Environment: ...
+
+    The uploaded DOCX contains long literal space runs before dates. Replace
+    those transport-only spaces with one Word right-tab stop, exactly as the
+    established formatter did for aligned dates. Education uses the same rule.
     """
     for row in master["experience"]:
         paragraphs = _pt(root)
         company = row["company"]
-        header_index = next(i for i, p in enumerate(paragraphs) if _text(p).startswith(company))
-        header = paragraphs[header_index]
+        header = next(p for p in paragraphs if _text(p).startswith(company))
         company_style = _rpr(header, True) or _rpr(header, False)
         detail_style = _rpr(header, False) or company_style
         date_style = _date_rpr(header) or detail_style
 
-        _compact_left_paragraph(header, after_twips=0)
+        _set_right_tab(header)
         _clear(header)
         _run(header, company, company_style)
         _run(header, f" | {row['location']}", detail_style)
+        _tab(header)
+        _run(header, str(row.get("dates") or "").strip(), date_style)
 
-        paragraphs = _pt(root)
-        header_index = next(i for i, p in enumerate(paragraphs) if _text(p) == f"{company} | {row['location']}")
-        roles_index = next(
-            i for i in range(header_index + 1, len(paragraphs))
-            if _text(paragraphs[i]) == "Roles & Responsibilities:"
-        )
         title = str(row.get("title") or "").strip()
         title_paragraph = next(
-            p for p in paragraphs[header_index + 1:roles_index]
-            if _text(p) == title
+            p for p in _pt(root)
+            if _text(p).strip() == title
+            and _pt(root).index(p) > _pt(root).index(header)
         )
-        title_style = _rpr(title_paragraph, False) or _rpr(title_paragraph, True)
-        _set_right_tab(title_paragraph)
-        _clear(title_paragraph)
-        _run(title_paragraph, title, title_style)
-        _tab(title_paragraph)
-        _run(title_paragraph, str(row.get("dates") or "").strip(), date_style)
+        _compact_left_paragraph(title_paragraph, after_twips=0)
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
@@ -322,9 +319,9 @@ def _normalize_static_headers(root, master):
             continue
         style = _rpr(paragraph, False) or _rpr(paragraph, True)
         date_style = _date_rpr(paragraph) or style
-        start = str(row.get("start") or "").strip()
-        end = str(row.get("end") or "").strip()
-        dates = f"{start} – {end}" if start and end else (start or end)
+        start_date = str(row.get("start") or "").strip()
+        end_date = str(row.get("end") or "").strip()
+        dates = f"{start_date} – {end_date}" if start_date and end_date else (start_date or end_date)
         _set_right_tab(paragraph)
         _clear(paragraph)
         _run(paragraph, school, style)
@@ -332,7 +329,6 @@ def _normalize_static_headers(root, master):
             _run(paragraph, f" | {location}", style)
         _tab(paragraph)
         _run(paragraph, dates, date_style)
-
 
 def _is_employer_footer(value):
     return value.startswith("Environment:") or value.startswith("Skills:")
@@ -457,8 +453,8 @@ def validate_master_format_contract(path, master=None, word_format=None):
                 or str(row.get("dates") or "").strip() not in output_text
             ):
                 reasons.append(company + "_header_text")
-            if _ppr(output_header) != _ppr(source_header):
-                reasons.append(company + "_header_format")
+            if not _has_right_tab(output_header):
+                reasons.append(company + "_date_alignment")
         title = str(row.get("title") or "").strip()
         source_title = next((p for p in source_paragraphs if _text(p).strip() == title), None)
         output_title = next((p for p in output_paragraphs if _text(p).strip() == title), None)
@@ -480,8 +476,8 @@ def validate_master_format_contract(path, master=None, word_format=None):
             end = str(row.get("end") or "").strip()
             if school not in output_text or location not in output_text or start not in output_text or end not in output_text:
                 reasons.append("education_school_location_date_text")
-            if _ppr(output_paragraph) != _ppr(source_paragraph):
-                reasons.append("education_format")
+            if not _has_right_tab(output_paragraph):
+                reasons.append("education_date_alignment")
 
     output_experience = _exp(output_paragraphs)
     source_experience = _exp(source_paragraphs)
@@ -562,6 +558,7 @@ def _master_mode_with_skills_footer(template, out):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
+    _normalize_static_headers(root, master)
     layout = _exp(_pt(root))
     source_layout = _exp(_pt(_xml(template)))
     footer_bold, footer_normal = _footer_styles(source_layout)
@@ -588,6 +585,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
     master = load_master_resume()
     with zipfile.ZipFile(template) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
+    _normalize_static_headers(root, master)
     paragraphs = _pt(root)
     header = paragraphs[1]
     normal = _rpr(header, False)
