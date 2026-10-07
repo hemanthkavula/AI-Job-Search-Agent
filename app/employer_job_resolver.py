@@ -8,14 +8,7 @@ from app.ats_tenant_resolver import resolve as resolve_ats_tenant
 from app.career_page_resolver import resolve as resolve_career_page
 from app.company_registry import company_key, load as load_company_registry, save as save_company_registry
 from app.source_registry import detect_ats, learn_resolved_source, load_registry, save_registry
-from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
-from app.sources.lever import fetch_jobs as lever_jobs
-from app.sources.ashby import fetch_jobs as ashby_jobs
-from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
-from app.sources.workable import fetch_jobs as workable_jobs
-from app.sources.workday import fetch_jobs as workday_jobs
-from app.sources.eightfold import fetch_jobs as eightfold_jobs
-from app.sources.public_ats_board import fetch_jobs as public_board_jobs
+from app.provider_adapter_router import fetch_provider_jobs
 
 AGGREGATOR_HOSTS=("dice.com","indeed.com","linkedin.com","ziprecruiter.com","monster.com","wellfound.com","builtin.com","ycombinator.com","adzuna.com","glassdoor.com","simplyhired.com","careerbuilder.com")
 CORE_TITLE_STOP={"senior","sr","lead","principal","staff","ii","iii","iv","remote","hybrid","onsite","on","site"}
@@ -46,18 +39,38 @@ def _location_tokens(value):
     return {x for x in re.findall(r"[a-z0-9]+",(value or "").lower()) if len(x)>=2 and x not in stop}
 
 
+def _url_identity(value):
+    try:
+        parsed=urlparse(str(value or ""))
+    except Exception:
+        return ""
+    host=(parsed.netloc or "").lower()
+    path=re.sub(r"/+","/",parsed.path or "").rstrip("/").lower()
+    return host+path
+
+
+def _candidate_id_matches_url(candidate_id,expected_url):
+    value=str(candidate_id or "").strip().lower()
+    if len(value)<4:return False
+    return value in str(expected_url or "").lower()
+
+
 def _match_rows(job,rows,provider,identifier=None):
     expected_title=job.get("title") or ""
     expected_location=job.get("location") or ""
     expected_req=str(job.get("requisition_id") or job.get("job_id") or "").strip().lower()
+    expected_url=job.get("original_url") or job.get("url") or ""
+    expected_url_key=_url_identity(expected_url)
     ranked=[]
     for row in rows or []:
         url=row.get("original_url") or row.get("url")
         if not url or _is_aggregator(url):continue
         title=row.get("title") or ""
-        score=_title_score(expected_title,title)
-        if score<0.67:continue
         candidate_req=str(row.get("requisition_id") or row.get("job_id") or "").strip().lower()
+        exact_url=bool(expected_url_key and _url_identity(url)==expected_url_key)
+        id_in_url=_candidate_id_matches_url(candidate_req,expected_url)
+        score=2.0 if exact_url else (1.7 if id_in_url else _title_score(expected_title,title))
+        if not (exact_url or id_in_url) and score<0.67:continue
         if expected_req and candidate_req and expected_req!=candidate_req and expected_req not in candidate_req and candidate_req not in expected_req:
             continue
         loc_bonus=0.0
@@ -75,8 +88,11 @@ def _match_rows(job,rows,provider,identifier=None):
         # identical titles. Without that evidence, do not guess between multiple
         # live openings carrying the same title/location.
         best_req=str(best.get("requisition_id") or best.get("job_id") or "").strip().lower()
+        best_url=best.get("original_url") or best.get("url") or ""
+        exact_url_disambiguates=bool(expected_url_key and _url_identity(best_url)==expected_url_key)
+        id_url_disambiguates=_candidate_id_matches_url(best_req,expected_url)
         req_disambiguates=bool(expected_req and best_req and (expected_req==best_req or expected_req in best_req or best_req in expected_req))
-        if not req_disambiguates:return None
+        if not (exact_url_disambiguates or id_url_disambiguates or req_disambiguates):return None
     out=dict(best)
     out["ats_provider"]=provider
     out["ats_identifier"]=identifier or out.get("ats_identifier")
@@ -85,55 +101,13 @@ def _match_rows(job,rows,provider,identifier=None):
     return out
 
 
-def _workday_parts(url,identifier):
-    host=(urlparse(url or "").netloc or "").lower()
-    tenant=None;site=None
-    if identifier and "|" in str(identifier):
-        tenant,site=str(identifier).split("|",1)
-    if (not tenant or not site) and url:
-        provider,detected=detect_ats(url)
-        if provider=="workday" and detected and "|" in detected:
-            tenant,site=detected.split("|",1)
-    if not tenant and host:tenant=host.split(".",1)[0]
-    return host,tenant,site
-
-
 def _fetch_rows(company,hit):
     provider=(hit.get("ats_provider") or "").lower()
-    url=hit.get("careers_url") or hit.get("search_url") or hit.get("original_url") or ""
-    identifier=hit.get("ats_identifier") or hit.get("identifier")
-    if not provider and url:
-        provider,detected=detect_ats(url)
-        identifier=identifier or detected
-    if not provider or not url:return [],provider,identifier
     try:
-        if provider=="greenhouse":
-            token=identifier or detect_ats(url)[1]
-            return greenhouse_jobs(token),provider,token
-        if provider=="lever":
-            site=identifier or detect_ats(url)[1]
-            return lever_jobs(site),provider,site
-        if provider=="ashby":
-            board=identifier or detect_ats(url)[1]
-            return ashby_jobs(board),provider,board
-        if provider=="smartrecruiters":
-            ident=identifier or detect_ats(url)[1]
-            return smartrecruiters_jobs(ident,hours=48),provider,ident
-        if provider=="workable":
-            return workable_jobs(company,url),provider,identifier or detect_ats(url)[1]
-        if provider=="workday":
-            host,tenant,site=_workday_parts(url,identifier)
-            if host and tenant and site:
-                return workday_jobs(company,host,tenant,site,hours=48),provider,f"{tenant}|{site}"
-            return [],provider,identifier
-        if provider=="eightfold":
-            return eightfold_jobs(company,url),provider,identifier or detect_ats(url)[1]
-        # Long-tail public ATS boards already share the generic evidence-aware
-        # collector used by production discovery.
-        return public_board_jobs(company,url,provider),provider,identifier or detect_ats(url)[1]
+        return fetch_provider_jobs(provider, company, hit, hours=48)
     except Exception:
+        identifier=hit.get("ats_identifier") or hit.get("identifier")
         return [],provider,identifier
-
 
 def _source_registry_hits(company,registry):
     key=company_key(company)
