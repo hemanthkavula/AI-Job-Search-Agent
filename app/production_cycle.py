@@ -8,6 +8,8 @@ from app.source_window_finalizer import finalize_report_by_source
 from app.batch_prepare import prepare
 from app.job_ledger import load_ledger,save_ledger,record_seen,retryable_jobs,retry_metadata,_lookup
 from app.application_queue import build as build_application_queue
+from app.source_reliability import update_from_cycle as update_source_reliability, summary as source_reliability_summary
+from app.source_repair import update_from_reliability as update_source_repair_queue, summary as source_repair_summary
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -88,6 +90,10 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  queue_rel=f"generated/cycles/{stamp}_application_queue.json"
  discovery=discover_and_filter(sources,hours,ledger_path=ledger,since=since,scan_now=scan_now,source_since=source_since,source_hours=source_hours,source_unit_hours=source_unit_hours)
  _write(eligible_rel,discovery)
+ # Persist per-source reliability after every real cycle. This is independent
+ # from job eligibility and only controls retries/repair scheduling.
+ update_source_reliability(discovery.get("source_unit_status") or {},now=scan_now)
+ update_source_repair_queue()
  if source_hours:
   finalized=finalize_report_by_source(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,source_hours=source_hours,since=since)
  else:
@@ -134,7 +140,9 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
           "queued_for_application":queued_ready_count,
           "manual_application_action":sum(x.get("status")=="MANUAL_ACTION_REQUIRED" for x in queue),"source_status":discovery.get("source_status",{}),
           "source_errors":discovery.get("source_errors",{}),"source_unit_status":discovery.get("source_unit_status",{}),
-          "coverage":discovery.get("coverage",{})}
+          "coverage":discovery.get("coverage",{}),
+          "source_reliability":source_reliability_summary(),
+          "source_repair_queue":source_repair_summary()}
  _write(f"generated/cycles/{stamp}_summary.json",summary)
  return summary
 
