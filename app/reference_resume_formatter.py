@@ -468,8 +468,13 @@ def validate_master_format_contract(path, master=None, word_format=None):
         )
         if source_title is None or output_title is None:
             reasons.append(company + "_title_text")
-        elif _ppr(output_title) != _ppr(source_title):
-            reasons.append(company + "_title_format")
+        else:
+            # The approved pre-change rule deliberately normalizes title rows
+            # to a compact, flush-left layout. Validate that resulting layout
+            # rather than requiring byte-identical paragraph properties from
+            # the uploaded transport file.
+            if not _clean_header_layout(output_title):
+                reasons.append(company + "_title_format")
 
     for row in master.get("education") or []:
         school = str(row.get("school") or "").strip()
