@@ -11,6 +11,7 @@ on:
       - 'app/batch_prepare.py'
       - 'data/master_resume.json'
       - 'data/master_word_format.json'
+      - 'data/master_word_template_b64/**'
       - 'data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx'
       - 'tests/test_fresh_master_resume_contract.py'
       - 'tests/test_base_resume_job_naming.py'

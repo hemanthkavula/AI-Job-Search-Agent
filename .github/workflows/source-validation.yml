@@ -41,6 +41,7 @@ on:
       - "data/candidate_profile.json"
       - "data/master_resume.json"
       - "data/master_word_format.json"
+      - "data/master_word_template_b64/**"
       - "data/Hemanth_Kavula_Senior_Data_Engineer_Resume.docx"
       - "tests/**"
       - "app/scheduled_runner.py"
