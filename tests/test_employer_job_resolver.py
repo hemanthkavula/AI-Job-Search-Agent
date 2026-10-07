@@ -101,13 +101,11 @@ def test_ambiguous_same_title_board_is_not_silently_resolved(monkeypatch):
 
 
 def test_direct_exact_ats_url_resolves_without_prior_title(monkeypatch):
-    monkeypatch.setattr(employer_job_resolver,"load_company_registry",lambda:{})
-    monkeypatch.setattr(employer_job_resolver,"load_registry",lambda:{})
     monkeypatch.setattr(employer_job_resolver,"save_registry",lambda reg:None)
     monkeypatch.setattr(employer_job_resolver,"save_company_registry",lambda reg:None)
 
     url="https://eaton.eightfold.ai/careers/job/123"
-    expected=[{
+    exact={
         "company_key":"Eaton",
         "title":"Lead AI and Data Engineer",
         "url":url,
@@ -115,13 +113,13 @@ def test_direct_exact_ats_url_resolves_without_prior_title(monkeypatch):
         "job_id":"123",
         "description":"Responsibilities build AI and data engineering platforms with Python SQL Azure OpenAI Databricks.",
         "location":"Beachwood, OH",
-    }]
+    }
     seen={}
-    def fake_dispatch(provider,company,source,hours=48):
-        seen.update(provider=provider,company=company,url=source.get("careers_url"))
-        return expected,"eightfold","eaton"
+    def fake_exact(provider,company,source,timeout=25):
+        seen.update(provider=provider,company=company,url=source.get("original_url"))
+        return exact,"eightfold","eaton"
 
-    monkeypatch.setattr(employer_job_resolver,"fetch_provider_jobs",fake_dispatch)
+    monkeypatch.setattr(employer_job_resolver,"fetch_exact_job",fake_exact)
     job={
         "company_key":"Eaton","company":"Eaton","title":"Job opening",
         "url":url,"original_url":url,"ats_provider":"eightfold","ats_identifier":"eaton",
@@ -131,7 +129,7 @@ def test_direct_exact_ats_url_resolves_without_prior_title(monkeypatch):
     assert out["title"]=="Lead AI and Data Engineer"
     assert out["ats_provider"]=="eightfold"
     assert out["ats_identifier"]=="eaton"
-    assert out["ats_resolution"]=="verified_employer_source_match"
+    assert out["ats_resolution"]=="verified_exact_job_detail"
 
 
 def test_direct_ats_url_is_candidate_without_registry(monkeypatch):
