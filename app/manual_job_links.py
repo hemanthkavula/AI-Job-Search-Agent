@@ -743,6 +743,9 @@ def _recover_interrupted_jobs() -> list[str]:
 
 @router.on_event("startup")
 def _startup_recover_manual_jobs() -> None:
+    if os.getenv("MANUAL_RECOVERY_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        print("MANUAL STARTUP RECOVERY DISABLED", flush=True)
+        return
     _recover_interrupted_jobs()
 
 
