@@ -124,6 +124,43 @@ def test_bypass_eligibility_is_explicit():
     assert got["sponsorship"]["status"] == "BYPASSED_MANUAL_LINK"
 
 
+def test_manual_policy_tailors_partial_usable_jd_with_three_plus_targets():
+    raw = {
+        "description": "Build Python SQL Spark pipelines and orchestration for analytics.",
+        "description_usable": True,
+        "description_complete": False,
+        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
+    }
+    assert manual._manual_should_use_master_resume(raw, {"target_count": 5}) is False
+
+
+def test_manual_policy_uses_master_for_two_or_fewer_targets():
+    raw = {
+        "description": "Build Python SQL pipelines.",
+        "description_usable": True,
+        "description_complete": True,
+        "tailoring_mode": "FULL_JD",
+    }
+    assert manual._manual_should_use_master_resume(raw, {"target_count": 2}) is True
+
+
+def test_manual_policy_uses_master_for_unusable_or_empty_jd():
+    unusable = {
+        "description": "generic page",
+        "description_usable": False,
+        "description_complete": False,
+        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
+    }
+    empty = {
+        "description": "",
+        "description_usable": False,
+        "description_complete": False,
+        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
+    }
+    assert manual._manual_should_use_master_resume(unusable, {"target_count": 20}) is True
+    assert manual._manual_should_use_master_resume(empty, {"target_count": 20}) is True
+
+
 def test_shared_pipeline_calls_production_prepare(monkeypatch, isolated):
     captured = {}
 
