@@ -61,19 +61,19 @@ def _payload():
     }
 
 
-def test_gcp_jd_adds_separate_gcp_group_and_keeps_master_aws_azure_groups():
+def test_gcp_jd_focuses_top_skills_on_gcp_without_forcing_historical_clouds():
     job = SimpleNamespace(
         description="GCP BigQuery Dataflow Pub/Sub pipelines using Python SQL and PySpark"
     )
     result = _normalize_generated_resume(_payload(), job)
-    master = load_master_resume()
 
-    assert result["skills"]["Cloud Platforms (AWS)"][:6] == master["skills"]["Cloud Platforms (AWS)"]
-    assert result["skills"]["Cloud Platforms (Azure)"][:4] == master["skills"]["Cloud Platforms (Azure)"]
     assert "Cloud Platforms (GCP)" in result["skills"]
     assert "BigQuery" in result["skills"]["Cloud Platforms (GCP)"]
     assert "Dataflow" in result["skills"]["Cloud Platforms (GCP)"]
     assert "Pub/Sub" in result["skills"]["Cloud Platforms (GCP)"]
+    all_skills = [value for values in result["skills"].values() for value in values]
+    assert "AWS Glue" not in all_skills
+    assert "Azure Data Factory" not in all_skills
 
 
 def test_old_employers_reject_ai_and_wrong_cloud_while_fidelity_stays_jd_adaptive():
@@ -129,6 +129,8 @@ def test_technology_aliases_are_canonicalized_in_skills_and_environment():
     assert "Azure Data Lake Storage Gen2" not in all_skills
     assert "Event Hub" not in all_skills
     assert "Azure Purview" not in all_skills
+    assert "AWS Lambda" not in all_skills
+    assert "Amazon Kinesis" not in all_skills
 
     cigna = next(item for item in result["experience"] if item["company"] == "Cigna Healthcare")
     footer = cigna["skills_used"]
