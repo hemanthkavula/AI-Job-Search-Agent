@@ -8,6 +8,10 @@ import os
 import re
 import shutil
 import threading
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows/local fallback
+    fcntl = None
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -566,11 +570,9 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
         if force_refetch or not row.get("description_usable") or not row.get("description"):
             raw = fetch_manual_job(row.get("submitted_url") or row.get("url"))
             if not force_refetch:
-                for field in ("company", "title", "location", "employment_type"):
+                for field in ("location", "employment_type"):
                     if row.get(field):
                         raw[field] = row[field]
-                        if field == "company":
-                            raw["company_key"] = row[field]
         else:
             raw = {
                 "external_id": key,
@@ -596,9 +598,18 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
                 "manual_filters_bypassed": True,
                 "application_route": "MANUAL_LINK",
             }
+        clean_company = (
+            _clean_company_label(raw.get("company_key") or raw.get("company"))
+            or _ats_company_hint(raw.get("ats_provider"), raw.get("ats_identifier"), raw.get("original_url") or raw.get("url") or "")
+            or "Company"
+        )
+        clean_title = _clean_job_title(raw.get("title")) or "Job opening"
+        raw["company_key"] = clean_company
+        raw["company"] = clean_company
+        raw["title"] = clean_title
         row.update({
-            "company": raw.get("company_key") or raw.get("company") or "Unknown company",
-            "title": raw.get("title") or "Job from supplied link",
+            "company": clean_company,
+            "title": clean_title,
             "location": raw.get("location") or "",
             "employment_type": raw.get("employment_type"),
             "description": raw.get("description") or "",
@@ -647,16 +658,28 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
 
 
 def process_jobs(keys: list[str]) -> None:
-    """Process a submitted batch off the request path; only completed resumes are shown in the UI."""
+    """Process one manual batch sequentially, with a volume-backed lock across deploy overlap."""
     with _BATCH_LOCK:
-        for key in keys:
-            try:
-                _, row = _get(key)
-                if row.get("application_status") == "SUBMITTED_CONFIRMED" or row.get("status") == "READY_TO_APPLY":
-                    continue
-                process_job(key)
-            except Exception as exc:
-                print(f"MANUAL BACKGROUND ERROR {key}: {exc}", flush=True)
+        lock_handle = None
+        try:
+            if fcntl is not None:
+                MANUAL_DIR.mkdir(parents=True, exist_ok=True)
+                lock_handle = (MANUAL_DIR / "batch.lock").open("a+", encoding="utf-8")
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            for key in keys:
+                try:
+                    _, row = _get(key)
+                    if row.get("application_status") == "SUBMITTED_CONFIRMED" or row.get("status") == "READY_TO_APPLY":
+                        continue
+                    process_job(key)
+                except Exception as exc:
+                    print(f"MANUAL BACKGROUND ERROR {key}: {exc}", flush=True)
+        finally:
+            if lock_handle is not None:
+                try:
+                    fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+                finally:
+                    lock_handle.close()
 
 
 def _company_is_aggregator(value: str | None) -> bool:
@@ -680,6 +703,14 @@ def _recover_interrupted_jobs() -> list[str]:
             status == "HOLD_RESUME_ERROR"
             and "must contain exactly" in str(row.get("error") or "").lower()
         )
+        audit = row.get("ats_audit") or {}
+        audit_structure_retry = (
+            status == "HOLD_ATS_REVIEW"
+            and (
+                "structure" in (audit.get("blocking_quality_gates") or [])
+                or (audit.get("quality_gates") or {}).get("structure") is False
+            )
+        )
         bad_ready_company = status == "READY_TO_APPLY" and _company_is_aggregator(row.get("company"))
         if bad_ready_company:
             row.update({
@@ -695,7 +726,7 @@ def _recover_interrupted_jobs() -> list[str]:
                 "updated_at": _now(),
             })
             changed = True
-        if status in _PROCESSING_STATUSES or structural_retry or bad_ready_company:
+        if status in _PROCESSING_STATUSES or structural_retry or audit_structure_retry or bad_ready_company:
             keys.append(key)
     if changed:
         _save_state(state)
