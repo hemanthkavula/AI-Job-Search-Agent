@@ -15,7 +15,7 @@ def test_employer_start_requires_first_bullet_without_locking_later_bullets(tmp_
     validated = validate_experience_start_rule(target)
     assert validated["passed"], validated["reasons"]
     assert validated["policy"] == (
-        "aligned employer header/title/roles plus complete first bullet must start together"
+        "aligned employer header/title plus complete first bullet must start together"
     )
 
 
