@@ -456,8 +456,16 @@ def validate_master_format_contract(path, master=None, word_format=None):
             if not _has_right_tab(output_header):
                 reasons.append(company + "_date_alignment")
         title = str(row.get("title") or "").strip()
-        source_title = next((p for p in source_paragraphs if _text(p).strip() == title), None)
-        output_title = next((p for p in output_paragraphs if _text(p).strip() == title), None)
+        source_header_index = next((i for i, p in enumerate(source_paragraphs) if _text(p).startswith(company)), None)
+        output_header_index = next((i for i, p in enumerate(output_paragraphs) if _text(p).startswith(company)), None)
+        source_title = None if source_header_index is None else next(
+            (p for p in source_paragraphs[source_header_index + 1:] if _text(p).strip() == title),
+            None,
+        )
+        output_title = None if output_header_index is None else next(
+            (p for p in output_paragraphs[output_header_index + 1:] if _text(p).strip() == title),
+            None,
+        )
         if source_title is None or output_title is None:
             reasons.append(company + "_title_text")
         elif _ppr(output_title) != _ppr(source_title):
