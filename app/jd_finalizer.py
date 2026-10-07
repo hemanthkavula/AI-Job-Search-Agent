@@ -324,22 +324,24 @@ def finalize_report(report_path,output_path="generated/finalized_jobs.json",hour
                 held.append({"job":raw,"action":"HOLD_POST_DATE_UNVERIFIED","reason":"Employer/ATS posting date could not be verified and the originating job board did not provide a usable posting date.","diagnostics":{"url":application_url,"discovery_source":raw.get("source"),"ats_resolution":raw.get("ats_resolution"),"discovery_posted_at":raw.get("discovery_posted_at")}})
                 continue
         proof_posted_at=selected_posted.isoformat() if selected_posted is not None else raw.get("freshness_verified_posted_at")
-        if not proof_posted_at:
+        strict_production_proof=since is not None
+        if not proof_posted_at and strict_production_proof:
             held.append({"job":raw,"action":"HOLD_POST_DATE_UNVERIFIED","reason":"No verifiable posting timestamp remained available at the final production gate.","diagnostics":{"url":application_url,"production_cutoff":cutoff.isoformat(),"freshness_basis":raw.get("freshness_basis")}})
             continue
-        raw["freshness_proof"]={
-            "posted_at":proof_posted_at,
-            "label":selected_label or raw.get("official_posted_label") or raw.get("posted_on") or raw.get("posted_at"),
-            "basis":raw.get("freshness_basis"),
-            "production_cutoff":cutoff.isoformat(),
-            "checked_at":check_now.isoformat(),
-            "recovery_scan":bool(raw.get("recovery_scan")),
-            "discovery_window_hours":raw.get("discovery_window_hours"),
-        }
-        proof_dt=datetime.fromisoformat(str(proof_posted_at).replace("Z","+00:00")).astimezone(timezone.utc)
-        if proof_dt<cutoff or proof_dt>check_now+timedelta(minutes=10):
-            held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Selected posting date is outside the requested freshness window. Employer/ATS date was preferred when available; otherwise the originating job-board date was used.","diagnostics":{"url":application_url,"official_posted_at":proof_dt.isoformat(),"official_posted_label":selected_label,"freshness_basis":raw.get("freshness_basis"),"freshness_hours":hours,"production_cutoff":cutoff.isoformat(),"discovery_source":raw.get("source")}})
-            continue
+        if proof_posted_at:
+            raw["freshness_proof"]={
+                "posted_at":proof_posted_at,
+                "label":selected_label or raw.get("official_posted_label") or raw.get("posted_on") or raw.get("posted_at"),
+                "basis":raw.get("freshness_basis"),
+                "production_cutoff":cutoff.isoformat(),
+                "checked_at":check_now.isoformat(),
+                "recovery_scan":bool(raw.get("recovery_scan")),
+                "discovery_window_hours":raw.get("discovery_window_hours"),
+            }
+            proof_dt=datetime.fromisoformat(str(proof_posted_at).replace("Z","+00:00")).astimezone(timezone.utc)
+            if proof_dt<cutoff or proof_dt>check_now+timedelta(minutes=10):
+                held.append({"job":raw,"action":"REJECT_STALE_OFFICIAL_POSTING","reason":"Selected posting date is outside the requested freshness window. Employer/ATS date was preferred when available; otherwise the originating job-board date was used.","diagnostics":{"url":application_url,"official_posted_at":proof_dt.isoformat(),"official_posted_label":selected_label,"freshness_basis":raw.get("freshness_basis"),"freshness_hours":hours,"production_cutoff":cutoff.isoformat(),"discovery_source":raw.get("source")}})
+                continue
         live_status,live_reason=_live_public_job_page(application_url)
         if live_status is False:
             held.append({"job":raw,"action":"REJECT_DEAD_JOB","reason":"Application page no longer exists or is explicitly closed.","diagnostics":{"url":raw.get("original_url") or raw.get("url"),"live_check":live_reason}})
