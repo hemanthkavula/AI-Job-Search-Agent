@@ -4,6 +4,10 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 
+def _json(path,default):
+    try:return json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:return default
+
 def latest_summary():
     rows=sorted((ROOT/"generated/cycles").glob("*_summary.json"))
     if not rows: raise SystemExit("No production summary found")
