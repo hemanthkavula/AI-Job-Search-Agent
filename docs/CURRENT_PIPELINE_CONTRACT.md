@@ -1,6 +1,6 @@
 # Current Source-to-Dashboard Contract
 
-This file records the user-authoritative production contract as of 2026-10-04.
+This file records the user-authoritative production contract as of 2026-10-07.
 
 ## Terminal boundary
 
@@ -23,8 +23,11 @@ Automation ends at the dashboard/application-ready queue. The system must not su
 
 ## Master resume authority
 
-The authoritative master is represented by `data/master_resume.json` and fingerprinted from the user-uploaded file `Hemanth_Kavula_Senior_Data_Engineer_Resume(1).pdf` with SHA-256:
+The authoritative master resume is the matching user-uploaded pair:
 
-`81b8a8ec35b1a21e81671d2f386aa391bbeb170e6334c0336874fd6d323353e2`
+- Editable DOCX: `Hemanth_Kavula_Senior_Data_Engineer_Resume(3).docx` — SHA-256 `2a9d16594d1a618b757b5367c681b389dcf419c8928f95666a0143d4ce019da7`
+- Matching PDF: `Hemanth_Kavula_Senior_Data_Engineer_Resume(5).pdf` — SHA-256 `67f047f94a927cd231704ac04cd10298274c6d81aa421ee814f3b8f7f6eac095`
+
+The DOCX is the editable visual-format authority and the PDF is the matching reference master. The structured content is represented by `data/master_resume.json`, while `data/master_word_format.json` and the checksum-verified base64 template chunks preserve the exact DOCX format.
 
 Technical content from this master must never leak into a nonzero-target tailored resume unless the same technical term independently appears in the current JD/coverage plan.
