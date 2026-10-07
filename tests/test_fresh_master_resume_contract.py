@@ -8,7 +8,7 @@ from app.llm_resume_writer import build_prompt
 from app.master_resume import fixed_personal_facts, master_resume_payload
 
 
-EXPECTED_WORD_SHA256 = "7bad8e220373e668002750e38e309ce9b695a2caca8cf61297348bafdccb916f"
+EXPECTED_WORD_SHA256 = "2a9d16594d1a618b757b5367c681b389dcf419c8928f95666a0143d4ce019da7"
 
 
 def test_uploaded_word_is_authoritative_format_record():
