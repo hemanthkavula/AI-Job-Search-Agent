@@ -210,19 +210,23 @@ def _locate_paragraph_block(root, company: str):
         header_index = next(i for i, p in enumerate(paragraphs) if _text(p).startswith(company))
     except StopIteration:
         return None
-    try:
-        roles_index = next(
-            i for i in range(header_index + 1, len(paragraphs))
-            if _text(paragraphs[i]) == "Roles & Responsibilities:"
-        )
-    except StopIteration:
-        return None
-    title = next((p for p in paragraphs[header_index + 1:roles_index] if _text(p)), None)
+
+    title = next((p for p in paragraphs[header_index + 1:] if _text(p)), None)
     if title is None:
         return None
+    title_index = paragraphs.index(title)
+
+    roles = next(
+        (
+            p for p in paragraphs[title_index + 1:]
+            if _text(p) == "Roles & Responsibilities:"
+        ),
+        None,
+    )
+    content_start = paragraphs.index(roles) + 1 if roles is not None else title_index + 1
     first_bullet = next(
         (
-            p for p in paragraphs[roles_index + 1:]
+            p for p in paragraphs[content_start:]
             if _text(p) and not _text(p).startswith(("Environment:", "Skills:"))
         ),
         None,
@@ -234,7 +238,7 @@ def _locate_paragraph_block(root, company: str):
         "header_paragraphs": [paragraphs[header_index]],
         "header_table": None,
         "title": title,
-        "roles": paragraphs[roles_index],
+        "roles": roles,
         "first_bullet": first_bullet,
     }
 
@@ -258,11 +262,10 @@ def _locate_table_block(root, company: str):
     if title is None:
         return None
     title_index = children.index(title)
-    roles = _first_nonempty_paragraph(children, title_index + 1)
-    if roles is None or _text(roles) != "Roles & Responsibilities:":
-        return None
-    roles_index = children.index(roles)
-    first_bullet = _first_nonempty_paragraph(children, roles_index + 1)
+    candidate = _first_nonempty_paragraph(children, title_index + 1)
+    roles = candidate if candidate is not None and _text(candidate) == "Roles & Responsibilities:" else None
+    content_index = children.index(roles) + 1 if roles is not None else title_index + 1
+    first_bullet = _first_nonempty_paragraph(children, content_index)
     if first_bullet is None:
         return None
     first_row = table.find(".//" + W + "tr")
@@ -293,7 +296,10 @@ def _apply_block(block) -> None:
     if block.get("header_row") is not None:
         _set_row_cant_split(block["header_row"])
 
-    for paragraph in (block["title"], block["roles"]):
+    start_rows = [block["title"]]
+    if block.get("roles") is not None:
+        start_rows.append(block["roles"])
+    for paragraph in start_rows:
         _remove_forced_breaks(paragraph)
         _set_zero_left_indent(paragraph)
         _set_flag(paragraph, "keepNext", True)
@@ -317,18 +323,23 @@ def _validate_block(block, company: str) -> list[str]:
         if not _has_zero_left_indent(paragraph):
             reasons.append(f"{company}: header left alignment does not match title/roles")
     if not _has_flag(block["title"], "keepNext"):
-        reasons.append(f"{company}: title/date is not kept with responsibilities")
+        reasons.append(f"{company}: title is not kept with first bullet")
     if not _has_zero_left_indent(block["title"]):
-        reasons.append(f"{company}: title/date left alignment is inconsistent")
-    if not _has_flag(block["roles"], "keepNext"):
-        reasons.append(f"{company}: responsibilities label is not kept with first bullet")
-    if not _has_zero_left_indent(block["roles"]):
-        reasons.append(f"{company}: responsibilities left alignment is inconsistent")
+        reasons.append(f"{company}: title left alignment is inconsistent")
+    if block.get("roles") is not None:
+        if not _has_flag(block["roles"], "keepNext"):
+            reasons.append(f"{company}: responsibilities label is not kept with first bullet")
+        if not _has_zero_left_indent(block["roles"]):
+            reasons.append(f"{company}: responsibilities left alignment is inconsistent")
     if not _has_flag(block["first_bullet"], "keepLines"):
         reasons.append(f"{company}: first bullet is allowed to split across pages")
     if _has_flag(block["first_bullet"], "keepNext"):
         reasons.append(f"{company}: first bullet incorrectly forces the second bullet to stay with it")
-    for paragraph in [*block["header_paragraphs"], block["title"], block["roles"], block["first_bullet"]]:
+    checked = [*block["header_paragraphs"], block["title"]]
+    if block.get("roles") is not None:
+        checked.append(block["roles"])
+    checked.append(block["first_bullet"])
+    for paragraph in checked:
         if _has_flag(paragraph, "pageBreakBefore"):
             reasons.append(f"{company}: forced page break remains in employer start block")
         if paragraph.xpath(".//w:br[@w:type='page']", namespaces=NS):
@@ -457,7 +468,7 @@ def validate_experience_start_rule(docx_path: str | Path) -> dict:
     return {
         "passed": not reasons,
         "reasons": reasons,
-        "policy": "aligned employer header/title/roles plus complete first bullet must start together",
+        "policy": "aligned employer header/title plus complete first bullet must start together",
         "education_policy": "degree and university/location share the same left edge; dates remain right aligned",
     }
 
