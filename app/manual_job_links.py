@@ -457,7 +457,7 @@ def fetch_manual_job(url: str) -> dict:
     raw["tailoring_mode"] = "FULL_JD" if complete else "BASE_RESUME_CONSERVATIVE"
     raw["jd_fallback_reason"] = None if usable else (
         "No usable JD could be extracted from the supplied link or its resolved employer/ATS page; "
-        "use the unchanged master resume."
+        "ignore this manual link and do not generate a resume."
     )
     return raw
 
@@ -468,18 +468,6 @@ def _bypass_eligibility() -> dict:
         "reason": "Manual-link path intentionally bypasses discovery and eligibility filters.",
     }
     return {"eligible": True, "experience": dict(item), "sponsorship": dict(item), "manual_bypass": True}
-
-
-def _manual_should_use_master_resume(raw: dict, coverage_plan: dict) -> bool:
-    """Manual links use the master only when there is no usable tailoring evidence."""
-    targets = int(coverage_plan.get("target_count") or 0)
-    if targets <= 0:
-        return True
-    if raw.get("description_usable") is False:
-        return True
-    if not str(raw.get("description") or "").strip():
-        return True
-    return False
 
 
 def run_shared_resume_pipeline(raw: dict) -> dict:
@@ -498,16 +486,15 @@ def run_shared_resume_pipeline(raw: dict) -> dict:
         "results": [{"action": "FINAL_JD_VERIFIED", "job": raw, "eligibility": _bypass_eligibility()}],
     }, indent=2), encoding="utf-8")
     old_draft, old_final = batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR
-    old_selector = batch_prepare._should_use_master_resume
     with _PREPARE_LOCK:
         try:
             batch_prepare.DRAFT_RESUME_DIR = str(work / "drafts")
             batch_prepare.FINAL_RESUME_DIR = str(ARTIFACT_DIR / safe / attempt)
-            batch_prepare._should_use_master_resume = _manual_should_use_master_resume
+            # Resume content selection, LLM prompting, retries, ATS audit, formatting,
+            # and artifact validation are owned by the exact production path.
             rows = batch_prepare.prepare(str(report), str(manifest), external_id=key, limit=1)
         finally:
             batch_prepare.DRAFT_RESUME_DIR, batch_prepare.FINAL_RESUME_DIR = old_draft, old_final
-            batch_prepare._should_use_master_resume = old_selector
     if not rows:
         raise RuntimeError("Shared resume pipeline returned no result.")
     return rows[0]
@@ -598,6 +585,30 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
                 "manual_filters_bypassed": True,
                 "application_route": "MANUAL_LINK",
             }
+        if not raw.get("description_usable") or not str(raw.get("description") or "").strip():
+            row.update({
+                "status": "IGNORED_NO_JD",
+                "next_action": "IGNORED_NO_JD",
+                "description": "",
+                "description_usable": False,
+                "description_complete": False,
+                "source": raw.get("source") or row.get("source") or "manual_link",
+                "url": raw.get("url") or row.get("url"),
+                "original_url": raw.get("original_url") or row.get("original_url"),
+                "ats_provider": raw.get("ats_provider"),
+                "ats_identifier": raw.get("ats_identifier"),
+                "ats_label": raw.get("ats_label") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[0],
+                "ats_tenant": raw.get("ats_tenant") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[1],
+                "error": None,
+                "updated_at": _now(),
+            })
+            state = _load_state()
+            if key in state["jobs"]:
+                state["jobs"][key] = row
+                _save_state(state)
+            print(f"MANUAL IGNORE NO JD | {row.get('submitted_url') or row.get('url')}", flush=True)
+            return _public(row)
+
         clean_company = (
             _clean_company_label(raw.get("company_key") or raw.get("company"))
             or _ats_company_hint(raw.get("ats_provider"), raw.get("ats_identifier"), raw.get("original_url") or raw.get("url") or "")
@@ -901,7 +912,7 @@ def manual_resume(key: str):
 
 MANUAL_PAGE = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manual Job Links</title><style>
 :root{--bg:#07111f;--panel:#0c1828;--line:#21344a;--text:#edf3fb;--muted:#91a4bc}*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}.app{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:100vh}.side{background:#0a1625;border-right:1px solid #1a2a3d;padding:22px 14px}.brand{font-size:20px;font-weight:850;padding:0 8px 24px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:4px}.nav{display:grid;gap:6px}.nav a{display:block;padding:11px 12px;border-radius:8px;color:#c7d2e2;text-decoration:none;font-size:13px}.nav .active,.nav a:hover{background:#173967;color:#fff}.main{padding:22px clamp(16px,2vw,30px) 36px;min-width:0}.top h1{font-size:23px;margin:0 0 5px}.muted{color:var(--muted);font-size:12px}.entry,.section{background:#0b1726;border:1px solid var(--line);border-radius:11px;margin:18px 0;overflow:hidden}.entry{padding:16px}.entry textarea{width:100%;min-height:112px;background:#0d1a2b;border:1px solid #263950;color:#eef4fc;border-radius:8px;padding:12px;resize:vertical}.toolbar{display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap}.btn{border:1px solid #30465f;background:#13253a;color:#dce7f5;padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none}.btn.primary{background:#2f73df;border-color:#4388f4;color:#fff}.btn.danger{color:#ff8f91}.btn:disabled{opacity:.7;cursor:default}.processingPill{display:none;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#392d61;color:#d4c2ff;font-size:11px;font-weight:800}.processingPill.on{display:inline-flex}.dot{width:7px;height:7px;border-radius:50%;background:#c6a8ff;animation:pulse 1.1s infinite}@keyframes pulse{50%{opacity:.35}}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{background:#0d1a2b;border:1px solid #263950;border-radius:10px;padding:15px}.stat span{color:#a9b8ca;font-size:11px}.stat b{display:block;font-size:24px;margin-top:5px}.sectionHead{padding:14px 16px;border-bottom:1px solid #1d3044;font-weight:800}.row{display:grid;grid-template-columns:minmax(300px,1.4fr) 150px 150px minmax(330px,.9fr);gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #17283a;font-size:12px}.head{background:#101f31;color:#9fb0c7;font-size:10px;text-transform:uppercase}.title{font-weight:800;font-size:13px;margin-bottom:5px}.company{color:#d8e4f3;font-weight:700;font-size:12px;margin-bottom:4px}.meta{color:#8fa0b8;font-size:11px;overflow-wrap:anywhere}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;background:#17304d}.ready{background:#0d4637;color:#62e5b0}.applied{background:#173b69;color:#74b4ff}.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.empty{padding:30px;text-align:center;color:#8192a8}.note{margin-top:9px;color:#91a4bc;font-size:11px}.current{display:none;margin-top:10px;padding:9px 11px;border:1px solid #342c59;border-radius:8px;background:#17152a;color:#bba9de;font-size:11px}.current.on{display:block}@media(max-width:1050px){.app{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid #1a2a3d}.nav{display:flex}.row{grid-template-columns:1fr 120px}.row>div:last-child{grid-column:1/-1}.actions{justify-content:flex-start}}@media(max-width:650px){.main{padding:12px}.stats{grid-template-columns:repeat(2,1fr)}.row{display:block}.head{display:none}.row>div{margin-bottom:8px}}
-</style></head><body><div class="app"><aside class="side"><div class="brand">💼 Auto Apply<small>Job Application Manager</small></div><div class="nav"><a href="/">⌂ &nbsp; Job Discovery</a><a class="active" href="/manual-links">🔗 &nbsp; Manual Job Links</a></div></aside><main class="main"><div class="top"><h1>Manual Job Links</h1><div class="muted">Paste direct job links. Each link is resolved to its employer/ATS page, its meaningful JD is extracted, and the same production resume pipeline prepares the final resume.</div></div><section class="entry"><textarea id="links" placeholder="Paste one or many job links — one per line"></textarea><div class="toolbar"><button class="btn primary" id="addBtn">Add & Process</button><button class="btn" id="refreshBtn">Refresh</button><span class="processingPill" id="processingPill"><span class="dot"></span><span id="processingText">Still processing…</span></span></div><div class="current" id="currentJob"></div><div class="note">Jobs run sequentially in the order submitted. Only completed Ready to Apply resumes appear below. The first generated resume goes through the shared LLM/audit/retry pipeline and is shown when complete.</div></section><div class="stats"><div class="stat"><span>Submitted Links</span><b id="total">0</b></div><div class="stat"><span>Ready to Apply</span><b id="ready">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Processing</span><b id="processing">0</b></div></div><section class="section"><div class="sectionHead">Ready to Apply</div><div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div><div id="jobs"></div></section></main></div><script>
+</style></head><body><div class="app"><aside class="side"><div class="brand">💼 Auto Apply<small>Job Application Manager</small></div><div class="nav"><a href="/">⌂ &nbsp; Job Discovery</a><a class="active" href="/manual-links">🔗 &nbsp; Manual Job Links</a></div></aside><main class="main"><div class="top"><h1>Manual Job Links</h1><div class="muted">Paste direct job links. Each link is resolved to its employer/ATS page. Links without a usable JD are ignored; accepted JDs enter the exact same production resume pipeline as Job Discovery.</div></div><section class="entry"><textarea id="links" placeholder="Paste one or many job links — one per line"></textarea><div class="toolbar"><button class="btn primary" id="addBtn">Add & Process</button><button class="btn" id="refreshBtn">Refresh</button><span class="processingPill" id="processingPill"><span class="dot"></span><span id="processingText">Still processing…</span></span></div><div class="current" id="currentJob"></div><div class="note">Jobs run sequentially in the order submitted. Only completed Ready to Apply resumes appear below. The first generated resume goes through the shared LLM/audit/retry pipeline and is shown when complete.</div></section><div class="stats"><div class="stat"><span>Submitted Links</span><b id="total">0</b></div><div class="stat"><span>Ready to Apply</span><b id="ready">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Processing</span><b id="processing">0</b></div></div><section class="section"><div class="sectionHead">Ready to Apply</div><div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div><div id="jobs"></div></section></main></div><script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let rows=[];
 function nice(v){let d=new Date(v);return!v||isNaN(d)?"—":d.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
