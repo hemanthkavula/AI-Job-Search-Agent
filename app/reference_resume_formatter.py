@@ -405,7 +405,7 @@ def _paragraph_formats_match(rows, template_rows):
     return True
 
 
-def validate_master_format_contract(path, master=None, word_format=None):
+def validate_master_format_contract(path, master=None, word_format=None, expected_summary_paragraphs=1):
     master = master or load_master_resume()
     fmt = word_format or load_word_format()
     template = _template(fmt)
@@ -429,9 +429,10 @@ def validate_master_format_contract(path, master=None, word_format=None):
             reasons.append("heading_format_" + heading)
     summary_rows = [p for p in _between(output_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
     source_summary_rows = [p for p in _between(source_paragraphs, "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS") if _text(p)]
-    if len(summary_rows) != 1:
+    expected_summary_paragraphs = int(expected_summary_paragraphs or 1)
+    if len(summary_rows) != expected_summary_paragraphs:
         reasons.append("summary_structure")
-    elif not _paragraph_formats_match(summary_rows, source_summary_rows[:1]):
+    elif not _paragraph_formats_match(summary_rows, source_summary_rows[:expected_summary_paragraphs]):
         reasons.append("summary_paragraph_format")
     skill_rows = [p for p in _between(output_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
     source_skill_rows = [p for p in _between(source_paragraphs, "TECHNICAL SKILLS", "PROFESSIONAL EXPERIENCE") if _text(p)]
@@ -581,7 +582,7 @@ def _master_mode_with_skills_footer(template, out):
         _write_skills_footer(layout[row["company"]]["footer"], values, footer_bold, footer_normal)
     xml = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone="yes")
     _write_docx(template, out, xml)
-    check = validate_master_format_contract(out, master)
+    check = validate_master_format_contract(out, master, expected_summary_paragraphs=2)
     if not check["passed"]:
         raise RuntimeError(
             "Generated master-mode resume violated Word-template format contract: " + "; ".join(check["reasons"])
@@ -657,7 +658,7 @@ def render_llm_resume(job, profile, generated, output_dir="generated/resumes"):
         _write_skills_footer(layout[company]["footer"], skills_used, footer_bold, footer_normal)
     xml = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone="yes")
     _write_docx(template, out, xml)
-    check = validate_master_format_contract(out, master, fmt)
+    check = validate_master_format_contract(out, master, fmt, expected_summary_paragraphs=1)
     if not check["passed"]:
         raise RuntimeError(
             "Generated resume violated live Word-template format contract: " + "; ".join(check["reasons"])
