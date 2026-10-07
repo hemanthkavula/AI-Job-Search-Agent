@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.scheduled_runner import ET, _window_for
+from app.scheduled_runner import ET, _window_for, _unit_status_name
 
 
 def _dt(year, month, day, hour):
@@ -88,3 +88,8 @@ def test_dst_weekend_uses_friday_21_eastern_wall_clock():
     assert cutoff.hour==21
     assert cutoff.date().isoformat()=="2026-10-30"
     assert cutoff.utcoffset()!=now.replace(day=30,month=10,hour=21).utcoffset() or cutoff.hour==21
+
+def test_structured_source_status_advances_as_ok():
+    assert _unit_status_name({"status":"OK","jobs_returned":3})=="OK"
+    assert _unit_status_name({"status":"ERROR","jobs_returned":0})=="ERROR"
+    assert _unit_status_name("OK")=="OK"
