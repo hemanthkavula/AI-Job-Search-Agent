@@ -61,6 +61,22 @@ def build(summary_path=None):
     statuses=s.get("source_status") or {}
     for p,n in sorted(configured.items()):
         lines.append(f"| {p} | {n} | {statuses.get(p,'NOT_ATTEMPTED_OR_DISABLED')} |")
+
+    # Make disabled broad-discovery boards explicit so "zero jobs" is never
+    # confused with "the board was searched successfully and found none".
+    source_cfg=_json(ROOT/"data"/"job_sources.json",{})
+    disabled=[]
+    for row in source_cfg.get("discovery_portal",[]) or []:
+        if isinstance(row,dict) and not row.get("enabled",True):
+            disabled.append((row.get("provider") or "unknown",row.get("disabled_reason") or "disabled"))
+    monster=source_cfg.get("monster") or {}
+    if isinstance(monster,dict) and not monster.get("enabled",False):
+        disabled.append(("monster",monster.get("disabled_reason") or "disabled"))
+    if disabled:
+        lines+=["","## Disabled broad-discovery sources","",
+          "| Provider | Reason |","|---|---|"]
+        for provider,reason in sorted(disabled):
+            lines.append(f"| {provider} | {str(reason).replace('|','\\|')} |")
     text="\n".join(lines)+"\n"
     out=path.with_name(path.name.replace("_summary.json","_source_report.md"))
     out.write_text(text,encoding="utf-8")
