@@ -477,7 +477,7 @@ def fetch_manual_job(url: str) -> dict:
         except Exception:
             resolved_page = page
     resolved_meta = _jsonld_metadata(resolved_page) if resolved_page else {}
-    authoritative_raw = enrich_authoritative_job_metadata(raw)
+    authoritative_raw = raw
     resolved_title_fallback, resolved_company_fallback = (
         _fallback_title_company(resolved_page) if resolved_page else ("", "")
     )
