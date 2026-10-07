@@ -155,3 +155,59 @@ def test_noisy_client_rendered_job_recovers_title_and_canonical_record(monkeypat
 def test_recover_title_from_full_jd_not_limited_to_first_12k():
     text=("page shell " * 5000) + " Eaton's Corporate Sector division is currently seeking a Lead AI and Data Engineer. Responsibilities follow."
     assert jd_finalizer._recover_title_from_jd_text(text)=="Lead AI and Data Engineer"
+
+
+
+def test_exact_ats_detail_jd_beats_long_client_shell(monkeypatch):
+    url="https://eaton.eightfold.ai/careers/job/687239519334"
+    shell=(
+        "navigation client shell " * 15000
+        + " responsibilities requirements qualifications skills preferred "
+    )
+    clean=(
+        "Responsibilities: design, develop, and deploy scalable AI and data engineering solutions using Azure OpenAI, Python, SQL, and Databricks. "
+        "Requirements: strong software engineering, data engineering, machine learning, cloud architecture, CI/CD, testing, monitoring, and production support. "
+        "Qualifications: bachelor's or master's degree and relevant engineering experience. "
+    ) * 6
+    exact={
+        "title":"Lead AI and Data Engineer",
+        "company_key":"Eaton",
+        "company":"Eaton",
+        "url":url,
+        "original_url":url,
+        "ats_provider":"eightfold",
+        "ats_identifier":"eaton",
+        "job_id":"687239519334",
+        "requisition_id":"JR-1001",
+        "description":clean,
+        "exact_job_metadata_source":"eightfold_public_api",
+    }
+    monkeypatch.setattr(jd_finalizer,"resolve_original_ats",lambda job:dict(job))
+    monkeypatch.setattr(jd_finalizer,"detect_ats",lambda value:("eightfold","eaton"))
+    monkeypatch.setattr(
+        jd_finalizer,
+        "fetch_exact_job",
+        lambda provider,company,source: (exact,"eightfold","eaton"),
+    )
+    monkeypatch.setattr(jd_finalizer,"_fetch_public_page",lambda value:shell)
+    monkeypatch.setattr(jd_finalizer,"_jobposting_metadata",lambda page:{})
+    monkeypatch.setattr(jd_finalizer,"_workday_authoritative_metadata",lambda *args:{})
+
+    out=jd_finalizer.resolve_full_jd({
+        "external_id":"manual:test",
+        "source":"manual_link",
+        "company_key":"Eaton",
+        "company":"Eaton",
+        "title":"Job opening",
+        "url":url,
+        "original_url":url,
+        "description":shell,
+        "description_complete":True,
+    })
+
+    assert out["title"]=="Lead AI and Data Engineer"
+    assert out["description"]==clean.strip()
+    assert len(out["description"]) < len(shell)
+    assert out["metadata_resolution_source"]=="eightfold_public_api"
+    assert out["metadata_verified"] is True
+    assert out["requisition_id"]=="JR-1001"
