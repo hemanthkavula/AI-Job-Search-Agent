@@ -1,6 +1,7 @@
 from __future__ import annotations
-import argparse, json, re
+import argparse, json, re, time
 from concurrent.futures import ThreadPoolExecutor
+from http.client import IncompleteRead
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -28,16 +29,28 @@ def _normalize_probe_url(url: str) -> str:
     fragment=quote(parts.fragment,safe="=&?/:;+,%@!$'()*-._~")
     return urlunsplit((parts.scheme,host,path,query,fragment))
 
-def _probe(url: str, timeout: int=12, method: str="GET", data: bytes|None=None, headers: dict|None=None) -> dict:
+def _probe(url: str, timeout: int=12, method: str="GET", data: bytes|None=None, headers: dict|None=None, retries: int=2) -> dict:
+    """Health probe with one bounded retry for transient network/provider errors."""
     h=dict(UA); h.update(headers or {})
-    try:
-        safe_url=_normalize_probe_url(url)
-        with urlopen(Request(safe_url,data=data,headers=h,method=method),timeout=timeout) as resp:
-            return {"status":"ok","http_status":getattr(resp,"status",None)}
-    except HTTPError as exc:
-        return {"status":"broken" if exc.code in (404,410) else "blocked_or_http_error","http_status":exc.code,"error":str(exc)}
-    except (URLError,TimeoutError,OSError,UnicodeError,ValueError) as exc:
-        return {"status":"unreachable","http_status":None,"error":str(exc)}
+    safe_url=_normalize_probe_url(url)
+    last=None
+    for attempt in range(max(1,retries)):
+        try:
+            with urlopen(Request(safe_url,data=data,headers=h,method=method),timeout=timeout) as resp:
+                return {"status":"ok","http_status":getattr(resp,"status",None),"attempts":attempt+1}
+        except HTTPError as exc:
+            last=exc
+            if exc.code in (404,410):
+                return {"status":"broken","http_status":exc.code,"error":str(exc),"attempts":attempt+1}
+            if exc.code not in (408,425,429,500,502,503,504):
+                return {"status":"blocked_or_http_error","http_status":exc.code,"error":str(exc),"attempts":attempt+1}
+        except (IncompleteRead,URLError,TimeoutError,OSError,UnicodeError,ValueError) as exc:
+            last=exc
+        if attempt+1<max(1,retries):
+            time.sleep(0.35*(2**attempt))
+    if isinstance(last,HTTPError):
+        return {"status":"blocked_or_http_error","http_status":last.code,"error":str(last),"attempts":max(1,retries)}
+    return {"status":"unreachable","http_status":None,"error":str(last) if last else "probe failed","attempts":max(1,retries)}
 
 def _row(provider, company, target, result, **extra):
     return {"provider":provider,"company":company,"target":target,**result,**extra}
