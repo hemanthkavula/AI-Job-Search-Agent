@@ -21,3 +21,20 @@ def test_queue_excludes_manual_ready_and_deduplicates_auto_ready(monkeypatch,tmp
     assert len(queue)==1
     assert queue[0]["external_id"]=="lever:1"
     assert queue[0]["status"]=="READY_FOR_ATS_ADAPTER"
+
+
+def test_known_answers_are_profile_driven():
+    profile={
+        "work_authorization":{
+            "authorized_to_work_us":True,
+            "application_answer_authorized":"Yes",
+            "requires_sponsorship_now":False,
+            "requires_sponsorship_future":True,
+            "statement":"Authorized now; sponsorship may be required in the future.",
+        }
+    }
+    answers=application_queue._known_answers(profile)
+    assert answers["authorized_to_work_us"]=="Yes"
+    assert answers["requires_sponsorship_now"]=="No"
+    assert answers["requires_future_sponsorship"]=="Yes"
+    assert answers["sponsorship_statement"]=="Authorized now; sponsorship may be required in the future."
