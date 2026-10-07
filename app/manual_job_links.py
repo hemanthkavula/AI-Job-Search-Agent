@@ -142,7 +142,7 @@ def _verified_company(
         if clean:
             return clean, source
 
-    ats_hint = _ats_company_hint(provider, identifier, effective_url)
+    ats_hint = _ats_company_hint(provider, identifier, effective_url) if provider and identifier else ""
     if ats_hint:
         return ats_hint, "ats_tenant"
 
@@ -155,7 +155,6 @@ def _verified_company(
     # signals agree after legal-suffix/punctuation normalization.
     low_confidence = [
         direct_hint,
-        raw_company,
         resolved_site_name,
         resolved_fallback,
         initial_site_name,
