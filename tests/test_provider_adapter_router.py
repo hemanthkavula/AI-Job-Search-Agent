@@ -64,29 +64,28 @@ def test_workday_detected_source_uses_tenant_site(monkeypatch):
 
 
 
-def test_fetch_exact_job_reads_embedded_structured_payload(monkeypatch):
+def test_fetch_exact_job_uses_provider_native_eightfold_detail_api(monkeypatch):
     url="https://tenant.eightfold.ai/careers/job/abc123"
-    payload={
-        "props":{
-            "pageProps":{
-                "position":{
-                    "posting_name":"Lead AI and Data Engineer",
-                    "job_description":"Responsibilities build enterprise AI and data engineering solutions. Requirements include Python SQL Databricks Azure OpenAI machine learning deployment monitoring CI/CD and production support.",
-                    "canonicalPositionUrl":url,
-                    "ats_job_id":"abc123",
-                    "location":"Beachwood, OH",
-                    "companyName":"Eaton",
-                }
-            }
-        }
+    exact={
+        "company_key":"Eaton",
+        "title":"Lead AI and Data Engineer",
+        "job_id":"abc123",
+        "requisition_id":"REQ-123",
+        "location":"Beachwood, OH",
+        "description":"Responsibilities build enterprise AI and data engineering solutions with Azure OpenAI.",
+        "url":url,
+        "original_url":url,
     }
-    body='<html><script id="__NEXT_DATA__" type="application/json">'+__import__("json").dumps(payload)+'</script></html>'
-    monkeypatch.setattr(router,"public_get",lambda value,timeout=25:body)
+    seen={}
+    def fake(company,value,timeout=25):
+        seen.update(company=company,url=value,timeout=timeout)
+        return exact
+    monkeypatch.setattr(router,"eightfold_job",fake)
     row,provider,identifier=router.fetch_exact_job(None,"Eaton",{"original_url":url})
     assert provider=="eightfold"
     assert identifier=="tenant"
+    assert seen=={"company":"Eaton","url":url,"timeout":25}
     assert row["title"]=="Lead AI and Data Engineer"
-    assert row["company_key"]=="Eaton"
     assert row["job_id"]=="abc123"
     assert row["location"]=="Beachwood, OH"
     assert "Azure OpenAI" in row["description"]

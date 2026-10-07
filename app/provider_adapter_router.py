@@ -15,7 +15,7 @@ from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_jobs as oracle_jobs
-from app.sources.eightfold import fetch_jobs as eightfold_jobs
+from app.sources.eightfold import fetch_job as eightfold_job, fetch_jobs as eightfold_jobs
 from app.sources.ukg import fetch_jobs as ukg_jobs
 from app.sources.adp_workforce_now import fetch_jobs as adp_jobs
 from app.sources.avature import fetch_jobs as avature_jobs
@@ -161,6 +161,18 @@ def fetch_exact_job(provider: str | None, company: str, source: dict, *, timeout
     identifier=source.get("ats_identifier") or source.get("identifier")
     provider,identifier=detected_source(url,provider or source.get("ats_provider"),identifier)
     if not provider or not url:return None,provider,identifier
+
+    # Provider-native exact-detail APIs outrank HTML scraping. They return the
+    # same canonical fields used by discovery but do not require the title to be
+    # known before resolving the exact job.
+    if provider=="eightfold":
+        try:
+            row=eightfold_job(company,url,timeout)
+        except Exception:
+            row=None
+        if row:
+            return row,provider,identifier
+
     try:body=public_get(url,timeout)
     except Exception:return None,provider,identifier
     candidates=[]
