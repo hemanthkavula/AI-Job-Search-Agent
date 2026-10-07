@@ -13,7 +13,7 @@ def test_detected_eightfold_routes_to_dedicated_collector(monkeypatch):
     )
     assert provider=="eightfold"
     assert identifier=="eaton"
-    assert seen=={"company":"Eaton","url":url}
+    assert seen=={"company":"Eaton","url":"https://eaton.eightfold.ai/careers"}
     assert rows[0]["title"]=="Lead AI and Data Engineer"
 
 
@@ -61,3 +61,43 @@ def test_workday_detected_source_uses_tenant_site(monkeypatch):
     assert seen["site"]=="Eaton_Careers"
     assert seen["hours"]==24
     assert rows
+
+
+
+def test_fetch_exact_job_reads_embedded_structured_payload(monkeypatch):
+    url="https://tenant.eightfold.ai/careers/job/abc123"
+    payload={
+        "props":{
+            "pageProps":{
+                "position":{
+                    "posting_name":"Lead AI and Data Engineer",
+                    "job_description":"Responsibilities build enterprise AI and data engineering solutions. Requirements include Python SQL Databricks Azure OpenAI machine learning deployment monitoring CI/CD and production support.",
+                    "canonicalPositionUrl":url,
+                    "ats_job_id":"abc123",
+                    "location":"Beachwood, OH",
+                    "companyName":"Eaton",
+                }
+            }
+        }
+    }
+    body='<html><script id="__NEXT_DATA__" type="application/json">'+__import__("json").dumps(payload)+'</script></html>'
+    monkeypatch.setattr(router,"public_get",lambda value,timeout=25:body)
+    row,provider,identifier=router.fetch_exact_job(None,"Eaton",{"original_url":url})
+    assert provider=="eightfold"
+    assert identifier=="tenant"
+    assert row["title"]=="Lead AI and Data Engineer"
+    assert row["company_key"]=="Eaton"
+    assert row["job_id"]=="abc123"
+    assert row["location"]=="Beachwood, OH"
+    assert "Azure OpenAI" in row["description"]
+
+
+def test_board_fallback_normalizes_generic_detail_url(monkeypatch):
+    seen={}
+    def fake(company,url):
+        seen.update(company=company,url=url)
+        return []
+    monkeypatch.setattr(router,"eightfold_jobs",fake)
+    url="https://tenant.eightfold.ai/careers/job/abc123"
+    router.fetch_provider_jobs(None,"Eaton",{"original_url":url})
+    assert seen["url"]=="https://tenant.eightfold.ai/careers"
