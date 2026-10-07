@@ -97,6 +97,10 @@ def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
     assert prompt["skills_policy"]["retain_master_aws_group"] is True
     assert prompt["skills_policy"]["retain_master_azure_group"] is True
     assert prompt["skills_policy"]["add_gcp_group_when_fidelity_selects_gcp"] is True
+    assert prompt["structure_contract"]["summary_paragraphs"] == 1
+    assert prompt["structure_contract"]["summary_min_words"] == 95
+    assert prompt["structure_contract"]["summary_target_words"] == "100-140"
+    assert prompt["structure_contract"]["summary_min_sentences"] == 4
     assert prompt["structure_contract"]["employer_footer_label"] == "Environment"
     assert prompt["structure_contract"]["environment_paragraphs"] is False
 
@@ -127,16 +131,13 @@ def _assert_uploaded_master_headers(doc):
 
 
 def _assert_selective_bold_and_skill_headings_only(doc):
-    summary = [
-        p for p in doc.paragraphs
-        if p.text.startswith("Senior Data Engineer focused")
-        or p.text.startswith("Builds governed batch")
-    ]
-    assert summary
-    for paragraph in summary:
-        visible = [r for r in paragraph.runs if r.text]
-        assert any(bool(r.bold) for r in visible)
-        assert any(not bool(r.bold) for r in visible)
+    summary_start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "PROFESSIONAL SUMMARY")
+    skills_start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "TECHNICAL SKILLS")
+    summary = [p for p in doc.paragraphs[summary_start + 1:skills_start] if p.text.strip()]
+    assert len(summary) == 1
+    visible = [r for r in summary[0].runs if r.text]
+    assert any(bool(r.bold) for r in visible)
+    assert any(not bool(r.bold) for r in visible)
 
     start = next(i for i, p in enumerate(doc.paragraphs) if p.text == "TECHNICAL SKILLS")
     end = next(i for i, p in enumerate(doc.paragraphs) if p.text == "PROFESSIONAL EXPERIENCE")
@@ -191,10 +192,14 @@ def _generated_payload(long_content=False):
     }
     return {
         "summary": (
-            "Senior Data Engineer focused on Python, SQL, and reliable data pipelines for enterprise analytics."
-            + extra
-            + "\n\n"
-            "Builds governed batch and streaming workflows while preserving production reliability and clear data models."
+            "Senior Data Engineer with more than five years of experience designing scalable batch and streaming data platforms "
+            "for enterprise analytics across financial services, healthcare, and retail. Builds reliable Python, SQL, PySpark, "
+            "Spark, Kafka, Databricks, Snowflake, AWS, and Azure pipelines with strong attention to production reliability and "
+            "maintainable engineering standards. Brings hands-on depth in dimensional modeling, medallion architecture, dbt, "
+            "data quality, governance, orchestration, and performance optimization. In the current Fidelity Investments role, "
+            "engineers trusted trading and market datasets that support risk, compliance, analytics, and relevant AI/ML use cases. "
+            "Partners with technical and business stakeholders to translate complex requirements into governed, scalable data products "
+            "while keeping solutions interview-defensible, operationally supportable, and aligned with the target role."
             + extra
         ),
         "skills": skills,
