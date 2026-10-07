@@ -151,10 +151,10 @@
   "work_authorization": {
     "status": "F-1 OPT",
     "requires_sponsorship_now": false,
-    "requires_sponsorship_future": false,
+    "requires_sponsorship_future": true,
     "authorized_to_work_us": true,
     "application_answer_authorized": "Yes",
-    "statement": "I am currently authorized to work in the United States and do not require employer sponsorship now or in the future."
+    "statement": "I am currently authorized to work in the United States and do not require employer sponsorship now, but I may require employer sponsorship in the future."
   },
   "candidate_experience_years": 5,
   "contact": {
