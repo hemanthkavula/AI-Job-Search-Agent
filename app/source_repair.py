@@ -115,10 +115,37 @@ def repair(limit=25, queue_path=QUEUE_PATH, retry_state_path=RETRY_STATE_PATH, n
     queue = update_from_reliability(retry_state_path, queue_path, now)
     company_registry = load_company_registry()
     source_registry = load_source_registry()
+
+    # Fresh job-board leads that could not be mapped to an employer ATS are
+    # actionable repair work too. Add them to the same bounded repair queue so
+    # the post-production repair step can resolve them immediately.
+    items=queue.setdefault("items",{})
+    for reg_key,row in company_registry.items():
+        if not isinstance(row,dict) or not row.get("ats_resolution_pending"):
+            continue
+        if row.get("ats_provider") and row.get("careers_url"):
+            row["ats_resolution_pending"]=False
+            continue
+        company=row.get("company") or reg_key
+        key=f"resolve:{reg_key}"
+        item=items.setdefault(key,{
+            "key":key,"source":"unresolved_aggregator","company":company,
+            "status":"PENDING","attempts":0,
+            "first_seen_at":row.get("ats_resolution_pending_at") or now.isoformat(),
+        })
+        item.update({
+            "company":company,
+            "source":"unresolved_aggregator",
+            "failure_class":"resolution",
+            "last_error":"EMPLOYER_ATS_UNRESOLVED",
+            "last_seen_at":row.get("ats_resolution_pending_at") or now.isoformat(),
+            "priority":"fresh_job_board_lead",
+        })
+
     pending = sorted(
         (item for item in queue.get("items", {}).values() if _due(item, now)),
         key=lambda x: (
-            0 if x.get("failure_class") == "hard" else 1,
+            0 if x.get("priority") == "fresh_job_board_lead" else (1 if x.get("failure_class") == "hard" else 2),
             -int(x.get("consecutive_failures") or 0),
             x.get("first_seen_at") or "",
         ),
@@ -161,6 +188,8 @@ def repair(limit=25, queue_path=QUEUE_PATH, retry_state_path=RETRY_STATE_PATH, n
                 "ats_identifier": replacement_id,
                 "source_repaired_at": now.isoformat(),
                 "source_repair_from_provider": provider,
+                "ats_resolution_pending": False,
+                "ats_resolution_resolved_at": now.isoformat(),
             })
             item.update({
                 "status": "REPAIRED",
