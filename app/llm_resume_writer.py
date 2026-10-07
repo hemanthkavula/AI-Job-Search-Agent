@@ -168,7 +168,8 @@ TECHNICAL SKILLS:
 - Category names MAY be renamed, merged, split, reordered, or newly created when doing so improves alignment with the current JD and remains ATS-readable.
 - Add relevant JD-supported skills to the most appropriate category. Create a new category when the JD contains a meaningful skill family that does not fit the existing taxonomy.
 - Do not create redundant or near-duplicate categories. Prefer concise category labels that a recruiter would immediately understand.
-- Preserve the master-backed AWS and Azure technology baselines somewhere in the final skills section even if their category labels are renamed.
+- Keep the top Technical Skills section focused on the JD-selected cloud family. Do not force non-target historical cloud families into Technical Skills solely because they appear in older experience.
+- Historical AWS/Azure credibility remains visible in the employer bullets and Environment lines for the employers where it is truthful.
 - If Fidelity's selected cloud is GCP, include a GCP-focused category containing only GCP services actually supported by the JD.
 - New JD-supported technologies may appear only where allowed by the employer-history and cloud credibility rules.
 - Keep each row concise and ATS-readable. Do not create paragraph-like skill rows.
@@ -207,7 +208,7 @@ FORMAT / LAYOUT:
 
 Return valid JSON only using this schema:
 {
-  "summary": "two concise paragraphs separated by \\n\\n",
+  "summary": "one substantial 100-140 word prose paragraph",
   "skills": {"ATS Category": ["technical skill", "technical skill"]},
   "experience": [
     {"company": "Fidelity Investments", "bullets": ["exactly structure_contract.fidelity_bullets strings"], "skills_used": ["technology", "technology"]},
@@ -319,8 +320,8 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "category_names_are_jd_adaptive": True,
             "allow_category_rename_merge_split_reorder": True,
             "allow_new_categories_when_jd_supported": True,
-            "preserve_master_aws_technology_baseline": True,
-            "preserve_master_azure_technology_baseline": True,
+            "focus_technical_skills_on_selected_jd_cloud": True,
+            "historical_clouds_remain_in_employer_experience": True,
             "add_gcp_category_when_fidelity_selects_gcp": cloud_modes.get("Fidelity Investments") == CLOUD_GCP,
             "new_fidelity_jd_tools_may_be_added": True,
             "avoid_redundant_categories": True,
@@ -478,23 +479,24 @@ def _normalize_skills(raw_skills, description: str) -> dict:
             if values
         }
 
-    # Preserve the candidate's master-backed programming/AWS/Azure baselines,
-    # but place them into the LLM's chosen category names whenever possible.
-    required_families = (
-        ("programming", "Programming Languages", list(master_skills.get("Programming Languages", []))),
-        (CLOUD_AWS, "Cloud Platforms (AWS)", list(master_skills.get("Cloud Platforms (AWS)", []))),
-        (CLOUD_AZURE, "Cloud Platforms (Azure)", list(master_skills.get("Cloud Platforms (Azure)", []))),
-    )
-    for family, fallback_name, baseline in required_families:
-        if not baseline:
-            continue
-        category = _find_category(out, family)
-        if category is None:
-            category = fallback_name
-            out[category] = []
-        additions = list(baseline)
-        if family == selected and family in {CLOUD_AWS, CLOUD_AZURE}:
-            additions = _merge_unique(additions, _jd_cloud_services(description, family))
+    # Always preserve the core programming baseline, but keep cloud skills focused
+    # on the cloud family selected from the current JD. Historical cloud stacks stay
+    # truthful in employer bullets/Environment instead of cluttering the top skills.
+    programming = list(master_skills.get("Programming Languages", []))
+    if programming:
+        category = _find_category(out, "programming") or "Programming Languages"
+        out.setdefault(category, [])
+        out[category] = _merge_unique_technologies(out[category], programming)[:12]
+
+    if selected in {CLOUD_AWS, CLOUD_AZURE}:
+        fallback_name = "Cloud Platforms (AWS)" if selected == CLOUD_AWS else "Cloud Platforms (Azure)"
+        master_key = fallback_name
+        category = _find_category(out, selected) or fallback_name
+        out.setdefault(category, [])
+        additions = _merge_unique(
+            list(master_skills.get(master_key, [])),
+            _jd_cloud_services(description, selected),
+        )
         out[category] = _merge_unique_technologies(out[category], additions)[:12]
 
     # A JD-driven GCP category is required only when Fidelity is being tailored to GCP.
@@ -505,6 +507,13 @@ def _normalize_skills(raw_skills, description: str) -> dict:
             out[category] = []
         gcp_values = _jd_cloud_services(description, CLOUD_GCP) or ["Google Cloud Platform (GCP)"]
         out[category] = _merge_unique_technologies(out[category], gcp_values)[:12]
+
+    for family in (CLOUD_AWS, CLOUD_AZURE, CLOUD_GCP):
+        if family == selected:
+            continue
+        for category in list(out):
+            if _category_matches(category, family):
+                out.pop(category, None)
 
     return out
 
