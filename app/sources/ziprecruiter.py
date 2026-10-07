@@ -62,8 +62,10 @@ def _normalize(row: dict) -> dict:
 
 
 def fetch_jobs() -> list[dict]:
-    """Search ZipRecruiter's official MCP using native US/full-time/one-day filters."""
+    """Search ZipRecruiter's official MCP without letting one failed query abort the board."""
     dedup = {}
+    errors = []
+    successful_calls = 0
     for keyword in SEARCH_TERMS:
         total = 0
         for offset in OFFSETS:
@@ -74,7 +76,15 @@ def fetch_jobs() -> list[dict]:
                 "employment_type": "full_time",
                 "offset": offset,
             }
-            payload = call_tool(ENDPOINT, "search_jobs", args)
+            try:
+                payload = call_tool(ENDPOINT, "search_jobs", args)
+            except Exception as exc:
+                errors.append(f"{keyword}@{offset}: {exc}")
+                # Keep trying other keywords. Provider outages are often partial,
+                # and one broken query must not erase successful results from
+                # the rest of the board scan.
+                break
+            successful_calls += 1
             rows = rows_from_payload(payload)
             total += len(rows)
             for row in rows:
@@ -83,4 +93,9 @@ def fetch_jobs() -> list[dict]:
             if len(rows) < 5:
                 break
         print(f"ZipRecruiter / {keyword}: {total} results", flush=True)
+    if successful_calls == 0 and errors:
+        preview = "; ".join(errors[:3])
+        raise RuntimeError(f"ZipRecruiter MCP unavailable for all search attempts: {preview}")
+    if errors:
+        print(f"ZipRecruiter degraded: {len(errors)} query failures; retained {len(dedup)} jobs from successful calls", flush=True)
     return list(dedup.values())
