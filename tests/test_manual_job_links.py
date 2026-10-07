@@ -466,7 +466,7 @@ def test_process_job_cleans_stale_portal_company_before_resume(monkeypatch, isol
     assert seen["force_jd_tailoring"] is True
 
 
-def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
+def test_partial_manual_jd_is_not_sent_to_resume_pipeline(monkeypatch, isolated):
     row = manual.add_links(["https://example.com/1"])[0]
     state = manual._load_state()
     state["jobs"][row["key"]].update({
@@ -475,14 +475,14 @@ def test_process_manual_jd_does_not_refetch(monkeypatch, isolated):
     })
     manual._save_state(state)
     monkeypatch.setattr(manual, "fetch_manual_job", lambda url: pytest.fail("should not refetch edited JD"))
-    seen = {}
-    def fake_pipeline(raw):
-        seen.update(raw)
-        return {"next_action": "READY_TO_APPLY", "resume_path": None, "pdf_path": None}
-    monkeypatch.setattr(manual, "run_shared_resume_pipeline", fake_pipeline)
-    manual.process_job(row["key"])
-    assert seen["description"] == "pasted jd"
-    assert seen["company_key"] == "Edited Co"
+    monkeypatch.setattr(
+        manual,
+        "run_shared_resume_pipeline",
+        lambda raw: pytest.fail("partial manual JD must not generate a resume"),
+    )
+    got = manual.process_job(row["key"])
+    assert got["status"] == "IGNORED_INCOMPLETE_JD"
+    assert manual._load_state()["jobs"][row["key"]]["ignore_reason"]
 
 
 def test_blocked_page_with_no_usable_jd_is_ignored(monkeypatch, isolated):
@@ -506,6 +506,49 @@ def test_blocked_page_with_no_usable_jd_is_ignored(monkeypatch, isolated):
     assert stored["description_usable"] is False
     assert not stored.get("resume_path")
     assert not stored.get("pdf_path")
+
+
+def test_generic_job_title_is_ignored_even_with_complete_jd(monkeypatch, isolated):
+    row = manual.add_links(["https://example.com/1"])[0]
+    raw = _usable_raw("https://example.com/1")
+    raw.update({
+        "title": "Job opening",
+        "title_verified": False,
+        "company_verified": True,
+        "description_complete": True,
+        "description_usable": True,
+    })
+    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: raw)
+    monkeypatch.setattr(
+        manual,
+        "run_shared_resume_pipeline",
+        lambda value: pytest.fail("generic-title job must not generate a resume"),
+    )
+    got = manual.process_job(row["key"])
+    assert got["status"] == "IGNORED_INCOMPLETE_JOB"
+    assert "title" in got["ignore_reason"].lower()
+
+
+def test_unverified_company_is_ignored_even_with_complete_jd(monkeypatch, isolated):
+    row = manual.add_links(["https://example.com/1"])[0]
+    raw = _usable_raw("https://example.com/1")
+    raw.update({
+        "company": "Company",
+        "company_key": "Company",
+        "company_verified": False,
+        "title_verified": True,
+        "description_complete": True,
+        "description_usable": True,
+    })
+    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: raw)
+    monkeypatch.setattr(
+        manual,
+        "run_shared_resume_pipeline",
+        lambda value: pytest.fail("unverified-company job must not generate a resume"),
+    )
+    got = manual.process_job(row["key"])
+    assert got["status"] == "IGNORED_INCOMPLETE_JOB"
+    assert "employer" in got["ignore_reason"].lower()
 
 
 def test_resume_failure_preserves_jd_for_retry(monkeypatch, isolated):
