@@ -49,7 +49,7 @@ def _history_signature() -> tuple:
     paths = [dashboard.LEDGER, dashboard.CONFIRMED, dashboard.HIDDEN]
     cycles = dashboard.CYCLES
     if cycles.exists():
-        for pattern in ("*_summary.json", "*_manifest.json", "*_application_queue.json"):
+        for pattern in ("*_summary.json", "*_summary_acceptance.json", "*_manifest.json", "*_application_queue.json"):
             paths.extend(cycles.glob(pattern))
     signature = []
     for path in sorted(paths, key=lambda value: str(value)):
