@@ -25,3 +25,31 @@ def test_pipeline_runs_exposes_single_ready_count(monkeypatch,tmp_path):
     run=dashboard._pipeline_runs()[0]
     assert run["ready"]==5
     assert "manual_ready" not in run
+
+
+def test_pipeline_runs_exposes_funnel_source_health_and_issue_names(monkeypatch,tmp_path):
+    monkeypatch.setattr(dashboard,"CYCLES",tmp_path)
+    cycle="20261007T140000Z"
+    summary={
+        "cycle_id":cycle,
+        "production_cutoff":"2026-10-07T12:00:00+00:00",
+        "discovered":100,"fresh_verified_within_window":20,"filtered_out":15,
+        "preliminary_eligible":5,"final_jd_verified":3,"ready_to_apply":2,
+        "filter_reason_counts":{"wrong_job_family":10,"experience_mismatch":3},
+        "source_unit_status":{
+            "workday:Good":{"source":"workday","company":"Good","status":"OK"},
+            "icims:Broken":{"source":"icims","company":"Broken","status":"ERROR","error":"HTTP 503"},
+            "oracle:Dead":{"source":"oracle","company":"Dead","status":"SKIPPED_HARD_FAILURE","error":"HTTP 404"},
+            "ukg:Slow":{"source":"ukg","company":"Slow","status":"BACKOFF_TRANSIENT","error":"TRANSIENT_BACKOFF"},
+        },
+        "source_repair_queue":{"pending":1,"repaired":4,"failed":0},
+    }
+    (tmp_path/f"{cycle}_summary.json").write_text(json.dumps(summary),encoding="utf-8")
+    run=dashboard._pipeline_runs()[0]
+    assert run["fresh"]==20
+    assert run["source_ok"]==1
+    assert run["source_failed"]==1
+    assert run["source_backoff"]==1
+    assert run["source_hard_skipped"]==1
+    assert run["repair_pending"]==1
+    assert any(x["company"]=="Broken" for x in run["source_issues"])
