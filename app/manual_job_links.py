@@ -185,6 +185,11 @@ def _clean_job_title(value: str | None) -> str:
     return label[:180]
 
 
+def _has_verified_job_title(value: str | None) -> bool:
+    clean = _clean_job_title(value)
+    return bool(clean and clean.casefold() not in {"job opening", "job from supplied link"})
+
+
 def _heading_job_title(page: str) -> str:
     role_hint = re.compile(
         r"(?i)\b(data|analytics|engineer|engineering|developer|architect|scientist|platform|etl|database|software)\b"
@@ -477,6 +482,7 @@ def fetch_manual_job(url: str) -> dict:
         title_fallback,
     ]
     title = next((clean for value in title_candidates if (clean := _clean_job_title(value))), "")
+    title_verified = bool(title)
     if not title:
         title = "Job opening"
 
@@ -506,6 +512,7 @@ def fetch_manual_job(url: str) -> dict:
     raw["company_verified"] = company_source != "unverified"
     raw["company_source"] = company_source
     raw["title"] = title
+    raw["title_verified"] = title_verified
     raw["description"] = best_description
     if resolved_meta.get("location"):
         raw["location"] = resolved_meta["location"]
@@ -648,14 +655,49 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
                 "manual_link": True,
                 "manual_filters_bypassed": True,
                 "application_route": "MANUAL_LINK",
+                "company_verified": row.get("company_verified", bool(_clean_company_label(row.get("company")))),
+                "company_source": row.get("company_source") or "manual_state",
+                "title_verified": row.get("title_verified", _has_verified_job_title(row.get("title"))),
             }
+        print(
+            "MANUAL JD QUALITY | company={} | company_source={} | title={} | title_verified={} | "
+            "chars={} | complete={} | usable={}".format(
+                raw.get("company") or "-",
+                raw.get("company_source") or "-",
+                raw.get("title") or "-",
+                bool(raw.get("title_verified", _has_verified_job_title(raw.get("title")))),
+                len(str(raw.get("description") or "")),
+                bool(raw.get("description_complete")),
+                bool(raw.get("description_usable")),
+            ),
+            flush=True,
+        )
+
         if not raw.get("description_usable") or not str(raw.get("description") or "").strip():
+            ignore_status = "IGNORED_NO_JD"
+            ignore_reason = "No usable JD could be extracted."
+        elif not raw.get("description_complete"):
+            ignore_status = "IGNORED_INCOMPLETE_JD"
+            ignore_reason = "Only a partial JD was extracted; refusing weak resume tailoring."
+        elif not _has_verified_job_title(raw.get("title")) or raw.get("title_verified") is False:
+            ignore_status = "IGNORED_INCOMPLETE_JOB"
+            ignore_reason = "The exact job title could not be verified from the supplied/resolved page."
+        elif raw.get("company_verified") is False or _clean_company_label(raw.get("company")) in {"", "Company"}:
+            ignore_status = "IGNORED_INCOMPLETE_JOB"
+            ignore_reason = "The employer identity could not be verified from the supplied/resolved page."
+        else:
+            ignore_status = None
+            ignore_reason = None
+
+        if ignore_status:
             row.update({
-                "status": "IGNORED_NO_JD",
-                "next_action": "IGNORED_NO_JD",
+                "status": ignore_status,
+                "next_action": ignore_status,
+                "company": _clean_company_label(raw.get("company")) or "",
+                "title": _clean_job_title(raw.get("title")) or "",
                 "description": "",
-                "description_usable": False,
-                "description_complete": False,
+                "description_usable": bool(raw.get("description_usable")),
+                "description_complete": bool(raw.get("description_complete")),
                 "source": raw.get("source") or row.get("source") or "manual_link",
                 "url": raw.get("url") or row.get("url"),
                 "original_url": raw.get("original_url") or row.get("original_url"),
@@ -663,14 +705,22 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
                 "ats_identifier": raw.get("ats_identifier"),
                 "ats_label": raw.get("ats_label") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[0],
                 "ats_tenant": raw.get("ats_tenant") or _ats_display(raw.get("ats_provider"), raw.get("ats_identifier"))[1],
+                "company_verified": bool(raw.get("company_verified")),
+                "company_source": raw.get("company_source") or "unverified",
+                "title_verified": bool(raw.get("title_verified")),
                 "error": None,
+                "ignore_reason": ignore_reason,
                 "updated_at": _now(),
             })
             state = _load_state()
             if key in state["jobs"]:
                 state["jobs"][key] = row
                 _save_state(state)
-            print(f"MANUAL IGNORE NO JD | {row.get('submitted_url') or row.get('url')}", flush=True)
+            print(
+                f"MANUAL IGNORE QUALITY | status={ignore_status} | company={row.get('company') or '-'} | "
+                f"title={row.get('title') or '-'} | reason={ignore_reason}",
+                flush=True,
+            )
             return _public(row)
 
         # A usable manual JD always enters the shared LLM tailoring path. This
@@ -699,6 +749,7 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             "requisition_id": raw.get("requisition_id"),
             "company_verified": bool(raw.get("company_verified")),
             "company_source": raw.get("company_source") or "unverified",
+            "title_verified": bool(raw.get("title_verified", _has_verified_job_title(raw.get("title")))),
             "description_complete": bool(raw.get("description_complete")),
             "description_usable": bool(raw.get("description_usable")),
             "tailoring_mode": raw.get("tailoring_mode"),

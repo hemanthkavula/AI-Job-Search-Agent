@@ -61,19 +61,19 @@ def _payload():
     }
 
 
-def test_gcp_jd_adds_separate_gcp_group_and_keeps_master_aws_azure_groups():
+def test_gcp_jd_focuses_top_skills_on_gcp_without_forcing_historical_clouds():
     job = SimpleNamespace(
         description="GCP BigQuery Dataflow Pub/Sub pipelines using Python SQL and PySpark"
     )
     result = _normalize_generated_resume(_payload(), job)
-    master = load_master_resume()
 
-    assert result["skills"]["Cloud Platforms (AWS)"][:6] == master["skills"]["Cloud Platforms (AWS)"]
-    assert result["skills"]["Cloud Platforms (Azure)"][:4] == master["skills"]["Cloud Platforms (Azure)"]
     assert "Cloud Platforms (GCP)" in result["skills"]
     assert "BigQuery" in result["skills"]["Cloud Platforms (GCP)"]
     assert "Dataflow" in result["skills"]["Cloud Platforms (GCP)"]
     assert "Pub/Sub" in result["skills"]["Cloud Platforms (GCP)"]
+    all_skills = [value for values in result["skills"].values() for value in values]
+    assert "AWS Glue" not in all_skills
+    assert "Azure Data Factory" not in all_skills
 
 
 def test_old_employers_reject_ai_and_wrong_cloud_while_fidelity_stays_jd_adaptive():
@@ -104,3 +104,38 @@ def test_old_employers_reject_ai_and_wrong_cloud_while_fidelity_stays_jd_adaptiv
     # Employer footer values are derived only from final bullet technology mentions.
     assert all("Generative AI" != value for value in rows["Cigna Healthcare"]["skills_used"])
     assert all("BigQuery" != value for value in rows["Target Corporation"]["skills_used"])
+
+
+def test_technology_aliases_are_canonicalized_in_skills_and_environment():
+    payload = _payload()
+    payload["skills"]["Cloud Platforms"] = [
+        "Lambda", "AWS Lambda", "Kinesis", "Amazon Kinesis",
+        "Data Factory", "Azure Data Factory", "Synapse Analytics", "Azure Synapse Analytics",
+        "Azure Data Lake Storage Gen2", "ADLS Gen2", "Event Hub", "Azure Event Hubs",
+        "Azure Purview", "Microsoft Purview",
+    ]
+    payload["experience"][1]["bullets"][1] = (
+        "Built PySpark ETL pipelines with Azure Data Factory, Azure Synapse Analytics, "
+        "ADLS Gen2, Azure Event Hubs, and Microsoft Purview for healthcare data."
+    )
+    job = SimpleNamespace(description="Azure data engineering using Data Factory and Synapse")
+    result = _normalize_generated_resume(payload, job)
+
+    all_skills = [value for values in result["skills"].values() for value in values]
+    assert "Lambda" not in all_skills
+    assert "Kinesis" not in all_skills
+    assert "Data Factory" not in all_skills
+    assert "Synapse Analytics" not in all_skills
+    assert "Azure Data Lake Storage Gen2" not in all_skills
+    assert "Event Hub" not in all_skills
+    assert "Azure Purview" not in all_skills
+    assert "AWS Lambda" not in all_skills
+    assert "Amazon Kinesis" not in all_skills
+
+    cigna = next(item for item in result["experience"] if item["company"] == "Cigna Healthcare")
+    footer = cigna["skills_used"]
+    assert footer.count("Azure Data Factory") <= 1
+    assert footer.count("Azure Synapse Analytics") <= 1
+    assert footer.count("ADLS Gen2") <= 1
+    assert footer.count("Azure Event Hubs") <= 1
+    assert footer.count("Microsoft Purview") <= 1
