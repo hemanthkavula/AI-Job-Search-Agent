@@ -141,3 +141,21 @@ def test_technology_aliases_are_canonicalized_in_skills_and_environment():
     assert footer.count("ADLS Gen2") <= 1
     assert footer.count("Azure Event Hubs") <= 1
     assert footer.count("Microsoft Purview") <= 1
+
+
+def test_no_duplicate_technology_across_skill_categories_or_environment():
+    payload = _payload()
+    payload["skills"] = {
+        "Cloud": ["Lambda", "AWS Lambda", "Kinesis", "Amazon Kinesis"],
+        "Integration": ["AWS Lambda", "Amazon Kinesis"],
+    }
+    job = SimpleNamespace(description="AWS Lambda Kinesis Python SQL")
+    result = _normalize_generated_resume(payload, job)
+
+    all_skills = [value for values in result["skills"].values() for value in values]
+    assert all_skills.count("AWS Lambda") == 1
+    assert all_skills.count("Amazon Kinesis") == 1
+
+    for row in result["experience"]:
+        footer = row["skills_used"]
+        assert len(footer) == len({value.casefold() for value in footer})
