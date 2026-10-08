@@ -2,6 +2,7 @@ from __future__ import annotations
 import argparse,json
 from datetime import datetime,timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from app.daily_runner import run as discover_and_filter
 from app.jd_finalizer import finalize_report
 from app.source_window_finalizer import finalize_report_by_source
@@ -32,13 +33,45 @@ def _sync_finalized(rows,ledger_path,cycle_id=None):
               cycle_id=cycle_id)
  save_ledger(ledger,ledger_path)
 
-def _retry_items_from_ledger(ledger_path):
+def _retry_items_from_ledger(ledger_path,hours=24,now=None,since=None):
+ """Return resume retries, re-verifying legacy rows that lost safety evidence."""
  ledger_data=load_ledger(ledger_path)
- items=[]
+ items=[];needs_reverify=[]
  for raw in retryable_jobs(ledger_data):
   elig=raw.get("eligibility")
   if not isinstance(elig,dict):continue
-  items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
+  proof=raw.get("freshness_proof") or {}
+  live=raw.get("live_check") or {}
+  # A retry may bypass discovery, but it must never bypass the final posting
+  # safety gates. New retry records preserve these fields; legacy records that
+  # lost them are sent through the same finalizer used by fresh jobs.
+  if proof.get("posted_at") and proof.get("production_cutoff") and live.get("passed") is True:
+   items.append({"action":"FINAL_JD_VERIFIED","job":raw,"eligibility":elig})
+  else:
+   needs_reverify.append(raw)
+ if needs_reverify:
+  with TemporaryDirectory(prefix="resume-retry-reverify-") as tmp:
+   report_path=Path(tmp)/"eligible.json"
+   output_path=Path(tmp)/"finalized.json"
+   report_path.write_text(json.dumps({"results":[
+    {"action":"ELIGIBLE_FOR_RESUME","job":raw,"eligibility":raw.get("eligibility")}
+    for raw in needs_reverify
+   ]},indent=2),encoding="utf-8")
+   reverified=finalize_report(
+    str(report_path),str(output_path),hours=hours,now=now,since=since
+   )
+  items.extend(reverified.get("results") or [])
+  for rejected in reverified.get("rejections") or []:
+   job=rejected.get("job") or {}
+   print(
+    "RETRY REVERIFY HOLD | {} | {} | {} | {}".format(
+     job.get("company_key") or job.get("company") or "Unknown",
+     job.get("title") or "",
+     rejected.get("action") or "HOLD",
+     rejected.get("reason") or "; ".join(rejected.get("reasons") or []),
+    ),
+    flush=True,
+   )
  return items
 
 def _sync_manifest(rows,ledger_path,cycle_id=None):
@@ -117,7 +150,7 @@ def run_cycle(sources="data/job_sources.json",hours=24,ledger="generated/job_led
  else:
   finalized=finalize_report(str(ROOT/eligible_rel),str(ROOT/finalized_rel),hours=hours,now=scan_now,since=since)
  _sync_finalized(finalized.get("jobs") or finalized.get("results") or [],ledger,stamp)
- retry_items=_retry_items_from_ledger(ledger) if generate_resumes else []
+ retry_items=_retry_items_from_ledger(ledger,hours=hours,now=scan_now,since=since) if generate_resumes else []
  finalized_results=list(finalized.get("results") or finalized.get("jobs") or [])
  retry_ids={x["job"].get("external_id") for x in retry_items}
  existing_ids={(x.get("job") or {}).get("external_id") for x in finalized_results}
