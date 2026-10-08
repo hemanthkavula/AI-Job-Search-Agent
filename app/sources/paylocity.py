@@ -112,7 +112,15 @@ def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
         if isinstance(ident,dict):
             ident=ident.get("value") or ident.get("name") or job_id
         org=j.get("hiringOrganization")
-        resolved_company=_plain(org.get("name")) if isinstance(org,dict) else company
+        resolved_company=_plain(org.get("name")) if isinstance(org,dict) else ""
+        if not resolved_company:
+            og_title=_plain(_meta(body,"og:title"))
+            if " - " in og_title:
+                left,right=og_title.split(" - ",1)
+                if left.strip() and right.strip() and _plain(right).casefold()==title.casefold():
+                    resolved_company=left.strip()
+        if not resolved_company:
+            resolved_company=company
         return {
             "external_id":f"paylocity:{resolved_company or company}:{ident}",
             "source":"paylocity",
