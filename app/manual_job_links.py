@@ -1028,7 +1028,7 @@ def api_list():
     return {
         "jobs": visible,
         "current": current,
-        "attention": terminal_hidden[-20:],
+        "attention": terminal_hidden[:20:],
         "counts": {
             "total": len(all_rows),
             "ready": sum(
@@ -1063,6 +1063,33 @@ def api_add(body: LinksInput, background_tasks: BackgroundTasks):
 @router.post("/api/manual-links/{key:path}/process")
 def api_process(key: str, force_refetch: bool = False):
     return {"ok": True, "job": process_job(key, force_refetch)}
+
+
+@router.post("/api/manual-links/{key:path}/retry")
+def api_retry(key: str, background_tasks: BackgroundTasks):
+    state, row = _get(key)
+    if row.get("application_status") == "SUBMITTED_CONFIRMED":
+        return {"ok": True, "job": _public(row), "queued": False}
+    row.update({
+        "status": "PENDING",
+        "next_action": None,
+        "description": "",
+        "description_usable": False,
+        "description_complete": False,
+        "tailoring_mode": None,
+        "error": None,
+        "ignore_reason": None,
+        "resume_path": None,
+        "pdf_path": None,
+        "ats_audit": None,
+        "artifact_validation": None,
+        "resume_tailoring_policy": None,
+        "updated_at": _now(),
+    })
+    state["jobs"][key] = row
+    _save_state(state)
+    background_tasks.add_task(process_jobs, [key])
+    return {"ok": True, "job": _public(row), "queued": True}
 
 
 @router.patch("/api/manual-links/{key:path}")
@@ -1309,7 +1336,7 @@ document.addEventListener("click",async e=>{
   if(retry){
     retry.disabled=true;retry.textContent="Retrying…";
     try{
-      let response=await fetch("/api/manual-links/"+encodeURIComponent(retry.dataset.retry)+"/process?force_refetch=true",{method:"POST"});
+      let response=await fetch("/api/manual-links/"+encodeURIComponent(retry.dataset.retry)+"/retry",{method:"POST"});
       let payload=await response.json();
       if(!response.ok)throw new Error(payload.detail||"Retry failed");
       await load();
