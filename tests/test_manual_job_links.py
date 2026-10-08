@@ -248,6 +248,12 @@ def test_generic_job_titles_are_not_displayed():
     assert manual._clean_job_title("Senior Data Engineer") == "Senior Data Engineer"
 
 
+def test_generic_search_and_domain_labels_are_not_verified_titles():
+    for value in ("Career Search", "Job Search", "Search Jobs", "Datacolor.ai", "example.com"):
+        assert manual._clean_job_title(value) == ""
+    assert manual._clean_job_title("Data Engineer (SQL)") == "Data Engineer (SQL)"
+
+
 def test_ats_display_exposes_provider_and_clean_tenant():
     label, tenant = manual._ats_display("workday", "unitedhealthgroup|UHG_Careers")
     assert label == "Workday"
