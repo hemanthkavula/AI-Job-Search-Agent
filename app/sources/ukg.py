@@ -186,7 +186,10 @@ def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
     title=_plain(row.get("Title"))
     desc=_plain(row.get("Description") or row.get("BriefDescription"))
     board_name=_plain(row.get("ApplicationJobBoardName"))
-    resolved_company=company or board_name
+    supplied=_plain(company)
+    if supplied.lower() in {"","company","unknown","unknown company","job from supplied link"}:
+        supplied=""
+    resolved_company=board_name or supplied
     req=str(row.get("RequisitionNumber") or opportunity_id)
     return {
         "external_id":f"ukg:{resolved_company or 'company'}:{opportunity_id}",
