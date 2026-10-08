@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from app.source_registry import detect_ats, reusable_search_url
 from app.sources.career_site import _get as public_get, _jobpostings, _plain
 from app.sources.greenhouse import fetch_jobs as greenhouse_jobs
-from app.sources.lever import fetch_jobs as lever_jobs
+from app.sources.lever import fetch_job as lever_job, fetch_jobs as lever_jobs
 from app.sources.ashby import fetch_jobs as ashby_jobs
 from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
@@ -16,12 +16,12 @@ from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
 from app.sources.oracle import fetch_job as oracle_job, fetch_jobs as oracle_jobs
 from app.sources.eightfold import fetch_job as eightfold_job, fetch_jobs as eightfold_jobs
-from app.sources.ukg import fetch_jobs as ukg_jobs
+from app.sources.ukg import fetch_job as ukg_job, fetch_jobs as ukg_jobs
 from app.sources.adp_workforce_now import fetch_jobs as adp_jobs
 from app.sources.avature import fetch_jobs as avature_jobs
 from app.sources.phenom import fetch_jobs as phenom_jobs
-from app.sources.paylocity import fetch_jobs as paylocity_jobs
-from app.sources.workable import fetch_jobs as workable_jobs
+from app.sources.paylocity import fetch_job as paylocity_job, fetch_jobs as paylocity_jobs
+from app.sources.workable import fetch_job as workable_job, fetch_jobs as workable_jobs
 from app.sources.jazzhr import fetch_jobs as jazzhr_jobs
 from app.sources.dayforce import fetch_jobs as dayforce_jobs
 from app.sources.gem import fetch_jobs as gem_jobs
@@ -29,6 +29,7 @@ from app.sources.cornerstone import fetch_jobs as cornerstone_jobs
 from app.sources.jobvite import fetch_jobs as jobvite_jobs
 from app.sources.talentreef import fetch_jobs as talentreef_jobs
 from app.sources.public_ats_board import fetch_jobs as public_ats_jobs
+from app.sources.bamboohr import fetch_job as bamboohr_job, fetch_jobs as bamboohr_jobs
 
 _URL_FIELDS = ("careers_url", "search_url", "base_url", "original_url", "url")
 
@@ -167,6 +168,13 @@ def fetch_exact_job(provider: str | None, company: str, source: dict, *, timeout
     exact_fetchers={
         "eightfold": eightfold_job,
         "oracle": oracle_job,
+        "lever": lever_job,
+        "workable": workable_job,
+        "paylocity": paylocity_job,
+        "bamboohr": bamboohr_job,
+        "ukg": ukg_job,
+        "ultipro": ukg_job,
+        "ultipro_ukg": ukg_job,
     }
     exact_fetcher=exact_fetchers.get(provider)
     if exact_fetcher:
@@ -270,6 +278,7 @@ def fetch_provider_jobs(provider: str | None, company: str, source: dict, *, hou
         "phenom": phenom_jobs,
         "paylocity": paylocity_jobs,
         "workable": workable_jobs,
+        "bamboohr": bamboohr_jobs,
         "jazzhr": jazzhr_jobs,
         "jazzhr_alt": jazzhr_jobs,
         "dayforce": dayforce_jobs,
