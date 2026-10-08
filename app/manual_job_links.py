@@ -761,9 +761,6 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
         if not raw.get("description_usable") or not str(raw.get("description") or "").strip():
             ignore_status = "IGNORED_NO_JD"
             ignore_reason = "No usable JD could be extracted."
-        elif not raw.get("description_complete"):
-            ignore_status = "IGNORED_INCOMPLETE_JD"
-            ignore_reason = "Only a partial JD was extracted; refusing weak resume tailoring."
         elif not _has_verified_job_title(raw.get("title")) or raw.get("title_verified") is False:
             ignore_status = "IGNORED_INCOMPLETE_JOB"
             ignore_reason = "The exact job title could not be verified from the supplied/resolved page."
@@ -808,10 +805,19 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             )
             return _public(row)
 
-        # A usable manual JD always enters the shared LLM tailoring path. This
-        # flag only controls master-vs-tailored selection; prompts, retries, ATS
-        # audit, formatting, and artifact validation remain the production code.
-        raw["force_jd_tailoring"] = True
+        # Full JD: tailor through the shared resume writer.
+        # Partial but usable JD: use the uploaded master resume, unchanged in
+        # content, via batch_prepare's existing master-rendering branch.
+        # Missing JD or unverified company/title remain blocked above.
+        raw["force_jd_tailoring"] = bool(raw.get("description_complete"))
+        if not raw["force_jd_tailoring"]:
+            raw["tailoring_mode"] = "BASE_RESUME_CONSERVATIVE"
+            raw["resume_source_label"] = "MASTER_RESUME_FALLBACK"
+            print(
+                f"MANUAL MASTER FALLBACK | company={raw.get('company')} | title={raw.get('title')} "
+                "| partial JD verified; no LLM tailoring",
+                flush=True,
+            )
 
         clean_company = _clean_company_label(raw.get("company_key") or raw.get("company")) or "Company"
         clean_title = _clean_job_title(raw.get("title")) or "Job opening"
@@ -851,6 +857,7 @@ def process_job(key: str, force_refetch: bool = False) -> dict:
             "resume_path": result.get("resume_path"),
             "pdf_path": result.get("pdf_path"),
             "resume_tailoring_policy": result.get("resume_tailoring_policy"),
+            "resume_source_label": "MASTER_RESUME_FALLBACK" if not raw.get("description_complete") else "JD_TAILORED",
             "ats_audit": result.get("ats_audit"),
             "artifact_validation": result.get("artifact_validation"),
             "error": None if result.get("next_action") == "READY_TO_APPLY" else (result.get("ats_audit") or {}).get("error"),
