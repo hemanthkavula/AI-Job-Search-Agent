@@ -854,9 +854,9 @@ def _write_cache(cache_key, value):
     tmp.replace(path)
 
 
-def _response_request_body(model: str, prompt: dict) -> bytes:
+def _response_request_body(model: str, prompt: dict, service_tier: str | None = None) -> bytes:
     reasoning_effort = os.getenv("RESUME_LLM_REASONING_EFFORT", DEFAULT_REASONING_EFFORT)
-    service_tier = os.getenv("RESUME_LLM_SERVICE_TIER", DEFAULT_SERVICE_TIER)
+    service_tier = service_tier or os.getenv("RESUME_LLM_SERVICE_TIER", DEFAULT_SERVICE_TIER)
     max_output_tokens = int(os.getenv("RESUME_LLM_MAX_OUTPUT_TOKENS", str(DEFAULT_MAX_OUTPUT_TOKENS)))
     return json.dumps(
         {
@@ -911,6 +911,54 @@ def _log_response_usage(payload: dict, *, model: str, cache_key: str, request_ki
     )
 
 
+def _flex_unavailable(code: int, detail: str, attempted_tier: str) -> bool:
+    text = str(detail or "").lower()
+    return (
+        attempted_tier == "flex"
+        and int(code or 0) == 429
+        and ("flex_unavailable" in text or "flex processing is temporarily unavailable" in text)
+    )
+
+
+def _call_responses_api(endpoint: str, key: str, model: str, prompt: dict, *, cache_key: str, request_kind: str) -> dict:
+    preferred_tier = os.getenv("RESUME_LLM_SERVICE_TIER", DEFAULT_SERVICE_TIER)
+    tiers = [preferred_tier]
+    if preferred_tier == "flex":
+        tiers.append("default")
+
+    for index, tier in enumerate(tiers):
+        body = _response_request_body(model, prompt, service_tier=tier)
+        req = request.Request(
+            endpoint,
+            data=body,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=180) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if index:
+                print(
+                    "Resume LLM fallback | flex unavailable -> standard/default tier",
+                    flush=True,
+                )
+            _log_response_usage(payload, model=model, cache_key=cache_key, request_kind=request_kind)
+            return payload
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if index == 0 and _flex_unavailable(exc.code, detail, tier) and len(tiers) > 1:
+                print(
+                    "Resume LLM flex unavailable | retrying once on standard/default tier",
+                    flush=True,
+                )
+                continue
+            raise RuntimeError(f"OpenAI API HTTP {exc.code}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"OpenAI API connection error: {exc.reason}") from exc
+
+    raise RuntimeError("OpenAI Responses API call failed without a response")
+
+
 def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None):
     key = os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:
@@ -925,22 +973,14 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         return _normalize_generated_resume(cached, job)
 
     print(f"Resume LLM cache MISS | {cache_key[:12]} | calling API", flush=True)
-    body = _response_request_body(model, prompt)
-    req = request.Request(
+    payload = _call_responses_api(
         endpoint,
-        data=body,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        method="POST",
+        key,
+        model,
+        prompt,
+        cache_key=cache_key,
+        request_kind="initial",
     )
-    try:
-        with request.urlopen(req, timeout=180) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        _log_response_usage(payload, model=model, cache_key=cache_key, request_kind="initial")
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI API HTTP {exc.code}: {detail}") from exc
-    except error.URLError as exc:
-        raise RuntimeError(f"OpenAI API connection error: {exc.reason}") from exc
 
     text = _extract_output_text(payload)
     if not text:
@@ -964,22 +1004,14 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
             "Fix the Professional Summary specifically: return one substantial 100-140 word prose paragraph "
             "with 4-6 complete sentences and enough senior Data Engineer substance. Do not return summary bullets or fragments."
         )
-        retry_body = _response_request_body(model, retry_prompt)
-        retry_req = request.Request(
+        retry_payload = _call_responses_api(
             endpoint,
-            data=retry_body,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            method="POST",
+            key,
+            model,
+            retry_prompt,
+            cache_key=cache_key,
+            request_kind="summary_retry",
         )
-        try:
-            with request.urlopen(retry_req, timeout=180) as response:
-                retry_payload = json.loads(response.read().decode("utf-8"))
-            _log_response_usage(retry_payload, model=model, cache_key=cache_key, request_kind="summary_retry")
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"OpenAI API summary retry HTTP {exc.code}: {detail}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"OpenAI API summary retry connection error: {exc.reason}") from exc
         retry_text = _extract_output_text(retry_payload)
         try:
             result = json.loads(retry_text)
