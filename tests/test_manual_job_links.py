@@ -166,6 +166,25 @@ def test_verified_company_uses_ats_tenant_before_portal_brand():
     assert source == "ats_tenant"
 
 
+def test_verified_company_accepts_exact_provider_company_metadata():
+    company, source = manual._verified_company(
+        resolved_meta={},
+        initial_meta={},
+        provider="workable",
+        identifier="opendatajobs",
+        effective_url="https://apply.workable.com/opendatajobs/j/ABC123",
+        submitted_url="https://apply.workable.com/opendatajobs/j/ABC123",
+        raw_company="Peregrine Advisors",
+        raw_company_source="workable_public_account_api",
+        resolved_site_name="Workable",
+        resolved_fallback="Data Engineer",
+        initial_site_name="Workable",
+        initial_fallback="Data Engineer",
+    )
+    assert company == "Peregrine Advisors"
+    assert source == "provider_exact_metadata"
+
+
 def test_verified_company_does_not_guess_from_single_portal_label():
     company, source = manual._verified_company(
         resolved_meta={},
