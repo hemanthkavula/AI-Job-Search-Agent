@@ -41,6 +41,20 @@ def _same_company_hint(job,url):
  host=re.sub(r"[^a-z0-9]","",urlsplit(url).netloc.lower())
  return not company or company[:8] in host or any(x in url.lower() for x in re.findall(r"[a-z0-9]{4,}",(job.get("company_key") or "").lower())[:2])
 
+def _looks_like_static_asset_url(url):
+ try:
+  parsed=urlsplit(url or "")
+  host=(parsed.netloc or "").lower()
+  path=(parsed.path or "").lower().split("?",1)[0]
+ except Exception:
+  return True
+ static_suffixes=(".css",".js",".mjs",".map",".png",".jpg",".jpeg",".gif",".svg",".ico",".woff",".woff2",".ttf",".eot",".pdf")
+ if path.endswith(static_suffixes):
+  return True
+ if host.startswith(("static.","cdn.","assets.","rmkcdn.")):
+  return True
+ return False
+
 def _candidate_links(page,base):
  links=[]
  # Aggregators frequently hide the employer ATS URL in JSON/script state instead
@@ -62,6 +76,7 @@ def _candidate_links(page,base):
    urlsplit(u)  # validate bracketed netlocs before downstream provider checks
   except (ValueError, TypeError):
    continue
+  if _looks_like_static_asset_url(u):continue
   if any(host in u.lower() for host in ATS_HOST_HINTS):links.append(u)
  return list(dict.fromkeys(links))
 
