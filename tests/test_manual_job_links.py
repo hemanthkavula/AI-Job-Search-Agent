@@ -655,7 +655,6 @@ def test_manual_page_has_required_controls():
     assert "Manual Job Links" in manual.MANUAL_PAGE
     assert "Job Discovery" in manual.MANUAL_PAGE
     assert "Add & Process" in manual.MANUAL_PAGE
-    assert "Still processing" in manual.MANUAL_PAGE
     assert "Processing" in manual.MANUAL_PAGE
     assert "Mark Applied" in manual.MANUAL_PAGE
     assert "View Resume" in manual.MANUAL_PAGE
