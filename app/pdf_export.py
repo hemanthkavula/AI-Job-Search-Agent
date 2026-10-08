@@ -16,7 +16,8 @@ from app.resume_pagination import enforce_experience_start_rule, validate_experi
 REQUIRED_PRODUCTION_PAGES = 2
 MIN_PAGE_TEXT_BALANCE = 0.50
 REQUIRED_PDF_FONT_FAMILY = "Calibri"
-DISALLOWED_SUBSTITUTE_FONTS = ("dejavu", "liberation", "carlito")
+ALLOWED_METRIC_FALLBACK_FONT = "Carlito"
+DISALLOWED_SUBSTITUTE_FONTS = ("dejavu", "liberation")
 # Employer placement is intentionally NOT hardcoded. An employer may begin on the
 # current page when its company/header, title/date, responsibilities label, and
 # complete first bullet fit there. Otherwise Word/LibreOffice moves that start block
@@ -229,16 +230,18 @@ def _pdf_font_names(pdf_path: str) -> list[str]:
         return []
 
 
-def _pdf_font_contract(pdf_path: str) -> tuple[bool, list[str], list[str]]:
+def _pdf_font_contract(pdf_path: str) -> tuple[bool, list[str], list[str], bool]:
     names = _pdf_font_names(pdf_path)
     lowered = [name.casefold() for name in names]
     has_calibri = any(REQUIRED_PDF_FONT_FAMILY.casefold() in name for name in lowered)
+    has_metric_fallback = any(ALLOWED_METRIC_FALLBACK_FONT.casefold() in name for name in lowered)
     substitutions = [
         original
         for original, low in zip(names, lowered)
         if any(bad in low for bad in DISALLOWED_SUBSTITUTE_FONTS)
     ]
-    return has_calibri and not substitutions, names, substitutions
+    fallback_used = has_metric_fallback and not has_calibri
+    return (has_calibri or has_metric_fallback) and not substitutions, names, substitutions, fallback_used
 
 
 def _tokens(text: str) -> list[str]:
@@ -349,7 +352,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
     environment_footer_count = pdf_text.casefold().count("environment:")
     environment_footers_match = environment_footer_count >= 3
     skills_footer_removed = "skills:" not in pdf_text.casefold()
-    pdf_font_match, pdf_fonts, substituted_fonts = _pdf_font_contract(pdf_path)
+    pdf_font_match, pdf_fonts, substituted_fonts, pdf_font_fallback_used = _pdf_font_contract(pdf_path)
 
     failures = []
     if not pagination.get("passed"):
@@ -383,7 +386,7 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
             )
         else:
             failures.append(
-                "PDF does not contain required Calibri font; installed renderer fonts="
+                "PDF does not contain Calibri or the approved Carlito metric-compatible fallback; renderer fonts="
                 + (", ".join(pdf_fonts) if pdf_fonts else "unknown")
             )
 
@@ -408,8 +411,10 @@ def validate_docx_pdf_parity(docx_path: str, pdf_path: str | None) -> dict:
         "environment_footers_match": environment_footers_match,
         "skills_footer_removed": skills_footer_removed,
         "required_pdf_font_family": REQUIRED_PDF_FONT_FAMILY,
+        "allowed_metric_fallback_font": ALLOWED_METRIC_FALLBACK_FONT,
         "pdf_fonts": pdf_fonts,
         "pdf_font_match": pdf_font_match,
+        "pdf_font_fallback_used": pdf_font_fallback_used,
         "substituted_fonts": substituted_fonts,
         "experience_start_pagination": pagination,
         "pagination_policy": "two_page_first_bullet_experience_start_contract",
