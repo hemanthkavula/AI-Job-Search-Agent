@@ -68,3 +68,97 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
           "ats_identifier":tenant,"job_id":ident,"description":desc,"description_complete":bool(desc),
           "updated_at":j.get("datePosted") or j.get("validThrough")})
     return out
+
+
+def _meta(body: str, prop: str) -> str:
+    q=re.escape(prop)
+    patterns=(
+        rf'''(?is)<meta[^>]+(?:name|property)=["']{q}["'][^>]+content=["']([^"']+)["']''',
+        rf'''(?is)<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']{q}["']''',
+    )
+    for pattern in patterns:
+        m=re.search(pattern,body or "")
+        if m:
+            return html.unescape(m.group(1)).strip()
+    return ""
+
+
+def _visible_text(body: str) -> str:
+    value=re.sub(r"(?is)<script[^>]*>.*?</script>"," ",body or "")
+    value=re.sub(r"(?is)<style[^>]*>.*?</style>"," ",value)
+    return _plain(value)
+
+
+def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
+    """Resolve one exact Paylocity posting through its server-rendered Details page."""
+    m=re.search(r"/Recruiting/Jobs/(?:Apply|Details)/(\d+)",str(url or ""),re.I)
+    if not m:
+        return None
+    job_id=m.group(1)
+    parsed=urlparse(str(url))
+    details=f"{parsed.scheme or 'https'}://{parsed.netloc}/Recruiting/Jobs/Details/{job_id}"
+    try:
+        body=_get(details,timeout)
+    except Exception:
+        return None
+
+    postings=_postings(body)
+    if postings:
+        j=max(postings,key=lambda x:len(str(x.get("description") or "")))
+        title=_plain(j.get("title"))
+        desc=_plain(j.get("description"))
+        canonical=str(j.get("url") or details)
+        ident=j.get("identifier") or job_id
+        if isinstance(ident,dict):
+            ident=ident.get("value") or ident.get("name") or job_id
+        org=j.get("hiringOrganization")
+        resolved_company=_plain(org.get("name")) if isinstance(org,dict) else company
+        return {
+            "external_id":f"paylocity:{resolved_company or company}:{ident}",
+            "source":"paylocity",
+            "company_key":resolved_company or company,
+            "company":resolved_company or company,
+            "title":title,
+            "location":_location(j),
+            "url":canonical,
+            "original_url":canonical,
+            "ats_provider":"paylocity",
+            "ats_identifier":job_id,
+            "job_id":str(ident),
+            "requisition_id":str(ident),
+            "description":desc,
+            "description_complete":bool(desc),
+            "posted_at":j.get("datePosted"),
+            "exact_job_metadata_source":"paylocity_details_jsonld",
+        }
+
+    og_title=_plain(_meta(body,"og:title"))
+    og_desc=_plain(_meta(body,"og:description"))
+    visible=_visible_text(body)
+    resolved_company=company
+    title=og_title
+    if " - " in og_title:
+        left,right=og_title.split(" - ",1)
+        if left.strip() and right.strip():
+            resolved_company=left.strip()
+            title=right.strip()
+    desc=max((og_desc,visible),key=len,default="")
+    if not title or len(desc)<180:
+        return None
+    return {
+        "external_id":f"paylocity:{resolved_company or company}:{job_id}",
+        "source":"paylocity",
+        "company_key":resolved_company or company,
+        "company":resolved_company or company,
+        "title":title,
+        "location":None,
+        "url":details,
+        "original_url":details,
+        "ats_provider":"paylocity",
+        "ats_identifier":job_id,
+        "job_id":job_id,
+        "requisition_id":job_id,
+        "description":desc,
+        "description_complete":True,
+        "exact_job_metadata_source":"paylocity_details_page",
+    }
