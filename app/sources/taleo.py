@@ -50,7 +50,9 @@ def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
     title_match=re.search(r"""(?is)<meta[^>]+(?:property=["']og:title["'][^>]*content=["']([^"']+)|content=["']([^"']+)["'][^>]*property=["']og:title["'])""",page)
     title=_plain((title_match.group(1) or title_match.group(2)) if title_match else "")
     tenant=parsed.hostname.split(".")[0]
-    # Taleo tenant prefixes such as tas- are infrastructure, not employer names.\n    employer=re.sub(r"(?i)^(?:tas-|recruiting-|career-)", "", tenant).replace("-", " ").title()\n    if not employer:\n        employer=company or tenant
+    # Taleo tenant prefixes such as tas- are infrastructure, not employer names.
+    employer=re.sub(r"(?i)^(?:tas-|recruiting-|career-)", "", tenant).replace("-", " ").title()
+    if not employer:\n        employer=company or tenant
     return {
         "external_id":f"taleo:{tenant}:{job_id}",
         "source":"taleo",
