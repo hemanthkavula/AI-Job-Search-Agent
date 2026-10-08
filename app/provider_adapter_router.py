@@ -31,6 +31,7 @@ from app.sources.talentreef import fetch_jobs as talentreef_jobs
 from app.sources.public_ats_board import fetch_jobs as public_ats_jobs
 from app.sources.bamboohr import fetch_job as bamboohr_job, fetch_jobs as bamboohr_jobs
 from app.sources.zoho_recruit import fetch_job as zoho_recruit_job
+from app.sources.taleo import fetch_job as taleo_job
 
 _URL_FIELDS = ("careers_url", "search_url", "base_url", "original_url", "url")
 
@@ -174,6 +175,7 @@ def fetch_exact_job(provider: str | None, company: str, source: dict, *, timeout
         "paylocity": paylocity_job,
         "bamboohr": bamboohr_job,
         "zoho_recruit": zoho_recruit_job,
+        "taleo": taleo_job,
         "ukg": ukg_job,
         "ultipro": ukg_job,
         "ultipro_ukg": ukg_job,
