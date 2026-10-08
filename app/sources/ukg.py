@@ -182,6 +182,17 @@ def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
         return None
     row=next((item for item in _embedded_opportunities(body) if str(item.get("Id") or "").lower()==str(opportunity_id).lower()),None)
     if not row:
+        marker="new US.Opportunity.CandidateOpportunityDetail("
+        start=body.find(marker)
+        if start>=0:
+            fragment=body[start+len(marker):].lstrip()
+            try:
+                decoded,_=json.JSONDecoder().raw_decode(fragment)
+                if isinstance(decoded,dict) and str(decoded.get("Id") or "").lower()==str(opportunity_id).lower():
+                    row=decoded
+            except Exception:
+                row=None
+    if not row:
         return None
     title=_plain(row.get("Title"))
     desc=_plain(row.get("Description") or row.get("BriefDescription"))
