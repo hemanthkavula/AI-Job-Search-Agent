@@ -126,6 +126,28 @@ def resolve_original_ats(job):
   out.update({"original_url":start,"ats_provider":provider,"ats_identifier":identifier,"ats_resolution":"direct"})
   return out
  page=_fetch(start)
+
+ # Many SuccessFactors tenants are hosted on the employer's branded domain.
+ # If the submitted page itself is a job detail and loads SuccessFactors career
+ # assets, preserve that authoritative employer URL instead of mistaking a CDN
+ # stylesheet or an embedded chatbot vendor for the job destination.
+ try:
+  start_path=(urlsplit(start).path or "").lower()
+ except Exception:
+  start_path=""
+ if (
+  not _is_aggregator_url(start)
+  and "/job/" in start_path
+  and "successfactors" in (page or "").lower()
+ ):
+  out.update({
+   "original_url":start,
+   "ats_provider":"successfactors",
+   "ats_identifier":(urlsplit(start).netloc or "").lower(),
+   "ats_resolution":"branded_successfactors_job_page",
+  })
+  return out
+
  org_urls=[u for u in _organization_urls(page,start) if not _is_aggregator_url(u)]
  if org_urls:out["organization_url_evidence"]=org_urls[0]
  links=_candidate_links(page,start)
