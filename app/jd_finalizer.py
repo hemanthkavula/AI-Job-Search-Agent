@@ -446,6 +446,16 @@ def resolve_full_jd(job):
     # shell. Recompute completeness after authoritative metadata enrichment so
     # a clean API JD is never replaced merely because the public page contains
     # more navigation/legal text.
+    # Keep an exact provider description as the source of truth even when it
+    # is legitimately brief. It can still fail completeness gating, but should
+    # not be overwritten by navigation/footer content from a longer page shell.
+    if job.get("metadata_verified") and _looks_like_usable_jd(current,source) and not aggregator_origin:
+        job["description_usable"]=True
+        job["description_complete"]=_looks_like_complete_jd(current,source)
+        job["description_length"]=len(current)
+        job["jd_signal_score"]=_jd_signal_score(current)
+        job["jd_resolution_source"]="authoritative_provider_detail"
+        return job
     if job.get("metadata_verified") and _looks_like_complete_jd(current,source) and not aggregator_origin:
         job["description_complete"]=True
         job["description_usable"]=True
