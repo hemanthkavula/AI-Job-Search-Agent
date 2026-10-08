@@ -718,6 +718,42 @@ def _summary_contract_violations(summary) -> list[str]:
     return reasons
 
 
+def _assert_no_duplicate_technologies(skills: dict, experience: list[dict]) -> None:
+    """Hard-stop duplicate canonical technologies in Skills or any Environment footer."""
+    seen = set()
+    duplicates = []
+    for category, values in (skills or {}).items():
+        for value in values or []:
+            canonical = _canonical_technology_label(value)
+            key = canonical.casefold()
+            if key in seen:
+                duplicates.append(canonical)
+            else:
+                seen.add(key)
+    if duplicates:
+        raise RuntimeError(
+            "Technical Skills contains duplicate technology entries after canonicalization: "
+            + ", ".join(sorted(set(duplicates), key=str.casefold))
+        )
+
+    for item in experience or []:
+        company = str(item.get("company") or "Unknown employer")
+        seen_env = set()
+        env_dupes = []
+        for value in item.get("skills_used") or []:
+            canonical = _canonical_technology_label(value)
+            key = canonical.casefold()
+            if key in seen_env:
+                env_dupes.append(canonical)
+            else:
+                seen_env.add(key)
+        if env_dupes:
+            raise RuntimeError(
+                f"{company} Environment contains duplicate technology entries after canonicalization: "
+                + ", ".join(sorted(set(env_dupes), key=str.casefold))
+            )
+
+
 def _normalize_generated_resume(result: dict, job) -> dict:
     normalized = deepcopy(result)
     description = job.description or ""
@@ -737,6 +773,10 @@ def _normalize_generated_resume(result: dict, job) -> dict:
         provisional_skills,
         normalized["experience"],
         description,
+    )
+    _assert_no_duplicate_technologies(
+        normalized["skills"],
+        normalized["experience"],
     )
     return normalized
 
