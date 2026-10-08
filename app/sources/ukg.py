@@ -166,3 +166,44 @@ def fetch_jobs(company: str, search_url: str, timeout: int=25) -> list[dict]:
               "description":desc,"description_complete":bool(desc),
               "updated_at":j.get("datePosted") or j.get("validThrough")})
     return out
+
+
+def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
+    """Resolve one exact UKG/UltiPro opportunity from the embedded full-detail object."""
+    from urllib.parse import parse_qs
+    parsed=urlparse(str(url or ""))
+    query=parse_qs(parsed.query)
+    opportunity_id=(query.get("opportunityId") or query.get("opportunityid") or [""])[0]
+    if not opportunity_id:
+        return None
+    try:
+        body=_get(url,timeout)
+    except Exception:
+        return None
+    row=next((item for item in _embedded_opportunities(body) if str(item.get("Id") or "").lower()==str(opportunity_id).lower()),None)
+    if not row:
+        return None
+    title=_plain(row.get("Title"))
+    desc=_plain(row.get("Description") or row.get("BriefDescription"))
+    board_name=_plain(row.get("ApplicationJobBoardName"))
+    resolved_company=company or board_name
+    req=str(row.get("RequisitionNumber") or opportunity_id)
+    return {
+        "external_id":f"ukg:{resolved_company or 'company'}:{opportunity_id}",
+        "source":"ukg",
+        "company_key":resolved_company,
+        "company":resolved_company,
+        "title":title,
+        "location":_embedded_location(row),
+        "employment_type":"Full Time" if row.get("FullTime") is True else None,
+        "url":url,
+        "original_url":url,
+        "ats_provider":"ukg",
+        "ats_identifier":parsed.netloc,
+        "job_id":opportunity_id,
+        "requisition_id":req,
+        "description":desc,
+        "description_complete":bool(desc),
+        "posted_at":row.get("PostedDate"),
+        "exact_job_metadata_source":"ukg_embedded_opportunity_detail",
+    }
