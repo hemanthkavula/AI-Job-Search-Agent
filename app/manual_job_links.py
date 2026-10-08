@@ -1028,6 +1028,7 @@ def api_list():
     return {
         "jobs": visible,
         "current": current,
+        "attention": terminal_hidden[-20:],
         "counts": {
             "total": len(all_rows),
             "ready": sum(
@@ -1094,21 +1095,223 @@ def manual_resume(key: str):
     return FileResponse(resolved, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{resolved.name}"'})
 
 
-MANUAL_PAGE = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manual Job Links</title><style>
-:root{--bg:#07111f;--panel:#0c1828;--line:#21344a;--text:#edf3fb;--muted:#91a4bc}*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}.app{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:100vh}.side{background:#0a1625;border-right:1px solid #1a2a3d;padding:22px 14px}.brand{font-size:20px;font-weight:850;padding:0 8px 24px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:4px}.nav{display:grid;gap:6px}.nav a{display:block;padding:11px 12px;border-radius:8px;color:#c7d2e2;text-decoration:none;font-size:13px}.nav .active,.nav a:hover{background:#173967;color:#fff}.main{padding:22px clamp(16px,2vw,30px) 36px;min-width:0}.top h1{font-size:23px;margin:0 0 5px}.muted{color:var(--muted);font-size:12px}.entry,.section{background:#0b1726;border:1px solid var(--line);border-radius:11px;margin:18px 0;overflow:hidden}.entry{padding:16px}.entry textarea{width:100%;min-height:112px;background:#0d1a2b;border:1px solid #263950;color:#eef4fc;border-radius:8px;padding:12px;resize:vertical}.toolbar{display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap}.btn{border:1px solid #30465f;background:#13253a;color:#dce7f5;padding:8px 10px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none}.btn.primary{background:#2f73df;border-color:#4388f4;color:#fff}.btn.danger{color:#ff8f91}.btn:disabled{opacity:.7;cursor:default}.processingPill{display:none;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#392d61;color:#d4c2ff;font-size:11px;font-weight:800}.processingPill.on{display:inline-flex}.dot{width:7px;height:7px;border-radius:50%;background:#c6a8ff;animation:pulse 1.1s infinite}@keyframes pulse{50%{opacity:.35}}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{background:#0d1a2b;border:1px solid #263950;border-radius:10px;padding:15px}.stat span{color:#a9b8ca;font-size:11px}.stat b{display:block;font-size:24px;margin-top:5px}.sectionHead{padding:14px 16px;border-bottom:1px solid #1d3044;font-weight:800}.row{display:grid;grid-template-columns:minmax(300px,1.4fr) 150px 150px minmax(330px,.9fr);gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #17283a;font-size:12px}.head{background:#101f31;color:#9fb0c7;font-size:10px;text-transform:uppercase}.title{font-weight:800;font-size:13px;margin-bottom:5px}.company{color:#d8e4f3;font-weight:700;font-size:12px;margin-bottom:4px}.meta{color:#8fa0b8;font-size:11px;overflow-wrap:anywhere}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;background:#17304d}.ready{background:#0d4637;color:#62e5b0}.applied{background:#173b69;color:#74b4ff}.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.empty{padding:30px;text-align:center;color:#8192a8}.note{margin-top:9px;color:#91a4bc;font-size:11px}.current{display:none;margin-top:10px;padding:9px 11px;border:1px solid #342c59;border-radius:8px;background:#17152a;color:#bba9de;font-size:11px}.current.on{display:block}@media(max-width:1050px){.app{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid #1a2a3d}.nav{display:flex}.row{grid-template-columns:1fr 120px}.row>div:last-child{grid-column:1/-1}.actions{justify-content:flex-start}}@media(max-width:650px){.main{padding:12px}.stats{grid-template-columns:repeat(2,1fr)}.row{display:block}.head{display:none}.row>div{margin-bottom:8px}}
-</style></head><body><div class="app"><aside class="side"><div class="brand">💼 Auto Apply<small>Job Application Manager</small></div><div class="nav"><a href="/">⌂ &nbsp; Job Discovery</a><a class="active" href="/manual-links">🔗 &nbsp; Manual Job Links</a></div></aside><main class="main"><div class="top"><h1>Manual Job Links</h1><div class="muted">Paste direct job links. Each link is resolved to its employer/ATS page. Links without a usable JD are ignored; accepted JDs enter the exact same production resume pipeline as Job Discovery.</div></div><section class="entry"><textarea id="links" placeholder="Paste one or many job links — one per line"></textarea><div class="toolbar"><button class="btn primary" id="addBtn">Add & Process</button><button class="btn" id="refreshBtn">Refresh</button><span class="processingPill" id="processingPill"><span class="dot"></span><span id="processingText">Still processing…</span></span></div><div class="current" id="currentJob"></div><div class="note">Jobs run sequentially in the order submitted. Only completed Ready to Apply resumes appear below. The first generated resume goes through the shared LLM/audit/retry pipeline and is shown when complete.</div></section><div class="stats"><div class="stat"><span>Submitted Links</span><b id="total">0</b></div><div class="stat"><span>Ready to Apply</span><b id="ready">0</b></div><div class="stat"><span>Applied</span><b id="applied">0</b></div><div class="stat"><span>Processing</span><b id="processing">0</b></div></div><section class="section"><div class="sectionHead">Ready to Apply</div><div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div><div id="jobs"></div></section></main></div><script>
+MANUAL_PAGE = r'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manual Job Links · Auto Apply</title>
+<style>
+:root{
+  --bg:#07111f;--sidebar:#0a1625;--panel:#0b1726;--panel2:#0e1c2e;
+  --line:#21344a;--line2:#2a4058;--text:#edf3fb;--muted:#91a4bc;
+  --blue:#2f73df;--blue2:#4388f4;--green:#55dea5;--amber:#f1bd62;--red:#ff8f91;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+button,textarea{font:inherit}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.side{background:var(--sidebar);border-right:1px solid #1a2a3d;padding:22px 14px;position:sticky;top:0;height:100vh}
+.brand{font-size:20px;font-weight:850;padding:0 8px 24px;letter-spacing:-.3px}
+.brand small{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:4px;letter-spacing:0}
+.nav{display:grid;gap:6px}
+.nav a{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:8px;color:#c7d2e2;text-decoration:none;font-size:13px;font-weight:650}
+.nav a:hover,.nav .active{background:#173967;color:#fff}
+.main{padding:26px clamp(18px,2.4vw,34px) 42px;min-width:0;max-width:1540px;width:100%;margin:0 auto}
+.top{display:flex;justify-content:space-between;gap:22px;align-items:flex-start;margin-bottom:18px}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;color:#8ab8ff;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+.eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:#4d91ff;box-shadow:0 0 0 4px rgba(77,145,255,.12)}
+.top h1{font-size:27px;line-height:1.15;letter-spacing:-.5px;margin:0 0 7px}
+.subtitle{color:#9fb0c7;font-size:13px;line-height:1.55;max-width:820px}
+.flowTag{flex:0 0 auto;border:1px solid #29496d;background:#0f2035;color:#a9c9f5;padding:8px 11px;border-radius:999px;font-size:11px;font-weight:800}
+.entry{background:linear-gradient(180deg,#0d1a2b 0%,#0b1726 100%);border:1px solid var(--line);border-radius:13px;padding:17px;margin-bottom:14px;box-shadow:0 12px 32px rgba(0,0,0,.13)}
+.entryTop{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:10px}
+.entryTitle{font-size:13px;font-weight:800}
+.entryHint{font-size:11px;color:#7f93ac}
+textarea{width:100%;min-height:132px;background:#071321;border:1px solid #2a4058;color:#eef4fc;border-radius:9px;padding:13px 14px;resize:vertical;outline:none;line-height:1.5;transition:border .15s,box-shadow .15s}
+textarea::placeholder{color:#6f8299}
+textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-top:11px;flex-wrap:wrap}
+.btn{border:1px solid #30465f;background:#13253a;color:#dce7f5;padding:8px 11px;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:transform .12s,background .12s,border .12s}
+.btn:hover{background:#19304a;border-color:#416080}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--blue);border-color:var(--blue2);color:#fff}
+.btn.primary:hover{background:#377de9}
+.btn.danger{color:#ffaaa9}
+.btn:disabled{opacity:.62;cursor:default;transform:none}
+.processingPill{display:none;align-items:center;gap:7px;margin-left:auto;padding:7px 10px;border-radius:999px;background:#2d2850;border:1px solid #463b77;color:#d6c9ff;font-size:11px;font-weight:800}
+.processingPill.on{display:inline-flex}
+.dot{width:7px;height:7px;border-radius:50%;background:#c6a8ff;animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.pipeline{display:flex;align-items:center;gap:7px;margin-top:12px;padding-top:12px;border-top:1px solid #182a3d;color:#8295ad;font-size:10px;font-weight:750;overflow:auto;white-space:nowrap}
+.step{display:inline-flex;align-items:center;gap:6px}
+.step i{font-style:normal;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#142943;color:#8ab8ff;font-size:9px}
+.arrow{color:#40566f}
+.current{display:none;margin-top:11px;padding:10px 12px;border:1px solid #433971;border-radius:8px;background:#17152a;color:#cbbcf0;font-size:11px;font-weight:700}
+.current.on{display:block}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#0d1a2b;border:1px solid #263950;border-radius:10px;padding:13px 14px;min-height:76px}
+.stat span{color:#95a7bd;font-size:10px;text-transform:uppercase;letter-spacing:.055em;font-weight:800}
+.stat b{display:block;font-size:23px;line-height:1;margin-top:9px;letter-spacing:-.4px}
+.stat.attention b{color:var(--amber)}
+.section{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:hidden}
+.section.hidden{display:none}
+.sectionHead{padding:13px 15px;border-bottom:1px solid #1d3044;font-weight:850;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sectionHead small{color:#7f93ac;font-size:10px;font-weight:650}
+.row{display:grid;grid-template-columns:minmax(260px,1.45fr) 140px 135px minmax(260px,.9fr);gap:12px;align-items:center;padding:13px 15px;border-bottom:1px solid #17283a;font-size:11px}
+.row:last-child{border-bottom:0}
+.row.head{background:#101f31;color:#8fa3ba;font-size:9px;text-transform:uppercase;letter-spacing:.07em;font-weight:850}
+.title{font-weight:850;font-size:13px;line-height:1.35;margin-bottom:4px;color:#f2f6fb}
+.company{color:#c8d7e7;font-weight:750;font-size:11px;margin-bottom:4px}
+.meta{color:#7f93ac;font-size:10px;overflow-wrap:anywhere;line-height:1.45}
+.badge{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:850;white-space:nowrap}
+.ready{background:#0d4637;color:#6de9b8}
+.applied{background:#173b69;color:#80bcff}
+.warn{background:#493a1d;color:#ffd48b}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.empty{padding:34px 20px;text-align:center;color:#7589a1}
+.empty b{display:block;color:#b9c7d7;font-size:12px;margin-bottom:5px}
+.attentionRow{grid-template-columns:minmax(240px,1.15fr) 175px minmax(300px,1.25fr) minmax(180px,.65fr)}
+.reason{color:#c7b792;font-size:10px;line-height:1.5}
+.footerNote{color:#72869d;font-size:10px;text-align:right;margin-top:2px}
+@media(max-width:1100px){
+  .app{grid-template-columns:1fr}.side{height:auto;position:static;border-right:0;border-bottom:1px solid #1a2a3d;padding:14px}
+  .brand{padding:0 4px 13px}.nav{display:flex}.main{padding-top:18px}
+  .row{grid-template-columns:1fr 125px}.row>div:last-child{grid-column:1/-1}.actions{justify-content:flex-start}
+  .attentionRow{grid-template-columns:1fr 150px}.attentionRow>div:nth-child(3),.attentionRow>div:last-child{grid-column:1/-1}
+}
+@media(max-width:760px){
+  .main{padding:14px 12px 30px}.top{display:block}.flowTag{display:none}.top h1{font-size:23px}
+  .entryTop{display:block}.entryHint{margin-top:4px}.stats{grid-template-columns:repeat(2,1fr)}
+  .stat:last-child{grid-column:1/-1}.row,.attentionRow{display:block}.row.head{display:none}.row>div{margin-bottom:9px}.actions{margin-bottom:0}
+  .processingPill{margin-left:0}.pipeline{padding-bottom:2px}.footerNote{text-align:left}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">💼 Auto Apply<small>Job Application Manager</small></div>
+    <nav class="nav">
+      <a href="/">⌂ <span>Job Discovery</span></a>
+      <a class="active" href="/manual-links">🔗 <span>Manual Job Links</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Direct-link workflow</div>
+        <h1>Manual Job Links</h1>
+        <div class="subtitle">Paste employer or ATS job links. The agent resolves the exact posting, verifies company and title, extracts the full JD, then uses the same production resume pipeline as Job Discovery.</div>
+      </div>
+      <div class="flowTag">No discovery filters · Same resume rules</div>
+    </header>
+
+    <section class="entry">
+      <div class="entryTop">
+        <div class="entryTitle">Add job links</div>
+        <div class="entryHint">One URL per line · processed in submission order</div>
+      </div>
+      <textarea id="links" spellcheck="false" placeholder="https://company.wd5.myworkdayjobs.com/...&#10;https://boards.greenhouse.io/...&#10;https://jobs.lever.co/..."></textarea>
+      <div class="toolbar">
+        <button class="btn primary" id="addBtn">＋ Add & Process</button>
+        <button class="btn" id="refreshBtn">↻ Refresh</button>
+        <span class="processingPill" id="processingPill"><span class="dot"></span><span id="processingText">Processing…</span></span>
+      </div>
+      <div class="current" id="currentJob"></div>
+      <div class="pipeline">
+        <span class="step"><i>1</i> Detect ATS</span><span class="arrow">→</span>
+        <span class="step"><i>2</i> Resolve exact job</span><span class="arrow">→</span>
+        <span class="step"><i>3</i> Extract full JD</span><span class="arrow">→</span>
+        <span class="step"><i>4</i> Tailor + audit resume</span><span class="arrow">→</span>
+        <span class="step"><i>5</i> Ready to apply</span>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat"><span>Submitted</span><b id="total">0</b></div>
+      <div class="stat"><span>Ready</span><b id="ready">0</b></div>
+      <div class="stat"><span>Applied</span><b id="applied">0</b></div>
+      <div class="stat"><span>Processing</span><b id="processing">0</b></div>
+      <div class="stat attention"><span>Needs attention</span><b id="attentionCount">0</b></div>
+    </section>
+
+    <section class="section" id="attentionSection">
+      <div class="sectionHead"><span>Needs Attention</span><small>Failed or incomplete links stay visible here instead of disappearing</small></div>
+      <div class="row head attentionRow"><div>Job</div><div>Status</div><div>What happened</div><div>Actions</div></div>
+      <div id="attentionJobs"></div>
+    </section>
+
+    <section class="section">
+      <div class="sectionHead"><span>Ready to Apply</span><small>Completed resumes only</small></div>
+      <div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div>
+      <div id="jobs"></div>
+    </section>
+    <div class="footerNote">Manual links bypass discovery only. ATS resolution, JD quality gates, resume tailoring, validation, and formatting remain shared with production.</div>
+  </main>
+</div>
+<script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let rows=[];
+let rows=[],attentionRows=[];
 function nice(v){let d=new Date(v);return!v||isNaN(d)?"—":d.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
 function ats(r){let label=r.ats_label||((r.ats_provider||"Direct employer page").replaceAll("_"," "));return r.ats_tenant?label+" · "+r.ats_tenant:label}
-function syncBatch(d){let n=Number(d.counts?.processing||0),active=n>0;processing.textContent=n;addBtn.disabled=active;addBtn.textContent=active?"Processing…":"Add & Process";processingPill.classList.toggle("on",active);processingText.textContent=active?"Still processing · "+n+" remaining":"Still processing…";let cur=d.current;if(active&&cur){let stage=(cur.status||"PROCESSING").replaceAll("_"," ").toLowerCase();let who=cur.company||cur.title||"next submitted link";currentJob.textContent="Currently "+stage+": "+who;currentJob.classList.add("on")}else{currentJob.classList.remove("on");currentJob.textContent=""}}
-async function load(){try{let d=await fetch("/api/manual-links",{cache:"no-store"}).then(r=>r.json());rows=d.jobs||[];total.textContent=d.counts.total||0;ready.textContent=d.counts.ready||0;applied.textContent=d.counts.applied||0;syncBatch(d);render()}catch(e){}}
-function render(){jobs.innerHTML=rows.map(r=>{let applied=r.application_status==="SUBMITTED_CONFIRMED";return '<div class="row"><div><div class="title">'+esc(r.title||"Job opening")+'</div><div class="company">'+esc(r.company||"Company")+'</div><div class="meta">'+esc(ats(r))+(r.requisition_id?' · Req '+esc(r.requisition_id):'')+'</div></div><div><span class="badge '+(applied?'applied':'ready')+'">'+(applied?'Applied':'Ready to apply')+'</span></div><div>'+nice(r.updated_at)+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank">Open Job</a>':'')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank">View Resume</a>':'')+(!applied?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>'}).join("")||'<div class="empty">No completed resumes yet. When processing finishes for a job, it will appear here automatically.</div>'}
-addBtn.onclick=async()=>{let text=links.value.trim();if(!text||addBtn.disabled)return;addBtn.disabled=true;addBtn.textContent="Processing…";processingPill.classList.add("on");processingText.textContent="Starting batch…";try{let r=await fetch("/api/manual-links",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({links:text})});let d=await r.json();if(!r.ok)throw new Error(d.detail||"Could not add links");links.value="";await load()}catch(e){alert(e.message);addBtn.disabled=false;addBtn.textContent="Add & Process";processingPill.classList.remove("on")}}
+function labelStatus(v){return String(v||"Needs attention").replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase())}
+function reason(r){return r.ignore_reason||r.error||((r.status||"").includes("INCOMPLETE")?"The exact job metadata or full JD could not be verified.":"This link did not complete the production quality gates.")}
+function syncBatch(d){
+  let n=Number(d.counts?.processing||0),active=n>0;
+  processing.textContent=n;addBtn.disabled=active;addBtn.textContent=active?"Processing…":"＋ Add & Process";
+  processingPill.classList.toggle("on",active);
+  processingText.textContent=active?"Processing · "+n+" remaining":"Processing…";
+  let cur=d.current;
+  if(active&&cur){
+    let stage=(cur.status||"PROCESSING").replaceAll("_"," ").toLowerCase();
+    let who=[cur.company,cur.title].filter(Boolean).join(" · ")||"submitted link";
+    currentJob.textContent="Currently "+stage+": "+who;
+    currentJob.classList.add("on");
+  }else{currentJob.classList.remove("on");currentJob.textContent=""}
+}
+async function load(){
+  try{
+    let d=await fetch("/api/manual-links",{cache:"no-store"}).then(r=>r.json());
+    rows=d.jobs||[];attentionRows=d.attention||[];
+    total.textContent=d.counts?.total||0;ready.textContent=d.counts?.ready||0;applied.textContent=d.counts?.applied||0;
+    attentionCount.textContent=d.counts?.hidden_terminal||0;
+    attentionSection.classList.toggle("hidden",attentionRows.length===0);
+    syncBatch(d);render();renderAttention();
+  }catch(e){}
+}
+function render(){
+  jobs.innerHTML=rows.map(r=>{
+    let applied=r.application_status==="SUBMITTED_CONFIRMED";
+    return '<div class="row"><div><div class="title">'+esc(r.title||"Job opening")+'</div><div class="company">'+esc(r.company||"Company")+'</div><div class="meta">'+esc(ats(r))+(r.requisition_id?' · Req '+esc(r.requisition_id):'')+'</div></div><div><span class="badge '+(applied?'applied':'ready')+'">'+(applied?'Applied':'Ready to apply')+'</span></div><div>'+nice(r.updated_at)+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank" rel="noopener">View Resume</a>':'')+(!applied?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
+  }).join("")||'<div class="empty"><b>No completed resumes yet</b>Ready jobs will appear here automatically after extraction, tailoring, and validation finish.</div>';
+}
+function renderAttention(){
+  attentionJobs.innerHTML=attentionRows.map(r=>{
+    return '<div class="row attentionRow"><div><div class="title">'+esc(r.title||"Unresolved job")+'</div><div class="company">'+esc(r.company||"Company not verified")+'</div><div class="meta">'+esc(ats(r))+' · '+nice(r.updated_at)+'</div></div><div><span class="badge warn">'+esc(labelStatus(r.status))+'</span></div><div class="reason">'+esc(reason(r))+'</div><div class="actions">'+(r.url?'<a class="btn" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
+  }).join("");
+}
+addBtn.onclick=async()=>{
+  let value=links.value.trim();if(!value||addBtn.disabled)return;
+  addBtn.disabled=true;addBtn.textContent="Processing…";processingPill.classList.add("on");processingText.textContent="Starting…";
+  try{
+    let r=await fetch("/api/manual-links",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({links:value})});
+    let d=await r.json();if(!r.ok)throw new Error(d.detail||"Could not add links");
+    links.value="";await load();
+  }catch(e){alert(e.message);addBtn.disabled=false;addBtn.textContent="＋ Add & Process";processingPill.classList.remove("on")}
+};
 refreshBtn.onclick=load;
-jobs.onclick=async e=>{let a=e.target.closest("[data-applied]");if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}let d=e.target.closest("[data-delete]");if(d){if(confirm("Delete only this manual job and its resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}}};
+document.addEventListener("click",async e=>{
+  let a=e.target.closest("[data-applied]");
+  if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}
+  let d=e.target.closest("[data-delete]");
+  if(d){if(confirm("Delete only this manual job and its generated resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}}
+});
 load();setInterval(load,3000);
-</script></body></html>'''
+</script>
+</body>
+</html>'''
 
 @router.get("/manual-links", response_class=HTMLResponse)
 def manual_page():
