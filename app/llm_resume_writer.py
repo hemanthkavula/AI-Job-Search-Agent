@@ -678,7 +678,24 @@ def _reconcile_skills_with_final_experience(skills: dict, experience: list[dict]
         out.setdefault(category, [])
         out[category] = _merge_unique_technologies(out[category], [label])[:14]
 
-    return {name: values for name, values in out.items() if values}
+    # Global canonical de-duplication: a technology belongs in the first
+    # appropriate category only, even if the LLM or historical reconciliation
+    # supplied an alias/duplicate in another category.
+    deduped = {}
+    seen = set()
+    for name, values in out.items():
+        kept = []
+        for value in values:
+            canonical = _canonical_technology_label(value)
+            key = canonical.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(canonical)
+        if kept:
+            deduped[name] = kept
+
+    return deduped
 
 
 def _summary_contract_violations(summary) -> list[str]:
