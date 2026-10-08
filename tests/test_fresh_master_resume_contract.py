@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from docx import Document
 
 import app.reference_resume_formatter as formatter
-from app.llm_resume_writer import build_prompt, _normalize_skills, _response_request_body
+from app.llm_resume_writer import build_prompt, _normalize_skills, _response_request_body, _flex_unavailable
 from app.master_resume import fixed_personal_facts, master_resume_payload
 
 
@@ -55,6 +55,14 @@ def test_fixed_personal_facts_exclude_master_technical_content():
         "Cigna Healthcare",
         "Target Corporation",
     ]
+
+
+def test_flex_unavailable_is_the_only_429_that_triggers_standard_fallback():
+    detail = '{"error":{"message":"Flex processing is temporarily unavailable. Please try again later or use standard processing.","code":"flex_unavailable"}}'
+    assert _flex_unavailable(429, detail, "flex") is True
+    assert _flex_unavailable(429, detail, "default") is False
+    assert _flex_unavailable(500, detail, "flex") is False
+    assert _flex_unavailable(429, '{"error":{"code":"rate_limit_exceeded"}}', "flex") is False
 
 
 def test_gpt_json_object_request_explicitly_mentions_json(monkeypatch):
