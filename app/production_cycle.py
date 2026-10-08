@@ -86,7 +86,16 @@ def _sync_manifest(rows,ledger_path,cycle_id=None):
     "url":row.get("url"),"original_url":row.get("original_url"),"ats_provider":row.get("ats_provider"),"ats_identifier":row.get("ats_identifier"),
     "ats_resolution":row.get("ats_resolution"),"application_route":row.get("application_route"),"tailoring_mode":row.get("tailoring_mode"),
     "description":row.get("description"),"description_complete":row.get("description_complete"),"description_usable":row.get("description_usable"),
-    "employment_type":row.get("employment_type"),"location":row.get("location"),"eligibility":row.get("eligibility")
+    "employment_type":row.get("employment_type"),"location":row.get("location"),"eligibility":row.get("eligibility"),
+    # Resume retry must preserve the already-verified posting/application evidence.
+    # Losing these fields makes a successfully regenerated resume fail production
+    # acceptance even though the JD was already finalized and verified.
+    "freshness_proof":row.get("freshness_proof"),"official_posted_at":row.get("official_posted_at"),
+    "official_posted_label":row.get("official_posted_label"),"freshness_basis":row.get("freshness_basis"),
+    "recovery_scan":bool(row.get("recovery_scan")),"discovery_window_hours":row.get("discovery_window_hours"),
+    "live_check":row.get("live_check"),"requisition_id":row.get("requisition_id"),
+    "application_questions":row.get("application_questions"),"screening_questions":row.get("screening_questions"),
+    "questions":row.get("questions"),"application_form":row.get("application_form")
     }
   record_seen(job,ledger,status,**extra)
  save_ledger(ledger,ledger_path)
