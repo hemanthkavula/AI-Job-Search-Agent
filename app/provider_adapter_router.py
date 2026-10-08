@@ -14,7 +14,7 @@ from app.sources.smartrecruiters import fetch_jobs as smartrecruiters_jobs
 from app.sources.workday import fetch_jobs as workday_jobs
 from app.sources.successfactors import fetch_jobs as successfactors_jobs
 from app.sources.icims import fetch_jobs as icims_jobs
-from app.sources.oracle import fetch_jobs as oracle_jobs
+from app.sources.oracle import fetch_job as oracle_job, fetch_jobs as oracle_jobs
 from app.sources.eightfold import fetch_job as eightfold_job, fetch_jobs as eightfold_jobs
 from app.sources.ukg import fetch_jobs as ukg_jobs
 from app.sources.adp_workforce_now import fetch_jobs as adp_jobs
@@ -166,6 +166,7 @@ def fetch_exact_job(provider: str | None, company: str, source: dict, *, timeout
     # ATS's own detail endpoint better than generic HTML/JSON parsing.
     exact_fetchers={
         "eightfold": eightfold_job,
+        "oracle": oracle_job,
     }
     exact_fetcher=exact_fetchers.get(provider)
     if exact_fetcher:
