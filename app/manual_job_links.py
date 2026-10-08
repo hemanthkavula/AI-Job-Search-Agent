@@ -143,6 +143,23 @@ def _verified_company(
         if clean:
             return clean, source
 
+    raw_clean = _clean_company_label(raw_company)
+    if raw_clean:
+        raw_key = _company_compare_key(raw_clean)
+        provider_key = _company_compare_key((provider or "").replace("_", " "))
+        identifier_key = _company_compare_key(_slug_label(identifier))
+        generic_keys = {
+            _company_compare_key("Company"),
+            _company_compare_key("Unknown Company"),
+            _company_compare_key("Workable"),
+            _company_compare_key("Paylocity"),
+            _company_compare_key("BambooHR"),
+            _company_compare_key("UltiPro"),
+            _company_compare_key("UKG"),
+        }
+        if raw_key and raw_key not in generic_keys and raw_key not in {provider_key, identifier_key}:
+            return raw_clean, "provider_exact_metadata"
+
     ats_hint = _ats_company_hint(provider, identifier, effective_url) if provider and identifier else ""
     if ats_hint:
         return ats_hint, "ats_tenant"
