@@ -25,6 +25,10 @@ _COMPACT_KEEP_FIELDS={
     "submission_attempt","resume_retry_count","resume_retry_after","resume_retry_exhausted",
     "application_retry_count","application_retry_after","application_retry_exhausted",
     "retry_exhausted_reason","queue_item","retry_application","retry_job",
+    # Keep verification evidence so legacy/in-flight resume retries can be
+    # rehydrated even if their nested retry_job was created by an older build.
+    "freshness_proof","official_posted_at","official_posted_label","freshness_basis",
+    "recovery_scan","discovery_window_hours","live_check",
 }
 
 def compact_ledger(ledger):
@@ -95,14 +99,28 @@ def seen_or_submitted(job,ledger):
     key,row=_lookup(job,ledger)
     return bool(row and row.get("application_status") in PROCESSED_STATUSES),key,row
 
+RETRY_VERIFICATION_FIELDS=(
+    "freshness_proof","official_posted_at","official_posted_label","freshness_basis",
+    "recovery_scan","discovery_window_hours","live_check",
+)
+
 def retryable_jobs(ledger):
-    """Return persisted jobs whose transient resume-generation failure should be retried."""
+    """Return persisted jobs whose transient resume-generation failure should be retried.
+
+    Older retry payloads may predate verification-field persistence. Rehydrate
+    those fields from the parent ledger row when available so a resume retry
+    cannot discard posting freshness or live-application evidence.
+    """
     out=[]
     for key,row in (ledger.get("jobs") or {}).items():
         if row.get("application_status") not in RETRYABLE_STATUSES:continue
         if not _retry_due(row,"resume"):continue
-        payload=row.get("retry_job")
-        if isinstance(payload,dict) and payload.get("external_id"):
+        stored=row.get("retry_job")
+        if isinstance(stored,dict) and stored.get("external_id"):
+            payload=dict(stored)
+            for field in RETRY_VERIFICATION_FIELDS:
+                if payload.get(field) is None and row.get(field) is not None:
+                    payload[field]=row.get(field)
             out.append(payload)
     return out
 
