@@ -127,3 +127,30 @@ def test_fetch_exact_job_prefers_provider_native_exact_fetcher(monkeypatch):
     assert seen["url"]==url
     assert row["title"]=="Lead AI and Data Engineer"
     assert row["exact_job_metadata_source"]=="eightfold_public_api"
+
+
+
+def test_fetch_exact_job_uses_provider_native_oracle_detail_api(monkeypatch):
+    url="https://efds.fa.em5.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/72173"
+    seen={}
+    def fake(company,value,timeout=25):
+        seen.update(company=company,url=value,timeout=timeout)
+        return {
+            "title":"Software Validation Engineer",
+            "company_key":"Ford",
+            "url":url,
+            "original_url":url,
+            "job_id":"72173",
+            "requisition_id":"72173",
+            "description":"Description: validate embedded software and vehicle systems. Responsibilities: develop validation plans, execute automated and manual testing, investigate defects, and collaborate with engineering teams. Qualifications: engineering degree, software validation experience, Python, test automation, and systems knowledge. " * 3,
+            "description_complete":True,
+            "exact_job_metadata_source":"oracle_exact_api",
+        }
+    monkeypatch.setattr(router,"oracle_job",fake)
+    row,provider,identifier=router.fetch_exact_job(None,"Ford",{"original_url":url})
+    assert provider=="oracle"
+    assert seen=={"company":"Ford","url":url,"timeout":25}
+    assert row["title"]=="Software Validation Engineer"
+    assert row["requisition_id"]=="72173"
+    assert row["description_complete"] is True
+    assert row["exact_job_metadata_source"]=="oracle_exact_api"
