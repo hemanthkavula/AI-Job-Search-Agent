@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from docx import Document
 
 import app.reference_resume_formatter as formatter
-from app.llm_resume_writer import build_prompt, _normalize_skills
+from app.llm_resume_writer import build_prompt, _normalize_skills, _response_request_body
 from app.master_resume import fixed_personal_facts, master_resume_payload
 
 
@@ -55,6 +55,24 @@ def test_fixed_personal_facts_exclude_master_technical_content():
         "Cigna Healthcare",
         "Target Corporation",
     ]
+
+
+def test_gpt_json_object_request_explicitly_mentions_json(monkeypatch):
+    monkeypatch.setenv("RESUME_LLM_REASONING_EFFORT", "medium")
+    monkeypatch.setenv("RESUME_LLM_SERVICE_TIER", "flex")
+    monkeypatch.setenv("RESUME_LLM_MAX_OUTPUT_TOKENS", "8000")
+    payload = json.loads(
+        _response_request_body(
+            "gpt-6.1-sol",
+            {"task": "Create a tailored resume", "job": {"title": "Data Engineer"}},
+        ).decode("utf-8")
+    )
+    assert payload["model"] == "gpt-6.1-sol"
+    assert payload["text"]["format"]["type"] == "json_object"
+    assert "json" in payload["input"].lower()
+    assert payload["reasoning"]["effort"] == "medium"
+    assert payload["service_tier"] == "flex"
+    assert payload["max_output_tokens"] == 8000
 
 
 def test_tailoring_prompt_uses_master_historical_baseline_and_fidelity_jd():
