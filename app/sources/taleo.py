@@ -52,7 +52,8 @@ def fetch_job(company: str, url: str, timeout: int=25) -> dict | None:
     tenant=parsed.hostname.split(".")[0]
     # Taleo tenant prefixes such as tas- are infrastructure, not employer names.
     employer=re.sub(r"(?i)^(?:tas-|recruiting-|career-)", "", tenant).replace("-", " ").title()
-    if not employer:\n        employer=company or tenant
+    if not employer:
+        employer=company or tenant
     return {
         "external_id":f"taleo:{tenant}:{job_id}",
         "source":"taleo",
