@@ -1289,7 +1289,7 @@ function render(){
 }
 function renderAttention(){
   attentionJobs.innerHTML=attentionRows.map(r=>{
-    return '<div class="row attentionRow"><div><div class="title">'+esc(r.title||"Unresolved job")+'</div><div class="company">'+esc(r.company||"Company not verified")+'</div><div class="meta">'+esc(ats(r))+' · '+nice(r.updated_at)+'</div></div><div><span class="badge warn">'+esc(labelStatus(r.status))+'</span></div><div class="reason">'+esc(reason(r))+'</div><div class="actions">'+(r.url?'<a class="btn" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
+    return '<div class="row attentionRow"><div><div class="title">'+esc(r.title||"Unresolved job")+'</div><div class="company">'+esc(r.company||"Company not verified")+'</div><div class="meta">'+esc(ats(r))+' · '+nice(r.updated_at)+'</div></div><div><span class="badge warn">'+esc(labelStatus(r.status))+'</span></div><div class="reason">'+esc(reason(r))+'</div><div class="actions">'+(r.url?'<a class="btn" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+'<button class="btn primary" data-retry="'+esc(r.key)+'">↻ Retry</button><button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
   }).join("");
 }
 addBtn.onclick=async()=>{
@@ -1305,6 +1305,17 @@ refreshBtn.onclick=load;
 document.addEventListener("click",async e=>{
   let a=e.target.closest("[data-applied]");
   if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}
+  let retry=e.target.closest("[data-retry]");
+  if(retry){
+    retry.disabled=true;retry.textContent="Retrying…";
+    try{
+      let response=await fetch("/api/manual-links/"+encodeURIComponent(retry.dataset.retry)+"/process?force_refetch=true",{method:"POST"});
+      let payload=await response.json();
+      if(!response.ok)throw new Error(payload.detail||"Retry failed");
+      await load();
+    }catch(err){alert(err.message);retry.disabled=false;retry.textContent="↻ Retry"}
+    return;
+  }
   let d=e.target.closest("[data-delete]");
   if(d){if(confirm("Delete only this manual job and its generated resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}}
 });
