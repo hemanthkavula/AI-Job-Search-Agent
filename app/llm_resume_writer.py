@@ -862,7 +862,11 @@ def _response_request_body(model: str, prompt: dict) -> bytes:
         {
             "model": model,
             "instructions": SYSTEM_PROMPT,
-            "input": json.dumps(prompt),
+            # The Responses API requires the user/input content to explicitly
+            # mention JSON when json_object output formatting is requested.
+            # Keep this in the shared request builder so initial and retry calls
+            # use the same valid contract.
+            "input": "Return one valid JSON object only.\n" + json.dumps(prompt),
             "reasoning": {"effort": reasoning_effort},
             "service_tier": service_tier,
             "max_output_tokens": max_output_tokens,
