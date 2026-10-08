@@ -129,3 +129,23 @@ def test_tailoring_prompt_uses_compact_master_like_structure_and_skills_footer()
     assert contract["employer_footer_label"] == "Environment"
     assert contract["environment_paragraphs"] is False
     assert contract["compact_master_like_layout"] is True
+
+
+def test_pdf_font_contract_accepts_calibri_or_carlito_but_rejects_dejavu(monkeypatch):
+    monkeypatch.setattr(pdf_export, "_pdf_font_names", lambda _: ["Calibri", "Calibri-Bold"])
+    passed, names, substitutions, fallback = pdf_export._pdf_font_contract("ignored.pdf")
+    assert passed is True
+    assert fallback is False
+    assert substitutions == []
+
+    monkeypatch.setattr(pdf_export, "_pdf_font_names", lambda _: ["Carlito", "Carlito-Bold"])
+    passed, names, substitutions, fallback = pdf_export._pdf_font_contract("ignored.pdf")
+    assert passed is True
+    assert fallback is True
+    assert substitutions == []
+
+    monkeypatch.setattr(pdf_export, "_pdf_font_names", lambda _: ["DejaVuSans", "DejaVuSans-Bold"])
+    passed, names, substitutions, fallback = pdf_export._pdf_font_contract("ignored.pdf")
+    assert passed is False
+    assert fallback is False
+    assert "DejaVuSans" in substitutions
