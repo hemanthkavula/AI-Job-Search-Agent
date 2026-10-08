@@ -678,24 +678,34 @@ def _reconcile_skills_with_final_experience(skills: dict, experience: list[dict]
         out.setdefault(category, [])
         out[category] = _merge_unique_technologies(out[category], [label])[:14]
 
-    # Global canonical de-duplication: a technology belongs in the first
-    # appropriate category only, even if the LLM or historical reconciliation
-    # supplied an alias/duplicate in another category.
-    deduped = {}
-    seen = set()
+    # Global canonical de-duplication. Cloud technologies must live in their
+    # matching cloud category (AWS/Azure/GCP) when such a category exists;
+    # otherwise preserve the first adaptive category chosen by the LLM.
+    preferred_category = {}
+    category_order = list(out)
     for name, values in out.items():
-        kept = []
         for value in values:
             canonical = _canonical_technology_label(value)
             key = canonical.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            kept.append(canonical)
-        if kept:
-            deduped[name] = kept
+            families = detect_cloud_families(canonical)
+            family = next(iter(families), None)
+            if family and _category_matches(name, family):
+                preferred_category[key] = name
+            elif key not in preferred_category:
+                preferred_category[key] = name
 
-    return deduped
+    deduped = {name: [] for name in category_order}
+    emitted = set()
+    for name in category_order:
+        for value in out[name]:
+            canonical = _canonical_technology_label(value)
+            key = canonical.casefold()
+            if key in emitted or preferred_category.get(key) != name:
+                continue
+            emitted.add(key)
+            deduped[name].append(canonical)
+
+    return {name: values for name, values in deduped.items() if values}
 
 
 def _summary_contract_violations(summary) -> list[str]:
