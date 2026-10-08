@@ -58,13 +58,22 @@ def _job_url(base_url: str, row: dict) -> str:
 
 
 def _detail_url_parts(url: str) -> tuple[str, str, str] | None:
-    """Return Candidate Experience base URL, public site slug, and exact job id."""
+    """Return Candidate Experience base URL, public site slug, and exact job id.
+
+    Oracle CE can be exposed on the standard oraclecloud path or behind a
+    branded employer domain such as /en/sites/CX_1/job/72173.
+    """
     parsed=urlparse(url or "")
-    match=re.search(
+    path=parsed.path or ""
+    patterns=(
         r"(/hcmUI/CandidateExperience/[^/]+/sites/([^/]+))/job/([^/?#]+)",
-        parsed.path or "",
-        re.I,
+        r"(/[^/]+/sites/([^/]+))/job/([^/?#]+)",
     )
+    match=None
+    for pattern in patterns:
+        match=re.search(pattern,path,re.I)
+        if match:
+            break
     if not match:
         return None
     origin=f"{parsed.scheme}://{parsed.netloc}"
@@ -131,8 +140,22 @@ def fetch_job(company: str, url: str, timeout: int = 20) -> dict | None:
     if not parts:
         return None
     base_url,site_slug,public_job_id=parts
+
+    # Branded Oracle Candidate Experience domains do not always expose the
+    # data-sitenumber/data-apibaseurl attributes used by the standard shell.
+    # The site slug is still present in the public job URL, and on standard
+    # oraclecloud hosts the REST API lives on the same origin, so keep a
+    # provider-native fallback instead of abandoning exact-job resolution.
+    parsed=urlparse(url or "")
+    site_number=site_slug
+    api_base=f"{parsed.scheme}://{parsed.netloc}"
     try:
-        site_number,api_base=_page_config(base_url,timeout)
+        configured_site,configured_api=_page_config(base_url,timeout)
+        site_number=configured_site or site_number
+        api_base=configured_api or api_base
+    except Exception:
+        pass
+    try:
         row=_detail_payload(api_base,public_job_id,timeout)
     except Exception:
         return None
