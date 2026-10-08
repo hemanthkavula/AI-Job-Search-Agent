@@ -57,11 +57,14 @@ def fetch_job(company: str, url: str, timeout: int = 20) -> dict | None:
         + [x.get("content","") for x in lists if isinstance(x,dict)]
     ).strip()
     cats=j.get("categories") or {}
+    # The canonical Lever tenant identifies the hiring company more reliably
+    # than an unverified page-title fragment (often a department label).
+    employer=site.replace("-", " ").replace("_", " ").strip().title()
     return {
         "external_id":f"lever:{site}:{j.get('id') or posting_id}",
         "source":"lever",
-        "company_key":company or site,
-        "company":company or site,
+        "company_key":employer,
+        "company":employer,
         "title":j.get("text",""),
         "location":cats.get("location"),
         "url":j.get("hostedUrl") or f"https://jobs.lever.co/{site}/{posting_id}",
