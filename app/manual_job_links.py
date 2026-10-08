@@ -206,7 +206,10 @@ def _clean_job_title(value: str | None) -> str:
     if not label:
         return ""
     low = label.lower()
-    if low in _GENERIC_JOB_TITLES:
+    if low in _GENERIC_JOB_TITLES or low in {"career search", "job search", "search jobs", "search careers", "career site", "job listings"}:
+        return ""
+    # Employer/portal domains are not role titles (e.g. Datacolor.ai).
+    if re.fullmatch(r"(?i)(?:[a-z0-9-]+\.)+(?:com|net|org|io|ai|co|jobs|careers)",label):
         return ""
     if re.fullmatch(r"(?i)(?:jobs?|careers?|recruitment)(?:\s+at\s+.+)?", label):
         return ""
