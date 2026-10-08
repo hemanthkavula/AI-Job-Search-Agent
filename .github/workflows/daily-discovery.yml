@@ -99,12 +99,16 @@ jobs:
         if: steps.guard.outputs.should_run == 'true'
         run: python -m pytest -q
 
-      - name: Install LibreOffice for resume PDF validation
+      - name: Install LibreOffice and Calibri-compatible PDF font
         if: steps.guard.outputs.should_run == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-writer
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-crosextra-carlito fontconfig
+          fc-cache -f
           soffice --version
+          echo "Calibri font resolution:"
+          fc-match Calibri
+          fc-match Calibri | grep -Ei 'Calibri|Carlito'
 
       # Employer-universe enrichment is intentionally NOT part of this critical
       # production path. It performs thousands of external network probes and can
