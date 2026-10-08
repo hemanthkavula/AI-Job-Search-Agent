@@ -1182,37 +1182,61 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
 .stat span{color:#95a7bd;font-size:10px;text-transform:uppercase;letter-spacing:.055em;font-weight:800}
 .stat b{display:block;font-size:23px;line-height:1;margin-top:9px;letter-spacing:-.4px}
 .stat.attention b{color:var(--amber)}
-.section{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:hidden}
+.section{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:visible}
 .section.hidden{display:none}
-.sectionHead{padding:13px 15px;border-bottom:1px solid #1d3044;font-weight:850;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.sectionHead small{color:#7f93ac;font-size:10px;font-weight:650}
-.row{display:grid;grid-template-columns:minmax(280px,1fr) 128px 118px minmax(410px,auto);gap:12px;align-items:center;padding:13px 15px;border-bottom:1px solid #17283a;font-size:11px}
+.sectionHead{padding:14px 16px;border-bottom:1px solid #1d3044;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sectionHead small,.count{color:#8fa0b8;font-size:11px;font-weight:650}
+.row{display:grid;grid-template-columns:minmax(260px,1fr) 130px 180px minmax(340px,380px);column-gap:18px;align-items:center;padding:14px 16px;border-bottom:1px solid #17283a;font-size:12px}
 .row:last-child{border-bottom:0}
-.row.head{background:#101f31;color:#8fa3ba;font-size:9px;text-transform:uppercase;letter-spacing:.07em;font-weight:850}
-.title{font-weight:850;font-size:13px;line-height:1.35;margin-bottom:4px;color:#f2f6fb}
-.company{color:#c8d7e7;font-weight:750;font-size:11px;margin-bottom:4px}
-.meta{color:#7f93ac;font-size:10px;overflow-wrap:anywhere;line-height:1.45}
-.badge{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:850;white-space:nowrap}
-.ready{background:#0d4637;color:#6de9b8}
-.applied{background:#173b69;color:#80bcff}
+.row:not(.head):hover{background:#0e1c2d}
+.row.head{background:#101f31;color:#9fb0c7;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding-top:12px;padding-bottom:12px;font-weight:500}
+.jobInfo,.statusCell,.row>div{min-width:0}
+.title{font-weight:800;color:#f3f7fc;font-size:13px;line-height:1.3;margin-bottom:6px;overflow-wrap:anywhere}
+.meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#8fa0b8;font-size:11px;line-height:1.4}
+.meta .company{color:#b9c8da;font-weight:700;margin:0}
+.metaDot{color:#40536b}
+.created{color:#a9b8ca;line-height:1.35;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
+.ready{background:#0d4637;color:#62e5b0}
+.applied{background:#173b69;color:#74b4ff}
 .warn{background:#493a1d;color:#ffd48b}
-.actions{display:flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end;align-items:center;white-space:nowrap}.actions .btn{flex:0 0 auto;padding:7px 10px;font-size:10px;white-space:nowrap}
+.actions{display:grid;grid-template-columns:82px 94px 106px 36px;gap:6px;align-items:center;justify-content:end;width:100%}
+.actions>.btn,.actions>.badge{height:32px;display:flex;align-items:center;justify-content:center;padding:0 8px}
+.actions .primary{min-width:0}
+.actions .applied{margin:0}
+.menuWrap{position:relative;width:36px}
+.actions .menuWrap>.btn{width:36px;height:32px;padding:0}
+.menu{display:none;position:absolute;right:0;top:37px;background:#102033;border:1px solid #2a4058;padding:6px;border-radius:8px;z-index:20;box-shadow:0 10px 30px #0008}
+.menu.open{display:block}
+.deleteBtn{color:#ff8f91}
 .empty{padding:34px 20px;text-align:center;color:#7589a1}
 .empty b{display:block;color:#b9c7d7;font-size:12px;margin-bottom:5px}
-.attentionRow{grid-template-columns:minmax(260px,1fr) 155px minmax(300px,1fr) minmax(280px,auto)}
+.attentionRow{grid-template-columns:minmax(260px,1fr) 150px minmax(300px,1fr) minmax(250px,300px)}
+.attentionRow .actions{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
 .reason{color:#c7b792;font-size:10px;line-height:1.5}
 .footerNote{color:#72869d;font-size:10px;text-align:right;margin-top:2px}
-@media(max-width:1280px){
-  .app{grid-template-columns:1fr}.side{height:auto;position:static;border-right:0;border-bottom:1px solid #1a2a3d;padding:14px}
-  .brand{padding:0 4px 13px}.nav{display:flex}.main{padding-top:18px}
-  .row{grid-template-columns:1fr 125px}.row>div:last-child{grid-column:1/-1}.actions{justify-content:flex-start}
-  .attentionRow{grid-template-columns:1fr 150px}.attentionRow>div:nth-child(3),.attentionRow>div:last-child{grid-column:1/-1}
+@media(max-width:1200px){
+  .app{grid-template-columns:180px minmax(0,1fr)}
+  .row{grid-template-columns:minmax(220px,1fr) 120px 155px 330px;column-gap:12px}
+  .actions{grid-template-columns:76px 88px 100px 34px;gap:5px}
+  .actions .menuWrap>.btn,.menuWrap{width:34px}
+  .btn{font-size:9.5px}
+  .attentionRow{grid-template-columns:minmax(220px,1fr) 130px minmax(260px,1fr) 260px}
 }
-@media(max-width:760px){
-  .main{padding:14px 12px 30px}.top{display:block}.flowTag{display:none}.top h1{font-size:23px}
+@media(max-width:980px){
+  .app{grid-template-columns:1fr}.side{height:auto;position:relative;border-right:0;border-bottom:1px solid #1a2a3d;padding:11px 14px}
+  .brand{padding:0 4px 10px;font-size:18px}.nav{display:flex;gap:6px;overflow-x:auto}.nav a{flex:0 0 auto;padding:8px 10px}.main{padding:16px}
+  .row{grid-template-columns:minmax(200px,1fr) 120px 150px}.row.head>div:last-child{display:none}.row>div:last-child{grid-column:1/-1}
+  .actions{justify-content:start;width:auto;grid-template-columns:82px 94px 106px 36px;margin-top:2px}
+  .attentionRow{grid-template-columns:1fr 140px}.attentionRow>div:nth-child(3),.attentionRow>div:last-child{grid-column:1/-1}.attentionRow .actions{justify-content:flex-start}
+}
+@media(max-width:650px){
+  .main{padding:10px}.top{display:block}.flowTag{display:none}.top h1{font-size:20px}
   .entryTop{display:block}.entryHint{margin-top:4px}.stats{grid-template-columns:repeat(2,1fr)}
-  .stat:last-child{grid-column:1/-1}.row,.attentionRow{display:block}.row.head{display:none}.row>div{margin-bottom:9px}.actions{margin-bottom:0}
-  .processingPill{margin-left:0}.pipeline{padding-bottom:2px}.footerNote{text-align:left}
+  .stat:last-child{grid-column:1/-1}.row,.attentionRow{display:block}.row.head{display:none}.row>div{margin-bottom:7px}.row>div:last-child{margin-bottom:0}
+  .title{font-size:14px}.actions{margin-top:9px;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .actions .menuWrap{width:100%}.actions .menuWrap>.btn{width:100%}.actions>.btn,.actions>.badge,.actions .menuWrap>.btn{height:36px}
+  .menu{left:0;right:auto;top:40px}.attentionRow .actions{display:flex;flex-wrap:wrap}.processingPill{margin-left:0}.pipeline{padding-bottom:2px}.footerNote{text-align:left}
 }
 </style>
 </head>
@@ -1271,8 +1295,8 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
     </section>
 
     <section class="section">
-      <div class="sectionHead"><span>Ready to Apply</span><small>Completed resumes only</small></div>
-      <div class="row head"><div>Job</div><div>Status</div><div>Updated</div><div>Actions</div></div>
+      <div class="sectionHead"><span>Ready to Apply</span><span class="count" id="readyCount">Showing 0 jobs</span></div>
+      <div class="row head"><div>Job</div><div>Status</div><div>Applied Date</div><div>Actions</div></div>
       <div id="jobs"></div>
     </section>
     <div class="footerNote">Manual links bypass discovery only. ATS resolution, JD quality gates, resume tailoring, validation, and formatting remain shared with production.</div>
@@ -1309,9 +1333,11 @@ async function load(){
   }catch(e){}
 }
 function render(){
+  readyCount.textContent="Showing "+rows.length+" jobs";
   jobs.innerHTML=rows.map(r=>{
     let applied=r.application_status==="SUBMITTED_CONFIRMED";
-    return '<div class="row"><div><div class="title">'+esc(r.title||"Job opening")+'</div><div class="company">'+esc(r.company||"Company")+'</div><div class="meta">'+esc(ats(r))+(r.requisition_id?' · Req '+esc(r.requisition_id):'')+'</div></div><div><span class="badge '+(applied?'applied':'ready')+'">'+(applied?'Applied':'Ready to apply')+'</span></div><div>'+nice(r.updated_at)+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank" rel="noopener">View Resume</a>':'')+(!applied?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'')+'<button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
+    let meta=[ats(r),r.requisition_id?("Req "+r.requisition_id):"Manual link"].filter(Boolean);
+    return '<div class="row"><div class="jobInfo"><div class="title">'+esc(r.title||"Job opening")+'</div><div class="meta"><span class="company">'+esc(r.company||"Company")+'</span><span class="metaDot">•</span><span>'+esc(meta[0]||"Direct employer page")+'</span>'+(meta[1]?'<span class="metaDot">•</span><span>'+esc(meta[1])+'</span>':'')+'</div><div class="meta" style="margin-top:5px"><span>Updated '+esc(nice(r.updated_at))+'</span></div></div><div class="statusCell"><span class="badge '+(applied?'applied':'ready')+'">'+(applied?'Applied':'Ready to apply')+'</span></div><div class="created">'+(applied?nice(r.submitted_at||r.updated_at):"—")+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'<span></span>')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank" rel="noopener">View Resume</a>':'<span></span>')+(!applied?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'<span class="badge applied">✓ Applied</span>')+'<div class="menuWrap"><button class="btn" data-menu="1">•••</button><div class="menu"><button class="btn deleteBtn" data-delete="'+esc(r.key)+'">Delete</button></div></div></div></div>';
   }).join("")||'<div class="empty"><b>No completed resumes yet</b>Ready jobs will appear here automatically after extraction, tailoring, and validation finish.</div>';
 }
 function renderAttention(){
@@ -1330,6 +1356,9 @@ addBtn.onclick=async()=>{
 };
 refreshBtn.onclick=load;
 document.addEventListener("click",async e=>{
+  let menu=e.target.closest("[data-menu]");
+  if(menu){menu.nextElementSibling.classList.toggle("open");return}
+  if(!e.target.closest(".menuWrap"))document.querySelectorAll(".menu.open").forEach(x=>x.classList.remove("open"));
   let a=e.target.closest("[data-applied]");
   if(a){if(confirm("Mark this application as Applied?")){await fetch("/api/manual-links/"+encodeURIComponent(a.dataset.applied)+"/confirm-submitted",{method:"POST"});await load()}return}
   let retry=e.target.closest("[data-retry]");
