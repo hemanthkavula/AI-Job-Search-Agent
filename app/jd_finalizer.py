@@ -441,6 +441,18 @@ def resolve_full_jd(job):
     source=(job.get("source") or "").lower()
     lead_before_resolution=job.get("original_url") or job.get("url") or ""
     aggregator_origin=bool(job.get("discovery_only")) or source in JOB_BOARD_SOURCES or _is_aggregator_url(lead_before_resolution)
+
+    # A provider-native exact-detail resolver is stronger than a longer HTML
+    # shell. Recompute completeness after authoritative metadata enrichment so
+    # a clean API JD is never replaced merely because the public page contains
+    # more navigation/legal text.
+    if job.get("metadata_verified") and _looks_like_complete_jd(current,source) and not aggregator_origin:
+        job["description_complete"]=True
+        job["description_usable"]=True
+        job["description_length"]=len(current)
+        job["jd_signal_score"]=_jd_signal_score(current)
+        job["jd_resolution_source"]="authoritative_provider_detail"
+        return job
     if job.get("description_complete") and _looks_like_complete_jd(current,source) and not aggregator_origin:return job
     fetch_url=job.get("original_url") or job.get("url")
     page=_fetch_public_page(fetch_url)
