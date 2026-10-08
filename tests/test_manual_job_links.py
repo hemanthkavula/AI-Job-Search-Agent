@@ -506,23 +506,34 @@ def test_process_job_cleans_stale_portal_company_before_resume(monkeypatch, isol
     assert seen["force_jd_tailoring"] is True
 
 
-def test_partial_manual_jd_is_not_sent_to_resume_pipeline(monkeypatch, isolated):
+def test_partial_verified_manual_jd_uses_master_resume_without_llm(monkeypatch, isolated):
     row = manual.add_links(["https://example.com/1"])[0]
-    state = manual._load_state()
-    state["jobs"][row["key"]].update({
-        "company": "Edited Co", "title": "Data Engineer", "description": "pasted jd",
-        "description_usable": True, "description_complete": False, "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
+    raw = _usable_raw("https://example.com/1")
+    raw.update({
+        "company_verified": True,
+        "title_verified": True,
+        "description_usable": True,
+        "description_complete": False,
+        "tailoring_mode": "BASE_RESUME_CONSERVATIVE",
     })
-    manual._save_state(state)
-    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: pytest.fail("should not refetch edited JD"))
-    monkeypatch.setattr(
-        manual,
-        "run_shared_resume_pipeline",
-        lambda raw: pytest.fail("partial manual JD must not generate a resume"),
-    )
+    monkeypatch.setattr(manual, "fetch_manual_job", lambda url: raw)
+    seen = {}
+    def fake_resume(payload):
+        seen.update(payload)
+        return {
+            "next_action": "READY_TO_APPLY",
+            "resume_path": None,
+            "pdf_path": None,
+            "ats_audit": {"passed": True},
+            "artifact_validation": {"passed": True},
+        }
+    monkeypatch.setattr(manual, "run_shared_resume_pipeline", fake_resume)
     got = manual.process_job(row["key"])
-    assert got["status"] == "IGNORED_INCOMPLETE_JD"
-    assert manual._load_state()["jobs"][row["key"]]["ignore_reason"]
+    assert got["status"] == "READY_TO_APPLY"
+    assert got["resume_source_label"] == "MASTER_RESUME_FALLBACK"
+    assert seen["force_jd_tailoring"] is False
+    assert seen["tailoring_mode"] == "BASE_RESUME_CONSERVATIVE"
+    assert manual.batch_prepare._should_use_master_resume(seen, {"target_count": 6}) is True
 
 
 def test_blocked_page_with_no_usable_jd_is_ignored(monkeypatch, isolated):
