@@ -219,7 +219,12 @@ Return valid JSON only using this schema:
 }
 """
 
-CACHE_DIR = Path("generated") / "llm_resume_cache"
+CACHE_DIR = Path(os.getenv("RESUME_LLM_CACHE_DIR", str(Path("generated") / "llm_resume_cache")))
+USAGE_LOG_PATH = Path(os.getenv("RESUME_LLM_USAGE_LOG", str(Path("generated") / "llm_resume_usage.jsonl")))
+DEFAULT_MODEL = "gpt-6.1-sol"
+DEFAULT_SERVICE_TIER = "flex"
+DEFAULT_REASONING_EFFORT = "medium"
+DEFAULT_MAX_OUTPUT_TOKENS = 8000
 
 
 def _fixed_facts_for_prompt() -> dict:
@@ -276,14 +281,14 @@ def build_prompt(job, profile=None, audit_feedback=None, coverage_plan=None):
             "Create a strong JD-specific data-engineering resume. Tailor Fidelity primarily, preserve historically credible "
             "Cigna/Target baselines, and keep the master Word layout compact."
         ),
+        "candidate_fixed_personal_history": _fixed_facts_for_prompt(),
+        "master_resume_technical_baseline": _master_technical_baseline(),
+        "authorized_employer_domain_context": EMPLOYER_DOMAIN_CONTEXT,
         "job": {
             "company": job.company,
             "title": job.title,
             "description": job.description,
         },
-        "candidate_fixed_personal_history": _fixed_facts_for_prompt(),
-        "master_resume_technical_baseline": _master_technical_baseline(),
-        "authorized_employer_domain_context": EMPLOYER_DOMAIN_CONTEXT,
         "pre_generation_coverage_plan": coverage_plan,
         "jd_evidence_policy": {
             "mode": policy.get("mode"),
@@ -598,6 +603,18 @@ def _normalize_experience(raw_experience, normalized_skills: dict) -> list[dict]
         company = master_row["company"]
         item = source.get(company, {"company": company})
         bullets = [str(value).strip() for value in (item.get("bullets") or []) if str(value).strip()]
+        expected_count = len(master_row["bullets"])
+
+        if company == "Fidelity Investments":
+            # Structural correctness is deterministic. Never spend another full
+            # model call merely because the model returned the wrong bullet count.
+            bullets = bullets[:expected_count]
+            if len(bullets) < expected_count:
+                for fallback in master_row["bullets"]:
+                    if fallback not in bullets:
+                        bullets.append(fallback)
+                    if len(bullets) >= expected_count:
+                        break
 
         if company in OLDER_EMPLOYERS:
             if len(bullets) != len(master_row["bullets"]):
@@ -804,7 +821,13 @@ def _extract_output_text(payload):
 
 def _cache_key(model, prompt):
     payload = json.dumps(
-        {"model": model, "instructions": SYSTEM_PROMPT, "prompt": prompt},
+        {
+            "model": model,
+            "reasoning_effort": os.getenv("RESUME_LLM_REASONING_EFFORT", DEFAULT_REASONING_EFFORT),
+            "max_output_tokens": int(os.getenv("RESUME_LLM_MAX_OUTPUT_TOKENS", str(DEFAULT_MAX_OUTPUT_TOKENS))),
+            "instructions": SYSTEM_PROMPT,
+            "prompt": prompt,
+        },
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -831,12 +854,65 @@ def _write_cache(cache_key, value):
     tmp.replace(path)
 
 
+def _response_request_body(model: str, prompt: dict) -> bytes:
+    reasoning_effort = os.getenv("RESUME_LLM_REASONING_EFFORT", DEFAULT_REASONING_EFFORT)
+    service_tier = os.getenv("RESUME_LLM_SERVICE_TIER", DEFAULT_SERVICE_TIER)
+    max_output_tokens = int(os.getenv("RESUME_LLM_MAX_OUTPUT_TOKENS", str(DEFAULT_MAX_OUTPUT_TOKENS)))
+    return json.dumps(
+        {
+            "model": model,
+            "instructions": SYSTEM_PROMPT,
+            "input": json.dumps(prompt),
+            "reasoning": {"effort": reasoning_effort},
+            "service_tier": service_tier,
+            "max_output_tokens": max_output_tokens,
+            "text": {"format": {"type": "json_object"}},
+            "prompt_cache_options": {"ttl": "30m"},
+        }
+    ).encode("utf-8")
+
+
+def _log_response_usage(payload: dict, *, model: str, cache_key: str, request_kind: str) -> None:
+    usage = payload.get("usage") or {}
+    if not usage:
+        return
+    input_details = usage.get("input_tokens_details") or {}
+    output_details = usage.get("output_tokens_details") or {}
+    record = {
+        "model": model,
+        "service_tier": payload.get("service_tier") or os.getenv("RESUME_LLM_SERVICE_TIER", DEFAULT_SERVICE_TIER),
+        "reasoning_effort": os.getenv("RESUME_LLM_REASONING_EFFORT", DEFAULT_REASONING_EFFORT),
+        "request_kind": request_kind,
+        "cache_key": cache_key[:12],
+        "input_tokens": usage.get("input_tokens"),
+        "cached_input_tokens": input_details.get("cached_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "reasoning_tokens": output_details.get("reasoning_tokens"),
+        "total_tokens": usage.get("total_tokens"),
+    }
+    try:
+        USAGE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with USAGE_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    print(
+        "Resume LLM usage | "
+        f"model={record['model']} | tier={record['service_tier']} | "
+        f"effort={record['reasoning_effort']} | kind={request_kind} | "
+        f"input={record['input_tokens']} | cached={record['cached_input_tokens']} | "
+        f"output={record['output_tokens']} | reasoning={record['reasoning_tokens']} | "
+        f"total={record['total_tokens']}",
+        flush=True,
+    )
+
+
 def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None):
     key = os.getenv("OPENAI_API_KEY") or os.getenv("RESUME_LLM_API_KEY")
     if not key:
         return None
     endpoint = os.getenv("RESUME_LLM_ENDPOINT", "https://api.openai.com/v1/responses")
-    model = os.getenv("RESUME_LLM_MODEL", "gpt-5.6-sol")
+    model = os.getenv("RESUME_LLM_MODEL", DEFAULT_MODEL)
     prompt = build_prompt(job, profile, audit_feedback, coverage_plan)
     cache_key = _cache_key(model, prompt)
     cached = _read_cache(cache_key)
@@ -845,14 +921,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         return _normalize_generated_resume(cached, job)
 
     print(f"Resume LLM cache MISS | {cache_key[:12]} | calling API", flush=True)
-    body = json.dumps(
-        {
-            "model": model,
-            "instructions": SYSTEM_PROMPT,
-            "input": json.dumps(prompt),
-            "max_output_tokens": 14000,
-        }
-    ).encode("utf-8")
+    body = _response_request_body(model, prompt)
     req = request.Request(
         endpoint,
         data=body,
@@ -862,6 +931,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
     try:
         with request.urlopen(req, timeout=180) as response:
             payload = json.loads(response.read().decode("utf-8"))
+        _log_response_usage(payload, model=model, cache_key=cache_key, request_kind="initial")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"OpenAI API HTTP {exc.code}: {detail}") from exc
@@ -890,14 +960,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
             "Fix the Professional Summary specifically: return one substantial 100-140 word prose paragraph "
             "with 4-6 complete sentences and enough senior Data Engineer substance. Do not return summary bullets or fragments."
         )
-        retry_body = json.dumps(
-            {
-                "model": model,
-                "instructions": SYSTEM_PROMPT,
-                "input": json.dumps(retry_prompt),
-                "max_output_tokens": 14000,
-            }
-        ).encode("utf-8")
+        retry_body = _response_request_body(model, retry_prompt)
         retry_req = request.Request(
             endpoint,
             data=retry_body,
@@ -907,6 +970,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         try:
             with request.urlopen(retry_req, timeout=180) as response:
                 retry_payload = json.loads(response.read().decode("utf-8"))
+            _log_response_usage(retry_payload, model=model, cache_key=cache_key, request_kind="summary_retry")
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"OpenAI API summary retry HTTP {exc.code}: {detail}") from exc
@@ -923,6 +987,7 @@ def generate_with_llm(job, profile=None, audit_feedback=None, coverage_plan=None
         if remaining:
             raise RuntimeError("Generated Professional Summary failed quality contract after retry: " + "; ".join(remaining))
 
-    result = _normalize_generated_resume(result, job)
+    # Cache the successful model response before deterministic normalization
+    # and rendering. A later layout/PDF failure must never buy the same generation again.
     _write_cache(cache_key, result)
-    return result
+    return _normalize_generated_resume(result, job)
