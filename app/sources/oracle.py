@@ -1,6 +1,6 @@
 from __future__ import annotations
 import html, json, re
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse, urlencode, quote
 from urllib.request import Request, urlopen
 
 UA={"User-Agent":"Mozilla/5.0","Accept":"application/json,text/plain,*/*"}
@@ -55,6 +55,117 @@ def _job_url(base_url: str, row: dict) -> str:
     ident=str(row.get("id") or row.get("requisitionId") or row.get("requisitionNumber") or "")
     lang=str(row.get("contentLocale") or "en")
     return f"{base_url.rstrip('/')}/job/{ident}" if ident else f"{base_url.rstrip('/')}/requisitions"
+
+
+def _detail_url_parts(url: str) -> tuple[str, str, str] | None:
+    """Return Candidate Experience base URL, public site slug, and exact job id."""
+    parsed=urlparse(url or "")
+    match=re.search(
+        r"(/hcmUI/CandidateExperience/[^/]+/sites/([^/]+))/job/([^/?#]+)",
+        parsed.path or "",
+        re.I,
+    )
+    if not match:
+        return None
+    origin=f"{parsed.scheme}://{parsed.netloc}"
+    return origin+match.group(1), match.group(2), match.group(3)
+
+
+def _detail_payload(api_base: str, job_id: str, timeout: int) -> dict:
+    """Fetch the external-candidate requisition detail instead of the short search blurb."""
+    resource="/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetailsPreviews"
+    ident=quote(str(job_id),safe="")
+    urls=[
+        f"{api_base.rstrip('/')}{resource}/{ident}?onlyData=true",
+        f"{api_base.rstrip('/')}{resource}?onlyData=true&q="+quote(f"RequisitionId={job_id}",safe="=()'"),
+    ]
+    last_error=None
+    for url in urls:
+        try:
+            payload=json.loads(_get(url,timeout))
+        except Exception as exc:
+            last_error=exc
+            continue
+        if isinstance(payload,dict):
+            items=payload.get("items")
+            if isinstance(items,list) and items and isinstance(items[0],dict):
+                return items[0]
+            # Item endpoints return the requisition object directly.
+            if any(payload.get(k) for k in (
+                "ExternalDescriptionStr","ExternalResponsibilitiesStr","ExternalQualificationsStr",
+                "Title","RequisitionId","ShortDescriptionStr",
+            )):
+                return payload
+    if last_error:
+        raise RuntimeError(f"Oracle exact job detail failed: {type(last_error).__name__}:{last_error}")
+    return {}
+
+
+def _full_description(row: dict) -> tuple[str, bool]:
+    sections=[]
+    values=(
+        ("Summary",row.get("ShortDescriptionStr") or row.get("ShortDescription")),
+        ("Description",row.get("ExternalDescriptionStr") or row.get("ExternalDescription")),
+        ("Responsibilities",row.get("ExternalResponsibilitiesStr") or row.get("ExternalResponsibilities")),
+        ("Qualifications",row.get("ExternalQualificationsStr") or row.get("ExternalQualifications")),
+    )
+    seen=set()
+    strong_sections=0
+    for label,value in values:
+        text=_plain(str(value or ""))
+        key=text.lower()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        if label in {"Description","Responsibilities","Qualifications"} and len(text)>=80:
+            strong_sections+=1
+        sections.append(f"{label}: {text}" if label!="Summary" else text)
+    description="\n\n".join(sections).strip()
+    complete=len(description)>=500 and strong_sections>=2
+    return description,complete
+
+
+def fetch_job(company: str, url: str, timeout: int = 20) -> dict | None:
+    """Resolve one Oracle Recruiting Cloud detail URL through Oracle's exact-detail API."""
+    parts=_detail_url_parts(url)
+    if not parts:
+        return None
+    base_url,site_slug,public_job_id=parts
+    try:
+        site_number,api_base=_page_config(base_url,timeout)
+        row=_detail_payload(api_base,public_job_id,timeout)
+    except Exception:
+        return None
+    if not row:
+        return None
+    description,complete=_full_description(row)
+    title=_plain(str(row.get("Title") or row.get("OtherRequisitionTitle") or row.get("RequisitionTitle") or ""))
+    if not title or len(description)<180:
+        return None
+    requisition_id=str(row.get("RequisitionId") or row.get("Id") or public_job_id)
+    location=_plain(str(row.get("PrimaryLocation") or row.get("Location") or ""))
+    return {
+        "external_id":f"oracle:{company}:{requisition_id}",
+        "source":"oracle",
+        "company_key":company,
+        "title":title,
+        "location":location or None,
+        "url":url,
+        "original_url":url,
+        "ats_provider":"oracle",
+        "ats_identifier":base_url,
+        "ats_tenant":site_slug,
+        "site_number":site_number,
+        "job_id":requisition_id,
+        "requisition_id":requisition_id,
+        "employment_type":row.get("WorkerType") or row.get("ContractType"),
+        "posted_at":row.get("ExternalPostedStartDate"),
+        "updated_at":row.get("ExternalPostedStartDate") or row.get("ExternalPostedEndDate"),
+        "description":description,
+        "description_complete":bool(complete),
+        "exact_job_metadata_source":"oracle_exact_api",
+    }
+
 
 def fetch_jobs(company: str, base_url: str, timeout: int = 20) -> list[dict]:
     site,api_base=_page_config(base_url,timeout)
