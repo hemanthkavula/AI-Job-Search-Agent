@@ -19,7 +19,7 @@ from app.resume_tailoring_policy import determine_tailoring_policy
 
 load_dotenv()
 
-MAX_RESUME_ATTEMPTS = 3
+MAX_RESUME_ATTEMPTS = 2
 DRAFT_RESUME_DIR = "generated/.resume_drafts"
 FINAL_RESUME_DIR = "generated/resumes"
 
@@ -204,7 +204,7 @@ def _render_error_feedback(exc):
     return {
         "render_error": str(exc),
         "retry_instruction": (
-            "Correct the structural or layout error. Return two concise summary paragraphs, "
+            "Correct the structural or layout error. Return one substantial 100-140 word summary paragraph, "
             f"compact Technical Skills categories, exactly {_bullet_contract_text()}, "
             "plus a concise skills_used technology list for each employer. "
             "Do not return Environment paragraphs. Keep each bullet to one concise engineering "
