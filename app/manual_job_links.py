@@ -1028,6 +1028,7 @@ def api_list():
     return {
         "jobs": visible,
         "current": current,
+        "processing_jobs": processing_rows,
         "attention": terminal_hidden[:20:],
         "counts": {
             "total": len(all_rows),
@@ -1182,6 +1183,12 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
 .stat span{color:#95a7bd;font-size:10px;text-transform:uppercase;letter-spacing:.055em;font-weight:800}
 .stat b{display:block;font-size:23px;line-height:1;margin-top:9px;letter-spacing:-.4px}
 .stat.attention b{color:var(--amber)}
+.tabsbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:0 0 14px}
+.tabs{display:flex;gap:7px;overflow:auto;min-width:0}
+.tab{border:1px solid #263950;background:#0d1a2b;color:#aebdd0;border-radius:8px;padding:9px 13px;white-space:nowrap;cursor:pointer;font-weight:700}
+.tab.active{background:#2684ff;color:#fff;border-color:#2684ff}
+.filters{display:flex;gap:7px;flex:0 0 auto}
+.filters input{background:#0d1a2b;border:1px solid #263950;color:#dce6f4;border-radius:8px;padding:9px 11px;min-width:145px}
 .section{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:visible}
 .section.hidden{display:none}
 .sectionHead{padding:14px 16px;border-bottom:1px solid #1d3044;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -1226,6 +1233,7 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
 @media(max-width:980px){
   .app{grid-template-columns:1fr}.side{height:auto;position:relative;border-right:0;border-bottom:1px solid #1a2a3d;padding:11px 14px}
   .brand{padding:0 4px 10px;font-size:18px}.nav{display:flex;gap:6px;overflow-x:auto}.nav a{flex:0 0 auto;padding:8px 10px}.main{padding:16px}
+  .tabsbar{align-items:stretch;flex-direction:column}.filters{width:100%}.filters>*{flex:1}
   .row{grid-template-columns:minmax(200px,1fr) 120px 150px}.row.head>div:last-child{display:none}.row>div:last-child{grid-column:1/-1}
   .actions{justify-content:start;width:auto;grid-template-columns:82px 94px 106px 36px;margin-top:2px}
   .attentionRow{grid-template-columns:1fr 140px}.attentionRow>div:nth-child(3),.attentionRow>div:last-child{grid-column:1/-1}.attentionRow .actions{justify-content:flex-start}
@@ -1233,6 +1241,7 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
 @media(max-width:650px){
   .main{padding:10px}.top{display:block}.flowTag{display:none}.top h1{font-size:20px}
   .entryTop{display:block}.entryHint{margin-top:4px}.stats{grid-template-columns:repeat(2,1fr)}
+  .filters{display:grid;grid-template-columns:1fr}.tabs{width:100%}
   .stat:last-child{grid-column:1/-1}.row,.attentionRow{display:block}.row.head{display:none}.row>div{margin-bottom:7px}.row>div:last-child{margin-bottom:0}
   .title{font-size:14px}.actions{margin-top:9px;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
   .actions .menuWrap{width:100%}.actions .menuWrap>.btn{width:100%}.actions>.btn,.actions>.badge,.actions .menuWrap>.btn{height:36px}
@@ -1288,6 +1297,11 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
       <div class="stat attention"><span>Needs attention</span><b id="attentionCount">0</b></div>
     </section>
 
+    <div class="tabsbar">
+      <div class="tabs" id="dateTabs"></div>
+      <div class="filters"><input id="datePicker" type="date" aria-label="Select manual job date"></div>
+    </div>
+
     <section class="section" id="attentionSection">
       <div class="sectionHead"><span>Needs Attention</span><small>Failed or incomplete links stay visible here instead of disappearing</small></div>
       <div class="row head attentionRow"><div>Job</div><div>Status</div><div>What happened</div><div>Actions</div></div>
@@ -1295,7 +1309,7 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
     </section>
 
     <section class="section">
-      <div class="sectionHead"><span>Ready to Apply</span><span class="count" id="readyCount">Showing 0 jobs</span></div>
+      <div class="sectionHead"><span id="readyTitle">Ready to Apply</span><span class="count" id="readyCount">Showing 0 jobs</span></div>
       <div class="row head"><div>Job</div><div>Status</div><div>Applied Date</div><div>Actions</div></div>
       <div id="jobs"></div>
     </section>
@@ -1304,8 +1318,22 @@ textarea:focus{border-color:#4b8bf0;box-shadow:0 0 0 3px rgba(75,139,240,.13)}
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let rows=[],attentionRows=[];
+let rows=[],attentionRows=[],processingRows=[],selectedDate=null;
 function nice(v){let d=new Date(v);return!v||isNaN(d)?"—":d.toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
+function dateKey(v){
+  if(!v)return "";
+  let d=v instanceof Date?v:new Date(v);if(isNaN(d))return String(v).slice(0,10);
+  let parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
+  let o=Object.fromEntries(parts.map(x=>[x.type,x.value]));return o.year+"-"+o.month+"-"+o.day;
+}
+function labelDate(k){let d=new Date(k+"T12:00:00");return d.toLocaleDateString([],{month:"short",day:"numeric"})}
+function rowDate(r){return dateKey(r.created_at||r.updated_at||r.submitted_at)}
+function inSelectedDate(r){return !selectedDate||rowDate(r)===selectedDate}
+function renderDateTabs(){
+  let today=dateKey(new Date());if(selectedDate===null)selectedDate=today;
+  dateTabs.innerHTML='<button class="tab '+(selectedDate===today?"active":"")+'" data-date="'+today+'">Today</button><button class="tab '+(!selectedDate?"active":"")+'" data-all-dates="1">All Dates</button><button class="tab" data-prev="1">← Previous</button><button class="tab" data-next="1">Next →</button>';
+  datePicker.value=selectedDate||"";
+}
 function ats(r){let label=r.ats_label||((r.ats_provider||"Direct employer page").replaceAll("_"," "));return r.ats_tenant?label+" · "+r.ats_tenant:label}
 function labelStatus(v){return String(v||"Needs attention").replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase())}
 function reason(r){return r.ignore_reason||r.error||((r.status||"").includes("INCOMPLETE")?"The exact job metadata or full JD could not be verified.":"This link did not complete the production quality gates.")}
@@ -1325,23 +1353,28 @@ function syncBatch(d){
 async function load(){
   try{
     let d=await fetch("/api/manual-links",{cache:"no-store"}).then(r=>r.json());
-    rows=d.jobs||[];attentionRows=d.attention||[];
-    total.textContent=d.counts?.total||0;ready.textContent=d.counts?.ready||0;applied.textContent=d.counts?.applied||0;
-    attentionCount.textContent=d.counts?.hidden_terminal||0;
-    attentionSection.classList.toggle("hidden",attentionRows.length===0);
-    syncBatch(d);render();renderAttention();
+    rows=d.jobs||[];attentionRows=d.attention||[];processingRows=d.processing_jobs||[];
+    renderDateTabs();syncBatch(d);render();renderAttention();
   }catch(e){}
 }
 function render(){
-  readyCount.textContent="Showing "+rows.length+" jobs";
-  jobs.innerHTML=rows.map(r=>{
+  let visibleRows=rows.filter(inSelectedDate),visibleAttention=attentionRows.filter(inSelectedDate),visibleProcessing=processingRows.filter(inSelectedDate);
+  let appliedRows=visibleRows.filter(r=>r.application_status==="SUBMITTED_CONFIRMED");
+  let readyRows=visibleRows.filter(r=>r.application_status!=="SUBMITTED_CONFIRMED");
+  total.textContent=visibleRows.length+visibleAttention.length+visibleProcessing.length;
+  ready.textContent=readyRows.length;applied.textContent=appliedRows.length;processing.textContent=visibleProcessing.length;attentionCount.textContent=visibleAttention.length;
+  readyTitle.textContent=selectedDate?("Ready to Apply — "+labelDate(selectedDate)):"Ready to Apply — All Dates";
+  readyCount.textContent="Showing "+visibleRows.length+" jobs";
+  jobs.innerHTML=visibleRows.map(r=>{
     let applied=r.application_status==="SUBMITTED_CONFIRMED";
     let meta=[ats(r),r.requisition_id?("Req "+r.requisition_id):"Manual link"].filter(Boolean);
     return '<div class="row"><div class="jobInfo"><div class="title">'+esc(r.title||"Job opening")+'</div><div class="meta"><span class="company">'+esc(r.company||"Company")+'</span><span class="metaDot">•</span><span>'+esc(meta[0]||"Direct employer page")+'</span>'+(meta[1]?'<span class="metaDot">•</span><span>'+esc(meta[1])+'</span>':'')+'</div><div class="meta" style="margin-top:5px"><span>Updated '+esc(nice(r.updated_at))+'</span></div></div><div class="statusCell"><span class="badge '+(applied?'applied':'ready')+'">'+(applied?'Applied':'Ready to apply')+'</span></div><div class="created">'+(applied?nice(r.submitted_at||r.updated_at):"—")+'</div><div class="actions">'+(r.url?'<a class="btn primary" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'<span></span>')+(r.resume_url?'<a class="btn" href="'+esc(r.resume_url)+'" target="_blank" rel="noopener">View Resume</a>':'<span></span>')+(!applied?'<button class="btn" data-applied="'+esc(r.key)+'">✓ Mark Applied</button>':'<span class="badge applied">✓ Applied</span>')+'<div class="menuWrap"><button class="btn" data-menu="1">•••</button><div class="menu"><button class="btn deleteBtn" data-delete="'+esc(r.key)+'">Delete</button></div></div></div></div>';
   }).join("")||'<div class="empty"><b>No completed resumes yet</b>Ready jobs will appear here automatically after extraction, tailoring, and validation finish.</div>';
 }
 function renderAttention(){
-  attentionJobs.innerHTML=attentionRows.map(r=>{
+  let visibleAttention=attentionRows.filter(inSelectedDate);
+  attentionSection.classList.toggle("hidden",visibleAttention.length===0);
+  attentionJobs.innerHTML=visibleAttention.map(r=>{
     return '<div class="row attentionRow"><div><div class="title">'+esc(r.title||"Unresolved job")+'</div><div class="company">'+esc(r.company||"Company not verified")+'</div><div class="meta">'+esc(ats(r))+' · '+nice(r.updated_at)+'</div></div><div><span class="badge warn">'+esc(labelStatus(r.status))+'</span></div><div class="reason">'+esc(reason(r))+'</div><div class="actions">'+(r.url?'<a class="btn" href="'+esc(r.url)+'" target="_blank" rel="noopener">Open Job</a>':'')+'<button class="btn primary" data-retry="'+esc(r.key)+'">↻ Retry</button><button class="btn danger" data-delete="'+esc(r.key)+'">Delete</button></div></div>';
   }).join("");
 }
@@ -1375,6 +1408,20 @@ document.addEventListener("click",async e=>{
   let d=e.target.closest("[data-delete]");
   if(d){if(confirm("Delete only this manual job and its generated resume?")){await fetch("/api/manual-links/"+encodeURIComponent(d.dataset.delete),{method:"DELETE"});await load()}}
 });
+dateTabs.addEventListener("click",e=>{
+  let all=e.target.closest("[data-all-dates]");
+  if(all){selectedDate="";renderDateTabs();render();renderAttention();return}
+  let prev=e.target.closest("[data-prev]"),next=e.target.closest("[data-next]");
+  if(prev||next){
+    let base=selectedDate||dateKey(new Date()),d=new Date(base+"T12:00:00");
+    d.setDate(d.getDate()+(next?1:-1));
+    selectedDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    renderDateTabs();render();renderAttention();return;
+  }
+  let b=e.target.closest("[data-date]");
+  if(b){selectedDate=b.dataset.date;renderDateTabs();render();renderAttention()}
+});
+datePicker.addEventListener("change",()=>{selectedDate=datePicker.value||"";renderDateTabs();render();renderAttention()});
 load();setInterval(load,3000);
 </script>
 </body>
