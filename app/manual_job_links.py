@@ -129,10 +129,11 @@ def _verified_company(
     effective_url: str,
     submitted_url: str,
     raw_company: str | None,
-    resolved_site_name: str | None,
-    resolved_fallback: str | None,
-    initial_site_name: str | None,
-    initial_fallback: str | None,
+    raw_company_source: str | None = None,
+    resolved_site_name: str | None = None,
+    resolved_fallback: str | None = None,
+    initial_site_name: str | None = None,
+    initial_fallback: str | None = None,
 ) -> tuple[str, str]:
     """Return a company only when its source is strong or independently corroborated."""
     for value, source in (
@@ -144,7 +145,16 @@ def _verified_company(
             return clean, source
 
     raw_clean = _clean_company_label(raw_company)
-    if raw_clean:
+    raw_source = str(raw_company_source or "").lower()
+    trusted_provider_company = bool(raw_source) and any(
+        marker in raw_source
+        for marker in (
+            "exact", "_api", "public_detail", "public_posting",
+            "public_account", "embedded_opportunity", "details_jsonld",
+            "verified_employer_source_match",
+        )
+    )
+    if raw_clean and trusted_provider_company:
         raw_key = _company_compare_key(raw_clean)
         provider_key = _company_compare_key((provider or "").replace("_", " "))
         identifier_key = _company_compare_key(_slug_label(identifier))
@@ -507,6 +517,7 @@ def fetch_manual_job(url: str) -> dict:
         effective_url=effective,
         submitted_url=submitted,
         raw_company=raw.get("company_key") or raw.get("company"),
+        raw_company_source=authoritative_raw.get("metadata_resolution_source"),
         resolved_site_name=_meta(resolved_page, "og:site_name") if resolved_page else "",
         resolved_fallback=resolved_company_fallback,
         initial_site_name=_meta(page, "og:site_name") if page else "",
