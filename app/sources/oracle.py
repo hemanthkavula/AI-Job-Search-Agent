@@ -134,6 +134,31 @@ def _full_description(row: dict) -> tuple[str, bool]:
     return description,complete
 
 
+
+def _page_metadata_partial_job(company: str, url: str, public_job_id: str, timeout: int) -> dict | None:
+    """Exact Oracle job metadata fallback; an og:description excerpt is NEVER a full JD."""
+    try:
+        page=_get(url,timeout)
+    except Exception:
+        return None
+    def meta(key: str) -> str:
+        match=re.search(r'<meta\\s+[^>]*(?:name|property)=["\\']'+re.escape(key)+r'["\\'][^>]*content=["\\']([^"\\']*)',page,re.I)
+        return html.unescape(match.group(1)).strip() if match else ""
+    title=_plain(meta("og:title"))
+    desc=_plain(meta("og:description"))
+    org=_plain(meta("og:site_name")) or company
+    if not title or len(desc)<250 or not any(term in desc.lower() for term in ("data","engineer","analytics","responsibilities","experience","sql")):
+        return None
+    return {
+        "external_id":f"oracle:{org}:{public_job_id}",
+        "source":"oracle","company_key":org,"company":org,"title":title,
+        "url":url,"original_url":url,"ats_provider":"oracle",
+        "job_id":public_job_id,"requisition_id":public_job_id,
+        "description":desc,"description_complete":False,
+        "exact_job_metadata_source":"oracle_exact_page_og_partial",
+    }
+
+
 def fetch_job(company: str, url: str, timeout: int = 20) -> dict | None:
     """Resolve one Oracle Recruiting Cloud detail URL through Oracle's exact-detail API."""
     parts=_detail_url_parts(url)
@@ -158,9 +183,9 @@ def fetch_job(company: str, url: str, timeout: int = 20) -> dict | None:
     try:
         row=_detail_payload(api_base,public_job_id,timeout)
     except Exception:
-        return None
+        return _page_metadata_partial_job(company,url,public_job_id,timeout)
     if not row:
-        return None
+        return _page_metadata_partial_job(company,url,public_job_id,timeout)
     description,complete=_full_description(row)
     title=_plain(str(row.get("Title") or row.get("OtherRequisitionTitle") or row.get("RequisitionTitle") or ""))
     if not title or len(description)<180:
