@@ -322,6 +322,9 @@ def _save_state(data: dict) -> None:
 
 def _normalize_url(value: str) -> str:
     raw = (value or "").strip()
+    # A pasted Markdown-escaped link may have a single leading backslash.
+    if raw.startswith("\\http://") or raw.startswith("\\https://"):
+        raw = raw[1:]
     parsed = urlsplit(raw)
     if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
         raise ValueError("Job URL must use http:// or https://")
