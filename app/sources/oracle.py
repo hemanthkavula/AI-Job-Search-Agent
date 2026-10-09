@@ -12,10 +12,11 @@ def _get(url: str, timeout: int = 20) -> str:
         return resp.read().decode("utf-8","replace")
 
 def _plain(value: str) -> str:
-    value=html.unescape(value or "")
-    value=re.sub(r"<script[\\s\\S]*?</script>"," ",value,flags=re.I)
-    value=re.sub(r"<style[\\s\\S]*?</style>"," ",value,flags=re.I)
-    return re.sub(r"\\s+"," ",re.sub(r"<[^>]+>"," ",value)).strip()
+    """Normalize actual HTML markup and whitespace in Oracle job text."""
+    value=html.unescape(str(value or ""))
+    value=re.sub(r"<script[\s\S]*?</script>", " ", value, flags=re.I)
+    value=re.sub(r"<style[\s\S]*?</style>", " ", value, flags=re.I)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value)).strip()
 
 def _page_config(base_url: str, timeout: int) -> tuple[str,str]:
     body=_get(base_url.rstrip("/")+"/requisitions",timeout)
