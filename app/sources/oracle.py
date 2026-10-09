@@ -142,7 +142,7 @@ def _page_metadata_partial_job(company: str, url: str, public_job_id: str, timeo
     except Exception:
         return None
     def meta(key: str) -> str:
-        match=re.search(r'<meta\\s+[^>]*(?:name|property)=["\\']'+re.escape(key)+r'["\\'][^>]*content=["\\']([^"\\']*)',page,re.I)
+        match=re.search(r"""<meta\s+[^>]*(?:name|property)=["']"""+re.escape(key)+r"""["'][^>]*content=["']([^"']*)""",page,re.I)
         return html.unescape(match.group(1)).strip() if match else ""
     title=_plain(meta("og:title"))
     desc=_plain(meta("og:description"))
