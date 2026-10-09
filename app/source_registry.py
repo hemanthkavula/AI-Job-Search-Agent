@@ -57,7 +57,7 @@ PATTERNS={
  "personio":[r"https?://([^.]+)\.jobs\.personio\.(?:de|com)/",r"https?://([^.]+)\.jobs\.personio\.(?:de|com)/job/"],
  "eightfold":[r"https?://([^.]+)\.eightfold\.ai/"],
  "successfactors":[r"https?://[^/]*(?:successfactors|successfactors\.eu|successfactors\.com)/",r"https?://career[^/]*\.successfactors\."],
- "oracle":[r"https?://[^/]*oraclecloud\.com/hcmUI/CandidateExperience/",r"https?://[^/]*oraclecloud\.com/.*CandidateExperience/"],
+ "oracle":[r"https?://[^/]*oraclecloud\.com/hcmUI/CandidateExperience/",r"https?://[^/]*oraclecloud\.com/.*CandidateExperience/",r"https?://jobs\.ef\.com/(?:[^/]+/)?sites/[^/]+/job/\d+"],
  "ukg":[r"https?://[^/]*\.rec\.pro\.ukg\.net/",r"https?://recruiting\.ultipro\.com/"],
  "paycom":[r"https?://www\.paycomonline\.net/v4/ats/web\.php/",r"https?://www\.paycomonline\.net/v4/ats/"],
  "bullhorn":[r"https?://[^/]*bullhornstaffing\.com/",r"https?://public\.bullhornstaffing\.com/"],
