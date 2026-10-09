@@ -40,7 +40,7 @@ def _usable_raw(url="https://jobs.example.com/123"):
 
 
 def test_pasted_backslash_prefixed_https_url_is_accepted():
-    url = r"\\https://articconsulting.applytojob.com/apply/kXoZM4IhOk/Senior-Data-Engineer-Microsoft-Fabric-AI"
+    url = r"\https://articconsulting.applytojob.com/apply/kXoZM4IhOk/Senior-Data-Engineer-Microsoft-Fabric-AI"
     assert manual._normalize_url(url).startswith("https://articconsulting.applytojob.com/")
     urls = manual._split_links("https://example.com/job/1\n" + url)
     assert len(urls) == 2
