@@ -17,3 +17,8 @@ def test_oracle_exact_page_metadata_is_partial(monkeypatch):
 def test_oracle_rejects_generic_site_metadata(monkeypatch):
     monkeypatch.setattr("app.sources.oracle._get", lambda url,timeout: '<meta property="og:title" content="Careers"/><meta property="og:description" content="Welcome to jobs"/>')
     assert _page_metadata_partial_job("Unknown","https://jobs.ef.com/en/sites/ef/job/3515","3515",20) is None
+
+
+def test_oracle_plain_decodes_markup_and_normalizes_whitespace():
+    from app.sources.oracle import _plain
+    assert _plain("<p>SQL &amp; Python</p>\n <div>Data    Engineering</div>") == "SQL & Python Data Engineering"
